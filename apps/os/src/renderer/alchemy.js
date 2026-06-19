@@ -79,6 +79,7 @@ const CONST_PEOPLE_LINK_LS_KEY = "srwk:const_people_link"; // pinned people-map 
 const CONST_INTEREST_LS_KEY = "srwk:const_interest"; // source-backed ecosystem view: cluster record_id | "all"
 const CONST_GRANULARITY_LS_KEY = "srwk:const_granularity"; // bubble map grain: "themes" | "clusters" | "skills"
 const CONST_SIZE_LS_KEY = "srwk:const_size"; // bubble map size channel: "maturity" | "headcount" | "depended-on" | "even"
+const CONST_DOMAIN_FILTER_LS_KEY = "srwk:const_domain"; // bubble map colour isolate: "all" | "tee" | "ai" | "crypto" | "app-ux"
 const CONST_RAIL_LS_KEY = "srwk:const_rail_w"; // user-dragged inspector rail width (px); null = default clamp
 const CONST_RAIL_MIN = 220, CONST_RAIL_MAX = 480;
 function clampConstRail(v) {
@@ -280,6 +281,7 @@ const state = {
   constInterest: "all",       // map ecosystem focus: "all" or a cluster record_id from cohort-data/clusters
   constellationGranularity: "clusters", // bubble map grain: "themes" | "clusters" | "skills"
   constellationSizeBy: "maturity", // bubble map size channel; persisted to CONST_SIZE_LS_KEY
+  constDomainFilter: "all", // bubble map: isolate one domain colour; persisted to CONST_DOMAIN_FILTER_LS_KEY
   constRailW: null, // user-dragged inspector rail width in px (null = default clamp); CONST_RAIL_LS_KEY
   constGrainDeep: false,   // clusters grain, deepest zoom band: reveal ALL team labels at rest
   constGrainManual: false, // user picked a band-less grain ("skills"); zoom won't fight it until the next zoom gesture
@@ -336,8 +338,14 @@ export function mount(container) {
     state.constellationLens = constNormalizeConstellationLens(localStorage.getItem(CONST_LENS_LS_KEY));
     state.constEdgeTier = constNormalizeEdgeTier(localStorage.getItem(CONST_TIER_LS_KEY));
     state.constPeopleLinkFilter = constNormalizePeopleLinkFilter(localStorage.getItem(CONST_PEOPLE_LINK_LS_KEY));
-    state.constellationGranularity = constNormalizeGranularity(localStorage.getItem(CONST_GRANULARITY_LS_KEY));
+    const granLsRaw = localStorage.getItem(CONST_GRANULARITY_LS_KEY);
+    // Fresh default = themes: the map opens on the pulled-back overview (a few
+    // big spaces), then zooming in breaks themes → ecosystems → teams. A saved
+    // grain still wins so a returning user keeps the detail level they chose.
+    state.constellationGranularity = (granLsRaw != null && granLsRaw !== "")
+      ? constNormalizeGranularity(granLsRaw) : "themes";
     state.constellationSizeBy = constNormalizeSizeBy(localStorage.getItem(CONST_SIZE_LS_KEY));
+    state.constDomainFilter = constNormalizeDomainFilter(localStorage.getItem(CONST_DOMAIN_FILTER_LS_KEY));
     state.constRailW = clampConstRail(localStorage.getItem(CONST_RAIL_LS_KEY));
     const savedInterest = localStorage.getItem(CONST_INTEREST_LS_KEY);
     if (savedInterest) state.constInterest = savedInterest;
@@ -392,7 +400,12 @@ export function mount(container) {
       const timelineIdx = Number(timelineIdxRaw);
       if (Number.isFinite(timelineIdx)) state.constellationTimelineIdx = timelineIdx;
     }
-    state.cohortZoom = clampCohortZoom(localStorage.getItem(COHORT_ZOOM_LS_KEY));
+    const zoomLsRaw = localStorage.getItem(COHORT_ZOOM_LS_KEY);
+    // Fresh default zoom matches the default grain so the map opens coherently
+    // pulled back (themes band) rather than mid-zoom. A saved zoom still wins.
+    state.cohortZoom = (zoomLsRaw != null && zoomLsRaw !== "")
+      ? clampCohortZoom(zoomLsRaw)
+      : (state.constellationGranularity === "themes" ? grainToZoom("themes", false) : COHORT_ZOOM_DEFAULT);
     // Deep-detail is implied by zoom for the clusters grain; recompute from the
     // restored zoom so a reload keeps the all-labels-visible view.
     if (constNormalizeGranularity(state.constellationGranularity) === "clusters") {
@@ -2802,6 +2815,7 @@ function constSelectionChipHtml() {
   if (!sel) return "";
   const cohort = activeConstellationCohort();
   let name;
+  let verb = "selected";
   if (sel.type === "edge") {
     // An edge pinned on the map is otherwise invisible (and unclearable) on
     // the journey/stack views that show no inspector — exactly the trap this
@@ -2810,6 +2824,12 @@ function constSelectionChipHtml() {
     const fromName = teams.find(t => t.record_id === sel.from)?.name || sel.from || "source";
     const toName = teams.find(t => t.record_id === sel.to)?.name || sel.to || "target";
     name = `${fromName} → ${toName}`;
+  } else if (sel.type === "compare") {
+    const teams = cohort?.teams || [];
+    const an = teams.find(t => t.record_id === sel.a)?.name || sel.a || "a";
+    const bn = teams.find(t => t.record_id === sel.b)?.name || sel.b || "b";
+    name = `${an} ⇄ ${bn}`;
+    verb = "comparing";
   } else if (sel.type === "team" || sel.type === "person") {
     const rec = sel.type === "person"
       ? (cohort?.people || []).find(p => p.record_id === sel.rid)
@@ -2819,8 +2839,8 @@ function constSelectionChipHtml() {
     return "";
   }
   return `
-    <button type="button" class="ac-selection-chip" data-const-clear-selection aria-label="${escAttr(`clear selection: ${name}`)}">
-      <span>selected</span><strong>${escHtml(name)}</strong><i aria-hidden="true">×</i>
+    <button type="button" class="ac-selection-chip" data-const-clear-selection aria-label="${escAttr(`clear ${verb === "comparing" ? "comparison" : "selection"}: ${name}`)}">
+      <span>${verb}</span><strong>${escHtml(name)}</strong><i aria-hidden="true">×</i>
     </button>`;
 }
 
@@ -3078,6 +3098,41 @@ function constellationSentenceBar({ view = "bubble", scope = "projects", granula
       label: s.label, note: s.hint,
     })).join(""),
   });
+  // Colour key AS a filter (ported from the PMF "coloured by" token the bubble
+  // map borrows): at rest it shows the four domain swatches; pick one to isolate
+  // that colour (every other team dims on the map). The shade/rim = depended-on
+  // key moves to a faint tail so the colour control owns the legend slot.
+  const activeDomain = constNormalizeDomainFilter(state.constDomainFilter);
+  const domainCounts = new Map();
+  for (const t of (activeConstellationCohort()?.teams || [])) {
+    if (!t || !t.record_id || teamKind(t) === "person") continue;
+    const k = constDomainClass(t.domain);
+    if (k && k !== "other") domainCounts.set(k, (domainCounts.get(k) || 0) + 1);
+  }
+  const domSwatch = (k) => `<i class="acl-jswatch" style="background:${EGO_DOMAIN_FILL[k] || EGO_DOMAIN_FILL.other}" aria-hidden="true"></i>`;
+  const domOptions = [
+    `<button type="button" class="ac-sent-opt" data-const-domain="" role="option" aria-selected="${activeDomain === "all" ? "true" : "false"}">
+        <span class="ac-sent-opt-main"><b>any domain</b><small>show every colour</small></span>
+      </button>`,
+    ...CONST_DOMAIN_KEYS.map(k => {
+      const n = domainCounts.get(k) || 0;
+      const sel = activeDomain === k;
+      return `<button type="button" class="ac-sent-opt ac-jbn-opt" data-const-domain="${escAttr(k)}" role="option" aria-selected="${sel ? "true" : "false"}" aria-label="${escAttr(`colour by ${CONST_DOMAIN_LABEL[k] || k} — ${n} ${n === 1 ? "team" : "teams"}`)}">
+          <span class="ac-sent-opt-main"><b>${domSwatch(k)}${escHtml(CONST_DOMAIN_LABEL[k] || k)}</b></span>
+          <em>${escHtml(String(n))}</em>
+        </button>`;
+    }),
+  ].join("");
+  const domTokenInner = activeDomain !== "all"
+    ? `${domSwatch(activeDomain)}<span>${escHtml(CONST_DOMAIN_LABEL[activeDomain] || activeDomain)}</span>`
+    : `<span class="ac-jbn-legend" aria-hidden="true">${CONST_DOMAIN_KEYS.map(domSwatch).join("")}</span>`;
+  const domainUnit = `
+    <span class="ac-sent-unit">
+      <button type="button" class="ac-sent-tok ac-jbn-tok${activeDomain !== "all" ? " is-active" : ""}" data-sent-menu="constdomain" aria-haspopup="listbox" aria-expanded="false" aria-label="${escAttr(activeDomain !== "all" ? `coloured by ${CONST_DOMAIN_LABEL[activeDomain] || activeDomain} — click to change or clear` : "colour key: tee, ai, crypto, ux — click to isolate one domain")}">
+        ${domTokenInner}<i class="ac-sent-chev" aria-hidden="true"></i>
+      </button>
+      <div class="ac-sent-menu" data-sent-menu-for="constdomain" role="listbox" aria-label="isolate one domain colour" hidden>${domOptions}</div>
+    </span>`;
   return `
     <div class="ac-sentence" role="group" aria-label="bubble map controls">
       <span class="ac-sent-word">showing</span>
@@ -3086,7 +3141,9 @@ function constellationSentenceBar({ view = "bubble", scope = "projects", granula
       ${granUnit}
       <span class="ac-sent-word">sized by</span>
       ${sizeUnit}
-      <span class="ac-sent-legend">shade <b>depended-on</b> · ${[["tee", "tee"], ["ai", "ai"], ["crypto", "crypto"], ["app-ux", "ux"]].map(([k, lbl]) => `<i class="ac-dom-sw" style="background:${EGO_DOMAIN_FILL[k]}" aria-hidden="true"></i>${lbl}`).join(" ")}</span>
+      <span class="ac-sent-word">· coloured by</span>
+      ${domainUnit}
+      <span class="ac-sent-legend ac-sent-legend-tail">rim = <b>depended-on</b></span>
     </div>`;
 }
 // Multi-select include chip (journey's teams/projects/side toggles): the
@@ -5535,17 +5592,20 @@ function constTeamPreviewHtml(team, ctx) {
   const spaces = clusters.filter(c => Array.isArray(c.teams) && c.teams.includes(rid)).map(c => c.label || c.name || c.record_id);
   const dependedOn = (ctx?.inBy?.get(rid) || []).length;
   const stage = team?.journey?.stage;
-  const focus = constShortText(team.focus || team.now || "", 130);
+  const sector = CONST_DOMAIN_LABEL[constDomainClass(team.domain)] || "other";
+  // ONE succinct line: the sector they sit in + where they're heading — not a
+  // paragraph to read. Maturity / dependency fold into a faint tail beneath.
+  const heading = constShortText(team.focus || team.now || "", 84);
+  const tail = [
+    Number.isFinite(stage) ? `maturity ${stage}` : "",
+    dependedOn ? `${dependedOn} depend on it` : "",
+  ].filter(Boolean).join(" · ");
   return `
     <div class="ac-inspector-hero is-preview" data-const-team="${escAttr(rid)}">
-      <div class="ac-inspector-kicker">hovering — click to pin its intersections</div>
+      <div class="ac-inspector-kicker">hover · click to pin, then click another to compare</div>
       <h3>${escHtml(team.name || rid)}</h3>
-      <div class="ac-inspector-pills">
-        <span>${escHtml(CONST_DOMAIN_LABEL[constDomainClass(team.domain)] || "other")}</span>
-        ${Number.isFinite(stage) ? `<span>maturity ${escHtml(String(stage))}</span>` : ""}
-        <span>${dependedOn} depend on it</span>
-      </div>
-      ${focus ? `<p>${escHtml(focus)}</p>` : ""}
+      <p class="ac-preview-line"><span class="ac-preview-sector">${escHtml(sector)}</span>${heading ? ` — ${escHtml(heading)}` : ""}</p>
+      ${tail ? `<p class="ac-preview-tail">${escHtml(tail)}</p>` : ""}
     </div>
     <div class="ac-preview-spaces">
       <span class="ac-preview-k">in ${spaces.length} space${spaces.length === 1 ? "" : "s"}</span>
@@ -5727,6 +5787,11 @@ function constellationInspectorHeaderHtml(selection, ctx) {
     const to = ctx?.teamById?.get(selection.to)?.name || selection.to || "target";
     kicker = "selected line";
     title = `${from} → ${to}`;
+  } else if (selection?.type === "compare") {
+    const an = ctx?.teamById?.get(selection.a)?.name || selection.a || "a";
+    const bn = ctx?.teamById?.get(selection.b)?.name || selection.b || "b";
+    kicker = "comparing";
+    title = `${an} ⇄ ${bn}`;
   } else if (ctx?.interest?.active) {
     kicker = "ecosystem focus";
     title = constClusterLabel(ctx.interest.cluster);
@@ -5736,7 +5801,7 @@ function constellationInspectorHeaderHtml(selection, ctx) {
   // "from → to") as its own heading, so the header would duplicate it in a
   // second type system. Carry the title in the header only for ecosystem-focus,
   // whose is-confidence hero has no name heading. See cohort-click-audit.
-  const heroCarriesName = selection?.type === "team" || selection?.type === "person" || selection?.type === "edge";
+  const heroCarriesName = selection?.type === "team" || selection?.type === "person" || selection?.type === "edge" || selection?.type === "compare";
   return `
     <div class="ac-inspector-status">
       <span>${escHtml(kicker)}</span>
@@ -5829,10 +5894,86 @@ function wireConstRailResize() {
   });
 }
 
+// Two-team compare: pin A then B and read where they overlap — shared space,
+// domain, a direct line, shared skills, and dependencies they hold in common.
+// Built from the same public fields the single-team read uses; nothing inferred.
+function constCompareInspectorHtml(selection, ctx) {
+  const a = ctx?.teamById?.get(selection.a);
+  const b = ctx?.teamById?.get(selection.b);
+  if (!a || !b) return constellationInspectorDefaultHtml(ctx);
+  const clusters = Array.isArray(ctx?.clusters) ? ctx.clusters : [];
+  const spacesOf = (rid) => clusters.filter(c => Array.isArray(c.teams) && c.teams.includes(rid)).map(c => c.label || c.name || c.record_id);
+  const sa = new Set(spacesOf(a.record_id));
+  const sharedSpaces = spacesOf(b.record_id).filter(s => sa.has(s));
+  const skillsA = new Set((a.skill_areas || []).map(s => String(s).toLowerCase()));
+  const sharedSkills = (b.skill_areas || []).filter(s => skillsA.has(String(s).toLowerCase()));
+  const outTargets = (rid) => new Set((ctx?.outBy?.get(rid) || []).map(e => e.to));
+  const inSources = (rid) => new Set((ctx?.inBy?.get(rid) || []).map(e => e.from));
+  const oA = outTargets(a.record_id);
+  const sharedOut = [...outTargets(b.record_id)].filter(x => oA.has(x));
+  const iA = inSources(a.record_id);
+  const sharedIn = [...inSources(b.record_id)].filter(x => iA.has(x));
+  const nameOf = (rid) => ctx?.teamById?.get(rid)?.name || rid;
+  const domClassA = constDomainClass(a.domain);
+  const domClassB = constDomainClass(b.domain);
+  const sameDomain = domClassA === domClassB;
+  const directDep = !!(ctx?.edgeByPair?.get(dependencyPairKey(a.record_id, b.record_id)));
+  const overlapBits = [];
+  if (sharedSpaces.length) overlapBits.push(`${sharedSpaces.length} shared space${sharedSpaces.length === 1 ? "" : "s"}`);
+  if (sharedSkills.length) overlapBits.push(`${sharedSkills.length} shared skill${sharedSkills.length === 1 ? "" : "s"}`);
+  if (sharedOut.length) overlapBits.push(`${sharedOut.length} shared dependenc${sharedOut.length === 1 ? "y" : "ies"}`);
+  const summary = directDep
+    ? "one already depends on the other"
+    : (overlapBits.length ? overlapBits.join(" · ") : (sameDomain ? "same domain, no declared overlap yet" : "different domains, no declared overlap yet"));
+  const sectorLineFor = (t) => {
+    const sector = CONST_DOMAIN_LABEL[constDomainClass(t.domain)] || "other";
+    const heading = constShortText(t.focus || t.now || "", 60);
+    return `${sector}${heading ? ` — ${heading}` : ""}`;
+  };
+  const chipRow = (items, empty) => items.length
+    ? `<div class="ac-cmp-chips">${items.map(s => `<span class="ac-cmp-chip">${escHtml(constShortText(String(s), 34))}</span>`).join("")}</div>`
+    : `<p class="ac-inspector-empty">${escHtml(empty)}</p>`;
+  return `
+    <div class="ac-inspector-hero is-compare">
+      <div class="ac-inspector-kicker">comparing — click either to open · click a third to switch</div>
+      <h3 class="ac-cmp-h3"><button type="button" class="ac-inspector-title-link" data-const-open-record="${escAttr(a.record_id)}">${escHtml(a.name || a.record_id)}</button> <i class="ac-cmp-x" aria-hidden="true">⇄</i> <button type="button" class="ac-inspector-title-link" data-const-open-record="${escAttr(b.record_id)}">${escHtml(b.name || b.record_id)}</button></h3>
+      <p class="ac-preview-line">${escHtml(summary)}</p>
+    </div>
+    <div class="ac-cmp-grid">
+      <div class="ac-cmp-col">
+        <span class="ac-cmp-name">${escHtml(a.name || a.record_id)}</span>
+        <span class="ac-cmp-sector">${escHtml(sectorLineFor(a))}</span>
+      </div>
+      <div class="ac-cmp-col">
+        <span class="ac-cmp-name">${escHtml(b.name || b.record_id)}</span>
+        <span class="ac-cmp-sector">${escHtml(sectorLineFor(b))}</span>
+      </div>
+    </div>
+    <section class="ac-inspector-section">
+      <h4>where they overlap</h4>
+      <dl class="ac-bet-list">
+        <div><dt>shared space</dt><dd>${sharedSpaces.length ? sharedSpaces.map(escHtml).join(" · ") : "none — different ecosystems"}</dd></div>
+        <div><dt>domain</dt><dd>${sameDomain ? `both ${escHtml(CONST_DOMAIN_LABEL[domClassA] || "other")}` : `${escHtml(CONST_DOMAIN_LABEL[domClassA] || "other")} vs ${escHtml(CONST_DOMAIN_LABEL[domClassB] || "other")}`}</dd></div>
+        <div><dt>direct line</dt><dd>${directDep ? "yes — one depends on the other" : "no declared dependency between them"}</dd></div>
+      </dl>
+    </section>
+    <section class="ac-inspector-section">
+      <h4>shared skills</h4>
+      ${chipRow(sharedSkills, "no skill areas in common in their profiles")}
+    </section>
+    ${(sharedOut.length || sharedIn.length) ? `
+    <section class="ac-inspector-section">
+      <h4>shared dependencies</h4>
+      ${sharedOut.length ? `<p class="ac-cmp-dep-k">both rely on</p>${chipRow(sharedOut.map(nameOf), "")}` : ""}
+      ${sharedIn.length ? `<p class="ac-cmp-dep-k">both relied on by</p>${chipRow(sharedIn.map(nameOf), "")}` : ""}
+    </section>` : ""}`;
+}
+
 function constellationInspectorHtml(selection, ctx) {
   if (selection?.type === "team") return constTeamInspectorHtml(ctx?.teamById?.get(selection.rid), ctx);
   if (selection?.type === "person") return constPersonInspectorHtml(ctx?.personById?.get(selection.rid), ctx);
   if (selection?.type === "edge") return constEdgeInspectorHtml(selection, ctx);
+  if (selection?.type === "compare") return constCompareInspectorHtml(selection, ctx);
   return constellationInspectorDefaultHtml(ctx);
 }
 
@@ -6787,8 +6928,7 @@ function renderSayDidShipped() {
     const observedClass = isObserved ? " is-observed" : " is-declared";
     const domainKey = constDomainClass(team.domain);
     const domain = domainLabel(team.domain) || team.domain || "team";
-    const whatIs = constShortText(content.what_it_is || "", 150);
-    const icp = constShortText(content.who_it_serves || "", 120);
+    const whatIs = constShortText(content.what_it_is || "", 96);
     const proof = sdsEvidenceParts(card);
     const relCount = sdsNumber(act, "release_count");
     const commitCount = sdsNumber(act, "useful_commit_count");
@@ -6797,22 +6937,23 @@ function renderSayDidShipped() {
       commitCount ? `<span class="ac-sds-chip"><strong>${commitCount}</strong> commits</span>` : "",
     ].filter(Boolean).join("");
     return `
-      <button type="button" class="ac-sds-card${observedClass}" data-domain="${escAttr(domainKey)}" data-const-open-record="${escAttr(team.record_id)}" title="${escAttr(`open ${team.name || team.record_id}`)}">
-        <span class="ac-sds-identity">
-          <strong class="ac-sds-name">${escHtml(team.name || team.record_id)}</strong>
-          <span class="ac-sds-domain"><i style="background:${escAttr(CONST_DOMAIN_COLORS[domainKey] || CONST_DOMAIN_COLORS.other)}"></i>${escHtml(domain)}</span>
+      <button type="button" class="ac-sds-row${observedClass}" data-domain="${escAttr(domainKey)}" data-const-open-record="${escAttr(team.record_id)}" title="${escAttr(`open ${team.name || team.record_id}`)}">
+        <span class="ac-sds-lead">
+          <span class="ac-sds-lead-top">
+            <span class="ac-sds-name">${escHtml(team.name || team.record_id)}</span>
+            <span class="ac-sds-domain"><i style="background:${escAttr(CONST_DOMAIN_COLORS[domainKey] || CONST_DOMAIN_COLORS.other)}"></i>${escHtml(domain)}</span>
+          </span>
           ${whatIs ? `<span class="ac-sds-whatis">${escHtml(whatIs)}</span>` : ""}
-          ${icp ? `<span class="ac-sds-icp">serves ${escHtml(icp)}</span>` : ""}
         </span>
         <span class="ac-sds-proof-strip">
           <span class="ac-sds-cell">
-            <b>say</b><span>${escHtml(constShortText(content.say || team.now || team.focus || "not declared", 150))}</span>
+            <b>say</b><span>${escHtml(constShortText(content.say || team.now || team.focus || "not declared", 120))}</span>
           </span>
           <span class="ac-sds-cell${observedClass}">
-            <b>did</b><span>${escHtml(constShortText(content.did || "not observed", 150))}</span>${sdsEvidenceDidHtml(team.record_id)}
+            <b>did</b><span>${escHtml(constShortText(content.did || "not observed", 120))}</span>${sdsEvidenceDidHtml(team.record_id)}
           </span>
           <span class="ac-sds-cell${observedClass}">
-            <b>shipped</b><span>${escHtml(constShortText(content.shipped || "not observed", 130))}</span>
+            <b>shipped</b><span>${escHtml(constShortText(content.shipped || "not observed", 110))}</span>
             ${chips ? `<span class="ac-sds-chips">${chips}</span>` : ""}
           </span>
         </span>
@@ -7104,6 +7245,10 @@ const CONST_DOMAIN_COLORS = {
   "app-ux": "#3F9B8E",
   other: "#8a7d75",
 };
+function constNormalizeDomainFilter(raw) {
+  const key = String(raw || "").toLowerCase();
+  return CONST_DOMAIN_KEYS.includes(key) ? key : "all";
+}
 function constDomainClass(d) {
   const k = String(d || "other").toLowerCase();
   if (k === "bd-gtm") return "app-ux";
@@ -7135,9 +7280,6 @@ function constBubbleMapSummary(model, grain) {
 function constBubbleMapDefaultHtml(ctx) {
   const s = ctx && ctx.bubbleMap ? ctx.bubbleMap : { themes: 0, clusters: 0, teams: 0, grain: "clusters", domains: [] };
   const grain = s.grain;
-  const grainTitle = grain === "themes" ? "grouped into themes"
-    : grain === "skills" ? "grouped by shared skill"
-    : "grouped into ecosystems";
   const grainNote = grain === "themes"
     ? "Zoom in to break each theme into its ecosystems, then into individual teams."
     : grain === "skills"
@@ -7150,8 +7292,8 @@ function constBubbleMapDefaultHtml(ctx) {
     <div class="ac-inspector-hero is-orientation">
       <div class="ac-inspector-kicker">where everyone sits</div>
       <h3>${escHtml(String(s.themes))} themes · ${escHtml(String(s.clusters))} ecosystems · ${escHtml(String(s.teams))} teams</h3>
-      <p>This map places every team by what it works on, so you can see who sits near whom. Right now it's ${escHtml(grainTitle)}. ${escHtml(grainNote)}</p>
-      <p class="ac-orientation-cta">Click any bubble to see where it sits and who it works alongside.</p>
+      <p>Every team placed by what it works on — neighbours share a space. ${escHtml(grainNote)}</p>
+      <p class="ac-orientation-cta">Hover a bubble for its read · click to pin · click another to compare two.</p>
     </div>
     <section class="ac-inspector-section is-orientation-legend">
       <h4>how to read it</h4>
@@ -7589,10 +7731,19 @@ function constBubbleContainerSvg(c, accentStyle) {
   const labelY = (c.cy - c.r + 14).toFixed(1);
   const count = Array.isArray(c.members) ? c.members.length : 0;
   const aria = `focus ${c.label || c.id}${c.level === "cluster" ? " ecosystem" : ` ${c.level}`}, ${count} team${count === 1 ? "" : "s"}`;
+  // Fit the label to its OWN ring so a long ecosystem title can't spill into the
+  // neighbouring space or clip off the frame (the old full-width labels collided
+  // across adjacent clusters). The full title stays in <title> for hover + SR.
+  const fullLabel = c.label || "";
+  const charW = c.level === "theme" ? 6.1 : 5.5; // ≈0.61em of the 10px / 9px mono
+  const maxChars = Math.max(5, Math.floor((c.r * 2 - 10) / charW));
+  const shownLabel = fullLabel.length > maxChars
+    ? fullLabel.slice(0, Math.max(1, maxChars - 1)).replace(/[\s+/·-]+$/, "") + "…"
+    : fullLabel;
   return `
     <g class="ac-bubble-container" data-level="${escAttr(c.level)}" data-container="${escAttr(c.id)}" data-members="${escAttr((c.members || []).join(" "))}" role="button" tabindex="0" aria-label="${escAttr(aria)}" style="${escAttr(accentStyle + ";view-transition-name:ac-vtc-" + dependencySafeToken(c.id))}">
       <circle class="ac-bubble-container-shape" cx="${c.cx.toFixed(1)}" cy="${c.cy.toFixed(1)}" r="${c.r.toFixed(1)}"/>
-      ${showLabel ? `<text class="ac-bubble-container-label" x="${c.cx.toFixed(1)}" y="${labelY}" text-anchor="middle">${escHtml(c.label || "")}</text>` : ""}
+      ${showLabel ? `<text class="ac-bubble-container-label" x="${c.cx.toFixed(1)}" y="${labelY}" text-anchor="middle"><title>${escHtml(fullLabel)}</title>${escHtml(shownLabel)}</text>` : ""}
     </g>`;
 }
 
@@ -7645,6 +7796,7 @@ function renderConstellation() {
   // re-ask the size question against real data (people headcount, dependency
   // indegree) without touching layout or colour. Built once per render.
   const sizeBy = constNormalizeSizeBy(state.constellationSizeBy);
+  const domainFilter = constNormalizeDomainFilter(state.constDomainFilter);
   const headcountByTeam = new Map();
   for (const p of people) {
     const ids = [p?.team, ...(Array.isArray(p?.secondary_teams) ? p.secondary_teams : [])].filter(Boolean);
@@ -7810,7 +7962,7 @@ function renderConstellation() {
     const smallBubble = isBubble && rank !== 0 && !grainDeep; // deepest zoom band rests ALL team labels
     const fullLabel = constText(team.name || team.record_id);
     return `
-    <g class="ac-node-group ac-node-domain-${constDomainClass(team.domain)}${orphan}${sourceClass}${interestClass}${densityClass}${keystoneClass}${secondaryClass}${bridgeRank ? " is-bridge-ranked" : ""}"${smallBubble ? ' data-small-bubble="true"' : ""} data-record-id="${escHtml(team.record_id)}" data-profile-link-count="${gapCount}" style="${escAttr(nodeAccentStyle + vtName)}" role="button" tabindex="0" aria-label="${escAttr(`inspect ${team.name || team.record_id}`)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
+    <g class="ac-node-group ac-node-domain-${constDomainClass(team.domain)}${orphan}${sourceClass}${interestClass}${densityClass}${keystoneClass}${secondaryClass}${bridgeRank ? " is-bridge-ranked" : ""}${domainFilter !== "all" && constDomainClass(team.domain) !== domainFilter ? " is-domain-dim" : ""}"${smallBubble ? ' data-small-bubble="true"' : ""} data-record-id="${escHtml(team.record_id)}" data-profile-link-count="${gapCount}" style="${escAttr(nodeAccentStyle + vtName)}" role="button" tabindex="0" aria-label="${escAttr(`inspect ${team.name || team.record_id}`)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
       <circle class="ac-node-hit" r="${Math.max(18, r + 10).toFixed(1)}"/>
       ${typedRing}
       <circle class="ac-node-shape ${team.is_mentor ? "ac-node-mentor" : ""}" r="${r.toFixed(1)}" style="${escAttr(shadeStyle)}"/>
@@ -8463,14 +8615,29 @@ function wireConstellationHover() {
     // re-render so their readout picks the selection up.
     const selectOrOpen = (type, rid) => {
       if (!rid) return;
-      if (state.constSelection?.type === type && state.constSelection.rid === rid) {
-        openDetail(rid);
-        return;
+      const sel = state.constSelection;
+      let next;
+      // Two-team compare grammar — bubble map only (the view with the overlap
+      // inspector). Click A to pin, a different B to pin the A⇄B overlap, click
+      // either pinned team again to open it, a third team to start over from it.
+      if (type === "team" && viewMode === "bubble") {
+        if (sel?.type === "team") {
+          if (sel.rid === rid) { openDetail(rid); return; }
+          next = { type: "compare", a: sel.rid, b: rid };
+        } else if (sel?.type === "compare") {
+          if (rid === sel.a || rid === sel.b) { openDetail(rid); return; }
+          next = { type: "team", rid };
+        } else {
+          next = { type: "team", rid };
+        }
+      } else {
+        if (sel?.type === type && sel.rid === rid) { openDetail(rid); return; }
+        next = { type, rid };
       }
       if (state.canvas?.querySelector(".ac-inspector")) {
-        setConstellationInspector({ type, rid }, inspectorCtx);
+        setConstellationInspector(next, inspectorCtx);
       } else {
-        state.constSelection = { type, rid };
+        state.constSelection = next;
         render();
       }
     };
@@ -8521,9 +8688,9 @@ function wireConstellationHover() {
       // Hovering the pinned team: just drop any strip — its dossier is already up.
       if (pinnedRid === rid) { body.querySelector(".ac-hover-strip")?.remove(); lastPreviewRid = rid; return; }
       lastPreviewRid = rid;
-      if (pinnedRid) {
-        // A team is pinned: don't clobber its dossier — float a compact preview
-        // strip on top, leaving the pinned intersection view intact below.
+      if (state.constSelection) {
+        // A dossier OR a two-team compare is pinned: don't clobber it — float a
+        // compact preview strip on top, leaving the pinned view intact below.
         let strip = body.querySelector(".ac-hover-strip");
         if (!strip) { strip = document.createElement("div"); strip.className = "ac-hover-strip"; body.prepend(strip); }
         strip.innerHTML = constTeamPreviewHtml(t, inspectorCtx);
@@ -8869,6 +9036,19 @@ function wireConstellationHover() {
       const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
       if (document.startViewTransition && !reduce) document.startViewTransition(() => render());
       else render();
+    });
+  }
+  // Bubble colour isolate: dim every team whose domain isn't the picked colour
+  // (node colour is already domain, so this reads as "show only this colour").
+  // Re-picking the active colour, or "any domain", clears it.
+  for (const btn of state.canvas.querySelectorAll("[data-const-domain]")) {
+    btn.addEventListener("click", () => {
+      const next = constNormalizeDomainFilter(btn.dataset.constDomain);
+      closeConstSentenceMenus();
+      if (next === state.constDomainFilter) return;
+      state.constDomainFilter = next;
+      try { localStorage.setItem(CONST_DOMAIN_FILTER_LS_KEY, next); } catch {}
+      render();
     });
   }
   // Map lens: re-weights the same map by line type. Persisted.
@@ -9242,6 +9422,29 @@ function markConstellationSelection(selection) {
         edge.classList.add("is-selected", "is-selection-edge");
       } else if (touches) {
         edge.classList.add("is-selection-adjacent-edge");
+        if (!coreIds.has(a)) neighborIds.add(a);
+        if (!coreIds.has(b)) neighborIds.add(b);
+      } else {
+        edge.classList.add("is-selection-outside");
+      }
+    });
+    nodeEls.forEach(node => {
+      const recordId = node.dataset.recordId || node.getAttribute("data-const-team") || node.getAttribute("data-person-id");
+      const cls = classifyNode(recordId, coreIds, neighborIds);
+      node.classList.add(cls);
+      if (coreIds.has(recordId)) node.classList.add("is-selected");
+    });
+  } else if (selection?.type === "compare") {
+    // Both compared teams light as cores; everyone else recedes. The bubble map
+    // draws no edges, so the edge pass is a no-op there (the dim-guard below
+    // keeps the view from going dark if neither team is plotted in this view).
+    const coreIds = new Set([selection.a, selection.b]);
+    const neighborIds = new Set();
+    edgeEls.forEach(edge => {
+      const a = edge.dataset.a;
+      const b = edge.dataset.b;
+      if (coreIds.has(a) || coreIds.has(b)) {
+        edge.classList.add("is-selection-edge");
         if (!coreIds.has(a)) neighborIds.add(a);
         if (!coreIds.has(b)) neighborIds.add(b);
       } else {
