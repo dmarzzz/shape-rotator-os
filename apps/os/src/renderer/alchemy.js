@@ -299,6 +299,7 @@ const state = {
     detach: null,                 // teardown returned by attachCalendarPageBehavior
     catHidden: [],                // category keys the legend-filter has switched off
     rowsHidden: [],               // daily-signal lanes toggled off ("intown" | "shipped")
+    rowsMenuOpen: false,          // the board-corner "rows" chooser stays open across toggles
     scope: null,                  // team record_id the signals are focused on (null = all cohort)
   },
   events: [],          // normalized feed items, latest-first
@@ -9714,6 +9715,7 @@ function computeCalendarSignals() {
   }
   return {
     rowsHidden: Array.isArray(cal.rowsHidden) ? cal.rowsHidden : [],
+    rowsMenuOpen: !!cal.rowsMenuOpen,
     scope: { id: scopeId, name: scopeId ? (teams.find(t => t.id === scopeId)?.name || scopeId) : "all cohort", teams },
     perDay,
     rosterTotal,
@@ -9808,8 +9810,14 @@ function wireCalendar() {
     for (const b of state.canvas.querySelectorAll("[data-c2-cat]")) {   // legend → category show/hide
       b.addEventListener("click", () => toggleIn("catHidden", b.getAttribute("data-c2-cat")));
     }
-    for (const b of state.canvas.querySelectorAll("[data-c2-row]")) {   // signal-row show/hide
+    // signal-row show/hide. The per-row ✕ just drops a row; the rows-chooser
+    // option ALSO keeps the chooser open across the re-render so both rows can be
+    // checked in one pass (focus is restored into the menu below).
+    for (const b of state.canvas.querySelectorAll(".c2-rowhide[data-c2-row]")) {
       b.addEventListener("click", () => toggleIn("rowsHidden", b.getAttribute("data-c2-row")));
+    }
+    for (const b of state.canvas.querySelectorAll(".c2-rowsctl-opt[data-c2-row]")) {
+      b.addEventListener("click", () => { cal.rowsMenuOpen = true; cal.rowsMenuJustToggled = true; toggleIn("rowsHidden", b.getAttribute("data-c2-row")); });
     }
     // scope dropdown — focuses the daily signals on one workstream. Keyboard:
     // the trigger opens on Enter/↓; once open ↑/↓ roam the options, Enter selects,
@@ -9839,6 +9847,43 @@ function wireCalendar() {
         else if (e.key === "Escape") { e.preventDefault(); setOpen(false); scopeBtn.focus(); }
       });
     }
+    // rows chooser (board corner cell): a checklist of the optional signal rows.
+    // The option clicks toggle rowsHidden through the [data-c2-row] delegation
+    // above (which re-renders), so this only opens/closes + roams the menu.
+    const rowsBtn = state.canvas.querySelector("[data-c2-rows-toggle]");
+    const rowsMenu = state.canvas.querySelector(".c2-rowsctl-menu");
+    if (rowsBtn && rowsMenu) {
+      const rowOpts = [...rowsMenu.querySelectorAll(".c2-rowsctl-opt")];
+      // Open state lives in cal so it survives the re-render a toggle triggers;
+      // the trigger toggles it, arrows/Enter open it. The menu is re-rendered
+      // open or closed from signals.rowsMenuOpen rather than mutated in place.
+      rowsBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        cal.rowsMenuOpen = !cal.rowsMenuOpen;
+        cal.rowsMenuJustToggled = cal.rowsMenuOpen;
+        refreshCalendarView();
+      });
+      rowsBtn.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+          e.preventDefault(); cal.rowsMenuOpen = true; cal.rowsMenuJustToggled = true; refreshCalendarView();
+        }
+      });
+      rowsMenu.addEventListener("keydown", (e) => {
+        const i = rowOpts.indexOf(document.activeElement);
+        if (e.key === "ArrowDown") { e.preventDefault(); rowOpts[Math.min(rowOpts.length - 1, i + 1)]?.focus(); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); rowOpts[Math.max(0, i - 1)]?.focus(); }
+        else if (e.key === "Escape") { e.preventDefault(); cal.rowsMenuOpen = false; cal.rowsMenuRefocusTrigger = true; refreshCalendarView(); }
+      });
+      // Restore focus across the toggle re-render: into the menu right after a
+      // chooser action, back to the trigger after Escape — not on unrelated paints.
+      if (cal.rowsMenuOpen && cal.rowsMenuJustToggled) {
+        cal.rowsMenuJustToggled = false;
+        rowOpts[0]?.focus();
+      } else if (cal.rowsMenuRefocusTrigger) {
+        cal.rowsMenuRefocusTrigger = false;
+        rowsBtn.focus();
+      }
+    }
     // in-town signal cells: hover/focus reveals WHO is in town + the week-by-week
     // occupancy arc (openCalendarInTown); click/Enter commits to the presence gantt.
     const showInTown = (cell) => calendarLazy.peek()?.openCalendarInTown?.(cell.getAttribute("data-c2-intown"), { anchor: cell });
@@ -9863,6 +9908,12 @@ function wireCalendar() {
         if (m && !m.hasAttribute("hidden") && !e.target.closest("[data-c2-scope-ctl]")) {
           m.setAttribute("hidden", "");
           state.canvas.querySelector("[data-c2-scope-toggle]")?.setAttribute("aria-expanded", "false");
+        }
+        const rm = state.canvas?.querySelector(".c2-rowsctl-menu");
+        if (rm && !rm.hasAttribute("hidden") && !e.target.closest("[data-c2-rows-ctl]")) {
+          rm.setAttribute("hidden", "");
+          state.calendar.rowsMenuOpen = false;
+          state.canvas.querySelector("[data-c2-rows-toggle]")?.setAttribute("aria-expanded", "false");
         }
       });
     }

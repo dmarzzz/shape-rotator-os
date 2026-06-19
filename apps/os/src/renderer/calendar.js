@@ -661,16 +661,34 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
                   aria-selected="${(o.id || null) === scopeId ? "true" : "false"}" type="button">${escHtml(o.name)}</button>`).join("")}
       </div>
     </div>` : "";
-  const rowTogs = [["intown", "in town"], ["shipped", "shipped"]]
-    .map(([k, l]) => `<button class="c2-rowtog${rowHide.has(k) ? "" : " is-on"}" data-c2-row="${k}" aria-pressed="${rowHide.has(k) ? "false" : "true"}" type="button">${l}</button>`)
-    .join("");
+  // The optional signal rows (in town / shipped) are chosen from the board's
+  // corner cell (rowsControl, below) — where the rows actually live — instead of
+  // a top toolbar group. That keeps the controls row to just filter + scope, and
+  // makes the rows feel like things you add to the calendar, not app chrome.
+  // The chooser persists its open state across the re-render a toggle triggers
+  // (the host stamps signals.rowsMenuOpen), so you can check both rows without
+  // reopening it; the host also restores focus into the menu after the toggle.
+  const rowsMenuOpen = !!signals?.rowsMenuOpen;
+  const ROW_DEFS = [["intown", "in town"], ["shipped", "shipped"]];
+  const rowsControl = `
+    <div class="c2-rowsctl" data-c2-rows-ctl>
+      <button class="c2-rowsctl-btn" data-c2-rows-toggle aria-haspopup="true" aria-expanded="${rowsMenuOpen}"
+              aria-label="choose which signal rows to show" type="button">rows<i class="c2-chev" aria-hidden="true"></i></button>
+      <div class="c2-rowsctl-menu" role="menu" aria-label="signal rows"${rowsMenuOpen ? "" : " hidden"}>
+        ${ROW_DEFS.map(([k, l]) => `
+          <button class="c2-rowsctl-opt" role="menuitemcheckbox" data-c2-row="${escAttr(k)}" aria-checked="${!rowHide.has(k)}" type="button">
+            <i class="c2-rowsctl-check" aria-hidden="true">✓</i><span>${escHtml(l)}</span>
+          </button>`).join("")}
+      </div>
+    </div>`;
+  // A shown row carries a quiet ✕ on its gutter label (revealed on row hover) —
+  // the fast way to drop a row; re-add it from the corner chooser above.
+  const rowLabel = (key, text) =>
+    `<div class="c2-gutter-cell c2-rowlabel"><span class="c2-rowlabel-t">${escHtml(text)}</span><button class="c2-rowhide" data-c2-row="${escAttr(key)}" aria-label="${escAttr("hide " + text + " row")}" type="button">×</button></div>`;
   const controls = `
     <div class="c2-controls">
       ${filterBar}
-      <div class="c2-sigctl">
-        ${scopeChip}
-        <span class="c2-rowgrp"><span class="c2-rowgrp-k">signals</span>${rowTogs}</span>
-      </div>
+      ${scopeChip ? `<div class="c2-sigctl">${scopeChip}</div>` : ""}
     </div>`;
 
   // ── stale banner (same contract as the calendar page) ───────────────
@@ -707,7 +725,7 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
   const hasInTown = !rowHide.has("intown") && perDaySig.some(s => (Number(s?.inTown) || 0) > 0);
   const inTownRow = hasInTown ? `
     <div class="c2-row c2-signal c2-intown${scopeId ? " is-scoped" : ""}">
-      <div class="c2-gutter-cell">in town</div>
+      ${rowLabel("intown", "in town")}
       ${days.map((d, di) => {
         const s = perDaySig[di] || {};
         const n = Number(s.inTown) || 0;
@@ -731,7 +749,7 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
   const hasActivity = days.some(d => (d.activity || []).length);
   const activityRow = (!rowHide.has("shipped") && hasActivity) ? `
     <div class="c2-row c2-activity">
-      <div class="c2-gutter-cell">shipped</div>
+      ${rowLabel("shipped", "shipped")}
       ${days.map((d, di) => `
         <div class="c2-activity-cell ${d.isToday ? "is-today" : ""}">
           ${(d.activity || []).map((a, ai) => `
@@ -866,7 +884,7 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       ${controls}
       <div class="c2-board" role="grid" aria-label="week timeline">
         <div class="c2-row c2-daysbar">
-          <div class="c2-gutter-cell"></div>
+          <div class="c2-gutter-cell c2-rowsctl-cell">${rowsControl}</div>
           ${headCells}
         </div>
         ${inTownRow}
