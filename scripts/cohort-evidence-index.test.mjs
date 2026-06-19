@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   indexCohortEvidence, teamEvidence, recentClaims, edgePairs, weekHistogram,
-  evidenceDependencyRecords,
+  evidenceDependencyRecords, teamTimeline, claimLane,
 } from "../apps/os/src/renderer/cohort-evidence-index.mjs";
 
 const card = (claim_type, teams, week, claim_text = "x", extra = {}) => ({
@@ -75,6 +75,50 @@ test("evidenceDependencyRecords shape collaboration edges into renderable depend
 test("evidenceDependencyRecords does NOT restate an already-declared dependency", () => {
   const declared = [{ record_type: "dependency", source: "bitrouter", target: "teleport-router", relation: "depends_on" }];
   assert.deepEqual(evidenceDependencyRecords(cards, declared), [], "declared pair is skipped — no duplicate edge");
+});
+
+test("claimLane maps claim_type to the timeline's lane (color/group key)", () => {
+  assert.equal(claimLane("decision"), "did");
+  assert.equal(claimLane("action_item"), "did");
+  assert.equal(claimLane("product_signal"), "pmf");
+  assert.equal(claimLane("market_signal"), "pmf");
+  assert.equal(claimLane("ask"), "ask");
+  assert.equal(claimLane("risk"), "risk");
+  assert.equal(claimLane("collaboration_edge"), "edge");
+  assert.equal(claimLane("something_else"), "other");
+});
+
+test("teamTimeline groups a team's claims ascending by week, lane-tagged", () => {
+  const idx = indexCohortEvidence(cards);
+  const tl = teamTimeline(idx, "bitrouter");
+  assert.deepEqual(tl.map((w) => w.week), ["2026-05-25", "2026-06-08"], "ascending by week");
+  const wk1 = tl[0]; // 2026-05-25: decision + the earlier collaboration edge
+  assert.equal(wk1.claims.length, 2);
+  assert.deepEqual(wk1.claims.map((c) => c.lane).sort(), ["did", "edge"]);
+  const wk2 = tl[1]; // 2026-06-08: action_item (did) + product_signal (pmf) + edge
+  assert.equal(wk2.claims.length, 3);
+  assert.deepEqual(wk2.claims.map((c) => c.lane).sort(), ["did", "edge", "pmf"]);
+  const did = wk2.claims.find((c) => c.lane === "did");
+  assert.match(did.text, /x402-kit/, "claim text rides along for rendering");
+  assert.equal(did.evidence_level, "observed");
+});
+
+test("teamTimeline includes collaboration edges as the team's events too", () => {
+  const idx = indexCohortEvidence(cards);
+  const tl = teamTimeline(idx, "teleport-router"); // only ever appears via edges
+  assert.equal(tl.length, 2, "both edge weeks show on the partner's timeline");
+  assert.ok(tl.every((w) => w.claims.every((c) => c.lane === "edge")));
+});
+
+test("teamTimeline drops undated claims and is safe on a missing team / empty index", () => {
+  const idx = indexCohortEvidence([
+    card("decision", ["solo"], "2026-06-01", "shipped v1"),
+    card("ask", ["solo"], "", "undated ask"), // no week_start ⇒ undated ⇒ dropped
+  ]);
+  const tl = teamTimeline(idx, "solo");
+  assert.deepEqual(tl.map((w) => w.week), ["2026-06-01"], "undated claim excluded from the axis");
+  assert.deepEqual(teamTimeline(idx, "ghost"), [], "missing team ⇒ empty timeline");
+  assert.deepEqual(teamTimeline(indexCohortEvidence([]), "anyone"), [], "empty index ⇒ empty timeline");
 });
 
 test("empty / malformed evidence yields an empty index (views no-op, never throw)", () => {

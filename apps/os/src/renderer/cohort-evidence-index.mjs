@@ -27,6 +27,17 @@ function cardWeek(card) {
 }
 function unorderedPair(a, b) { return a < b ? `${a}|${b}` : `${b}|${a}`; }
 
+// claim_type → the lane the timeline groups/colours it under. Mirrors the bucket
+// sets above so the dossier timeline and the per-view enrichers agree on meaning.
+export function claimLane(type) {
+  if (DID.has(type)) return "did";
+  if (PMF.has(type)) return "pmf";
+  if (ASK.has(type)) return "ask";
+  if (RISK.has(type)) return "risk";
+  if (EDGE.has(type)) return "edge";
+  return "other";
+}
+
 function emptyBucket() {
   return { did: [], shipped: [], pmf: [], asks: [], risks: [], all: [], weeks: new Map() };
 }
@@ -88,6 +99,31 @@ export function recentClaims(bucket, kind, limit = 3) {
     .sort((a, b) => String(cardWeek(b)).localeCompare(cardWeek(a)))
     .slice(0, limit)
     .map((card) => ({ text: String(card.claim_text || ""), week: cardWeek(card), title: String(card.title || ""), evidence_level: String(card.evidence_level || "") }));
+}
+
+// A team's evidence as an ascending-by-week TIMELINE — the longitudinal "events
+// over time" the dossier renders. Each entry groups one week's claims, lane-tagged
+// (did / pmf / ask / risk / edge) for colour. Collaboration edges count as the
+// team's events too (they live in the team's `all` bucket). Undated claims have no
+// place on the axis and are dropped. Safe on a missing team / empty index ⇒ [].
+export function teamTimeline(index, teamId) {
+  const bucket = teamEvidence(index, teamId);
+  const byWeek = new Map();
+  for (const card of bucket.all) {
+    const week = cardWeek(card);
+    if (week === "undated") continue;
+    if (!byWeek.has(week)) byWeek.set(week, []);
+    byWeek.get(week).push({
+      type: String(card.claim_type || ""),
+      lane: claimLane(String(card.claim_type || "")),
+      text: String(card.claim_text || ""),
+      title: String(card.title || ""),
+      evidence_level: String(card.evidence_level || ""),
+    });
+  }
+  return [...byWeek.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([week, claims]) => ({ week, claims }));
 }
 
 // Distinct collaboration edges (deduped by team pair), newest week kept.
