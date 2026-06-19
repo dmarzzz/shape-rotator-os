@@ -446,12 +446,6 @@
           "record_id": "elizaos",
           "week_start": "2026-06-01",
           "source_repo": "elizaOS/eliza"
-        },
-        {
-          "kind": "github_release_artifact",
-          "artifact_id": "github-releases:elizaos:elizaos-eliza",
-          "record_id": "elizaos",
-          "source_repo": "elizaOS/eliza"
         }
       ],
       "content_json": {
@@ -461,15 +455,15 @@
         "say": "hard pivot to a new agent interface; focus moving from capability to buyer definition and last-mile distribution — MVP scope (cloud, multiplayer, power users) on the table",
         "did": "fix, maintenance, feature, other — fix(ui): only resolve relative paths in fetchWithCsrf; fix(ui): unbrick remote-mode startup on mobile; chore(deps): bump hashicorp/setup-terraform from 3 to 4",
         "did_basis": "github_progress",
-        "shipped": "v2.0.3; v2.0.1; v2.0.0",
-        "shipped_basis": "github_release",
+        "shipped": "GitHub movement observed; no release artifact observed.",
+        "shipped_basis": "declared",
         "observed_status": "public_signal_observed",
         "public_activity": {
           "observed_status": "public_signal_observed",
           "latest_week_start": "2026-06-08",
           "progress_artifact_count": 2,
-          "release_artifact_count": 1,
-          "release_count": 100,
+          "release_artifact_count": 0,
+          "release_count": 0,
           "useful_commit_count": 480
         }
       },
@@ -996,7 +990,7 @@
         "say": "re-architected for outside contributions — hunting real user stories for product-driven development",
         "did": "other, fix, maintenance, feature — fix: pixel-match the original — upright names, reading sizes, 3-up grid; feat: match the original warm elevation — espresso page, taupe panels, compact head; feat: warm specimen restyl...",
         "did_basis": "github_progress",
-        "shipped": "0.3.5; 0.3.4; 0.3.1",
+        "shipped": "0.3.10-rc.1; 0.3.9; 0.3.8-rc.1",
         "shipped_basis": "github_release",
         "observed_status": "public_signal_observed",
         "public_activity": {
@@ -1004,7 +998,7 @@
           "latest_week_start": "2026-06-08",
           "progress_artifact_count": 3,
           "release_artifact_count": 1,
-          "release_count": 75,
+          "release_count": 82,
           "useful_commit_count": 169
         }
       },
@@ -4655,13 +4649,12 @@
       "kind": "award",
       "subject_type": "cohort",
       "subject_ids": [
-        "elizaos",
         "shape-rotator-os",
         "searxng-wth-frnds",
         "signalstack"
       ],
       "title": "Award nomination — Shipped the Most (public releases)",
-      "claim_text": "Public-signal candidates for \"Shipped the Most (public releases)\": elizaOS (100), Shape Rotator OS (75), searxng-wth-frnds (16). Candidate list from public data only, not a verdict.",
+      "claim_text": "Public-signal candidates for \"Shipped the Most (public releases)\": Shape Rotator OS (82), searxng-wth-frnds (16), SignalStack (1). Candidate list from public data only, not a verdict.",
       "summary": "Ranked by public_release_count from public GitHub/cohort metadata. Awaiting reviewed judgment before any winner is named.",
       "evidence_level": "observed_public_metadata",
       "confidence": "low",
@@ -4675,11 +4668,6 @@
           "kind": "award_category",
           "category_id": "shipped-most",
           "basis": "public_signal"
-        },
-        {
-          "kind": "team_record",
-          "record_id": "elizaos",
-          "path": "cohort-data/teams/elizaos.md"
         },
         {
           "kind": "team_record",
@@ -4705,14 +4693,9 @@
         "metric": "public_release_count",
         "candidates": [
           {
-            "record_id": "elizaos",
-            "name": "elizaOS",
-            "value": 100
-          },
-          {
             "record_id": "shape-rotator-os",
             "name": "Shape Rotator OS",
-            "value": 75
+            "value": 82
           },
           {
             "record_id": "searxng-wth-frnds",
@@ -5134,7 +5117,6 @@
         "cohort-insight:say-did-shipped:elizaos",
         "cohort-insight:latent-overlap:elizaos:jjhub",
         "cohort-insight:latent-overlap:contexto:elizaos",
-        "cohort-insight:award:shipped-most",
         "cohort-insight:award:most-active-build"
       ],
       "elocute": [
@@ -5698,12 +5680,6 @@
             "record_id": "elizaos",
             "week_start": "2026-06-01",
             "source_repo": "elizaOS/eliza"
-          },
-          {
-            "kind": "github_release_artifact",
-            "artifact_id": "github-releases:elizaos:elizaos-eliza",
-            "record_id": "elizaos",
-            "source_repo": "elizaOS/eliza"
           }
         ],
         "content_json": {
@@ -5713,15 +5689,15 @@
           "say": "hard pivot to a new agent interface; focus moving from capability to buyer definition and last-mile distribution — MVP scope (cloud, multiplayer, power users) on the table",
           "did": "fix, maintenance, feature, other — fix(ui): only resolve relative paths in fetchWithCsrf; fix(ui): unbrick remote-mode startup on mobile; chore(deps): bump hashicorp/setup-terraform from 3 to 4",
           "did_basis": "github_progress",
-          "shipped": "v2.0.3; v2.0.1; v2.0.0",
-          "shipped_basis": "github_release",
+          "shipped": "GitHub movement observed; no release artifact observed.",
+          "shipped_basis": "declared",
           "observed_status": "public_signal_observed",
           "public_activity": {
             "observed_status": "public_signal_observed",
             "latest_week_start": "2026-06-08",
             "progress_artifact_count": 2,
-            "release_artifact_count": 1,
-            "release_count": 100,
+            "release_artifact_count": 0,
+            "release_count": 0,
             "useful_commit_count": 480
           }
         },
@@ -6248,7 +6224,7 @@
           "say": "re-architected for outside contributions — hunting real user stories for product-driven development",
           "did": "other, fix, maintenance, feature — fix: pixel-match the original — upright names, reading sizes, 3-up grid; feat: match the original warm elevation — espresso page, taupe panels, compact head; feat: warm specimen restyl...",
           "did_basis": "github_progress",
-          "shipped": "0.3.5; 0.3.4; 0.3.1",
+          "shipped": "0.3.10-rc.1; 0.3.9; 0.3.8-rc.1",
           "shipped_basis": "github_release",
           "observed_status": "public_signal_observed",
           "public_activity": {
@@ -6256,7 +6232,7 @@
             "latest_week_start": "2026-06-08",
             "progress_artifact_count": 3,
             "release_artifact_count": 1,
-            "release_count": 75,
+            "release_count": 82,
             "useful_commit_count": 169
           }
         },
@@ -9911,13 +9887,12 @@
         "kind": "award",
         "subject_type": "cohort",
         "subject_ids": [
-          "elizaos",
           "shape-rotator-os",
           "searxng-wth-frnds",
           "signalstack"
         ],
         "title": "Award nomination — Shipped the Most (public releases)",
-        "claim_text": "Public-signal candidates for \"Shipped the Most (public releases)\": elizaOS (100), Shape Rotator OS (75), searxng-wth-frnds (16). Candidate list from public data only, not a verdict.",
+        "claim_text": "Public-signal candidates for \"Shipped the Most (public releases)\": Shape Rotator OS (82), searxng-wth-frnds (16), SignalStack (1). Candidate list from public data only, not a verdict.",
         "summary": "Ranked by public_release_count from public GitHub/cohort metadata. Awaiting reviewed judgment before any winner is named.",
         "evidence_level": "observed_public_metadata",
         "confidence": "low",
@@ -9931,11 +9906,6 @@
             "kind": "award_category",
             "category_id": "shipped-most",
             "basis": "public_signal"
-          },
-          {
-            "kind": "team_record",
-            "record_id": "elizaos",
-            "path": "cohort-data/teams/elizaos.md"
           },
           {
             "kind": "team_record",
@@ -9961,14 +9931,9 @@
           "metric": "public_release_count",
           "candidates": [
             {
-              "record_id": "elizaos",
-              "name": "elizaOS",
-              "value": 100
-            },
-            {
               "record_id": "shape-rotator-os",
               "name": "Shape Rotator OS",
-              "value": 75
+              "value": 82
             },
             {
               "record_id": "searxng-wth-frnds",
@@ -10278,7 +10243,7 @@
     "editorial_award_slot_count": 2,
     "team_count": 26,
     "public_progress_artifact_count": 19,
-    "public_release_artifact_count": 4,
+    "public_release_artifact_count": 3,
     "say_did_shipped_card_count": 26,
     "latent_overlap_candidate_count": 40,
     "unobserved_say_did_shipped_count": 18
