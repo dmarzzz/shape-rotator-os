@@ -78,6 +78,15 @@ const CONST_TIER_LS_KEY = "srwk:const_tier";  // pinned line-source tier: "all" 
 const CONST_PEOPLE_LINK_LS_KEY = "srwk:const_people_link"; // pinned people-map link family: "all" | "same-team" | "profile" | "shared-context"
 const CONST_INTEREST_LS_KEY = "srwk:const_interest"; // source-backed ecosystem view: cluster record_id | "all"
 const CONST_GRANULARITY_LS_KEY = "srwk:const_granularity"; // bubble map grain: "themes" | "clusters" | "skills"
+const CONST_SIZE_LS_KEY = "srwk:const_size"; // bubble map size channel: "maturity" | "headcount" | "depended-on" | "even"
+const CONST_RAIL_LS_KEY = "srwk:const_rail_w"; // user-dragged inspector rail width (px); null = default clamp
+const CONST_RAIL_MIN = 220, CONST_RAIL_MAX = 480;
+function clampConstRail(v) {
+  if (v == null || v === "") return null; // no stored width → use the CSS clamp default
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(CONST_RAIL_MIN, Math.min(CONST_RAIL_MAX, Math.round(n)));
+}
 const PROFILE_LS_KEY  = "srwk:profile_v1";
 const EVENTS_LS_KEY   = "srwk:cohort_events_v1";
 const DETAIL_LS_KEY   = "srwk:alchemy_detail_v1";
@@ -230,7 +239,7 @@ const state = {
   collabSelection: null,           // { type: "team"|"pair"|"cluster", ... } — pinned inspector state
   goalStandingFilter: "all",       // "all" | "behind" | "onplan" | "ahead" — standing legend/filter
   goalMomentumFilter: "all",       // "all" | "rising" | "slipping" | "flat" — momentum legend/filter on the goal views
-  standingProjection: "trajectory", // "trajectory" | "targets" — standing view projection (targets folded in 2026-06)
+  standingProjection: "targets", // "targets" (needs-attention board, default) | "trajectory" — standing view projection
   renderToken: 0,                  // invalidates pending cross-fade swaps when a newer render starts
   mounted: false,
   active: false,
@@ -270,6 +279,8 @@ const state = {
   constPeopleLinkFilter: "all", // people-map legend/filter: "all" | "same-team" | "profile" | "shared-context"
   constInterest: "all",       // map ecosystem focus: "all" or a cluster record_id from cohort-data/clusters
   constellationGranularity: "clusters", // bubble map grain: "themes" | "clusters" | "skills"
+  constellationSizeBy: "maturity", // bubble map size channel; persisted to CONST_SIZE_LS_KEY
+  constRailW: null, // user-dragged inspector rail width in px (null = default clamp); CONST_RAIL_LS_KEY
   constGrainDeep: false,   // clusters grain, deepest zoom band: reveal ALL team labels at rest
   constGrainManual: false, // user picked a band-less grain ("skills"); zoom won't fight it until the next zoom gesture
   constSelection: null,       // persistent constellation inspector selection: { type:"team"|"person", rid } | { type:"edge", from, to }
@@ -326,6 +337,8 @@ export function mount(container) {
     state.constEdgeTier = constNormalizeEdgeTier(localStorage.getItem(CONST_TIER_LS_KEY));
     state.constPeopleLinkFilter = constNormalizePeopleLinkFilter(localStorage.getItem(CONST_PEOPLE_LINK_LS_KEY));
     state.constellationGranularity = constNormalizeGranularity(localStorage.getItem(CONST_GRANULARITY_LS_KEY));
+    state.constellationSizeBy = constNormalizeSizeBy(localStorage.getItem(CONST_SIZE_LS_KEY));
+    state.constRailW = clampConstRail(localStorage.getItem(CONST_RAIL_LS_KEY));
     const savedInterest = localStorage.getItem(CONST_INTEREST_LS_KEY);
     if (savedInterest) state.constInterest = savedInterest;
     const savedProgramPage = localStorage.getItem(PROGRAM_PAGE_LS_KEY);
@@ -489,7 +502,7 @@ export function mount(container) {
     // An open sentence-bar filter menu owns the arrows: its options are
     // <button role="option"> (not caught by the tag check above), so without
     // this guard ←/→ would tear down the menu and cycle the view mid-select.
-    if (t?.closest?.('[role="option"],[role="listbox"],.ac-sent-menu,[aria-haspopup="listbox"]')) return;
+    if (t?.closest?.('[role="option"],[role="listbox"],[role="separator"],.ac-sent-menu,[aria-haspopup="listbox"]')) return;
     if (document.querySelector(".ac-sent-menu:not([hidden])")) return;
     if (document.body.dataset.activeTab !== "alchemy") return;
     if (!state.canvas) return;
@@ -2612,12 +2625,22 @@ function journeyPlaceLabels(nodes, { W, padT, plotH }) {
   for (const nd of order) {
     const name = constText(nd.t.name || nd.t.record_id);
     if (!name) continue;
+    // Crowded cells (5+ dots packed into one stage:evidence cell) can never
+    // place resting labels without collision — skip them so they keep their
+    // hover/focus label rather than fighting over scarce gaps.
+    if (nd.cellN > 4) continue;
     const w = name.length * CHAR_W + 2;
+    // Orthogonal placements first (cleanest), then the four diagonals as a
+    // fallback so a dot boxed in on its sides can still escape to a corner.
     const candidates = [
       { x: 0, y: -nd.r - 8, anchor: "middle", x1: nd.cx - w / 2, x2: nd.cx + w / 2, y1: nd.cy - nd.r - 8 - LBL_H, y2: nd.cy - nd.r - 8 },
       { x: 0, y: nd.r + 13, anchor: "middle", x1: nd.cx - w / 2, x2: nd.cx + w / 2, y1: nd.cy + nd.r + 13 - LBL_H, y2: nd.cy + nd.r + 13 },
       { x: nd.r + 6, y: 3, anchor: "start", x1: nd.cx + nd.r + 6, x2: nd.cx + nd.r + 6 + w, y1: nd.cy + 3 - LBL_H, y2: nd.cy + 3 },
       { x: -nd.r - 6, y: 3, anchor: "end", x1: nd.cx - nd.r - 6 - w, x2: nd.cx - nd.r - 6, y1: nd.cy + 3 - LBL_H, y2: nd.cy + 3 },
+      { x: nd.r + 5, y: -nd.r - 3, anchor: "start", x1: nd.cx + nd.r + 5, x2: nd.cx + nd.r + 5 + w, y1: nd.cy - nd.r - 3 - LBL_H, y2: nd.cy - nd.r - 3 },
+      { x: -nd.r - 5, y: -nd.r - 3, anchor: "end", x1: nd.cx - nd.r - 5 - w, x2: nd.cx - nd.r - 5, y1: nd.cy - nd.r - 3 - LBL_H, y2: nd.cy - nd.r - 3 },
+      { x: nd.r + 5, y: nd.r + 10, anchor: "start", x1: nd.cx + nd.r + 5, x2: nd.cx + nd.r + 5 + w, y1: nd.cy + nd.r + 10 - LBL_H, y2: nd.cy + nd.r + 10 },
+      { x: -nd.r - 5, y: nd.r + 10, anchor: "end", x1: nd.cx - nd.r - 5 - w, x2: nd.cx - nd.r - 5, y1: nd.cy + nd.r + 10 - LBL_H, y2: nd.cy + nd.r + 10 },
     ];
     for (const c of candidates) {
       if (c.x1 < 4 || c.x2 > W - 4 || c.y1 < padT - 16 || c.y2 > padT + plotH + 4) continue;
@@ -2853,6 +2876,35 @@ function constNormalizeGranularity(raw) {
   const g = String(raw || "").toLowerCase();
   return (g === "themes" || g === "clusters" || g === "skills") ? g : "clusters";
 }
+// Bubble size channel: what the radius MEANS. Maturity is the default (matches
+// the packed-circle "area ∝ stage" baseline); the others let the viewer ask a
+// different question of the same map without changing layout or colour.
+const CONST_SIZE_BYS = [
+  { key: "maturity", label: "maturity", hint: "journey stage — how far along (default)" },
+  { key: "headcount", label: "headcount", hint: "people on the team" },
+  { key: "depended-on", label: "depended-on", hint: "how many teams rely on it" },
+  { key: "even", label: "even", hint: "all the same — read groupings only" },
+];
+function constNormalizeSizeBy(raw) {
+  const s = String(raw || "").toLowerCase();
+  return CONST_SIZE_BYS.some(o => o.key === s) ? s : "maturity";
+}
+// Leaf radius for a given size channel. Ranges are tuned to land in ≈9–26px so
+// every metric reads at the same visual weight as the maturity baseline
+// (bmLeafRadius). headcount/depended-on are sub-linear so one giant team can't
+// swamp the map; "even" is a flat mid radius.
+function constLeafRadius(sizeBy, { stage, headcount = 0, indeg = 0, maxIndeg = 0 } = {}) {
+  if (sizeBy === "headcount") {
+    return Math.max(9, Math.sqrt(Math.max(1, headcount)) * 9); // 1→9 … 8→~25
+  }
+  if (sizeBy === "depended-on") {
+    const frac = maxIndeg > 0 ? indeg / maxIndeg : 0;
+    return Math.max(9, 9 + frac * 17); // floor 9 (nobody) … 26 (most-relied-on)
+  }
+  if (sizeBy === "even") return 15;
+  const s = Math.max(1, Number(stage) || 1); // maturity (default) — mirrors bmLeafRadius
+  return Math.max(9, Math.sqrt(s) * 10);
+}
 // ── Zoom → grain ("more accurate the more you zoom") ──────────────────
 // The relationship map reveals more DETAIL as you zoom in: themes when pulled
 // back, ecosystem clusters mid-range, then every team named at rest in the
@@ -2965,7 +3017,7 @@ function constSentenceUnit({ menu, token, ariaMenu, options }) {
       <div class="ac-sent-menu" data-sent-menu-for="${escAttr(menu)}" role="listbox" aria-label="${escAttr(ariaMenu)}" hidden>${options}</div>
     </span>`;
 }
-function constellationSentenceBar({ view = "bubble", scope = "projects", granularity = "clusters", lens = "all", metrics = {}, tier = "all", peopleLinkFilter = "all" } = {}) {
+function constellationSentenceBar({ view = "bubble", scope = "projects", granularity = "clusters", sizeBy = "maturity", lens = "all", metrics = {}, tier = "all", peopleLinkFilter = "all" } = {}) {
   void view; void lens; void metrics; void tier;
   const activeScope = constNormalizeNetworkScope(scope);
   const scopeUnit = constSentenceUnit({
@@ -3011,15 +3063,29 @@ function constellationSentenceBar({ view = "bubble", scope = "projects", granula
     })).join(""),
   });
   // The bubble map has no edges, so the old line lens + record/mention tier
-  // chips are gone; the only verb is grain, and a quiet legend names what the
-  // visual channels mean (size / shade / colour).
+  // chips are gone. Two verbs now: grain (how many spaces) and SIZE (what the
+  // radius means) — the size legend word became a control so the viewer can ask
+  // a different question of the same packing. A quiet legend names the rest.
+  const activeSizeBy = constNormalizeSizeBy(sizeBy);
+  const sizeSpec = CONST_SIZE_BYS.find(s => s.key === activeSizeBy) || CONST_SIZE_BYS[0];
+  const sizeUnit = constSentenceUnit({
+    menu: "size",
+    ariaMenu: "bubble size channel",
+    token: constSentenceToken({ menu: "size", label: sizeSpec.label, aria: `sized by ${sizeSpec.label} — change what bubble size means` }),
+    options: CONST_SIZE_BYS.map(s => constSentenceOption({
+      attr: "data-const-size", value: s.key, selected: s.key === activeSizeBy,
+      label: s.label, note: s.hint,
+    })).join(""),
+  });
   return `
     <div class="ac-sentence" role="group" aria-label="bubble map controls">
       <span class="ac-sent-word">showing</span>
       ${scopeUnit}
       <span class="ac-sent-word">grouped by</span>
       ${granUnit}
-      <span class="ac-sent-legend">size <b>maturity</b> · shade <b>depended-on</b> · ${[["tee", "tee"], ["ai", "ai"], ["crypto", "crypto"], ["app-ux", "ux"]].map(([k, lbl]) => `<i class="ac-dom-sw" style="background:${EGO_DOMAIN_FILL[k]}" aria-hidden="true"></i>${lbl}`).join(" ")}</span>
+      <span class="ac-sent-word">sized by</span>
+      ${sizeUnit}
+      <span class="ac-sent-legend">shade <b>depended-on</b> · ${[["tee", "tee"], ["ai", "ai"], ["crypto", "crypto"], ["app-ux", "ux"]].map(([k, lbl]) => `<i class="ac-dom-sw" style="background:${EGO_DOMAIN_FILL[k]}" aria-hidden="true"></i>${lbl}`).join(" ")}</span>
     </div>`;
 }
 // Multi-select include chip (journey's teams/projects/side toggles): the
@@ -5690,6 +5756,74 @@ function constellationInspectorShell(ctx, selection = state.constSelection) {
       <div class="ac-inspector-body">${constellationInspectorLeadHtml(ctx, selection)}${constellationInspectorHtml(selection, ctx)}</div>
     </aside>`;
 }
+// Inline width var for the workbench grid — only when the user has dragged the
+// rail off its default clamp. Empty otherwise so the CSS default governs.
+function constRailStyleAttr() {
+  const w = clampConstRail(state.constRailW);
+  return w == null ? "" : ` style="--const-rail-w:${w}px"`;
+}
+// Drag handle living in the workbench column gap (NOT inside the scrolling
+// inspector, which would clip it): pointer-drag — or ←/→ keys — resizes the
+// inspector against the map. Width persists; wired in wireConstellationHover.
+function constRailHandleHtml() {
+  return `<div class="ac-rail-resize" role="separator" aria-orientation="vertical" aria-label="Resize inspector — drag, or use arrow keys" tabindex="0"></div>`;
+}
+// Pointer + keyboard controller for the inspector rail handle. The rail sits on
+// the RIGHT, so dragging the handle LEFT widens it (deltaX is negated). Commits
+// to state + localStorage on release so the width survives re-renders.
+function wireConstRailResize() {
+  if (!state.canvas) return;
+  const handle = state.canvas.querySelector(".ac-rail-resize");
+  if (!handle) return;
+  const workbench = handle.closest(".alch-const-workbench");
+  const railEl = workbench?.querySelector(".ac-inspector");
+  if (!workbench || !railEl) return;
+  const commit = (w) => {
+    const cw = clampConstRail(w);
+    if (cw == null) return;
+    state.constRailW = cw;
+    workbench.style.setProperty("--const-rail-w", `${cw}px`);
+    try { localStorage.setItem(CONST_RAIL_LS_KEY, String(cw)); } catch {}
+  };
+  let startX = 0, startW = 0, pid = null;
+  const onMove = (e) => {
+    // Live preview while dragging — set the var without persisting every frame.
+    const next = clampConstRail(startW + (startX - e.clientX));
+    if (next != null) workbench.style.setProperty("--const-rail-w", `${next}px`);
+  };
+  const onUp = (e) => {
+    workbench.classList.remove("is-rail-dragging");
+    try { handle.releasePointerCapture(pid); } catch {}
+    handle.removeEventListener("pointermove", onMove);
+    handle.removeEventListener("pointerup", onUp);
+    handle.removeEventListener("pointercancel", onUp);
+    commit(startW + (startX - e.clientX));
+    pid = null;
+  };
+  handle.addEventListener("pointerdown", (e) => {
+    if (e.button != null && e.button !== 0) return;
+    e.preventDefault();
+    pid = e.pointerId;
+    startX = e.clientX;
+    startW = railEl.getBoundingClientRect().width; // actual rendered width (clamp or var)
+    workbench.classList.add("is-rail-dragging");
+    try { handle.setPointerCapture(pid); } catch {}
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", onUp);
+    handle.addEventListener("pointercancel", onUp);
+  });
+  handle.addEventListener("keydown", (e) => {
+    const step = e.shiftKey ? 32 : 16;
+    let dir = 0;
+    if (e.key === "ArrowLeft") dir = 1;   // left widens (rail is on the right)
+    else if (e.key === "ArrowRight") dir = -1;
+    else return;
+    e.preventDefault();
+    e.stopPropagation(); // don't let ←/→ bubble to the global view-tab cycler
+    const cur = railEl.getBoundingClientRect().width;
+    commit(cur + dir * step);
+  });
+}
 
 function constellationInspectorHtml(selection, ctx) {
   if (selection?.type === "team") return constTeamInspectorHtml(ctx?.teamById?.get(selection.rid), ctx);
@@ -5838,7 +5972,7 @@ function renderJourney() {
     }
     const assessed = journeyAssessed(t);
     const r = assessed ? 4 + j.market_upside * 1.8 : 4.8; // upside 1..5 -> r 5.8..13
-    return { t, j, stage, assessed, r, cx: xForStage(stage) + jx, cy: yForEvidence(j.evidence_quality) + jy };
+    return { t, j, stage, assessed, r, cellN: n, cx: xForStage(stage) + jx, cy: yForEvidence(j.evidence_quality) + jy };
   });
   const labelPos = journeyPlaceLabels(nodes, { W, padT: PAD_T, plotH });
   const dots = nodes.map(({ t, j, stage, assessed, r, cx, cy }) => {
@@ -6331,6 +6465,19 @@ function constGoalPlanHtml(model, standingFilter = "all", momentumFilter = "all"
 
   const moverId = summary?.topMover?.team?.record_id;
   const slipId = summary?.topSlip?.team?.record_id;
+  // De-collide the (hover) end-labels: teams ending at the same stage share an
+  // endY and would overprint. Spread the LABEL y's ≥11px apart while polylines
+  // keep their true endpoints; clamp the stack into the plot.
+  const labelY = new Map();
+  {
+    const order = tracked
+      .map(r => ({ rid: r.team.record_id, y: yFor(constStandingTrajectory(r.team, weeks)[n - 1]) }))
+      .sort((a, b) => a.y - b.y);
+    let prev = -Infinity; const GAP = 11;
+    for (const it of order) { const y = Math.max(it.y, prev + GAP); labelY.set(it.rid, y); prev = y; }
+    const maxY = H - PAD_B + 2, over = prev - maxY;
+    if (over > 0) for (const [rid, y] of labelY) labelY.set(rid, y - over);
+  }
   const lines = tracked.map(r => {
     const color = CONST_GOAL_STANDING[r.standing].color;
     const pts = constStandingTrajectory(r.team, weeks);
@@ -6348,7 +6495,7 @@ function constGoalPlanHtml(model, standingFilter = "all", momentumFilter = "all"
         <polyline class="ac-traj-hit" points="${poly}"/>
         <polyline class="ac-traj-line" points="${poly}"/>
         <text class="ac-traj-mom" x="${(endX + 7).toFixed(1)}" y="${(endY + 3.5).toFixed(1)}">${mk.glyph}</text>
-        <text class="ac-traj-endlab" x="${(W - PAD_R + 18).toFixed(1)}" y="${(endY + 3).toFixed(1)}">${escHtml(constShortText(name, 13))}</text>
+        <text class="ac-traj-endlab" x="${(W - PAD_R + 18).toFixed(1)}" y="${((labelY.get(r.team.record_id) ?? endY) + 3).toFixed(1)}">${escHtml(constShortText(name, 13))}</text>
       </g>`;
   }).join("");
 
@@ -6408,20 +6555,21 @@ function constGoalTargetsHtml(model, standingFilter = "all", momentumFilter = "a
   // emerging pmf) anchored to their stage number, so the axis reads on the same
   // 0–8 scale as the "cur → tgt" values and never contradicts the PMF view.
   const ticks = [{ v: 0, l: "0" }, { v: 4, l: "mvp · 4" }, { v: 6, l: "pmf · 6" }, { v: 8, l: "grad · 8" }];
-  const axis = `<div class="ac-tgt-axis"><span></span><div class="ac-tgt-ticks">${ticks.map(t => `<span class="ac-tgt-tick" style="left:${pct(t.v)}%">${t.l}</span>`).join("")}</div><span></span></div>`;
-  const rowHtml = rows.map(({ r, cur, tgt, gap, declared }) => {
+  const axis = `<div class="ac-tgt-axis"><span></span><span></span><div class="ac-tgt-ticks">${ticks.map(t => `<span class="ac-tgt-tick" style="left:${pct(t.v)}%">${t.l}</span>`).join("")}</div><span></span></div>`;
+  const renderTgtRow = ({ r, cur, tgt, gap, declared }) => {
     const color = CONST_GOAL_STANDING[r.standing].color;
-    // Momentum still dims rows (the insight strip's momentum chips filter here),
-    // but momentum is the trajectory view's job — this view stays on the gap.
     const dim = ((activeFilter !== "all" && activeFilter !== r.standing) || (momFilter !== "all" && momFilter !== r.momentumKind)) ? " is-dim" : "";
-    // Provenance: a real declared aim (Supabase) renders authoritative; a derived
-    // backup renders as an estimate (hollow ▽, dashed gap, "est" tag) so the view
-    // never passes a placeholder off as a real goal.
     const tcls = declared ? " is-declared" : " is-derived";
     const name = r.team.name || r.team.record_id;
     const gapL = pct(cur), gapW = Math.round((pct(tgt) - pct(cur)) * 10) / 10;
-    return `<button type="button" class="ac-stack-team ac-tgt-row is-${escAttr(r.standing)}${dim}${tcls}" data-const-team="${escAttr(r.team.record_id)}" style="--team-color:${color}" aria-label="${escAttr(`${name}: stage ${cur} of 8, ${declared ? "target" : "estimated target"} ${tgt}, gap ${gap}`)}">
+    // Momentum is standing's unique signal — which way the team is trending over
+    // recent weeks (▲ climbing · ▼ slipping · → steady), shown per row.
+    const mk = MOMENTUM[r.momentumKind] || MOMENTUM.flat;
+    const showDelta = r.momentum != null && r.momentum !== 0;
+    const deltaTxt = showDelta ? momentumDeltaLabel(r.momentum) : "";
+    return `<button type="button" class="ac-stack-team ac-tgt-row is-${escAttr(r.standing)}${dim}${tcls}" data-const-team="${escAttr(r.team.record_id)}" style="--team-color:${color}" aria-label="${escAttr(`${name}: stage ${cur} of 8, ${declared ? "target" : "estimated target"} ${tgt}, gap ${gap}; ${mk.word}${showDelta ? " " + deltaTxt : ""}`)}">
       <span class="ac-tgt-name">${escHtml(name)}</span>
+      <span class="ac-tgt-mom is-${escAttr(r.momentumKind)}" aria-hidden="true"><b>${mk.glyph}</b>${showDelta ? `<i>${escHtml(deltaTxt)}</i>` : ""}</span>
       <span class="ac-tgt-track">
         <span class="ac-tgt-base"></span>
         ${gapW > 0 ? `<span class="ac-tgt-gap" style="left:${gapL}%;width:${gapW}%"></span>` : ""}
@@ -6430,6 +6578,23 @@ function constGoalTargetsHtml(model, standingFilter = "all", momentumFilter = "a
       </span>
       <span class="ac-tgt-val">${cur}<span class="ac-tgt-tval"> → ${tgt}${declared ? "" : `<i>est</i>`}</span></span>
     </button>`;
+  };
+  // Group into behind / on-plan / ahead bands; within each, slipping teams lead
+  // (then steady, then climbing) so "behind + slipping" sits at the very top.
+  const STANDING_ORDER = ["behind", "onplan", "ahead"];
+  const MOM_RANK = { slipping: 0, flat: 1, rising: 2 };
+  const bandsHtml = STANDING_ORDER.map(key => {
+    const band = rows.filter(x => x.r.standing === key)
+      .sort((a, b) =>
+        (MOM_RANK[a.r.momentumKind] - MOM_RANK[b.r.momentumKind])
+        || ((a.r.momentum ?? 0) - (b.r.momentum ?? 0))
+        || (b.gap - a.gap));
+    if (!band.length) return "";
+    const meta = CONST_GOAL_STANDING[key];
+    return `<div class="ac-tgt-group" data-standing="${escAttr(key)}">
+        <div class="ac-tgt-group-head" style="--band-color:${meta.color}"><span class="ac-tgt-group-dot" aria-hidden="true"></span>${escHtml(meta.label)}<em>${band.length}</em></div>
+        <div class="ac-tgt-rows">${band.map(renderTgtRow).join("")}</div>
+      </div>`;
   }).join("");
   const untrackedHtml = untracked.length ? `
       <div class="ac-gp-untracked">
@@ -6442,9 +6607,9 @@ function constGoalTargetsHtml(model, standingFilter = "all", momentumFilter = "a
     <div class="ac-stack-view is-targets" data-standing-filter="${escAttr(activeFilter)}">
       ${constGoalInsightHtml(summary, momFilter)}
       ${axis}
-      <div class="ac-tgt-rows">${rowHtml}</div>
+      ${bandsHtml}
       ${untrackedHtml}
-      <p class="ac-gp-note">● current stage · ▽ target (faded = estimated) · bar = gap to close. Hover a row to read a team.</p>
+      <p class="ac-gp-note">▲ climbing · ▼ slipping over recent weeks (slipping teams lead each group) · ● current stage · ▽ target (faded = estimated) · bar = gap to close.</p>
     </div>`;
 }
 
@@ -7267,7 +7432,7 @@ function renderConstellationPeople(teams, people, clusters, edges) {
         ${constSelectionChipHtml()}
       </div>
       <div class="alch-constellation" data-constellation-view="map" data-constellation-scope="people">
-        <div class="alch-const-workbench">
+        <div class="alch-const-workbench"${constRailStyleAttr()}>
           <div class="alch-const-main">
             <div class="alch-constellation-stage ac-people-stage" data-view="people" data-lens="people" data-people-link-filter="${escAttr(peopleLinkFilter)}" tabindex="0" aria-label="people connected to projects">
               <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
@@ -7278,6 +7443,7 @@ function renderConstellationPeople(teams, people, clusters, edges) {
               <div class="ac-tip" hidden></div>
             </div>
           </div>
+          ${constRailHandleHtml()}
           ${constellationInspectorShell(inspectorCtx)}
         </div>
       </div>
@@ -7580,7 +7746,25 @@ function renderConstellation() {
   const grainDeep = granularity === "clusters" && !!state.constGrainDeep;
   const activeLens = "all";
   const stageOf = (team) => team?.journey?.stage;
-  const { pos, containers, bounds } = packBubbles(model, granularity, { stageOf, W, H });
+  // Size channel: maturity (default) keeps the area-∝-stage baseline; the others
+  // re-ask the size question against real data (people headcount, dependency
+  // indegree) without touching layout or colour. Built once per render.
+  const sizeBy = constNormalizeSizeBy(state.constellationSizeBy);
+  const headcountByTeam = new Map();
+  for (const p of people) {
+    const ids = [p?.team, ...(Array.isArray(p?.secondary_teams) ? p.secondary_teams : [])].filter(Boolean);
+    for (const id of ids) headcountByTeam.set(id, (headcountByTeam.get(id) || 0) + 1);
+  }
+  const indeg = model.indegree || new Map();
+  let maxIndeg = 0;
+  for (const v of indeg.values()) if (v > maxIndeg) maxIndeg = v;
+  const radiusOf = sizeBy === "maturity" ? null : (leaf) => constLeafRadius(sizeBy, {
+    stage: leaf.stage,
+    headcount: headcountByTeam.get(leaf.rid) || 0,
+    indeg: indeg.get(leaf.rid) || 0,
+    maxIndeg,
+  });
+  const { pos, containers, bounds } = packBubbles(model, granularity, { stageOf, W, H, radiusOf });
   // Fitted frame: show exactly the packed content (+ small margin) instead of
   // the full 620×600 layout box, so there is no internal letterbox / top dead band.
   const vb = bounds || { x: 0, y: 0, w: W, h: H };
@@ -7752,11 +7936,11 @@ function renderConstellation() {
     ${cohortPageHead(viewMode)}
       <div class="alch-view-controls" data-shape-occluder>
         ${constTimelineDropdownHtml()}
-        ${constellationSentenceBar({ view: viewMode, scope: "projects", granularity })}
+        ${constellationSentenceBar({ view: viewMode, scope: "projects", granularity, sizeBy })}
         ${constSelectionChipHtml()}
       </div>
     <div class="alch-constellation" data-constellation-view="${escAttr(viewMode)}">
-      <div class="alch-const-workbench">
+      <div class="alch-const-workbench"${constRailStyleAttr()}>
         <div class="alch-const-main">
           <div class="alch-constellation-stage" data-view="${escAttr(viewMode)}" data-grain-deep="${grainDeep ? "true" : "false"}" data-lens="${activeLens}" data-edge-tier="${escAttr(edgeTier)}" data-interest="${escAttr(interestCtx.id)}" data-interest-active="${interestCtx.active ? "true" : "false"}" tabindex="0" aria-label="${escAttr(viewMode === "ring" ? "constellation bridge ring graph" : "constellation relationship graph")}">
             <svg viewBox="${escAttr(viewBox)}" preserveAspectRatio="xMidYMid meet">
@@ -7775,6 +7959,7 @@ function renderConstellation() {
             <div class="ac-tip" hidden></div>
           </div>
         </div>
+        ${constRailHandleHtml()}
         ${constellationInspectorShell(inspectorCtx)}
       </div>
     </div>
@@ -8778,6 +8963,21 @@ function wireConstellationHover() {
       else render();
     });
   }
+  wireConstRailResize();
+  // Bubble size channel: re-asks what radius means (maturity / headcount /
+  // depended-on / even). No zoom/grain coupling — just a re-layout, morphed via
+  // View Transitions (named per team) so every bubble eases to its new size.
+  for (const btn of state.canvas.querySelectorAll("[data-const-size]")) {
+    btn.addEventListener("click", () => {
+      const next = constNormalizeSizeBy(btn.dataset.constSize);
+      if (next === state.constellationSizeBy) { closeConstSentenceMenus(); return; }
+      state.constellationSizeBy = next;
+      try { localStorage.setItem(CONST_SIZE_LS_KEY, next); } catch {}
+      const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      if (document.startViewTransition && !reduce) document.startViewTransition(() => render());
+      else render();
+    });
+  }
   // Map lens: re-weights the same map by line type. Persisted.
   for (const btn of state.canvas.querySelectorAll("[data-const-lens]")) {
     btn.addEventListener("click", () => {
@@ -9590,6 +9790,7 @@ function paintCalendarView({ wire = false } = {}) {
     view: cal.view,
     presenceHtml: presence ? renderCalAvailability() : "",
     timelineHtml: timeline ? timelineInnerHtml() : "",
+    activity: Array.isArray(state.cohort?.whats_new) ? state.cohort.whats_new : [],
   });
   if (presence) {
     mountAvailabilityCanvas();
@@ -9821,6 +10022,15 @@ function wireCalendar() {
   for (const card of state.canvas.querySelectorAll("[data-c2-ev]")) {
     card.addEventListener("click", (event) => {
       calendarLazy.peek()?.openCalendarEvent?.(card.dataset.c2Ev, { anchor: event.currentTarget });
+    });
+  }
+
+  // Cohort-activity blocks (releases / commits) drill to the team dossier;
+  // "back" returns to the calendar (detailReturnMode = "calendar").
+  for (const chip of state.canvas.querySelectorAll("[data-c2-act]")) {
+    chip.addEventListener("click", () => {
+      const rid = chip.dataset.c2Act;
+      if (rid) openDetail(rid, "calendar");
     });
   }
 

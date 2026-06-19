@@ -901,7 +901,7 @@ const BM_GAP = { root: 6, theme: 6, cluster: 5 };
 const BM_PAD = { root: 4, theme: 9, cluster: 6 };
 
 function bmLayout(node) {
-  if (node.leaf) { node.r = bmLeafRadius(node.stage); return node.r; }
+  if (node.leaf) { node.r = node._leafR != null ? node._leafR : bmLeafRadius(node.stage); return node.r; }
   const kids = node.children || [];
   kids.forEach(bmLayout);
   const gap = BM_GAP[node.level] != null ? BM_GAP[node.level] : 4;
@@ -944,6 +944,20 @@ function bmDescendantLeafRids(node, out = []) {
 export function packBubbles(model, granularity, opts = {}) {
   const W = opts.W || 980; const H = opts.H || 540; const margin = opts.margin || 16;
   const root = bubbleHierarchy(model, granularity, opts.stageOf);
+  // Optional size channel: pre-set each leaf's radius from opts.radiusOf(leaf)
+  // BEFORE layout so the packer honours it. No override → bmLayout falls back to
+  // bmLeafRadius(stage), preserving the maturity-sized default exactly.
+  if (typeof opts.radiusOf === "function") {
+    const applyR = (node) => {
+      if (node.leaf) {
+        const r = opts.radiusOf(node);
+        if (Number.isFinite(r) && r > 0) node._leafR = r;
+        return;
+      }
+      for (const ch of (node.children || [])) applyR(ch);
+    };
+    applyR(root);
+  }
   bmLayout(root);
   bmAssignRanks(root);
   const scale = root.r > 0 ? Math.min(1, (Math.min(W, H) / 2 - margin) / root.r) : 1;

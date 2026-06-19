@@ -5840,11 +5840,50 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 @media (prefers-reduced-motion: reduce) { .alch-dir-row, .adv-seg, .alch-dir-th, .alch-dir-resize::after { transition: none; } }
 .alch-const-workbench {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(244px, 284px); /* map | fixed inspector */
+  /* map | inspector — inspector width is user-draggable (--const-rail-w, set
+     inline once dragged); falls back to the clamp at rest. */
+  grid-template-columns: minmax(0, 1fr) var(--const-rail-w, clamp(244px, 22vw, 284px));
   gap: 10px;
   align-items: stretch;
   min-height: min(76vh, 760px); /* map is the hero — fill the canvas, no dead band */
+  position: relative; /* anchor for the rail resize handle */
 }
+/* Resize handle in the column gap (left of the inspector). A thin invisible grab
+   strip with a faint center rule that brightens on hover/drag. Sits at
+   railWidth + half the 10px gap from the right edge. */
+.ac-rail-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: calc(var(--const-rail-w, clamp(244px, 22vw, 284px)) + 1px);
+  width: 9px;
+  z-index: 4;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+.ac-rail-resize::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: rgba(var(--ink-rgb), 0.10);
+  transition: background 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ac-rail-resize:hover::before,
+.ac-rail-resize:focus-visible::before,
+.alch-const-workbench.is-rail-dragging .ac-rail-resize::before {
+  background: rgba(var(--ink-rgb), 0.34);
+}
+.ac-rail-resize:focus-visible { outline: none; }
+.alch-const-workbench.is-rail-dragging { cursor: col-resize; user-select: none; }
+@media (max-width: 720px) { .ac-rail-resize { display: none; } }
 .alch-const-workbench.is-single {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -7844,12 +7883,34 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
    marker (●, real) and a target marker (▽, placeholder) per team; the bar is
    the gap to close, longest first. Standing filter dims off-standing rows. */
 .ac-stack-view.is-targets {
-  display: flex; flex-direction: column; gap: 0; min-width: 0; border: 0; background: transparent;
+  display: flex; flex-direction: column; gap: 0; min-width: 0; min-height: 0; border: 0; background: transparent;
 }
+.ac-stack-view.is-targets .ac-tgt-group { margin-top: 16px; }
+.ac-stack-view.is-targets .ac-tgt-group:first-of-type { margin-top: 4px; }
+.ac-stack-view.is-targets .ac-tgt-group-head {
+  display: flex; align-items: center; gap: 7px; margin: 0 0 5px; padding: 0 8px;
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--alchemy-ink-mute);
+}
+.ac-stack-view.is-targets .ac-tgt-group-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--band-color, currentColor); flex: none;
+}
+.ac-stack-view.is-targets .ac-tgt-group-head em { font-style: normal; color: rgba(var(--ink-rgb), 0.5); margin-left: 1px; }
 .ac-stack-view.is-targets .ac-tgt-axis,
 .ac-stack-view.is-targets .ac-tgt-row {
-  display: grid; grid-template-columns: 104px minmax(0, 1fr) 54px; gap: 12px; align-items: center;
+  display: grid; grid-template-columns: 104px 50px minmax(0, 1fr) 56px; gap: 12px; align-items: center;
 }
+/* Momentum cell — standing's signature signal (which way the team is trending). */
+.ac-stack-view.is-targets .ac-tgt-mom {
+  display: inline-flex; align-items: baseline; gap: 3px;
+  font-family: var(--font-mono); font-size: 9.5px; font-variant-numeric: tabular-nums;
+  color: var(--alchemy-ink-mute); white-space: nowrap; justify-self: start;
+}
+.ac-stack-view.is-targets .ac-tgt-mom b { font-size: 11px; line-height: 1; font-weight: 700; }
+.ac-stack-view.is-targets .ac-tgt-mom i { font-style: normal; opacity: 0.85; }
+.ac-stack-view.is-targets .ac-tgt-mom.is-rising  { color: #4f9d8f; }
+.ac-stack-view.is-targets .ac-tgt-mom.is-slipping { color: #c83a48; }
+.ac-stack-view.is-targets .ac-tgt-mom.is-flat     { color: var(--alchemy-ink-mute); }
 .ac-stack-view.is-targets .ac-tgt-axis { margin: 2px 0 8px; }
 .ac-stack-view.is-targets .ac-tgt-ticks { position: relative; height: 12px; }
 .ac-stack-view.is-targets .ac-tgt-tick {
@@ -8663,7 +8724,7 @@ html.tl-vt::view-transition-old(root), html.tl-vt::view-transition-new(root) { a
 }
 
 /* ─── collaboration board (ported from dossier Connections) ──────────── */
-.alch-collab { display: flex; flex-direction: column; gap: 26px; }
+.alch-collab { display: flex; flex-direction: column; gap: 40px; }
 
 
 /* Collab's old board header (title/sub/stats) retired 2026-06 — the shared
@@ -11019,9 +11080,9 @@ button.cb-cell:disabled { cursor: default; }
   --cb-preview-grid: rgba(255,255,255,0.075);
   --cb-preview-text: var(--alchemy-paper-warm);
   --cb-preview-muted: var(--alchemy-ink-mute);
-  --cb-preview-dep: #d95336;
-  --cb-preview-seek: #79a49f;
-  --cb-preview-aff: #9d7bb5;
+  --cb-preview-dep: #bb5a45;
+  --cb-preview-seek: #6f968d;
+  --cb-preview-aff: #8d749f;
   --cb-preview-gold: #d2a84f;
   gap: 20px;
 }
@@ -12535,7 +12596,7 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 
 .cb-intro-side:last-child { text-align: right; }
 
-.cb-intro-role { font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--alchemy-ink-mute); }
+.cb-intro-role { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--alchemy-ink-mute); }
 
 .cb-intro-team { font-size: 13px; color: var(--alchemy-paper-warm); font-weight: 500; }
 
@@ -12547,7 +12608,7 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 
 .cb-intro-chips, .cb-cv-teams { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
 
-.cb-chip, .cb-cv-team { font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.06em; text-transform: lowercase; padding: 2px 6px; border-radius: 3px; }
+.cb-chip, .cb-cv-team { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.06em; text-transform: lowercase; padding: 2px 6px; border-radius: 3px; }
 
 .cb-cv-team { background: rgba(var(--ink-rgb), 0.05); color: var(--alchemy-ink-mute); }
 
