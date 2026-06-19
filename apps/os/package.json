@@ -1,7 +1,7 @@
 {
   "name": "@shape-rotator/os",
   "productName": "Shape Rotator OS",
-  "version": "0.3.10-rc.1",
+  "version": "0.3.10-rc.2",
   "private": true,
   "main": "main.js",
   "type": "commonjs",
@@ -57,6 +57,9 @@
       "*.js",
       "daybook/**/*",
       "src/**/*",
+      "!src/**/*.test.mjs",
+      "!src/**/*.test.js",
+      "!src/**/_*-harness.html",
       "package.json"
     ],
     "extraMetadata": {
