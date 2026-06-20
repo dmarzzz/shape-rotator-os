@@ -10764,6 +10764,15 @@ textarea.cb-intake-input {
 .ac-sds-cell.is-observed > span { color: var(--alchemy-paper-warm); }
 .ac-sds-cell.is-declared > span { opacity: 0.7; }
 .ac-sds-evidence { display: block; margin-top: 3px; opacity: 0.72; font-size: 0.85em; }
+/* DID activity mix (change types · topics · author) — quiet mono metadata. */
+.ac-sds-mix {
+  display: block; margin-top: 3px;
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.01em;
+  color: var(--alchemy-ink-mute); opacity: 0.85;
+}
+/* Released names in the SHIPPED cell read as the positive signal, not muted. */
+.ac-sds-shipped-rel { opacity: 0.9; }
+.ac-sds-shipped-rel em { font-style: normal; color: var(--alchemy-ink-mute); margin-right: 4px; }
 .ac-sds-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
 .ac-sds-chip {
   display: inline-flex; align-items: center; gap: 3px;

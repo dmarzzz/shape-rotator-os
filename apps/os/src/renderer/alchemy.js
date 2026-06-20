@@ -6901,6 +6901,47 @@ function sdsEvidenceDidHtml(teamId) {
   return `<span class="ac-sds-evidence" title="observed in reviewed cohort sessions">↳ sessions · ${items}</span>`;
 }
 
+// The qualitative GitHub activity mix (dominant change types · topics · top author)
+// baked into public_activity by cohort-insight-engine.cjs. Turns the DID cell's bare
+// commit count into "feature+fix · agent/runtime · by X". "" when a team has no
+// tracked repo activity, so the cell stays its declared text + count chip unchanged.
+function sdsActivityMixHtml(act) {
+  if (!act || typeof act !== "object") return "";
+  const keys = (arr, n, skip) => (Array.isArray(arr) ? arr : [])
+    .map(x => String(x?.key || "").trim())
+    .filter(k => k && !(skip && skip.has(k)))
+    .slice(0, n);
+  const kinds = keys(act.change_types, 2, new Set(["other", "chore"]));
+  const topics = keys(act.topics, 2);
+  const author = keys(act.authors, 1)[0];
+  const bits = [];
+  if (kinds.length) bits.push(kinds.join("+"));
+  if (topics.length) bits.push(topics.join("/"));
+  if (author) bits.push(`by ${author}`);
+  if (!bits.length) return "";
+  return `<span class="ac-sds-mix" title="dominant change types · topics · top author (public GitHub activity)">${escHtml(bits.join(" · "))}</span>`;
+}
+
+// The actual published releases for a team, keyed off surface.github_releases (the
+// same per-team release items the membrane feed uses). Turns the SHIPPED cell's bare
+// "N rel" count into the real release names + dates — the view literally answers
+// "what shipped", so it should name them. "" when a team has no releases on the
+// surface, so the cell falls back to its declared text + count chip unchanged.
+function sdsShippedReleasesHtml(teamId) {
+  const all = activeConstellationCohort()?.github_releases;
+  if (!Array.isArray(all) || !all.length) return "";
+  const mine = all
+    .filter(r => r && (r.nav?.recordId === teamId || r.meta === teamId) && (r.label || r.name))
+    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))
+    .slice(0, 2);
+  if (!mine.length) return "";
+  const items = mine.map(r => {
+    const when = r.date ? contextEvidenceDate(r.date) : "";
+    return `<em>${escHtml(when)}</em> ${escHtml(constShortText(r.label || r.name, 40))}`;
+  }).join("<br>");
+  return `<span class="ac-sds-evidence ac-sds-shipped-rel" title="published GitHub releases">↳ released · ${items}</span>`;
+}
+
 // Per-team session evidence for the SHARED dossier — surfaces did / signals / asks /
 // risks (time-keyed) wherever a team is inspected, so PMF, standing, and relationship
 // all get the evidence via one hook (no per-plot surgery). "" when there's no gated
@@ -6980,11 +7021,11 @@ function renderSayDidShipped() {
             <b>say</b><span>${escHtml(constShortText(content.say || team.now || team.focus || "not declared", 120))}</span>
           </span>
           <span class="ac-sds-cell${observedClass}">
-            <b>did</b><span>${escHtml(constShortText(content.did || "not observed", 120))}</span>${sdsEvidenceDidHtml(team.record_id)}
+            <b>did</b><span>${escHtml(constShortText(content.did || "not observed", 120))}</span>${sdsActivityMixHtml(act)}${sdsEvidenceDidHtml(team.record_id)}
           </span>
           <span class="ac-sds-cell${observedClass}">
             <b>shipped</b><span>${escHtml(constShortText(content.shipped || "not observed", 110))}</span>
-            ${chips ? `<span class="ac-sds-chips">${chips}</span>` : ""}
+            ${chips ? `<span class="ac-sds-chips">${chips}</span>` : ""}${sdsShippedReleasesHtml(team.record_id)}
           </span>
         </span>
         <span class="ac-sds-foot">
@@ -15730,6 +15771,27 @@ function renderTimelineItems(items = []) {
   `;
 }
 
+// The team's published GitHub releases as a dossier section — surface.github_releases
+// filtered to this team (the same per-team items the membrane feed + say/did/shipped
+// SHIPPED cell use). The dossier is the natural home for "what this team shipped";
+// previously releases lived only in the membrane. "" when none ⇒ the section drops.
+function renderTeamReleases(recordId) {
+  const all = activeConstellationCohort()?.github_releases;
+  if (!Array.isArray(all) || !all.length) return "";
+  const mine = all
+    .filter(r => r && (r.nav?.recordId === recordId || r.meta === recordId) && (r.label || r.name))
+    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+  if (!mine.length) return "";
+  const items = mine.map(r => ({ date: r.date, title: r.label || r.name, type: "release" }));
+  return renderDisclosureSection(
+    `releases · ${mine.length}`,
+    renderTimelineItems(items),
+    false,
+    detailTimelinePreview(items),
+    "alch-detail-timeline"
+  );
+}
+
 function renderRecordTimeline(recordKind, recordId) {
   const items = detailTimelineItems(recordKind, recordId);
   if (!items.length) return "";
@@ -16044,6 +16106,7 @@ function renderTeamDetail(team) {
           ${renderDisclosureSection("assessment / plan", detailRows(assessmentRows), false, assessmentPreview)}
           ${renderDisclosureSection("evidence", detailRows(evidenceRows), false, evidencePreview)}
           ${renderWorkstreamTimeline(recordId)}
+          ${renderTeamReleases(recordId)}
           ${renderDisclosureSection("coordination", detailRows(coordinationRows), false, coordinationPreview)}
           ${renderRecordTimeline("team", recordId)}
         </div>
