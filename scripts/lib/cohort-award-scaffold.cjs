@@ -65,11 +65,31 @@ function dependencyDegree(teams, dependencies, asArray) {
   return degree;
 }
 
-function buildDataNominationCard({ category, candidates, makeInsightCard, sourceRef }) {
+function buildDataNominationCard({ category, candidates, makeInsightCard, sourceRef, helpers = {} }) {
   const observed = candidates.length > 0;
   const lead = observed
     ? candidates.slice(0, 3).map((c) => `${c.name} (${c.value})`).join(", ")
     : "no public signal yet";
+  const { makeTrace, traceSignal, EVIDENCE_BASIS = {}, ALGORITHM_VERSIONS = {} } = helpers;
+  // A nomination, never a verdict: the trace records the ranking metric and each
+  // candidate's value with a ref to the team it came from, so the list is verifiable.
+  const trace = typeof makeTrace === "function"
+    ? makeTrace({
+      method: "award_scaffold_public_signal",
+      version: ALGORITHM_VERSIONS.award,
+      basis: observed ? EVIDENCE_BASIS.OBSERVED : EVIDENCE_BASIS.DECLARED,
+      confidence: "low",
+      confidenceBasis: `candidate list ranked by ${category.metric} from public metadata — a nomination, never a verdict`,
+      signals: candidates.map((c) => traceSignal({
+        name: c.record_id,
+        value: c.value,
+        detail: category.metric,
+        sourceRefs: [sourceRef("team_record", { record_id: c.record_id, path: `cohort-data/teams/${c.record_id}.md` })],
+      })),
+      inputs: [sourceRef("award_category", { category_id: category.id, basis: "public_signal" })],
+      recompute: `rank teams by ${category.metric} over committed github/dependency artifacts`,
+    })
+    : null;
   return makeInsightCard({
     id: `cohort-insight:award:${category.id}`,
     kind: "award",
@@ -96,12 +116,28 @@ function buildDataNominationCard({ category, candidates, makeInsightCard, source
       verdict: null,
       status: "awaiting_review",
       note: "Candidate list from public data only. The winner is a reviewed judgment, not produced by this deterministic public bundle.",
+      ...(trace ? { trace } : {}),
     },
   });
 }
 
-function buildEditorialSlotCard({ category, makeInsightCard, sourceRef, compactText }) {
+function buildEditorialSlotCard({ category, makeInsightCard, sourceRef, compactText, helpers = {} }) {
   const label = compactText(category.label || category.id, 80);
+  const { makeTrace, EVIDENCE_BASIS = {}, ALGORITHM_VERSIONS = {} } = helpers;
+  // An empty placeholder; the trace says plainly that the verdict is filled elsewhere
+  // (private engine + human review) so a reader never mistakes it for a generated winner.
+  const trace = typeof makeTrace === "function"
+    ? makeTrace({
+      method: "award_editorial_slot",
+      version: ALGORITHM_VERSIONS.award,
+      basis: EVIDENCE_BASIS.DECLARED,
+      confidence: "low",
+      confidenceBasis: "empty editorial placeholder; the verdict is a reviewed model judgment filled in Supabase, never here",
+      signals: [],
+      inputs: [sourceRef("award_category_config", { path: "cohort-data/awards.yml", category_id: category.id })],
+      recompute: "declared editorial category from cohort-data/awards.yml",
+    })
+    : null;
   return makeInsightCard({
     id: `cohort-insight:award:editorial:${category.id}`,
     kind: "award",
@@ -128,6 +164,7 @@ function buildEditorialSlotCard({ category, makeInsightCard, sourceRef, compactT
       status: "awaiting_private_judgment",
       fill_source: "private_transcript_engine_then_human_review",
       note: "Filled in Supabase as a needs_review card (source_boundary derived_model_judgment); never written into the public bundle.",
+      ...(trace ? { trace } : {}),
     },
   });
 }
@@ -160,11 +197,12 @@ function buildAwardCards({
     candidates: rankCandidates(teamList, metricFns[category.metric]),
     makeInsightCard,
     sourceRef,
+    helpers,
   }));
 
   const editorialCards = asArray(editorialCategories)
     .filter((category) => category && category.id)
-    .map((category) => buildEditorialSlotCard({ category, makeInsightCard, sourceRef, compactText }));
+    .map((category) => buildEditorialSlotCard({ category, makeInsightCard, sourceRef, compactText, helpers }));
 
   return [...dataCards, ...editorialCards];
 }

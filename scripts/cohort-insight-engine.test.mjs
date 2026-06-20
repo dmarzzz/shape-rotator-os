@@ -227,6 +227,31 @@ test("say/did/shipped cards distinguish observed public movement from unobserved
   assert.equal(bySubject.get("beta").evidence_level, "declared_only");
 });
 
+test("say/did/shipped recovers matched_cohort_people as a contributor roster", () => {
+  const progressWithPeople = [{
+    artifact_kind: "github_progress_weekly_summary", record_type: "team", record_id: "alpha",
+    date: "2026-06-01", week_start: "2026-06-01", source_repo: "alpha/demo",
+    evidence: { useful_commit_count: 9 },
+    collaboration: {
+      matched_cohort_people: [
+        { person_id: "ada", person_name: "Ada Stone", confidence: "high", reason: "github_noreply_email", commit_count: 7 },
+        { person_id: "ben", person_name: "Ben Lee", confidence: "medium", reason: "exact_author_name", commit_count: 2 },
+      ],
+      possible_cross_team_contributions: [],
+    },
+  }];
+  const card = engine.buildSayDidShippedCards({ teams, githubProgressArtifacts: progressWithPeople })
+    .find(c => c.subject_ids[0] === "alpha");
+  const roster = card.content_json.contributors;
+  assert.equal(roster.length, 2);
+  assert.equal(roster[0].person_name, "Ada Stone"); // sorted by commit_count desc
+  assert.equal(roster[0].match_quality, "github-noreply email match");
+  assert.equal(roster[1].match_quality, "exact-name match (possible namesake)");
+  // and it travels in the trace as a contributors signal, citing the progress artifacts
+  const sig = card.content_json.trace.signals.find(s => s.name === "contributors");
+  assert.ok(sig && sig.value.length === 2, "contributors ride the trace");
+});
+
 test("github progress loader deduplicates generated/reviewed team-week copies", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cohort-insight-progress-"));
   const generatedDir = path.join(root, "cohort-data", "artifacts", "github-progress", "generated");
@@ -517,6 +542,38 @@ test("collaboration edges dedupe the replicated repo snapshot and skip same/unkn
   // 4, not 8 — the replicated week-2 snapshot is deduped, not summed.
   assert.equal(cards[0].content_json.total_commit_count, 4);
   assert.equal(cards[0].content_json.contributor_count, 1);
+});
+
+test("collaboration edge confidence is signal-weighted and carries the identity-match basis", () => {
+  const base = {
+    artifact_kind: "github_progress_weekly_summary", record_type: "team",
+    record_id: "alpha", source_repo: "alpha/demo", date: "2026-06-01", week_start: "2026-06-01",
+    evidence: { useful_commit_count: 1 },
+  };
+  // A single one-commit, exact-name (low) match is the weakest possible signal -> low,
+  // and the person->team identity is inferred (no github-noreply email match).
+  const weak = engine.buildCollaborationEdgeCards({ teams, githubProgressArtifacts: [{
+    ...base, artifact_id: "a:1",
+    collaboration: { matched_cohort_people: [], possible_cross_team_contributions: [
+      { person_id: "ada", person_name: "Ada Stone", person_team_ids: ["delta"], repo_team_ids: ["alpha"], confidence: "low", commit_count: 1 },
+    ] },
+  }] })[0];
+  assert.equal(weak.confidence, "low");
+  assert.equal(weak.content_json.identity_inferred, true);
+  assert.equal(weak.content_json.trace.basis, "observed_with_inferred_identity");
+  assert.equal(weak.content_json.directions[0].contributions[0].match_quality, "exact-name match (possible namesake)");
+
+  // A github-noreply (medium) match with several commits -> medium, identity observed.
+  const strong = engine.buildCollaborationEdgeCards({ teams, githubProgressArtifacts: [{
+    ...base, artifact_id: "a:2",
+    collaboration: { matched_cohort_people: [], possible_cross_team_contributions: [
+      { person_id: "ada", person_name: "Ada Stone", person_team_ids: ["delta"], repo_team_ids: ["alpha"], confidence: "medium", commit_count: 6 },
+    ] },
+  }] })[0];
+  assert.equal(strong.confidence, "medium");
+  assert.equal(strong.content_json.identity_inferred, false);
+  assert.equal(strong.content_json.trace.basis, "observed");
+  assert.equal(strong.content_json.directions[0].contributions[0].match_quality, "github-noreply email match");
 });
 
 test("cohort insight bundle surfaces collaboration edges keyed by team pair", () => {

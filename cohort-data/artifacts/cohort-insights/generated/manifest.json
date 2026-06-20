@@ -47,6 +47,7 @@
           "self_confidence": "Low",
           "note": "strong operator background and shipped enterprise blockchain history; current cohort artifact is still at spec/registry stage"
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "declared_only",
           "latest_week_start": "",
@@ -152,6 +153,7 @@
           "self_confidence": "Medium",
           "note": "live bitrouter.ai surface, public x402-kit direction, and Phala CTO referral. 2026-06-08 WDYDLW: hard truth — distribution spike (stars 2× after Shaw retweet)..."
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "declared_only",
           "latest_week_start": "",
@@ -271,6 +273,7 @@
           "self_confidence": "Low",
           "note": "~3.5k LOC hackathon submission plus two end-to-end skills; talking to cohort teams about adoption but no committed users yet"
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "public_signal_observed",
           "latest_week_start": "2026-05-25",
@@ -399,6 +402,7 @@
           "self_confidence": "Low",
           "note": "working prototype and OpenClaw/plugin direction are present; repeated external use still needs proof. 2026-06-08 WDYDLW: Shaw's steer reframes the wedge from a..."
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "declared_only",
           "latest_week_start": "",
@@ -504,6 +508,7 @@
           "self_confidence": "Low",
           "note": "working prototype and paper-author collaboration are strong research signals; product boundary and user path still need sharpening"
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "declared_only",
           "latest_week_start": "",
@@ -609,6 +614,7 @@
           "self_confidence": "Low",
           "note": "PROF paper and market-data pipeline direction are credible; customer/user pull is not yet proven. 2026-06-08 WDYDLW: de-risked from a make-users-money bot (fid..."
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "declared_only",
           "latest_week_start": "",
@@ -714,6 +720,7 @@
           "self_confidence": "Low",
           "note": "current app and vault surface establish the project thesis and members; primary project application/repo evidence is still sparse"
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "declared_only",
           "latest_week_start": "",
@@ -847,6 +854,7 @@
           "self_confidence": "Low",
           "note": "working DCAP prototype with 56 passing tests; Bradford Quantum Hackathon 2025 winner; validated in demos but no external integrators yet. 2026-06-08 WDYDLW: in..."
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "public_signal_observed",
           "latest_week_start": "2026-06-15",
@@ -1024,6 +1032,7 @@
           "self_confidence": "High",
           "note": "mature open-source ecosystem, active plugin/runtime surfaces, and multiple production-facing products; cohort value is integration and focus, not basic validat..."
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "public_signal_observed",
           "latest_week_start": "2026-06-15",
@@ -1166,6 +1175,7 @@
           "self_confidence": "Medium",
           "note": "live product, user/session counts, power-user rate, and public content traction indicate real demand; monetization and retention depth still need tightening. 2..."
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "declared_only",
           "latest_week_start": "",
@@ -1271,6 +1281,7 @@
           "self_confidence": "Low",
           "note": "current app surface establishes focus and builder background, but the vault lacks primary project application/repo evidence"
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "declared_only",
           "latest_week_start": "",
@@ -1376,6 +1387,7 @@
           "self_confidence": "Medium",
           "note": "hardware installs, Anthropic HQ exhibition, Florent residency, and repo surface show real creative deployment; repeatable product package remains open"
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "declared_only",
           "latest_week_start": "",
@@ -1481,6 +1493,7 @@
           "self_confidence": "Low",
           "note": "current app surface gives the product thesis; primary project/member evidence is still sparse in the vault. 2026-06-08 WDYDLW: expansion toward a customizable..."
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "declared_only",
           "latest_week_start": "",
@@ -1607,6 +1620,7 @@
           "self_confidence": "Medium",
           "note": "Tevm grant, Smithers HN signal, large public repo activity, and related EVM tooling show high builder credibility. 2026-06-08 WDYDLW: product crossed from main..."
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "public_signal_observed",
           "latest_week_start": "2026-06-01",
@@ -1749,6 +1763,7 @@
           "self_confidence": "Medium",
           "note": "hackathon win, live platform, test suite, and paper-to-product arc are strong; next risk is external adoption"
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "declared_only",
           "latest_week_start": "",
@@ -1854,6 +1869,7 @@
           "self_confidence": "Medium",
           "note": "live on Phala TDX with stable uptime since hackathon; working Da Vinci PAS / X12 278 payer integrations; founder has 2x prior exits"
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "declared_only",
           "latest_week_start": "",
@@ -1986,6 +2002,7 @@
           "self_confidence": "Low",
           "note": "public repository and coordinator source profile establish the product direction. 2026-06-08 WDYDLW: idea → deployed, benchmarked prototype — 10k queries at me..."
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "public_signal_observed",
           "latest_week_start": "2026-06-08",
@@ -2135,6 +2152,7 @@
           "self_confidence": "Medium",
           "note": "current app surface reports 150+ users and pre-monetization status; retention mechanics remain the key unknown"
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "declared_only",
           "latest_week_start": "",
@@ -2274,6 +2292,7 @@
           "self_confidence": "Low",
           "note": "2026-06-08 WDYDLW: opened to external contributors — James Barnes's Teleport Router PR was the first merged cohort-project contribution; honest read from the r..."
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "public_signal_observed",
           "latest_week_start": "2026-06-15",
@@ -2450,6 +2469,7 @@
           "self_confidence": "Medium",
           "note": "public sigstack repo, beta-development surface, attestation SDK, and privacy-AI market framing are present; repeated user adoption remains to prove"
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "public_signal_observed",
           "latest_week_start": "2026-05-18",
@@ -2578,6 +2598,7 @@
           "self_confidence": "Medium",
           "note": "multiple supporting repos, current beta direction, and clear cohort demand from Flashbots X-adjacent projects. 2026-06-08 WDYDLW: product-shape pivot from HA P..."
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "public_signal_observed",
           "latest_week_start": "2026-06-08",
@@ -2706,6 +2727,7 @@
           "self_confidence": "Low",
           "note": "public surface and repo establish the delegation direction. 2026-06-08 WDYDLW: the cohort-use-case milestone began landing via the Shape Rotator OS merge (firs..."
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "public_signal_observed",
           "latest_week_start": "2026-05-25",
@@ -2834,6 +2856,7 @@
           "self_confidence": "Medium",
           "note": "live SDK/protocol, paid pilot, dstack fork, and shipped related tools show execution. 2026-06-08 WDYDLW: scoped-delegation milestone effectively met with a liv..."
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "declared_only",
           "latest_week_start": "",
@@ -2939,6 +2962,7 @@
           "self_confidence": "Low",
           "note": "public profile and OSINT establish the trust-root thesis; implementation surface is not yet visible in the cohort data"
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "declared_only",
           "latest_week_start": "",
@@ -3044,6 +3068,7 @@
           "self_confidence": "Low",
           "note": "current source profile establishes Luc/Natalia and the attested-RL thesis; project-specific implementation evidence is still thin"
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "declared_only",
           "latest_week_start": "",
@@ -3149,6 +3174,7 @@
           "self_confidence": "Low",
           "note": "strong scientific/public background and live surfaces exist; the exact paid workflow and buyer remain less clear"
         },
+        "contributors": [],
         "public_activity": {
           "observed_status": "declared_only",
           "latest_week_start": "",
@@ -13429,7 +13455,60 @@
         ],
         "verdict": null,
         "status": "awaiting_review",
-        "note": "Candidate list from public data only. The winner is a reviewed judgment, not produced by this deterministic public bundle."
+        "note": "Candidate list from public data only. The winner is a reviewed judgment, not produced by this deterministic public bundle.",
+        "trace": {
+          "method": "award_scaffold_public_signal",
+          "version": 1,
+          "basis": "observed",
+          "confidence": "low",
+          "confidence_basis": "candidate list ranked by public_release_count from public metadata — a nomination, never a verdict",
+          "signals": [
+            {
+              "name": "shape-rotator-os",
+              "value": 82,
+              "detail": "public_release_count",
+              "source_refs": [
+                {
+                  "kind": "team_record",
+                  "record_id": "shape-rotator-os",
+                  "path": "cohort-data/teams/shape-rotator-os.md"
+                }
+              ]
+            },
+            {
+              "name": "searxng-wth-frnds",
+              "value": 16,
+              "detail": "public_release_count",
+              "source_refs": [
+                {
+                  "kind": "team_record",
+                  "record_id": "searxng-wth-frnds",
+                  "path": "cohort-data/teams/searxng-wth-frnds.md"
+                }
+              ]
+            },
+            {
+              "name": "signalstack",
+              "value": 1,
+              "detail": "public_release_count",
+              "source_refs": [
+                {
+                  "kind": "team_record",
+                  "record_id": "signalstack",
+                  "path": "cohort-data/teams/signalstack.md"
+                }
+              ]
+            }
+          ],
+          "inputs": [
+            {
+              "kind": "award_category",
+              "category_id": "shipped-most",
+              "basis": "public_signal"
+            }
+          ],
+          "recompute": "rank teams by public_release_count over committed github/dependency artifacts"
+        }
       },
       "generated_by": "scripts/lib/cohort-insight-engine.cjs"
     },
@@ -13522,7 +13601,84 @@
         ],
         "verdict": null,
         "status": "awaiting_review",
-        "note": "Candidate list from public data only. The winner is a reviewed judgment, not produced by this deterministic public bundle."
+        "note": "Candidate list from public data only. The winner is a reviewed judgment, not produced by this deterministic public bundle.",
+        "trace": {
+          "method": "award_scaffold_public_signal",
+          "version": 1,
+          "basis": "observed",
+          "confidence": "low",
+          "confidence_basis": "candidate list ranked by useful_commit_count from public metadata — a nomination, never a verdict",
+          "signals": [
+            {
+              "name": "elizaos",
+              "value": 959,
+              "detail": "useful_commit_count",
+              "source_refs": [
+                {
+                  "kind": "team_record",
+                  "record_id": "elizaos",
+                  "path": "cohort-data/teams/elizaos.md"
+                }
+              ]
+            },
+            {
+              "name": "shape-rotator-os",
+              "value": 378,
+              "detail": "useful_commit_count",
+              "source_refs": [
+                {
+                  "kind": "team_record",
+                  "record_id": "shape-rotator-os",
+                  "path": "cohort-data/teams/shape-rotator-os.md"
+                }
+              ]
+            },
+            {
+              "name": "teesql",
+              "value": 283,
+              "detail": "useful_commit_count",
+              "source_refs": [
+                {
+                  "kind": "team_record",
+                  "record_id": "teesql",
+                  "path": "cohort-data/teams/teesql.md"
+                }
+              ]
+            },
+            {
+              "name": "jjhub",
+              "value": 200,
+              "detail": "useful_commit_count",
+              "source_refs": [
+                {
+                  "kind": "team_record",
+                  "record_id": "jjhub",
+                  "path": "cohort-data/teams/jjhub.md"
+                }
+              ]
+            },
+            {
+              "name": "searxng-wth-frnds",
+              "value": 30,
+              "detail": "useful_commit_count",
+              "source_refs": [
+                {
+                  "kind": "team_record",
+                  "record_id": "searxng-wth-frnds",
+                  "path": "cohort-data/teams/searxng-wth-frnds.md"
+                }
+              ]
+            }
+          ],
+          "inputs": [
+            {
+              "kind": "award_category",
+              "category_id": "most-active-build",
+              "basis": "public_signal"
+            }
+          ],
+          "recompute": "rank teams by useful_commit_count over committed github/dependency artifacts"
+        }
       },
       "generated_by": "scripts/lib/cohort-insight-engine.cjs"
     },
@@ -13615,7 +13771,84 @@
         ],
         "verdict": null,
         "status": "awaiting_review",
-        "note": "Candidate list from public data only. The winner is a reviewed judgment, not produced by this deterministic public bundle."
+        "note": "Candidate list from public data only. The winner is a reviewed judgment, not produced by this deterministic public bundle.",
+        "trace": {
+          "method": "award_scaffold_public_signal",
+          "version": 1,
+          "basis": "observed",
+          "confidence": "low",
+          "confidence_basis": "candidate list ranked by dependency_degree from public metadata — a nomination, never a verdict",
+          "signals": [
+            {
+              "name": "contexto",
+              "value": 10,
+              "detail": "dependency_degree",
+              "source_refs": [
+                {
+                  "kind": "team_record",
+                  "record_id": "contexto",
+                  "path": "cohort-data/teams/contexto.md"
+                }
+              ]
+            },
+            {
+              "name": "teesql",
+              "value": 8,
+              "detail": "dependency_degree",
+              "source_refs": [
+                {
+                  "kind": "team_record",
+                  "record_id": "teesql",
+                  "path": "cohort-data/teams/teesql.md"
+                }
+              ]
+            },
+            {
+              "name": "tinycloud",
+              "value": 8,
+              "detail": "dependency_degree",
+              "source_refs": [
+                {
+                  "kind": "team_record",
+                  "record_id": "tinycloud",
+                  "path": "cohort-data/teams/tinycloud.md"
+                }
+              ]
+            },
+            {
+              "name": "conclave",
+              "value": 7,
+              "detail": "dependency_degree",
+              "source_refs": [
+                {
+                  "kind": "team_record",
+                  "record_id": "conclave",
+                  "path": "cohort-data/teams/conclave.md"
+                }
+              ]
+            },
+            {
+              "name": "crossroads",
+              "value": 7,
+              "detail": "dependency_degree",
+              "source_refs": [
+                {
+                  "kind": "team_record",
+                  "record_id": "crossroads",
+                  "path": "cohort-data/teams/crossroads.md"
+                }
+              ]
+            }
+          ],
+          "inputs": [
+            {
+              "kind": "award_category",
+              "category_id": "most-connected",
+              "basis": "public_signal"
+            }
+          ],
+          "recompute": "rank teams by dependency_degree over committed github/dependency artifacts"
+        }
       },
       "generated_by": "scripts/lib/cohort-insight-engine.cjs"
     },
@@ -13654,7 +13887,23 @@
         "verdict": null,
         "status": "awaiting_private_judgment",
         "fill_source": "private_transcript_engine_then_human_review",
-        "note": "Filled in Supabase as a needs_review card (source_boundary derived_model_judgment); never written into the public bundle."
+        "note": "Filled in Supabase as a needs_review card (source_boundary derived_model_judgment); never written into the public bundle.",
+        "trace": {
+          "method": "award_editorial_slot",
+          "version": 1,
+          "basis": "declared",
+          "confidence": "low",
+          "confidence_basis": "empty editorial placeholder; the verdict is a reviewed model judgment filled in Supabase, never here",
+          "signals": [],
+          "inputs": [
+            {
+              "kind": "award_category_config",
+              "path": "cohort-data/awards.yml",
+              "category_id": "best-shape-rotation"
+            }
+          ],
+          "recompute": "declared editorial category from cohort-data/awards.yml"
+        }
       },
       "generated_by": "scripts/lib/cohort-insight-engine.cjs"
     },
@@ -13693,7 +13942,23 @@
         "verdict": null,
         "status": "awaiting_private_judgment",
         "fill_source": "private_transcript_engine_then_human_review",
-        "note": "Filled in Supabase as a needs_review card (source_boundary derived_model_judgment); never written into the public bundle."
+        "note": "Filled in Supabase as a needs_review card (source_boundary derived_model_judgment); never written into the public bundle.",
+        "trace": {
+          "method": "award_editorial_slot",
+          "version": 1,
+          "basis": "declared",
+          "confidence": "low",
+          "confidence_basis": "empty editorial placeholder; the verdict is a reviewed model judgment filled in Supabase, never here",
+          "signals": [],
+          "inputs": [
+            {
+              "kind": "award_category_config",
+              "path": "cohort-data/awards.yml",
+              "category_id": "best-team-product-fit"
+            }
+          ],
+          "recompute": "declared editorial category from cohort-data/awards.yml"
+        }
       },
       "generated_by": "scripts/lib/cohort-insight-engine.cjs"
     }
@@ -14000,6 +14265,7 @@
             "self_confidence": "Low",
             "note": "strong operator background and shipped enterprise blockchain history; current cohort artifact is still at spec/registry stage"
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "declared_only",
             "latest_week_start": "",
@@ -14105,6 +14371,7 @@
             "self_confidence": "Medium",
             "note": "live bitrouter.ai surface, public x402-kit direction, and Phala CTO referral. 2026-06-08 WDYDLW: hard truth — distribution spike (stars 2× after Shaw retweet)..."
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "declared_only",
             "latest_week_start": "",
@@ -14224,6 +14491,7 @@
             "self_confidence": "Low",
             "note": "~3.5k LOC hackathon submission plus two end-to-end skills; talking to cohort teams about adoption but no committed users yet"
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "public_signal_observed",
             "latest_week_start": "2026-05-25",
@@ -14352,6 +14620,7 @@
             "self_confidence": "Low",
             "note": "working prototype and OpenClaw/plugin direction are present; repeated external use still needs proof. 2026-06-08 WDYDLW: Shaw's steer reframes the wedge from a..."
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "declared_only",
             "latest_week_start": "",
@@ -14457,6 +14726,7 @@
             "self_confidence": "Low",
             "note": "working prototype and paper-author collaboration are strong research signals; product boundary and user path still need sharpening"
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "declared_only",
             "latest_week_start": "",
@@ -14562,6 +14832,7 @@
             "self_confidence": "Low",
             "note": "PROF paper and market-data pipeline direction are credible; customer/user pull is not yet proven. 2026-06-08 WDYDLW: de-risked from a make-users-money bot (fid..."
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "declared_only",
             "latest_week_start": "",
@@ -14667,6 +14938,7 @@
             "self_confidence": "Low",
             "note": "current app and vault surface establish the project thesis and members; primary project application/repo evidence is still sparse"
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "declared_only",
             "latest_week_start": "",
@@ -14800,6 +15072,7 @@
             "self_confidence": "Low",
             "note": "working DCAP prototype with 56 passing tests; Bradford Quantum Hackathon 2025 winner; validated in demos but no external integrators yet. 2026-06-08 WDYDLW: in..."
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "public_signal_observed",
             "latest_week_start": "2026-06-15",
@@ -14977,6 +15250,7 @@
             "self_confidence": "High",
             "note": "mature open-source ecosystem, active plugin/runtime surfaces, and multiple production-facing products; cohort value is integration and focus, not basic validat..."
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "public_signal_observed",
             "latest_week_start": "2026-06-15",
@@ -15119,6 +15393,7 @@
             "self_confidence": "Medium",
             "note": "live product, user/session counts, power-user rate, and public content traction indicate real demand; monetization and retention depth still need tightening. 2..."
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "declared_only",
             "latest_week_start": "",
@@ -15224,6 +15499,7 @@
             "self_confidence": "Low",
             "note": "current app surface establishes focus and builder background, but the vault lacks primary project application/repo evidence"
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "declared_only",
             "latest_week_start": "",
@@ -15329,6 +15605,7 @@
             "self_confidence": "Medium",
             "note": "hardware installs, Anthropic HQ exhibition, Florent residency, and repo surface show real creative deployment; repeatable product package remains open"
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "declared_only",
             "latest_week_start": "",
@@ -15434,6 +15711,7 @@
             "self_confidence": "Low",
             "note": "current app surface gives the product thesis; primary project/member evidence is still sparse in the vault. 2026-06-08 WDYDLW: expansion toward a customizable..."
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "declared_only",
             "latest_week_start": "",
@@ -15560,6 +15838,7 @@
             "self_confidence": "Medium",
             "note": "Tevm grant, Smithers HN signal, large public repo activity, and related EVM tooling show high builder credibility. 2026-06-08 WDYDLW: product crossed from main..."
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "public_signal_observed",
             "latest_week_start": "2026-06-01",
@@ -15702,6 +15981,7 @@
             "self_confidence": "Medium",
             "note": "hackathon win, live platform, test suite, and paper-to-product arc are strong; next risk is external adoption"
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "declared_only",
             "latest_week_start": "",
@@ -15807,6 +16087,7 @@
             "self_confidence": "Medium",
             "note": "live on Phala TDX with stable uptime since hackathon; working Da Vinci PAS / X12 278 payer integrations; founder has 2x prior exits"
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "declared_only",
             "latest_week_start": "",
@@ -15939,6 +16220,7 @@
             "self_confidence": "Low",
             "note": "public repository and coordinator source profile establish the product direction. 2026-06-08 WDYDLW: idea → deployed, benchmarked prototype — 10k queries at me..."
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "public_signal_observed",
             "latest_week_start": "2026-06-08",
@@ -16088,6 +16370,7 @@
             "self_confidence": "Medium",
             "note": "current app surface reports 150+ users and pre-monetization status; retention mechanics remain the key unknown"
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "declared_only",
             "latest_week_start": "",
@@ -16227,6 +16510,7 @@
             "self_confidence": "Low",
             "note": "2026-06-08 WDYDLW: opened to external contributors — James Barnes's Teleport Router PR was the first merged cohort-project contribution; honest read from the r..."
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "public_signal_observed",
             "latest_week_start": "2026-06-15",
@@ -16403,6 +16687,7 @@
             "self_confidence": "Medium",
             "note": "public sigstack repo, beta-development surface, attestation SDK, and privacy-AI market framing are present; repeated user adoption remains to prove"
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "public_signal_observed",
             "latest_week_start": "2026-05-18",
@@ -16531,6 +16816,7 @@
             "self_confidence": "Medium",
             "note": "multiple supporting repos, current beta direction, and clear cohort demand from Flashbots X-adjacent projects. 2026-06-08 WDYDLW: product-shape pivot from HA P..."
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "public_signal_observed",
             "latest_week_start": "2026-06-08",
@@ -16659,6 +16945,7 @@
             "self_confidence": "Low",
             "note": "public surface and repo establish the delegation direction. 2026-06-08 WDYDLW: the cohort-use-case milestone began landing via the Shape Rotator OS merge (firs..."
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "public_signal_observed",
             "latest_week_start": "2026-05-25",
@@ -16787,6 +17074,7 @@
             "self_confidence": "Medium",
             "note": "live SDK/protocol, paid pilot, dstack fork, and shipped related tools show execution. 2026-06-08 WDYDLW: scoped-delegation milestone effectively met with a liv..."
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "declared_only",
             "latest_week_start": "",
@@ -16892,6 +17180,7 @@
             "self_confidence": "Low",
             "note": "public profile and OSINT establish the trust-root thesis; implementation surface is not yet visible in the cohort data"
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "declared_only",
             "latest_week_start": "",
@@ -16997,6 +17286,7 @@
             "self_confidence": "Low",
             "note": "current source profile establishes Luc/Natalia and the attested-RL thesis; project-specific implementation evidence is still thin"
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "declared_only",
             "latest_week_start": "",
@@ -17102,6 +17392,7 @@
             "self_confidence": "Low",
             "note": "strong scientific/public background and live surfaces exist; the exact paid workflow and buyer remain less clear"
           },
+          "contributors": [],
           "public_activity": {
             "observed_status": "declared_only",
             "latest_week_start": "",
@@ -27387,7 +27678,60 @@
           ],
           "verdict": null,
           "status": "awaiting_review",
-          "note": "Candidate list from public data only. The winner is a reviewed judgment, not produced by this deterministic public bundle."
+          "note": "Candidate list from public data only. The winner is a reviewed judgment, not produced by this deterministic public bundle.",
+          "trace": {
+            "method": "award_scaffold_public_signal",
+            "version": 1,
+            "basis": "observed",
+            "confidence": "low",
+            "confidence_basis": "candidate list ranked by public_release_count from public metadata — a nomination, never a verdict",
+            "signals": [
+              {
+                "name": "shape-rotator-os",
+                "value": 82,
+                "detail": "public_release_count",
+                "source_refs": [
+                  {
+                    "kind": "team_record",
+                    "record_id": "shape-rotator-os",
+                    "path": "cohort-data/teams/shape-rotator-os.md"
+                  }
+                ]
+              },
+              {
+                "name": "searxng-wth-frnds",
+                "value": 16,
+                "detail": "public_release_count",
+                "source_refs": [
+                  {
+                    "kind": "team_record",
+                    "record_id": "searxng-wth-frnds",
+                    "path": "cohort-data/teams/searxng-wth-frnds.md"
+                  }
+                ]
+              },
+              {
+                "name": "signalstack",
+                "value": 1,
+                "detail": "public_release_count",
+                "source_refs": [
+                  {
+                    "kind": "team_record",
+                    "record_id": "signalstack",
+                    "path": "cohort-data/teams/signalstack.md"
+                  }
+                ]
+              }
+            ],
+            "inputs": [
+              {
+                "kind": "award_category",
+                "category_id": "shipped-most",
+                "basis": "public_signal"
+              }
+            ],
+            "recompute": "rank teams by public_release_count over committed github/dependency artifacts"
+          }
         },
         "generated_by": "scripts/lib/cohort-insight-engine.cjs"
       },
@@ -27480,7 +27824,84 @@
           ],
           "verdict": null,
           "status": "awaiting_review",
-          "note": "Candidate list from public data only. The winner is a reviewed judgment, not produced by this deterministic public bundle."
+          "note": "Candidate list from public data only. The winner is a reviewed judgment, not produced by this deterministic public bundle.",
+          "trace": {
+            "method": "award_scaffold_public_signal",
+            "version": 1,
+            "basis": "observed",
+            "confidence": "low",
+            "confidence_basis": "candidate list ranked by useful_commit_count from public metadata — a nomination, never a verdict",
+            "signals": [
+              {
+                "name": "elizaos",
+                "value": 959,
+                "detail": "useful_commit_count",
+                "source_refs": [
+                  {
+                    "kind": "team_record",
+                    "record_id": "elizaos",
+                    "path": "cohort-data/teams/elizaos.md"
+                  }
+                ]
+              },
+              {
+                "name": "shape-rotator-os",
+                "value": 378,
+                "detail": "useful_commit_count",
+                "source_refs": [
+                  {
+                    "kind": "team_record",
+                    "record_id": "shape-rotator-os",
+                    "path": "cohort-data/teams/shape-rotator-os.md"
+                  }
+                ]
+              },
+              {
+                "name": "teesql",
+                "value": 283,
+                "detail": "useful_commit_count",
+                "source_refs": [
+                  {
+                    "kind": "team_record",
+                    "record_id": "teesql",
+                    "path": "cohort-data/teams/teesql.md"
+                  }
+                ]
+              },
+              {
+                "name": "jjhub",
+                "value": 200,
+                "detail": "useful_commit_count",
+                "source_refs": [
+                  {
+                    "kind": "team_record",
+                    "record_id": "jjhub",
+                    "path": "cohort-data/teams/jjhub.md"
+                  }
+                ]
+              },
+              {
+                "name": "searxng-wth-frnds",
+                "value": 30,
+                "detail": "useful_commit_count",
+                "source_refs": [
+                  {
+                    "kind": "team_record",
+                    "record_id": "searxng-wth-frnds",
+                    "path": "cohort-data/teams/searxng-wth-frnds.md"
+                  }
+                ]
+              }
+            ],
+            "inputs": [
+              {
+                "kind": "award_category",
+                "category_id": "most-active-build",
+                "basis": "public_signal"
+              }
+            ],
+            "recompute": "rank teams by useful_commit_count over committed github/dependency artifacts"
+          }
         },
         "generated_by": "scripts/lib/cohort-insight-engine.cjs"
       },
@@ -27573,7 +27994,84 @@
           ],
           "verdict": null,
           "status": "awaiting_review",
-          "note": "Candidate list from public data only. The winner is a reviewed judgment, not produced by this deterministic public bundle."
+          "note": "Candidate list from public data only. The winner is a reviewed judgment, not produced by this deterministic public bundle.",
+          "trace": {
+            "method": "award_scaffold_public_signal",
+            "version": 1,
+            "basis": "observed",
+            "confidence": "low",
+            "confidence_basis": "candidate list ranked by dependency_degree from public metadata — a nomination, never a verdict",
+            "signals": [
+              {
+                "name": "contexto",
+                "value": 10,
+                "detail": "dependency_degree",
+                "source_refs": [
+                  {
+                    "kind": "team_record",
+                    "record_id": "contexto",
+                    "path": "cohort-data/teams/contexto.md"
+                  }
+                ]
+              },
+              {
+                "name": "teesql",
+                "value": 8,
+                "detail": "dependency_degree",
+                "source_refs": [
+                  {
+                    "kind": "team_record",
+                    "record_id": "teesql",
+                    "path": "cohort-data/teams/teesql.md"
+                  }
+                ]
+              },
+              {
+                "name": "tinycloud",
+                "value": 8,
+                "detail": "dependency_degree",
+                "source_refs": [
+                  {
+                    "kind": "team_record",
+                    "record_id": "tinycloud",
+                    "path": "cohort-data/teams/tinycloud.md"
+                  }
+                ]
+              },
+              {
+                "name": "conclave",
+                "value": 7,
+                "detail": "dependency_degree",
+                "source_refs": [
+                  {
+                    "kind": "team_record",
+                    "record_id": "conclave",
+                    "path": "cohort-data/teams/conclave.md"
+                  }
+                ]
+              },
+              {
+                "name": "crossroads",
+                "value": 7,
+                "detail": "dependency_degree",
+                "source_refs": [
+                  {
+                    "kind": "team_record",
+                    "record_id": "crossroads",
+                    "path": "cohort-data/teams/crossroads.md"
+                  }
+                ]
+              }
+            ],
+            "inputs": [
+              {
+                "kind": "award_category",
+                "category_id": "most-connected",
+                "basis": "public_signal"
+              }
+            ],
+            "recompute": "rank teams by dependency_degree over committed github/dependency artifacts"
+          }
         },
         "generated_by": "scripts/lib/cohort-insight-engine.cjs"
       },
@@ -27612,7 +28110,23 @@
           "verdict": null,
           "status": "awaiting_private_judgment",
           "fill_source": "private_transcript_engine_then_human_review",
-          "note": "Filled in Supabase as a needs_review card (source_boundary derived_model_judgment); never written into the public bundle."
+          "note": "Filled in Supabase as a needs_review card (source_boundary derived_model_judgment); never written into the public bundle.",
+          "trace": {
+            "method": "award_editorial_slot",
+            "version": 1,
+            "basis": "declared",
+            "confidence": "low",
+            "confidence_basis": "empty editorial placeholder; the verdict is a reviewed model judgment filled in Supabase, never here",
+            "signals": [],
+            "inputs": [
+              {
+                "kind": "award_category_config",
+                "path": "cohort-data/awards.yml",
+                "category_id": "best-shape-rotation"
+              }
+            ],
+            "recompute": "declared editorial category from cohort-data/awards.yml"
+          }
         },
         "generated_by": "scripts/lib/cohort-insight-engine.cjs"
       },
@@ -27651,7 +28165,23 @@
           "verdict": null,
           "status": "awaiting_private_judgment",
           "fill_source": "private_transcript_engine_then_human_review",
-          "note": "Filled in Supabase as a needs_review card (source_boundary derived_model_judgment); never written into the public bundle."
+          "note": "Filled in Supabase as a needs_review card (source_boundary derived_model_judgment); never written into the public bundle.",
+          "trace": {
+            "method": "award_editorial_slot",
+            "version": 1,
+            "basis": "declared",
+            "confidence": "low",
+            "confidence_basis": "empty editorial placeholder; the verdict is a reviewed model judgment filled in Supabase, never here",
+            "signals": [],
+            "inputs": [
+              {
+                "kind": "award_category_config",
+                "path": "cohort-data/awards.yml",
+                "category_id": "best-team-product-fit"
+              }
+            ],
+            "recompute": "declared editorial category from cohort-data/awards.yml"
+          }
         },
         "generated_by": "scripts/lib/cohort-insight-engine.cjs"
       }

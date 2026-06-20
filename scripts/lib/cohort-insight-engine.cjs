@@ -394,6 +394,35 @@ function teamActivity(team, progressByTeam, releasesByTeam) {
   return { progress, releaseArtifacts, releases, latest, observed, totalUsefulCommits, releaseNames };
 }
 
+// Recover the matched_cohort_people signal the github-progress scanner attaches to each
+// weekly artifact (cohort members who authored this team's public commits) — previously
+// computed then dropped at the engine boundary (trace gap G2). Deduped per person (keep the
+// largest commit count) so a team's card can answer "who actually built this", with each
+// person carrying the heuristic strength of the author->person match.
+function aggregateMatchedContributors(progressArtifacts) {
+  const byPerson = new Map();
+  for (const artifact of asArray(progressArtifacts)) {
+    for (const person of asArray(artifact?.collaboration?.matched_cohort_people)) {
+      const id = String(person?.person_id || "").trim();
+      if (!id) continue;
+      const commitCount = Number(person?.commit_count) || 0;
+      const existing = byPerson.get(id);
+      if (!existing || commitCount > existing.commit_count) {
+        byPerson.set(id, {
+          person_id: id,
+          person_name: compactText(person?.person_name || id, 80),
+          commit_count: commitCount,
+          confidence: String(person?.confidence || "low").toLowerCase(),
+          match_quality: person?.reason === "github_noreply_email"
+            ? "github-noreply email match"
+            : "exact-name match (possible namesake)",
+        });
+      }
+    }
+  }
+  return [...byPerson.values()].sort((a, b) => b.commit_count - a.commit_count || a.person_name.localeCompare(b.person_name));
+}
+
 // One per-team card carries BOTH a grammar-correct identity lead (what it is / does /
 // who it serves) and the say -> did -> shipped public-proof strip. This replaces the
 // former separate project_identity card: identity and proof are one read, derived once
@@ -409,6 +438,9 @@ function buildSayDidShippedCards({ teams = [], githubProgressArtifacts = [], git
       const act = teamActivity(team, progressByTeam, releasesByTeam);
       const journey = team.journey || {};
       const name = team.name || team.record_id;
+      // Who actually authored this team's public commits (recovered from the scanner's
+      // matched_cohort_people; commits observed, person identity heuristically matched).
+      const contributors = aggregateMatchedContributors(act.progress);
 
       // The verb mood is chosen from whether any PUBLIC artifact backs the team: an
       // observed team "provides/builds" (present tense); a declared-only team "aims to
@@ -495,6 +527,9 @@ function buildSayDidShippedCards({ teams = [], githubProgressArtifacts = [], git
           traceSignal({ name: "say", value: say, detail: "declared current intent", sourceRefs: [teamRef] }),
           traceSignal({ name: "did", value: did, detail: `basis: ${didBasis}`, sourceRefs: didBasis === "github_progress" ? progressRefs : [teamRef] }),
           traceSignal({ name: "shipped", value: shipped, detail: `basis: ${shippedBasis}`, sourceRefs: shippedBasis === "github_release" ? releaseRefs : [teamRef] }),
+          ...(contributors.length
+            ? [traceSignal({ name: "contributors", value: contributors, detail: "cohort authors of this team's public commits (identity heuristically matched)", sourceRefs: progressRefs })]
+            : []),
         ],
         inputs: refs,
         recompute: "buildSayDidShippedCards over committed team record + github-progress/release artifacts",
@@ -525,6 +560,7 @@ function buildSayDidShippedCards({ teams = [], githubProgressArtifacts = [], git
           observed_status: act.observed ? "public_signal_observed" : "unobserved",
           claim_basis: claimBasis,
           stage_qualifier: stageQualifier,
+          contributors,
           public_activity: {
             observed_status: act.observed ? "public_signal_observed" : "declared_only",
             latest_week_start: isoDate(act.latest?.week_start || act.latest?.date),
@@ -810,8 +846,25 @@ function buildLatentOverlapCards({ teams = [], clusters = [], dependencies = [],
 // pair. Unlike latent_overlap (an INFERRED structural similarity), these edges are
 // OBSERVED public-commit authorship — but still confidence medium/low because the
 // author→person match is itself heuristic (github-noreply email = medium, exact name = low).
+// The author->person match quality is the CEILING (never "high": email/name matching is
+// itself heuristic). Volume lifts WITHIN that ceiling — a single one-commit attribution is
+// the weakest possible signal; sustained, multi-person contribution is stronger. A "medium"
+// per-contribution confidence is a github-noreply email match; "low" is an exact-name match
+// (a possible namesake), so a low-only edge can rise to low-medium on volume but no further.
 function collaborationEdgeConfidence(contributions) {
-  return contributions.some(contrib => contrib.confidence === "medium") ? "medium" : "low";
+  const hasStrongMatch = contributions.some(contrib => contrib.confidence === "medium");
+  const totalCommits = contributions.reduce((sum, contrib) => sum + (Number(contrib.commit_count) || 0), 0);
+  const contributorCount = new Set(contributions.map(contrib => contrib.person_id)).size;
+  if (hasStrongMatch) return (totalCommits >= 3 || contributorCount >= 2) ? "medium" : "low-medium";
+  return (totalCommits >= 5 && contributorCount >= 2) ? "low-medium" : "low";
+}
+
+// How the commit author was linked to a cohort person — the heuristic the whole "observed"
+// claim rests on, surfaced so a reader can judge an edge instead of trusting a bare word.
+function matchQualityLabel(confidence) {
+  return confidence === "medium"
+    ? "github-noreply email match"
+    : "exact-name match (possible namesake)";
 }
 
 function buildCollaborationEdgeCards({ teams = [], githubProgressArtifacts = [], limit = 40 } = {}) {
@@ -862,6 +915,7 @@ function buildCollaborationEdgeCards({ teams = [], githubProgressArtifacts = [],
               repo,
               commit_count: commitCount,
               confidence,
+              reason: String(contrib?.reason || ""),
               examples,
               artifact_id: artifactId,
               week_start: weekStart,
@@ -897,6 +951,19 @@ function buildCollaborationEdgeCards({ teams = [], githubProgressArtifacts = [],
           contributors: [...new Set(list.map(contrib => contrib.person_name))],
           repos: [...new Set(list.map(contrib => contrib.repo).filter(Boolean))],
           commit_count: list.reduce((sum, contrib) => sum + contrib.commit_count, 0),
+          confidence: collaborationEdgeConfidence(list),
+          // Per-author basis so the edge's confidence is auditable: who, how many commits,
+          // and how strong the author->person identity match was (the whole claim's footing).
+          contributions: list
+            .map(contrib => ({
+              person_name: contrib.person_name,
+              commit_count: contrib.commit_count,
+              confidence: contrib.confidence,
+              match_quality: matchQualityLabel(contrib.confidence),
+              repo: contrib.repo,
+              week_start: contrib.week_start,
+            }))
+            .sort((x, y) => y.commit_count - x.commit_count || x.person_name.localeCompare(y.person_name)),
         };
       })
       .sort((a, b) => b.commit_count - a.commit_count
@@ -906,17 +973,11 @@ function buildCollaborationEdgeCards({ teams = [], githubProgressArtifacts = [],
       ? `${directions[0].contributors.join(", ")} (${directions[0].from_team_name}) committed to ${directions[0].to_team_name}'s public repo (${totalCommits} commit${totalCommits === 1 ? "" : "s"}).`
       : `${contributors.length} cohort contributor${contributors.length === 1 ? "" : "s"} link ${aName} and ${bName} through ${repos.length} shared public repo${repos.length === 1 ? "" : "s"} (${totalCommits} commit${totalCommits === 1 ? "" : "s"}).`;
 
-    cards.push(makeInsightCard({
-      id: `cohort-insight:collaboration-edge:${slugPart(teamAId)}:${slugPart(teamBId)}`,
-      kind: "collaboration_edge",
-      subjectType: "team_pair",
-      subjectIds: [teamAId, teamBId],
-      title: `${aName} / ${bName}: GitHub collaboration`,
-      claimText,
-      summary: `Observed public-GitHub cross-team contribution: ${directions.map(dir => `${dir.contributors.join(", ")} (${dir.from_team_name}) → ${dir.to_team_name}`).join("; ")}.`,
-      evidenceLevel: "observed_public_metadata",
-      confidence,
-      sourceRefs: [
+      // The commits are observed, but if every author->person link is an exact-name match
+      // the IDENTITY is inferred — so the trace basis is honest about which it is, even
+      // though the public-metadata evidence_level (the commits) is unchanged.
+      const identityInferred = !contributions.some(contrib => contrib.confidence === "medium");
+      const refs = [
         sourceRef("team_record", { record_id: teamAId, path: `cohort-data/teams/${teamAId}.md` }),
         sourceRef("team_record", { record_id: teamBId, path: `cohort-data/teams/${teamBId}.md` }),
         ...contributions
@@ -927,22 +988,52 @@ function buildCollaborationEdgeCards({ teams = [], githubProgressArtifacts = [],
             source_repo: contrib.repo,
             week_start: contrib.week_start,
           })),
-      ],
-      contentJson: {
-        team_pair: [teamAId, teamBId],
-        total_commit_count: totalCommits,
-        contributor_count: contributors.length,
-        contributors,
-        repos,
-        directions,
-        evidence_basis: "public_github_commit_authorship",
-        suggested_actions: [
-          "confirm the cross-team contribution with both teams",
-          "record a dependency or collaboration if the work is ongoing",
-          "dismiss as a false positive if the commit-author match is wrong",
-        ],
-      },
-    }));
+      ];
+      const trace = makeTrace({
+        method: "collaboration_edge_github",
+        version: ALGORITHM_VERSIONS.collaboration_edge,
+        basis: identityInferred ? EVIDENCE_BASIS.OBSERVED_INFERRED_IDENTITY : EVIDENCE_BASIS.OBSERVED,
+        confidence,
+        confidenceBasis: identityInferred
+          ? `commits are observed, but every author->person link is an exact-name match (possible namesake); ${totalCommits} commit(s), ${contributors.length} contributor(s)`
+          : `observed public commits with a github-noreply email author match; ${totalCommits} commit(s), ${contributors.length} contributor(s) across ${repos.length} repo(s)`,
+        signals: directions.map(dir => traceSignal({
+          name: `${dir.from_team}->${dir.to_team}`,
+          value: dir.contributions,
+          detail: `${dir.commit_count} commit(s), ${dir.confidence} confidence`,
+          sourceRefs: refs.filter(ref => ref.kind === "github_progress_artifact"),
+        })),
+        inputs: refs,
+        recompute: "buildCollaborationEdgeCards over committed github-progress collaboration snapshots",
+      });
+      cards.push(makeInsightCard({
+        id: `cohort-insight:collaboration-edge:${slugPart(teamAId)}:${slugPart(teamBId)}`,
+        kind: "collaboration_edge",
+        subjectType: "team_pair",
+        subjectIds: [teamAId, teamBId],
+        title: `${aName} / ${bName}: GitHub collaboration`,
+        claimText,
+        summary: `Observed public-GitHub cross-team contribution: ${directions.map(dir => `${dir.contributors.join(", ")} (${dir.from_team_name}) → ${dir.to_team_name}`).join("; ")}.`,
+        evidenceLevel: "observed_public_metadata",
+        confidence,
+        sourceRefs: refs,
+        contentJson: {
+          team_pair: [teamAId, teamBId],
+          total_commit_count: totalCommits,
+          contributor_count: contributors.length,
+          contributors,
+          repos,
+          directions,
+          identity_inferred: identityInferred,
+          evidence_basis: "public_github_commit_authorship",
+          suggested_actions: [
+            "confirm the cross-team contribution with both teams",
+            "record a dependency or collaboration if the work is ongoing",
+            "dismiss as a false positive if the commit-author match is wrong",
+          ],
+          trace,
+        },
+      }));
   }
 
   return cards
@@ -978,7 +1069,7 @@ function indexByKind(cards) {
 
 // Helpers injected into the award scaffold module (keeps awards in their own file
 // without duplicating the canonical card factory or risking a circular require).
-const AWARD_HELPERS = { asArray, compactText, sourceRef, groupBy, usefulCommitCount, releaseRows };
+const AWARD_HELPERS = { asArray, compactText, sourceRef, groupBy, usefulCommitCount, releaseRows, makeTrace, traceSignal, EVIDENCE_BASIS, ALGORITHM_VERSIONS };
 
 function buildAwardCards({
   teams = [],
