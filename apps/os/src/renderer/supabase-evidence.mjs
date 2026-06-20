@@ -34,15 +34,18 @@ import {
 export const DEFAULT_PUBLIC_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4am50endrc2lsdXZxY3BjY3BjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNzA1NzEsImV4cCI6MjA5Njk0NjU3MX0.XjXEUnw3jq1E7PwIOvhr7a3OpO2lyZv6S_Hn3JqogBA";
 
-// DORMANT — the gated T2 cohort reader is OFF until its backing migration ships.
-// The cohort_app role + view (cohort_app_transcript_evidence_cards) and migration
-// 20260618000000_cohort_app_evidence_reader.sql do NOT exist yet, so attempting
-// the read would 404. COHORT_APP_READER_ENABLED gates every cohort fetch off at
-// the call sites (cohort-source.js); the app serves T2 from the committed bundle
-// and reads the anon T3 view live. To re-enable: deploy the migration, then flip
-// COHORT_APP_READER_ENABLED to true. The plumbing below stays intact so re-enable
-// is a one-line change. Behavior today is identical to the public-web fallback.
-export const COHORT_APP_READER_ENABLED = false;
+// ENABLED — the gated T2 cohort reader is live. Its backing migration is deployed
+// and the view (cohort_app_transcript_evidence_cards) exists (verified against the
+// cohort DB 2026-06-20: an unauthenticated read returns 401, not 404 — the view is
+// present, gated by the cohort_app role). With a cohort key present the app reads
+// named / cohort-internal T2 cards live; with NO key (the public web bundle or an
+// un-provisioned build) fetchCohortEvidenceCards no-ops and the app falls back to the
+// anon T3 read + committed bundle. Every failure path is graceful (try/catch, returns
+// source:"error"/"unconfigured"), so enabling this can only ADD the named tier when a
+// key is configured — it never breaks the public / un-provisioned path. (This reverses
+// the temporary 00a7a828 disable, whose "the migration does not exist yet" premise was
+// outdated — the migration had already shipped.)
+export const COHORT_APP_READER_ENABLED = true;
 
 // The COHORT key is a JWT bearing role=cohort_app. When the reader is enabled it
 // reads the GATED T2 cohort evidence view — content NOT exposed to anon / the

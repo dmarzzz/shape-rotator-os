@@ -4,12 +4,11 @@
 // "transcripts" tab can show the cleaned, paraphrased distillations alongside the
 // user's local raw vault — without a repo rebuild or a committed bundle.
 //
-// DORMANT — like the cohort evidence reader, this is gated OFF by
-// COHORT_APP_READER_ENABLED (supabase-evidence.mjs) until its backing migration
-// ships: the cohort_app_transcript_distillations view and migration
-// 20260618170000_cohort_app_distillation_reader.sql do NOT exist yet. The
-// transcripts tab serves local raw only; re-enable by deploying the migration and
-// flipping the flag. Intended privacy posture when live: the readouts live in
+// ENABLED — like the cohort evidence reader, this is gated by
+// COHORT_APP_READER_ENABLED (supabase-evidence.mjs), now on: its backing
+// cohort_app_transcript_distillations view is deployed. With a cohort key the
+// transcripts tab shows the live distilled readouts; with no key the read no-ops and
+// the tab serves local raw only. Privacy posture: the readouts live in
 // public.derived_artifacts, exposed to the distributed app via the GATED
 // cohort_app_transcript_distillations view read with the same role=cohort_app JWT
 // that reads T2 evidence cards. That view keeps the distillation safety filters
