@@ -7003,8 +7003,19 @@ function renderSayDidShipped() {
     const proof = sdsEvidenceParts(card);
     const relCount = sdsNumber(act, "release_count");
     const commitCount = sdsNumber(act, "useful_commit_count");
+    // The named release list (when present) carries the SHIPPED signal; drop the
+    // bare "N rel" count chip so the cell doesn't show shipping twice. (The count is
+    // all release artifacts; the named list is the recent few off the surface feed —
+    // showing both side by side reads as a contradiction. The dossier "releases · N"
+    // keeps the full total.)
+    const releasedHtml = sdsShippedReleasesHtml(team.record_id);
+    // DID: prefer the richer dated session overlay when present (cohort key), else the
+    // build-baked activity mix — never stack both under the prose, which would unbalance
+    // the 3-across proof strip.
+    const didSessionsHtml = sdsEvidenceDidHtml(team.record_id);
+    const didMixHtml = didSessionsHtml ? "" : sdsActivityMixHtml(act);
     const chips = [
-      relCount ? `<span class="ac-sds-chip"><strong>${relCount}</strong> rel</span>` : "",
+      (relCount && !releasedHtml) ? `<span class="ac-sds-chip"><strong>${relCount}</strong> rel</span>` : "",
       commitCount ? `<span class="ac-sds-chip"><strong>${commitCount}</strong> commits</span>` : "",
     ].filter(Boolean).join("");
     return `
@@ -7021,11 +7032,11 @@ function renderSayDidShipped() {
             <b>say</b><span>${escHtml(constShortText(content.say || team.now || team.focus || "not declared", 120))}</span>
           </span>
           <span class="ac-sds-cell${observedClass}">
-            <b>did</b><span>${escHtml(constShortText(content.did || "not observed", 120))}</span>${sdsActivityMixHtml(act)}${sdsEvidenceDidHtml(team.record_id)}
+            <b>did</b><span>${escHtml(constShortText(content.did || "not observed", 120))}</span>${didMixHtml}${didSessionsHtml}
           </span>
           <span class="ac-sds-cell${observedClass}">
             <b>shipped</b><span>${escHtml(constShortText(content.shipped || "not observed", 110))}</span>
-            ${chips ? `<span class="ac-sds-chips">${chips}</span>` : ""}${sdsShippedReleasesHtml(team.record_id)}
+            ${chips ? `<span class="ac-sds-chips">${chips}</span>` : ""}${releasedHtml}
           </span>
         </span>
         <span class="ac-sds-foot">

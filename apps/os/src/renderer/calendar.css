@@ -963,7 +963,7 @@
 .c2-rec-label { flex: 1 1 auto; min-width: 0; color: var(--ed-ink-1); }
 .c2-rec-status { flex: 0 0 auto; font-size: 9px; padding: 1px 6px; border-radius: 4px; }
 .c2-rec-held { background: color-mix(in srgb, var(--ed-ink-3) 16%, transparent); color: var(--ed-ink-2); }
-.c2-rec-public { background: color-mix(in srgb, #5ad59b 18%, transparent); color: #5ad59b; }
+.c2-rec-public { background: color-mix(in srgb, var(--c2-ship-release) 18%, transparent); color: color-mix(in srgb, var(--c2-ship-release) 70%, var(--ed-ink-1)); }
 .c2-rec-note { margin: 7px 0 0; font-size: 10px; line-height: 1.45; color: var(--ed-ink-3); }
 .c2-modal-actions {
   display: grid;
