@@ -18,6 +18,10 @@ import {
   parseWeekRow, parseRecurring, currentWeekIdx, phaseFor,
   CALENDAR_URL,
 } from "@shape-rotator/shape-ui";
+// The curated session→transcript join (date + title fragments → recorded source).
+// Previously consumed only by build-bundles for dossier timelines; surfacing it here
+// makes the calendar tell you which sessions were recorded, instead of being silent.
+import { CALENDAR_TRANSCRIPT_MATCHES } from "../content/context/calendar-transcript-matches.js";
 
 const PRIMARY_TAB = "May 18 Start";
 const WEEK_COUNT  = 10;
@@ -1009,6 +1013,38 @@ function positionEventPanel(overlay, anchorRect) {
 
 // ── event modal ──────────────────────────────────────────────────────
 // ref = "t:<dayIdx>:<timedIdx>" | "a:<dayIdx>:<alldayIdx>" from data-c2-ev.
+// Find the curated transcript match for a calendar event (date + title fragment)
+// and render a "session recorded" block — what was captured and whether the record
+// is a public distilled recap or held privately in the vault. "" when no session
+// record matches the event, so ordinary events render unchanged.
+function sessionRecordHtml(day, title) {
+  if (!day || !title) return "";
+  const iso = isoDay(day.dayMs);
+  const t = String(title).toLowerCase();
+  const match = CALENDAR_TRANSCRIPT_MATCHES.find(e =>
+    e && e.date === iso && Array.isArray(e.title_contains)
+    && e.title_contains.some(frag => t.includes(String(frag).toLowerCase())));
+  if (!match) return "";
+  const sources = Array.isArray(match.sources) ? match.sources : [];
+  const rows = sources.map(s => {
+    const role = String(s.role || "record").replace(/_/g, " ");
+    const held = s.held === "private-vault" || (!s.path && s.vault_id);
+    const status = held
+      ? `<span class="c2-rec-status c2-rec-held">held privately</span>`
+      : `<span class="c2-rec-status c2-rec-public">distilled recap</span>`;
+    const label = String(s.label || match.section || role);
+    return `<li class="c2-rec-row"><span class="c2-rec-role">${escHtml(role)}</span><span class="c2-rec-label">${escHtml(label)}</span>${status}</li>`;
+  }).join("");
+  if (!rows) return "";
+  const conf = match.confidence ? ` · ${escHtml(match.confidence)} confidence` : "";
+  return `
+    <div class="c2-modal-record">
+      <div class="c2-rec-head">session recorded${conf}</div>
+      <ul class="c2-rec-list">${rows}</ul>
+      <p class="c2-rec-note">Recaps live in Context → transcripts; private records stay in the vault until cleared.</p>
+    </div>`;
+}
+
 export function openCalendarEvent(ref, { anchor = null, anchorRect = null } = {}) {
   if (!_model || typeof document === "undefined") return;
   const m = String(ref || "").match(/^([ta]):(\d+):(\d+)$/);
@@ -1055,6 +1091,7 @@ export function openCalendarEvent(ref, { anchor = null, anchorRect = null } = {}
       </div>
       <h3 class="c2-modal-title"><em>${escHtml(title)}</em></h3>
       ${details.length ? `<ul class="c2-modal-details">${details.map(d => `<li>${escHtml(d)}</li>`).join("")}</ul>` : ""}
+      ${sessionRecordHtml(day, title)}
       ${(addEventHref || googleLink) ? `
         <div class="c2-modal-actions">
           ${addEventHref ? `<a class="c2-modal-google" href="${escAttr(addEventHref)}" data-external>
