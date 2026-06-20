@@ -7260,6 +7260,12 @@ function constBubbleContainerSvg(c, accentStyle) {
     </g>`;
 }
 
+// Resting team labels on the bubble map: the per-space anchor (rank 0) always
+// shows; other teams reveal their name at rest only if their bubble is at least
+// this big (viewBox radius units). Large teams have room to carry a label; small
+// ones stay hover-only so the at-rest map doesn't collapse into a name pile.
+const BUBBLE_LABEL_R_MIN = 12.5;
+
 function renderConstellation() {
   const cohort = activeConstellationCohort();
   const teams = cohort.teams || [];
@@ -7472,7 +7478,9 @@ function renderConstellation() {
     // so the at-rest map reads as: space labels = where things are, one anchor
     // name per space, and any team's name on hover (sidebar + in-place).
     const labelLines = constNodeLabelLines(team, viewMode);
-    const smallBubble = isBubble && rank !== 0 && !grainDeep; // deepest zoom band rests ALL team labels
+    // Anchor (rank 0) always rests a label; other teams rest one only if their
+    // bubble is large enough to carry it (BUBBLE_LABEL_R_MIN). Deepest zoom rests all.
+    const smallBubble = isBubble && rank !== 0 && r < BUBBLE_LABEL_R_MIN && !grainDeep;
     const fullLabel = constText(team.name || team.record_id);
     return `
     <g class="ac-node-group ac-node-domain-${constDomainClass(team.domain)}${orphan}${sourceClass}${interestClass}${densityClass}${keystoneClass}${secondaryClass}${bridgeRank ? " is-bridge-ranked" : ""}${domainFilter !== "all" && constDomainClass(team.domain) !== domainFilter ? " is-domain-dim" : ""}"${smallBubble ? ' data-small-bubble="true"' : ""} data-record-id="${escHtml(team.record_id)}" data-profile-link-count="${gapCount}" style="${escAttr(nodeAccentStyle + vtName)}" role="button" tabindex="0" aria-label="${escAttr(`inspect ${team.name || team.record_id}`)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
@@ -8028,9 +8036,42 @@ function wireDetailDismiss() {
 }
 
 // ─── constellation hover ─────────────────────────────────────────────
+// At-rest team labels on the bubble map: BUBBLE_LABEL_R_MIN lets larger non-anchor
+// teams carry a resting name, but two big bubbles can still sit close enough that
+// their labels touch. After layout, greedily keep labels by priority (anchor first,
+// then larger radius) and demote any whose measured box overlaps a kept one to
+// hover-only (data-small-bubble). Real geometry, so the resting map never piles up.
+function deconflictBubbleLabels(stage) {
+  if (!stage) return;
+  const groups = [...stage.querySelectorAll('.ac-node-group[data-record-id]:not([data-small-bubble])')];
+  const cand = [];
+  for (const g of groups) {
+    const txt = g.querySelector('text');
+    if (!txt) continue;
+    const box = txt.getBoundingClientRect();
+    if (!box.width || !box.height) continue;
+    const shape = g.querySelector('.ac-node-shape');
+    const r = shape ? (parseFloat(shape.getAttribute('r')) || 0) : 0;
+    cand.push({ g, box, r, anchor: g.classList.contains('is-keystone-label') });
+  }
+  cand.sort((a, b) => (Number(b.anchor) - Number(a.anchor)) || (b.r - a.r));
+  const kept = [];
+  const PAD = 2; // px breathing room so labels that merely touch still deconflict
+  for (const c of cand) {
+    const a = c.box;
+    const hit = kept.some(k => {
+      const b = k.box;
+      return a.left - PAD < b.right && b.left - PAD < a.right && a.top - PAD < b.bottom && b.top - PAD < a.bottom;
+    });
+    if (hit) c.g.setAttribute('data-small-bubble', 'true');
+    else kept.push(c);
+  }
+}
+
 function wireConstellationHover() {
   wireConstellationModeNav();
   const stage = state.canvas.querySelector(".alch-constellation-stage");
+  if (stage && stage.getAttribute("data-view") === "bubble") deconflictBubbleLabels(stage);
   // Selection chip + readout name-links live OUTSIDE the inspector (which
   // has its own delegated handler), so the canvas owns them. Bound once —
   // state.canvas survives innerHTML swaps, so per-render binds would pile up.
