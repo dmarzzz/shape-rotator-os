@@ -54,6 +54,7 @@ import {
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
 import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
 import { indexCohortEvidence, teamEvidence, recentClaims, teamTimeline, claimLane } from "./cohort-evidence-index.mjs";
+import { cardTraceBodyHtml } from "./cohort-trace-view.mjs";
 import { getCohortTimeline } from "./cohort-timeline.js";
 import { buildActivityLane, isPresent, buildStandingLane } from "./cohort-timeline-tracks.mjs";
 import { getStandingWeekly } from "./cohort-standing-weekly.js";
@@ -5340,6 +5341,11 @@ function constTeamInspectorHtml(team, ctx) {
     : `<p class="ac-inspector-note">No explicit PMF journey read yet. Use the relationship and profile evidence above first.</p>`;
   const marketFitSection = ctx?.mode === "stack" ? "" : constInspectorDetailsHtml("PMF evidence", marketFitBody);
   const sourceProofDetails = (ctx?.mode === "stack" || !sourceProof) ? "" : constInspectorDetailsHtml("source proof", sourceProof);
+  // "How this reads" — the say/did/shipped card's reasoning trace: the honest basis
+  // (observed vs declared), each line's source, and how to recompute it. Follows the
+  // claim back to where it came from, in one reusable renderer shared with every surface.
+  const sdsTraceBody = cardTraceBodyHtml(cohortInsightSubjectMap("say_did_shipped").get(team.record_id));
+  const traceSection = (ctx?.mode === "stack" || !sdsTraceBody) ? "" : constInspectorDetailsHtml("how this reads", sdsTraceBody);
   const currentBetRows = [
     ["live bet", liveBet],
     ["uncertainty", uncertainty],
@@ -5394,6 +5400,7 @@ function constTeamInspectorHtml(team, ctx) {
     ${isBubble ? "" : marketFitSection}
     ${isBubble ? "" : transcriptCues}
     ${isBubble ? "" : sourceProofDetails}
+    ${isBubble ? "" : traceSection}
     ${isBubble ? `<p class="ac-inspector-note ac-collab-pointer">Intros, asks &amp; offers live on the Collab board.</p>` : ""}`;
 }
 
