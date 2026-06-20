@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   indexCohortEvidence, teamEvidence, recentClaims, edgePairs, weekHistogram,
   evidenceDependencyRecords, teamTimeline, claimLane,
+  collaborationContributionDependencyRecords,
 } from "../apps/os/src/renderer/cohort-evidence-index.mjs";
 
 const card = (claim_type, teams, week, claim_text = "x", extra = {}) => ({
@@ -129,4 +130,41 @@ test("empty / malformed evidence yields an empty index (views no-op, never throw
     assert.deepEqual(weekHistogram(idx), []);
     assert.deepEqual(teamEvidence(idx, "anyone").did, []);
   }
+});
+
+// GitHub collaboration cards → co-contribution clique edges.
+const collabCard = (contributor, target, repo) => ({
+  kind: "collaboration_contribution",
+  subject_ids: [contributor, target],
+  content_json: { repo },
+  confidence: "medium",
+  generated_at: "2026-06-18",
+});
+
+test("collaboration cards become a co-contribution clique per repo (team↔team)", () => {
+  const cards = [
+    collabCard("dealproof", "dmarz", "dmarzzz/voxterm"),
+    collabCard("signalstack", "dmarz", "dmarzzz/voxterm"),
+    collabCard("contexto", "dmarz", "dmarzzz/voxterm-transcript-sink"), // alone on its repo → no edge
+    { kind: "collaboration_contribution", subject_ids: ["dmarz"], content_json: { repo: "dmarzzz/voxterm" } }, // no contributor pair → skip
+  ];
+  const recs = collaborationContributionDependencyRecords(cards, []);
+  assert.equal(recs.length, 1, "voxterm's two contributor teams form one edge; the solo repo none");
+  const e = recs[0];
+  assert.deepEqual([e.source, e.target].sort(), ["dealproof", "signalstack"]);
+  assert.equal(e.relation, "contributed_to");
+  assert.equal(e.status, "insight_derived");
+  assert.match(e.reason, /dmarzzz\/voxterm/);
+  assert.equal(e.record_id, "collab-edge:dealproof|signalstack");
+});
+
+test("collaboration edges skip a pair already declared + ignore non-collab cards", () => {
+  const cards = [
+    collabCard("dealproof", "dmarz", "dmarzzz/voxterm"),
+    collabCard("signalstack", "dmarz", "dmarzzz/voxterm"),
+    { kind: "say_did_shipped", subject_ids: ["dealproof", "signalstack"], content_json: { repo: "x" } },
+  ];
+  const declared = [{ source: "dealproof", target: "signalstack", record_id: "dep:1" }];
+  assert.deepEqual(collaborationContributionDependencyRecords(cards, declared), [], "declared pair not restated");
+  assert.deepEqual(collaborationContributionDependencyRecords([], []), []);
 });

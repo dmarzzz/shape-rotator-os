@@ -51,7 +51,8 @@ import {
   CONTEXT_SUBMISSION_KINDS,
   submitContext,
 } from "./context-submit.mjs";
-import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
+import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable, refreshCohortFromGithub } from "./cohort-source.js";
+import { readSupabaseConfig, persistCohortKeyOverride } from "./supabase-evidence.mjs";
 import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
 import { indexCohortEvidence, teamEvidence, recentClaims, teamTimeline, claimLane } from "./cohort-evidence-index.mjs";
 import { getCohortTimeline } from "./cohort-timeline.js";
@@ -6565,6 +6566,47 @@ function sdsEvidenceDidHtml(teamId) {
   return `<span class="ac-sds-evidence" title="observed in reviewed cohort sessions">↳ sessions · ${items}</span>`;
 }
 
+// The qualitative GitHub activity mix (dominant change types · topics · top author)
+// baked into public_activity by cohort-insight-engine.cjs. Turns the DID cell's bare
+// commit count into "feature+fix · agent/runtime · by X". "" when a team has no
+// tracked repo activity, so the cell stays its declared text + count chip unchanged.
+function sdsActivityMixHtml(act) {
+  if (!act || typeof act !== "object") return "";
+  const keys = (arr, n, skip) => (Array.isArray(arr) ? arr : [])
+    .map(x => String(x?.key || "").trim())
+    .filter(k => k && !(skip && skip.has(k)))
+    .slice(0, n);
+  const kinds = keys(act.change_types, 2, new Set(["other", "chore"]));
+  const topics = keys(act.topics, 2);
+  const author = keys(act.authors, 1)[0];
+  const bits = [];
+  if (kinds.length) bits.push(kinds.join("+"));
+  if (topics.length) bits.push(topics.join("/"));
+  if (author) bits.push(`by ${author}`);
+  if (!bits.length) return "";
+  return `<span class="ac-sds-mix" title="dominant change types · topics · top author (public GitHub activity)">${escHtml(bits.join(" · "))}</span>`;
+}
+
+// The actual published releases for a team, keyed off surface.github_releases (the
+// same per-team release items the membrane feed uses). Turns the SHIPPED cell's bare
+// "N rel" count into the real release names + dates — the view literally answers
+// "what shipped", so it should name them. "" when a team has no releases on the
+// surface, so the cell falls back to its declared text + count chip unchanged.
+function sdsShippedReleasesHtml(teamId) {
+  const all = activeConstellationCohort()?.github_releases;
+  if (!Array.isArray(all) || !all.length) return "";
+  const mine = all
+    .filter(r => r && (r.nav?.recordId === teamId || r.meta === teamId) && (r.label || r.name))
+    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))
+    .slice(0, 2);
+  if (!mine.length) return "";
+  const items = mine.map(r => {
+    const when = r.date ? contextEvidenceDate(r.date) : "";
+    return `<em>${escHtml(when)}</em> ${escHtml(constShortText(r.label || r.name, 40))}`;
+  }).join("<br>");
+  return `<span class="ac-sds-evidence ac-sds-shipped-rel" title="published GitHub releases">↳ released · ${items}</span>`;
+}
+
 // Per-team session evidence for the SHARED dossier — surfaces did / signals / asks /
 // risks (time-keyed) wherever a team is inspected, so PMF, standing, and relationship
 // all get the evidence via one hook (no per-plot surgery). "" when there's no gated
@@ -6626,8 +6668,19 @@ function renderSayDidShipped() {
     const proof = sdsEvidenceParts(card);
     const relCount = sdsNumber(act, "release_count");
     const commitCount = sdsNumber(act, "useful_commit_count");
+    // The named release list (when present) carries the SHIPPED signal; drop the
+    // bare "N rel" count chip so the cell doesn't show shipping twice. (The count is
+    // all release artifacts; the named list is the recent few off the surface feed —
+    // showing both side by side reads as a contradiction. The dossier "releases · N"
+    // keeps the full total.)
+    const releasedHtml = sdsShippedReleasesHtml(team.record_id);
+    // DID: prefer the richer dated session overlay when present (cohort key), else the
+    // build-baked activity mix — never stack both under the prose, which would unbalance
+    // the 3-across proof strip.
+    const didSessionsHtml = sdsEvidenceDidHtml(team.record_id);
+    const didMixHtml = didSessionsHtml ? "" : sdsActivityMixHtml(act);
     const chips = [
-      relCount ? `<span class="ac-sds-chip"><strong>${relCount}</strong> rel</span>` : "",
+      (relCount && !releasedHtml) ? `<span class="ac-sds-chip"><strong>${relCount}</strong> rel</span>` : "",
       commitCount ? `<span class="ac-sds-chip"><strong>${commitCount}</strong> commits</span>` : "",
     ].filter(Boolean).join("");
     return `
@@ -6644,11 +6697,11 @@ function renderSayDidShipped() {
             <b>say</b><span>${escHtml(constShortText(content.say || team.now || team.focus || "not declared", 120))}</span>
           </span>
           <span class="ac-sds-cell${observedClass}">
-            <b>did</b><span>${escHtml(constShortText(content.did || "not observed", 120))}</span>${sdsEvidenceDidHtml(team.record_id)}
+            <b>did</b><span>${escHtml(constShortText(content.did || "not observed", 120))}</span>${didMixHtml}${didSessionsHtml}
           </span>
           <span class="ac-sds-cell${observedClass}">
             <b>shipped</b><span>${escHtml(constShortText(content.shipped || "not observed", 110))}</span>
-            ${chips ? `<span class="ac-sds-chips">${chips}</span>` : ""}
+            ${chips ? `<span class="ac-sds-chips">${chips}</span>` : ""}${releasedHtml}
           </span>
         </span>
         <span class="ac-sds-foot">
@@ -13978,6 +14031,42 @@ function setContextTranscriptsSource(src) {
   if (state.mode === "context") { renderContextVault(); wireContextVault(); }
 }
 
+// Persist the entered cohort key, then re-read the gated cohort surface IN PLACE
+// (no page reload): refreshCohortFromGithub re-runs applyDistillationOverlay — which
+// now sees the key — and notifies the subscriber that repaints the view. We pin the
+// transcripts source to "distilled" so the user lands on the now-populated side, and
+// surface a result count (or a "check the key" hint) when the refresh settles.
+async function submitCohortKeyForm(form) {
+  const input = form && form.querySelector('input[name="cohortKey"]');
+  const raw = input ? input.value : "";
+  const cv = state.contextVault;
+  if (!persistCohortKeyOverride(raw)) {
+    cv.error = "Could not save the cohort key to local storage.";
+    renderContextVault(); wireContextVault();
+    return;
+  }
+  const hasKey = !!String(raw || "").trim();
+  cv.error = "";
+  if (!hasKey) {
+    cv.message = "Cohort key cleared — showing your local raw vault.";
+    try { localStorage.setItem(TRANSCRIPTS_SOURCE_LS_KEY, "raw"); } catch {}
+    renderContextVault(); wireContextVault();
+    return;
+  }
+  try { localStorage.setItem(TRANSCRIPTS_SOURCE_LS_KEY, "distilled"); } catch {}
+  cv.message = "Reading the cohort's distilled readouts live…";
+  renderContextVault(); wireContextVault();
+  try {
+    await refreshCohortFromGithub();
+    await loadCohort();
+  } catch { /* leave the surface as-is; the message below reflects the result */ }
+  const n = contextDistilledList().length;
+  cv.message = n
+    ? `Loaded ${n} distilled readout${n === 1 ? "" : "s"} from the cohort.`
+    : "Key saved, but no distilled readouts came back — double-check it's a current role=cohort_app key.";
+  if (state.mode === "context") { renderContextVault(); wireContextVault(); }
+}
+
 function transcriptsSourceToggleHtml(source, rawCount, distilledCount) {
   const opt = (s, label, count, hint) =>
     `<button class="alch-ev-tier-btn${source === s ? " is-on" : ""}" data-cv-tsource="${s}" type="button" aria-pressed="${source === s}" title="${escAttr(hint)}">${label}${Number.isFinite(count) ? ` ${count}` : ""}</button>`;
@@ -14002,12 +14091,42 @@ function distilledTranscriptMeta(s) {
   return bits.filter(Boolean).join(" · ");
 }
 
+// Whether the gated cohort reads have a key to use — the localStorage override OR
+// a build-baked key. Mirrors the reader exactly (readSupabaseConfig), so the empty
+// state can tell "no key provisioned" apart from "key set but nothing published."
+function cohortKeyConfigured() {
+  try { return !!readSupabaseConfig().cohortKey; } catch { return false; }
+}
+
+// The inline cohort-key affordance shown in the distilled empty state. Lets a
+// provisioned run drop in a role=cohort_app JWT on this machine without an env var
+// or a packaged build — it persists via persistCohortKeyOverride, then refreshes
+// the cohort surface in place (wireContextVault handles the submit). type=password
+// so the soft secret isn't shoulder-surfed; never pre-filled with the live value.
+function cohortKeyFormHtml(configured) {
+  return `
+    <form class="alch-cv-keyform" data-cv-cohort-key-form autocomplete="off">
+      <label class="alch-cv-keyform-label" for="alch-cv-cohort-key">${configured ? "replace cohort key" : "cohort key"} <span class="alch-cv-keyform-tag">role=cohort_app JWT</span></label>
+      <div class="alch-cv-keyform-row">
+        <input id="alch-cv-cohort-key" class="alch-cv-keyform-input" name="cohortKey" type="password" inputmode="text" autocomplete="off" spellcheck="false" placeholder="eyJhbGciOi…" aria-label="cohort key JWT" />
+        <button type="submit" class="alch-cv-keyform-save">use key</button>
+      </div>
+      <p class="alch-cv-keyform-note">Stored only in this app's local storage, on this machine — never committed or sent anywhere but Supabase. Save an empty value to clear it.</p>
+    </form>
+  `;
+}
+
 function renderDistilledTranscriptDetail(selected) {
   if (!selected) {
+    const configured = cohortKeyConfigured();
+    const lede = configured
+      ? `A cohort key is set, but no distilled readouts came back — the key may be wrong/expired, or no sessions are distilled, reviewed &amp; published yet. Re-enter a key below, or switch to <em>raw</em> above for your local vault.`
+      : `The cohort's distilled readouts load live from Supabase once a cohort key is provisioned. Paste one below to read them on this machine, or switch to <em>raw</em> above for your local vault.`;
     return `
       <article class="alch-cv-detail alch-cv-empty-detail">
         <h3>no distilled transcripts yet</h3>
-        <p>The cohort's distilled readouts load live from Supabase once a cohort key is provisioned. Without one the app shows your local raw vault — switch to <em>raw</em> above.</p>
+        <p>${lede}</p>
+        ${cohortKeyFormHtml(configured)}
       </article>
     `;
   }
@@ -14307,6 +14426,13 @@ function wireContextVault() {
       if (!d) return;
       const ok = await copyTextToClipboard(d.body_md || "");
       flashCopyButton(btn, ok);
+    });
+  }
+  const keyForm = state.canvas.querySelector("[data-cv-cohort-key-form]");
+  if (keyForm) {
+    keyForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      submitCohortKeyForm(keyForm);
     });
   }
   // Embedded intel (signals/data views) wires its own internals; the page
@@ -15441,6 +15567,27 @@ function renderTimelineItems(items = []) {
   `;
 }
 
+// The team's published GitHub releases as a dossier section — surface.github_releases
+// filtered to this team (the same per-team items the membrane feed + say/did/shipped
+// SHIPPED cell use). The dossier is the natural home for "what this team shipped";
+// previously releases lived only in the membrane. "" when none ⇒ the section drops.
+function renderTeamReleases(recordId) {
+  const all = activeConstellationCohort()?.github_releases;
+  if (!Array.isArray(all) || !all.length) return "";
+  const mine = all
+    .filter(r => r && (r.nav?.recordId === recordId || r.meta === recordId) && (r.label || r.name))
+    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+  if (!mine.length) return "";
+  const items = mine.map(r => ({ date: r.date, title: r.label || r.name, type: "release" }));
+  return renderDisclosureSection(
+    `releases · ${mine.length}`,
+    renderTimelineItems(items),
+    false,
+    detailTimelinePreview(items),
+    "alch-detail-timeline"
+  );
+}
+
 function renderRecordTimeline(recordKind, recordId) {
   const items = detailTimelineItems(recordKind, recordId);
   if (!items.length) return "";
@@ -15755,6 +15902,7 @@ function renderTeamDetail(team) {
           ${renderDisclosureSection("assessment / plan", detailRows(assessmentRows), false, assessmentPreview)}
           ${renderDisclosureSection("evidence", detailRows(evidenceRows), false, evidencePreview)}
           ${renderWorkstreamTimeline(recordId)}
+          ${renderTeamReleases(recordId)}
           ${renderDisclosureSection("coordination", detailRows(coordinationRows), false, coordinationPreview)}
           ${renderRecordTimeline("team", recordId)}
         </div>
