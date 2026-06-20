@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "artifact_id": "github-progress:teesql:teesql-darkbox:2026-06-08",
+  "artifact_kind": "github_progress_weekly_summary",
+  "record_type": "team",
+  "record_id": "teesql",
+  "date": "2026-06-08",
+  "week_start": "2026-06-08",
+  "program_week": 4,
+  "title": "TeeSQL/darkbox: 283 commits",
+  "summary": "other, feature, fix, ci — miniapp: move ENS subname chip to card top-right, drop rounded corners; feat(miniapp): restore ocean UI (inline Blink feed, deal-list, sealed terminal) on main; feat(miniapp): show daemon ENS subnames",
+  "source_kind": "github_git_transport",
+  "source_url": "https://github.com/TeeSQL/darkbox",
+  "source_repo": "TeeSQL/darkbox",
+  "source_transform": "commit-metadata-weekly-distillation",
+  "confidence": "medium",
+  "review_status": "generated",
+  "surface_recommendation": "review",
+  "consider": [
+    "283 human-authored commits observed in the week.",
+    "283 non-bot, non-admin commits remain after basic filtering.",
+    "Feature-labeled movement is present.",
+    "Fix/stabilization movement is present.",
+    "Topic surface: runtime, agent, ops."
+  ],
+  "do_not_consider": [
+    "High-volume week: promote only if the examples summarize a meaningful phase, not raw activity volume."
+  ],
+  "review_questions": [
+    "Is this the team's real project repo for this period?",
+    "Do the example commit subjects describe product/research movement rather than generated churn?",
+    "Would this card add information not already captured by profile, transcript, or calendar timeline items?"
+  ],
+  "verbatim": false,
+  "generated_at": "2026-06-18T14:23:57.374Z",
+  "evidence": {
+    "commit_count": 283,
+    "human_commit_count": 283,
+    "bot_commit_count": 0,
+    "admin_commit_count": 0,
+    "useful_commit_count": 283,
+    "categories": [
+      {
+        "key": "other",
+        "count": 112
+      },
+      {
+        "key": "feature",
+        "count": 78
+      },
+      {
+        "key": "fix",
+        "count": 50
+      },
+      {
+        "key": "ci",
+        "count": 16
+      }
+    ],
+    "topics": [
+      {
+        "key": "runtime",
+        "count": 50
+      },
+      {
+        "key": "agent",
+        "count": 25
+      },
+      {
+        "key": "ops",
+        "count": 25
+      },
+      {
+        "key": "ui",
+        "count": 19
+      }
+    ],
+    "authors": [
+      {
+        "key": "Ocean Vael",
+        "count": 187
+      },
+      {
+        "key": "nikolaixyz",
+        "count": 58
+      },
+      {
+        "key": "Yo Lo",
+        "count": 20
+      },
+      {
+        "key": "LSDan",
+        "count": 15
+      }
+    ],
+    "examples": [
+      "miniapp: move ENS subname chip to card top-right, drop rounded corners",
+      "feat(miniapp): restore ocean UI (inline Blink feed, deal-list, sealed terminal) on main",
+      "feat(miniapp): show daemon ENS subnames"
+    ]
+  }
+}

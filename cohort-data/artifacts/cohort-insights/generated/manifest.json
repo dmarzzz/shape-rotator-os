@@ -352,7 +352,7 @@
       ],
       "title": "DealProof: say / did / shipped",
       "claim_text": "DealProof is a protocol project in trusted compute focused on TEE; it provides dual-agent attestation layer (Intel DCAP) with on-chain escrow and a standalone open-source library.",
-      "summary": "DealProof serves agent builders who need verifiable AI-to-AI contracts with on-chain escrow. Public trace: docs, feature, fix, refactor — fix: audit_report dict fields, null memory_write_hash on no-op writes, surface audit_error in response; refactor: scope AuditorAgent to qualitative-only, remove monotonic_convergenc...",
+      "summary": "DealProof serves agent builders who need verifiable AI-to-AI contracts with on-chain escrow. Public trace: other, docs, feature — Merge pull request #3 from kkoci/dataset_enhancement; feat: DataQualityAgent — TEE-attested dataset quality credential injected into agent prompts and TDX quote; Untracked DEALPROOF_NEXT5DA...",
       "evidence_level": "observed_public_metadata",
       "confidence": "medium",
       "surface_tier": "cohort",
@@ -365,6 +365,13 @@
           "kind": "team_record",
           "record_id": "dealproof",
           "path": "cohort-data/teams/dealproof.md"
+        },
+        {
+          "kind": "github_progress_artifact",
+          "artifact_id": "github-progress:dealproof:kkoci-dealproof:2026-06-15",
+          "record_id": "dealproof",
+          "week_start": "2026-06-15",
+          "source_repo": "kkoci/Dealproof"
         },
         {
           "kind": "github_progress_artifact",
@@ -393,18 +400,18 @@
         "what_it_does": "provides dual-agent attestation layer (Intel DCAP) with on-chain escrow and a standalone open-source library",
         "who_it_serves": "agent builders who need verifiable AI-to-AI contracts with on-chain escrow",
         "say": "negotiation app carries memory across rounds via Contexto; implementing PiCred provenance (arXiv:2606.03771); scoping a CVM API platform + first AI-negotiation outreach",
-        "did": "docs, feature, fix, refactor — fix: audit_report dict fields, null memory_write_hash on no-op writes, surface audit_error in response; refactor: scope AuditorAgent to qualitative-only, remove monotonic_convergence and w...",
+        "did": "other, docs, feature — Merge pull request #3 from kkoci/dataset_enhancement; feat: DataQualityAgent — TEE-attested dataset quality credential injected into agent prompts and TDX quote; Untracked DEALPROOF_NEXT5DAYS.md",
         "did_basis": "github_progress",
         "shipped": "GitHub movement observed; no release artifact observed.",
         "shipped_basis": "declared",
         "observed_status": "public_signal_observed",
         "public_activity": {
           "observed_status": "public_signal_observed",
-          "latest_week_start": "2026-06-08",
-          "progress_artifact_count": 3,
+          "latest_week_start": "2026-06-15",
+          "progress_artifact_count": 4,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 17
+          "useful_commit_count": 25
         }
       },
       "generated_by": "scripts/lib/cohort-insight-engine.cjs"
@@ -419,7 +426,7 @@
       ],
       "title": "elizaOS: say / did / shipped",
       "claim_text": "elizaOS is an AI project in agent infrastructure focused on agentic fullstack operating system; it provides an open-source agentic fullstack operating system with runtime, cloud, desktop, mobile, and plugin surfaces.",
-      "summary": "elizaOS serves developers and teams building agentic applications that need a runtime, plugin system, and hosted deployment path. Public trace: fix, maintenance, feature, other — fix(ui): only resolve relative paths in fetchWithCsrf; fix(ui): unbrick remote-mode startup on mobile; chore(deps): bump hashicorp/setup-ter...",
+      "summary": "elizaOS serves developers and teams building agentic applications that need a runtime, plugin system, and hosted deployment path. Public trace: fix, feature, other, docs — docs(lifeops): record round 20 (decomposed-view e2e executed green, desktop + mobile viewport); test(app): run decomposed-view e2e at mobile (Pixel...",
       "evidence_level": "observed_public_metadata",
       "confidence": "medium",
       "surface_tier": "cohort",
@@ -432,6 +439,13 @@
           "kind": "team_record",
           "record_id": "elizaos",
           "path": "cohort-data/teams/elizaos.md"
+        },
+        {
+          "kind": "github_progress_artifact",
+          "artifact_id": "github-progress:elizaos:elizaos-eliza:2026-06-15",
+          "record_id": "elizaos",
+          "week_start": "2026-06-15",
+          "source_repo": "elizaOS/eliza"
         },
         {
           "kind": "github_progress_artifact",
@@ -453,18 +467,18 @@
         "what_it_does": "provides an open-source agentic fullstack operating system with runtime, cloud, desktop, mobile, and plugin surfaces",
         "who_it_serves": "developers and teams building agentic applications that need a runtime, plugin system, and hosted deployment path",
         "say": "hard pivot to a new agent interface; focus moving from capability to buyer definition and last-mile distribution — MVP scope (cloud, multiplayer, power users) on the table",
-        "did": "fix, maintenance, feature, other — fix(ui): only resolve relative paths in fetchWithCsrf; fix(ui): unbrick remote-mode startup on mobile; chore(deps): bump hashicorp/setup-terraform from 3 to 4",
+        "did": "fix, feature, other, docs — docs(lifeops): record round 20 (decomposed-view e2e executed green, desktop + mobile viewport); test(app): run decomposed-view e2e at mobile (Pixel 7) viewport too; fix(app): decomposed-view...",
         "did_basis": "github_progress",
         "shipped": "GitHub movement observed; no release artifact observed.",
         "shipped_basis": "declared",
         "observed_status": "public_signal_observed",
         "public_activity": {
           "observed_status": "public_signal_observed",
-          "latest_week_start": "2026-06-08",
-          "progress_artifact_count": 2,
+          "latest_week_start": "2026-06-15",
+          "progress_artifact_count": 3,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 480
+          "useful_commit_count": 959
         }
       },
       "generated_by": "scripts/lib/cohort-insight-engine.cjs"
@@ -941,7 +955,7 @@
       ],
       "title": "Shape Rotator OS: say / did / shipped",
       "claim_text": "Shape Rotator OS is an infra project in agent infrastructure focused on cohort coordination layer; it provides an open, local-first cohort OS — surface data, context vault, and timeline views — that outside projects can merge into.",
-      "summary": "Shape Rotator OS serves cohorts and residencies that need a shared coordination surface — people, projects, timelines, and context in one local-first viewer. Public trace: other, fix, maintenance, feature — fix: pixel-match the original — upright names, reading sizes, 3-up grid; feat: match the original warm elevation...",
+      "summary": "Shape Rotator OS serves cohorts and residencies that need a shared coordination surface — people, projects, timelines, and context in one local-first viewer. Public trace: other, feature, fix, maintenance — chore(os/hermes): rename the user-facing feature to \"Bot Brain\"; Merge pull request #426 from dmarzzz/feat/cohor...",
       "evidence_level": "observed_public_metadata",
       "confidence": "medium",
       "surface_tier": "cohort",
@@ -954,6 +968,13 @@
           "kind": "team_record",
           "record_id": "shape-rotator-os",
           "path": "cohort-data/teams/shape-rotator-os.md"
+        },
+        {
+          "kind": "github_progress_artifact",
+          "artifact_id": "github-progress:shape-rotator-os:dmarzzz-shape-rotator-os:2026-06-15",
+          "record_id": "shape-rotator-os",
+          "week_start": "2026-06-15",
+          "source_repo": "dmarzzz/shape-rotator-os"
         },
         {
           "kind": "github_progress_artifact",
@@ -988,18 +1009,18 @@
         "what_it_does": "provides an open, local-first cohort OS — surface data, context vault, and timeline views — that outside projects can merge into",
         "who_it_serves": "cohorts and residencies that need a shared coordination surface — people, projects, timelines, and context in one local-first viewer",
         "say": "re-architected for outside contributions — hunting real user stories for product-driven development",
-        "did": "other, fix, maintenance, feature — fix: pixel-match the original — upright names, reading sizes, 3-up grid; feat: match the original warm elevation — espresso page, taupe panels, compact head; feat: warm specimen restyl...",
+        "did": "other, feature, fix, maintenance — chore(os/hermes): rename the user-facing feature to \"Bot Brain\"; Merge pull request #426 from dmarzzz/feat/cohort-venn-polish; Merge remote-tracking branch 'origin/main' into HEAD",
         "did_basis": "github_progress",
         "shipped": "0.3.10-rc.1; 0.3.9; 0.3.8-rc.1",
         "shipped_basis": "github_release",
         "observed_status": "public_signal_observed",
         "public_activity": {
           "observed_status": "public_signal_observed",
-          "latest_week_start": "2026-06-08",
-          "progress_artifact_count": 3,
+          "latest_week_start": "2026-06-15",
+          "progress_artifact_count": 4,
           "release_artifact_count": 1,
           "release_count": 82,
-          "useful_commit_count": 169
+          "useful_commit_count": 378
         }
       },
       "generated_by": "scripts/lib/cohort-insight-engine.cjs"
@@ -1073,9 +1094,9 @@
       ],
       "title": "TeeSQL: say / did / shipped",
       "claim_text": "TeeSQL is an infra project in trusted compute focused on attestation-gated mesh for open-source workloads; it provides a generalized attestation-gated mesh that can run any open-source software (Postgres, Clickhouse, Redis) with a blockchain control plane and host- or dev-proof...",
-      "summary": "TeeSQL serves European confidential-computing enterprises reducing US-cloud reliance (reached via web2 enterprise networks), alongside teams needing confidential SQL with attested connections. Public trace: currently unobserved.",
-      "evidence_level": "declared_only",
-      "confidence": "low",
+      "summary": "TeeSQL serves European confidential-computing enterprises reducing US-cloud reliance (reached via web2 enterprise networks), alongside teams needing confidential SQL with attested connections. Public trace: other, feature, fix, ci — miniapp: move ENS subname chip to card top-right, drop rounded corners; feat(miniapp):...",
+      "evidence_level": "observed_public_metadata",
+      "confidence": "medium",
       "surface_tier": "cohort",
       "source_boundary": "public_bundle",
       "review_status": "generated",
@@ -1086,6 +1107,13 @@
           "kind": "team_record",
           "record_id": "teesql",
           "path": "cohort-data/teams/teesql.md"
+        },
+        {
+          "kind": "github_progress_artifact",
+          "artifact_id": "github-progress:teesql:teesql-darkbox:2026-06-08",
+          "record_id": "teesql",
+          "week_start": "2026-06-08",
+          "source_repo": "TeeSQL/darkbox"
         }
       ],
       "content_json": {
@@ -1093,18 +1121,18 @@
         "what_it_does": "provides a generalized attestation-gated mesh that can run any open-source software (Postgres, Clickhouse, Redis) with a blockchain control plane and host- or dev-proof modes",
         "who_it_serves": "European confidential-computing enterprises reducing US-cloud reliance (reached via web2 enterprise networks), alongside teams needing confidential SQL with attested connections",
         "say": "generalizing from TEE Postgres to an attestation-gated mesh for any open-source workload (Clickhouse, Redis) — hunting an off-cohort ICP in European confidential-computing enterprise",
-        "did": "Declared (no public artifact yet): 4 open-source supporting repos · core private",
-        "did_basis": "declared",
-        "shipped": "Declared: attestation-report — open-source RA artifact tooling; ra-tls-parse, ra-tls-proxy, prisma-ra-tls (4 supporting repos); Shopped to Phala + Flashbots; multiple Flashbots X-adjacent projects need this to...",
+        "did": "other, feature, fix, ci — miniapp: move ENS subname chip to card top-right, drop rounded corners; feat(miniapp): restore ocean UI (inline Blink feed, deal-list, sealed terminal) on main; feat(miniapp): show daemon ENS s...",
+        "did_basis": "github_progress",
+        "shipped": "GitHub movement observed; no release artifact observed.",
         "shipped_basis": "declared",
-        "observed_status": "unobserved",
+        "observed_status": "public_signal_observed",
         "public_activity": {
-          "observed_status": "declared_only",
-          "latest_week_start": "",
-          "progress_artifact_count": 0,
+          "observed_status": "public_signal_observed",
+          "latest_week_start": "2026-06-08",
+          "progress_artifact_count": 1,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 0
+          "useful_commit_count": 283
         }
       },
       "generated_by": "scripts/lib/cohort-insight-engine.cjs"
@@ -4721,13 +4749,13 @@
       "subject_type": "cohort",
       "subject_ids": [
         "elizaos",
-        "jjhub",
         "shape-rotator-os",
-        "searxng-wth-frnds",
-        "teleport-router"
+        "teesql",
+        "jjhub",
+        "searxng-wth-frnds"
       ],
       "title": "Award nomination — Most Active Build (useful public commits)",
-      "claim_text": "Public-signal candidates for \"Most Active Build (useful public commits)\": elizaOS (480), JJHub (200), Shape Rotator OS (169). Candidate list from public data only, not a verdict.",
+      "claim_text": "Public-signal candidates for \"Most Active Build (useful public commits)\": elizaOS (959), Shape Rotator OS (378), TeeSQL (283). Candidate list from public data only, not a verdict.",
       "summary": "Ranked by useful_commit_count from public GitHub/cohort metadata. Awaiting reviewed judgment before any winner is named.",
       "evidence_level": "observed_public_metadata",
       "confidence": "low",
@@ -4749,23 +4777,23 @@
         },
         {
           "kind": "team_record",
-          "record_id": "jjhub",
-          "path": "cohort-data/teams/jjhub.md"
-        },
-        {
-          "kind": "team_record",
           "record_id": "shape-rotator-os",
           "path": "cohort-data/teams/shape-rotator-os.md"
         },
         {
           "kind": "team_record",
-          "record_id": "searxng-wth-frnds",
-          "path": "cohort-data/teams/searxng-wth-frnds.md"
+          "record_id": "teesql",
+          "path": "cohort-data/teams/teesql.md"
         },
         {
           "kind": "team_record",
-          "record_id": "teleport-router",
-          "path": "cohort-data/teams/teleport-router.md"
+          "record_id": "jjhub",
+          "path": "cohort-data/teams/jjhub.md"
+        },
+        {
+          "kind": "team_record",
+          "record_id": "searxng-wth-frnds",
+          "path": "cohort-data/teams/searxng-wth-frnds.md"
         }
       ],
       "content_json": {
@@ -4778,7 +4806,17 @@
           {
             "record_id": "elizaos",
             "name": "elizaOS",
-            "value": 480
+            "value": 959
+          },
+          {
+            "record_id": "shape-rotator-os",
+            "name": "Shape Rotator OS",
+            "value": 378
+          },
+          {
+            "record_id": "teesql",
+            "name": "TeeSQL",
+            "value": 283
           },
           {
             "record_id": "jjhub",
@@ -4786,19 +4824,9 @@
             "value": 200
           },
           {
-            "record_id": "shape-rotator-os",
-            "name": "Shape Rotator OS",
-            "value": 169
-          },
-          {
             "record_id": "searxng-wth-frnds",
             "name": "searxng-wth-frnds",
             "value": 30
-          },
-          {
-            "record_id": "teleport-router",
-            "name": "Teleport Router",
-            "value": 28
           }
         ],
         "verdict": null,
@@ -5199,12 +5227,12 @@
         "cohort-insight:latent-overlap:signalstack:teesql",
         "cohort-insight:latent-overlap:teesql:trustless-tee",
         "cohort-insight:latent-overlap:conclave:teesql",
+        "cohort-insight:award:most-active-build",
         "cohort-insight:award:most-connected"
       ],
       "teleport-router": [
         "cohort-insight:say-did-shipped:teleport-router",
-        "cohort-insight:latent-overlap:pramaana:teleport-router",
-        "cohort-insight:award:most-active-build"
+        "cohort-insight:latent-overlap:pramaana:teleport-router"
       ],
       "tinycloud": [
         "cohort-insight:say-did-shipped:tinycloud",
@@ -5586,7 +5614,7 @@
         ],
         "title": "DealProof: say / did / shipped",
         "claim_text": "DealProof is a protocol project in trusted compute focused on TEE; it provides dual-agent attestation layer (Intel DCAP) with on-chain escrow and a standalone open-source library.",
-        "summary": "DealProof serves agent builders who need verifiable AI-to-AI contracts with on-chain escrow. Public trace: docs, feature, fix, refactor — fix: audit_report dict fields, null memory_write_hash on no-op writes, surface audit_error in response; refactor: scope AuditorAgent to qualitative-only, remove monotonic_convergenc...",
+        "summary": "DealProof serves agent builders who need verifiable AI-to-AI contracts with on-chain escrow. Public trace: other, docs, feature — Merge pull request #3 from kkoci/dataset_enhancement; feat: DataQualityAgent — TEE-attested dataset quality credential injected into agent prompts and TDX quote; Untracked DEALPROOF_NEXT5DA...",
         "evidence_level": "observed_public_metadata",
         "confidence": "medium",
         "surface_tier": "cohort",
@@ -5599,6 +5627,13 @@
             "kind": "team_record",
             "record_id": "dealproof",
             "path": "cohort-data/teams/dealproof.md"
+          },
+          {
+            "kind": "github_progress_artifact",
+            "artifact_id": "github-progress:dealproof:kkoci-dealproof:2026-06-15",
+            "record_id": "dealproof",
+            "week_start": "2026-06-15",
+            "source_repo": "kkoci/Dealproof"
           },
           {
             "kind": "github_progress_artifact",
@@ -5627,18 +5662,18 @@
           "what_it_does": "provides dual-agent attestation layer (Intel DCAP) with on-chain escrow and a standalone open-source library",
           "who_it_serves": "agent builders who need verifiable AI-to-AI contracts with on-chain escrow",
           "say": "negotiation app carries memory across rounds via Contexto; implementing PiCred provenance (arXiv:2606.03771); scoping a CVM API platform + first AI-negotiation outreach",
-          "did": "docs, feature, fix, refactor — fix: audit_report dict fields, null memory_write_hash on no-op writes, surface audit_error in response; refactor: scope AuditorAgent to qualitative-only, remove monotonic_convergence and w...",
+          "did": "other, docs, feature — Merge pull request #3 from kkoci/dataset_enhancement; feat: DataQualityAgent — TEE-attested dataset quality credential injected into agent prompts and TDX quote; Untracked DEALPROOF_NEXT5DAYS.md",
           "did_basis": "github_progress",
           "shipped": "GitHub movement observed; no release artifact observed.",
           "shipped_basis": "declared",
           "observed_status": "public_signal_observed",
           "public_activity": {
             "observed_status": "public_signal_observed",
-            "latest_week_start": "2026-06-08",
-            "progress_artifact_count": 3,
+            "latest_week_start": "2026-06-15",
+            "progress_artifact_count": 4,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 17
+            "useful_commit_count": 25
           }
         },
         "generated_by": "scripts/lib/cohort-insight-engine.cjs"
@@ -5653,7 +5688,7 @@
         ],
         "title": "elizaOS: say / did / shipped",
         "claim_text": "elizaOS is an AI project in agent infrastructure focused on agentic fullstack operating system; it provides an open-source agentic fullstack operating system with runtime, cloud, desktop, mobile, and plugin surfaces.",
-        "summary": "elizaOS serves developers and teams building agentic applications that need a runtime, plugin system, and hosted deployment path. Public trace: fix, maintenance, feature, other — fix(ui): only resolve relative paths in fetchWithCsrf; fix(ui): unbrick remote-mode startup on mobile; chore(deps): bump hashicorp/setup-ter...",
+        "summary": "elizaOS serves developers and teams building agentic applications that need a runtime, plugin system, and hosted deployment path. Public trace: fix, feature, other, docs — docs(lifeops): record round 20 (decomposed-view e2e executed green, desktop + mobile viewport); test(app): run decomposed-view e2e at mobile (Pixel...",
         "evidence_level": "observed_public_metadata",
         "confidence": "medium",
         "surface_tier": "cohort",
@@ -5666,6 +5701,13 @@
             "kind": "team_record",
             "record_id": "elizaos",
             "path": "cohort-data/teams/elizaos.md"
+          },
+          {
+            "kind": "github_progress_artifact",
+            "artifact_id": "github-progress:elizaos:elizaos-eliza:2026-06-15",
+            "record_id": "elizaos",
+            "week_start": "2026-06-15",
+            "source_repo": "elizaOS/eliza"
           },
           {
             "kind": "github_progress_artifact",
@@ -5687,18 +5729,18 @@
           "what_it_does": "provides an open-source agentic fullstack operating system with runtime, cloud, desktop, mobile, and plugin surfaces",
           "who_it_serves": "developers and teams building agentic applications that need a runtime, plugin system, and hosted deployment path",
           "say": "hard pivot to a new agent interface; focus moving from capability to buyer definition and last-mile distribution — MVP scope (cloud, multiplayer, power users) on the table",
-          "did": "fix, maintenance, feature, other — fix(ui): only resolve relative paths in fetchWithCsrf; fix(ui): unbrick remote-mode startup on mobile; chore(deps): bump hashicorp/setup-terraform from 3 to 4",
+          "did": "fix, feature, other, docs — docs(lifeops): record round 20 (decomposed-view e2e executed green, desktop + mobile viewport); test(app): run decomposed-view e2e at mobile (Pixel 7) viewport too; fix(app): decomposed-view...",
           "did_basis": "github_progress",
           "shipped": "GitHub movement observed; no release artifact observed.",
           "shipped_basis": "declared",
           "observed_status": "public_signal_observed",
           "public_activity": {
             "observed_status": "public_signal_observed",
-            "latest_week_start": "2026-06-08",
-            "progress_artifact_count": 2,
+            "latest_week_start": "2026-06-15",
+            "progress_artifact_count": 3,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 480
+            "useful_commit_count": 959
           }
         },
         "generated_by": "scripts/lib/cohort-insight-engine.cjs"
@@ -6175,7 +6217,7 @@
         ],
         "title": "Shape Rotator OS: say / did / shipped",
         "claim_text": "Shape Rotator OS is an infra project in agent infrastructure focused on cohort coordination layer; it provides an open, local-first cohort OS — surface data, context vault, and timeline views — that outside projects can merge into.",
-        "summary": "Shape Rotator OS serves cohorts and residencies that need a shared coordination surface — people, projects, timelines, and context in one local-first viewer. Public trace: other, fix, maintenance, feature — fix: pixel-match the original — upright names, reading sizes, 3-up grid; feat: match the original warm elevation...",
+        "summary": "Shape Rotator OS serves cohorts and residencies that need a shared coordination surface — people, projects, timelines, and context in one local-first viewer. Public trace: other, feature, fix, maintenance — chore(os/hermes): rename the user-facing feature to \"Bot Brain\"; Merge pull request #426 from dmarzzz/feat/cohor...",
         "evidence_level": "observed_public_metadata",
         "confidence": "medium",
         "surface_tier": "cohort",
@@ -6188,6 +6230,13 @@
             "kind": "team_record",
             "record_id": "shape-rotator-os",
             "path": "cohort-data/teams/shape-rotator-os.md"
+          },
+          {
+            "kind": "github_progress_artifact",
+            "artifact_id": "github-progress:shape-rotator-os:dmarzzz-shape-rotator-os:2026-06-15",
+            "record_id": "shape-rotator-os",
+            "week_start": "2026-06-15",
+            "source_repo": "dmarzzz/shape-rotator-os"
           },
           {
             "kind": "github_progress_artifact",
@@ -6222,18 +6271,18 @@
           "what_it_does": "provides an open, local-first cohort OS — surface data, context vault, and timeline views — that outside projects can merge into",
           "who_it_serves": "cohorts and residencies that need a shared coordination surface — people, projects, timelines, and context in one local-first viewer",
           "say": "re-architected for outside contributions — hunting real user stories for product-driven development",
-          "did": "other, fix, maintenance, feature — fix: pixel-match the original — upright names, reading sizes, 3-up grid; feat: match the original warm elevation — espresso page, taupe panels, compact head; feat: warm specimen restyl...",
+          "did": "other, feature, fix, maintenance — chore(os/hermes): rename the user-facing feature to \"Bot Brain\"; Merge pull request #426 from dmarzzz/feat/cohort-venn-polish; Merge remote-tracking branch 'origin/main' into HEAD",
           "did_basis": "github_progress",
           "shipped": "0.3.10-rc.1; 0.3.9; 0.3.8-rc.1",
           "shipped_basis": "github_release",
           "observed_status": "public_signal_observed",
           "public_activity": {
             "observed_status": "public_signal_observed",
-            "latest_week_start": "2026-06-08",
-            "progress_artifact_count": 3,
+            "latest_week_start": "2026-06-15",
+            "progress_artifact_count": 4,
             "release_artifact_count": 1,
             "release_count": 82,
-            "useful_commit_count": 169
+            "useful_commit_count": 378
           }
         },
         "generated_by": "scripts/lib/cohort-insight-engine.cjs"
@@ -6307,9 +6356,9 @@
         ],
         "title": "TeeSQL: say / did / shipped",
         "claim_text": "TeeSQL is an infra project in trusted compute focused on attestation-gated mesh for open-source workloads; it provides a generalized attestation-gated mesh that can run any open-source software (Postgres, Clickhouse, Redis) with a blockchain control plane and host- or dev-proof...",
-        "summary": "TeeSQL serves European confidential-computing enterprises reducing US-cloud reliance (reached via web2 enterprise networks), alongside teams needing confidential SQL with attested connections. Public trace: currently unobserved.",
-        "evidence_level": "declared_only",
-        "confidence": "low",
+        "summary": "TeeSQL serves European confidential-computing enterprises reducing US-cloud reliance (reached via web2 enterprise networks), alongside teams needing confidential SQL with attested connections. Public trace: other, feature, fix, ci — miniapp: move ENS subname chip to card top-right, drop rounded corners; feat(miniapp):...",
+        "evidence_level": "observed_public_metadata",
+        "confidence": "medium",
         "surface_tier": "cohort",
         "source_boundary": "public_bundle",
         "review_status": "generated",
@@ -6320,6 +6369,13 @@
             "kind": "team_record",
             "record_id": "teesql",
             "path": "cohort-data/teams/teesql.md"
+          },
+          {
+            "kind": "github_progress_artifact",
+            "artifact_id": "github-progress:teesql:teesql-darkbox:2026-06-08",
+            "record_id": "teesql",
+            "week_start": "2026-06-08",
+            "source_repo": "TeeSQL/darkbox"
           }
         ],
         "content_json": {
@@ -6327,18 +6383,18 @@
           "what_it_does": "provides a generalized attestation-gated mesh that can run any open-source software (Postgres, Clickhouse, Redis) with a blockchain control plane and host- or dev-proof modes",
           "who_it_serves": "European confidential-computing enterprises reducing US-cloud reliance (reached via web2 enterprise networks), alongside teams needing confidential SQL with attested connections",
           "say": "generalizing from TEE Postgres to an attestation-gated mesh for any open-source workload (Clickhouse, Redis) — hunting an off-cohort ICP in European confidential-computing enterprise",
-          "did": "Declared (no public artifact yet): 4 open-source supporting repos · core private",
-          "did_basis": "declared",
-          "shipped": "Declared: attestation-report — open-source RA artifact tooling; ra-tls-parse, ra-tls-proxy, prisma-ra-tls (4 supporting repos); Shopped to Phala + Flashbots; multiple Flashbots X-adjacent projects need this to...",
+          "did": "other, feature, fix, ci — miniapp: move ENS subname chip to card top-right, drop rounded corners; feat(miniapp): restore ocean UI (inline Blink feed, deal-list, sealed terminal) on main; feat(miniapp): show daemon ENS s...",
+          "did_basis": "github_progress",
+          "shipped": "GitHub movement observed; no release artifact observed.",
           "shipped_basis": "declared",
-          "observed_status": "unobserved",
+          "observed_status": "public_signal_observed",
           "public_activity": {
-            "observed_status": "declared_only",
-            "latest_week_start": "",
-            "progress_artifact_count": 0,
+            "observed_status": "public_signal_observed",
+            "latest_week_start": "2026-06-08",
+            "progress_artifact_count": 1,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 0
+            "useful_commit_count": 283
           }
         },
         "generated_by": "scripts/lib/cohort-insight-engine.cjs"
@@ -9880,6 +9936,7 @@
         "generated_by": "scripts/lib/cohort-insight-engine.cjs"
       }
     ],
+    "collaboration_edges": [],
     "awards": [
       {
         "schema_version": 1,
@@ -9959,13 +10016,13 @@
         "subject_type": "cohort",
         "subject_ids": [
           "elizaos",
-          "jjhub",
           "shape-rotator-os",
-          "searxng-wth-frnds",
-          "teleport-router"
+          "teesql",
+          "jjhub",
+          "searxng-wth-frnds"
         ],
         "title": "Award nomination — Most Active Build (useful public commits)",
-        "claim_text": "Public-signal candidates for \"Most Active Build (useful public commits)\": elizaOS (480), JJHub (200), Shape Rotator OS (169). Candidate list from public data only, not a verdict.",
+        "claim_text": "Public-signal candidates for \"Most Active Build (useful public commits)\": elizaOS (959), Shape Rotator OS (378), TeeSQL (283). Candidate list from public data only, not a verdict.",
         "summary": "Ranked by useful_commit_count from public GitHub/cohort metadata. Awaiting reviewed judgment before any winner is named.",
         "evidence_level": "observed_public_metadata",
         "confidence": "low",
@@ -9987,23 +10044,23 @@
           },
           {
             "kind": "team_record",
-            "record_id": "jjhub",
-            "path": "cohort-data/teams/jjhub.md"
-          },
-          {
-            "kind": "team_record",
             "record_id": "shape-rotator-os",
             "path": "cohort-data/teams/shape-rotator-os.md"
           },
           {
             "kind": "team_record",
-            "record_id": "searxng-wth-frnds",
-            "path": "cohort-data/teams/searxng-wth-frnds.md"
+            "record_id": "teesql",
+            "path": "cohort-data/teams/teesql.md"
           },
           {
             "kind": "team_record",
-            "record_id": "teleport-router",
-            "path": "cohort-data/teams/teleport-router.md"
+            "record_id": "jjhub",
+            "path": "cohort-data/teams/jjhub.md"
+          },
+          {
+            "kind": "team_record",
+            "record_id": "searxng-wth-frnds",
+            "path": "cohort-data/teams/searxng-wth-frnds.md"
           }
         ],
         "content_json": {
@@ -10016,7 +10073,17 @@
             {
               "record_id": "elizaos",
               "name": "elizaOS",
-              "value": 480
+              "value": 959
+            },
+            {
+              "record_id": "shape-rotator-os",
+              "name": "Shape Rotator OS",
+              "value": 378
+            },
+            {
+              "record_id": "teesql",
+              "name": "TeeSQL",
+              "value": 283
             },
             {
               "record_id": "jjhub",
@@ -10024,19 +10091,9 @@
               "value": 200
             },
             {
-              "record_id": "shape-rotator-os",
-              "name": "Shape Rotator OS",
-              "value": 169
-            },
-            {
               "record_id": "searxng-wth-frnds",
               "name": "searxng-wth-frnds",
               "value": 30
-            },
-            {
-              "record_id": "teleport-router",
-              "name": "Teleport Router",
-              "value": 28
             }
           ],
           "verdict": null,
@@ -10236,17 +10293,19 @@
     "kind_counts": {
       "say_did_shipped": 26,
       "latent_overlap": 40,
+      "collaboration_edge": 0,
       "award": 5,
       "rotation": 0
     },
     "award_scaffold_count": 5,
     "editorial_award_slot_count": 2,
     "team_count": 26,
-    "public_progress_artifact_count": 19,
+    "public_progress_artifact_count": 23,
     "public_release_artifact_count": 3,
     "say_did_shipped_card_count": 26,
     "latent_overlap_candidate_count": 40,
-    "unobserved_say_did_shipped_count": 18
+    "collaboration_edge_candidate_count": 0,
+    "unobserved_say_did_shipped_count": 17
   },
   "policy": {
     "app_surface": "Cohort app may render generated cards with generated/review status visible.",

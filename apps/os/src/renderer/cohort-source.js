@@ -26,7 +26,7 @@
 import yaml from "js-yaml";
 import { getManifest, getRecord } from "./sync-client.js";
 import { fetchPublicEvidenceCards, fetchCohortEvidenceCards, COHORT_APP_READER_ENABLED } from "./supabase-evidence.mjs";
-import { evidenceDependencyRecords } from "./cohort-evidence-index.mjs";
+import { evidenceDependencyRecords, insightCollaborationDependencyRecords } from "./cohort-evidence-index.mjs";
 import { fetchCohortArticles } from "./supabase-articles.mjs";
 import { fetchCohortDistillations } from "./supabase-distillations.mjs";
 import { fetchAllSpheres } from "./supabase-sphere.mjs";
@@ -264,6 +264,23 @@ function normalize(data) {
     calendar:     (data?.calendar && typeof data.calendar === "object") ? data.calendar : null,
     calendar_google_events: objectMap(data?.calendar_google_events),
   };
+  // Derive GitHub-attested cross-team collaboration edges from the committed
+  // cohort_insights bundle into dependency records so the relationship / ecosystem
+  // map + collab model render them natively (no view code). Bundle-sourced, so this
+  // runs on EVERY surface (fixture / ls-cache / github) and the edges show on first
+  // paint — unlike the transcript session-observed edges, which only land after the
+  // async Supabase overlay. Idempotent: prior-derived records are stripped and
+  // re-derived from current insights, so an LS snapshot never compounds them.
+  // Precedence is declared > github-observed > transcript-observed: declared deps are
+  // never restated, and the github edges sit ahead of the transcript edges so
+  // constellationDependencyEdges' per-pair dedupe keeps the harder commit evidence.
+  const declaredDeps = out.dependencies.filter((d) => {
+    const id = String((d && d.record_id) || "");
+    return !id.startsWith("gh-collab-edge:") && !id.startsWith("evidence-edge:");
+  });
+  const transcriptEdges = out.dependencies.filter((d) => String((d && d.record_id) || "").startsWith("evidence-edge:"));
+  const githubEdges = insightCollaborationDependencyRecords(out.cohort_insights, declaredDeps);
+  out.dependencies = [...declaredDeps, ...githubEdges, ...transcriptEdges];
   if (typeof data?._generated_at === "string") out._generated_at = data._generated_at;
   return out;
 }

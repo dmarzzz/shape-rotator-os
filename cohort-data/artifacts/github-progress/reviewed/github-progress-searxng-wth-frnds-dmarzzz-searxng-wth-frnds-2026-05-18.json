@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "artifact_id": "github-progress:searxng-wth-frnds:dmarzzz-searxng-wth-frnds:2026-05-18",
+  "artifact_kind": "github_progress_weekly_summary",
+  "record_type": "team",
+  "record_id": "searxng-wth-frnds",
+  "date": "2026-05-18",
+  "week_start": "2026-05-18",
+  "program_week": 1,
+  "title": "dmarzzz/searxng-wth-frnds: 32 commits",
+  "summary": "fix, maintenance, feature, docs — fix(fetch): arxiv pdf URLs → fetch abs page for proper title; feat(events): emit contribution_merged on self-fetched index_page; fix(daemon): point SSL_CERT_FILE at bundled certifi (fixes indexer in PyInstaller builds)",
+  "source_kind": "github_git_transport",
+  "source_url": "https://github.com/dmarzzz/searxng-wth-frnds",
+  "source_repo": "dmarzzz/searxng-wth-frnds",
+  "source_transform": "commit-metadata-weekly-distillation",
+  "confidence": "medium",
+  "review_status": "reviewed",
+  "surface_recommendation": "promote_candidate",
+  "consider": [
+    "29 human-authored commits observed in the week.",
+    "29 non-bot, non-admin commits remain after basic filtering.",
+    "Feature-labeled movement is present.",
+    "Fix/stabilization movement is present.",
+    "Documentation or launch/readout movement is present.",
+    "Topic surface: ops, runtime, data."
+  ],
+  "do_not_consider": [
+    "3 bot/generated commits should not count as product momentum."
+  ],
+  "review_questions": [
+    "Is this the team's real project repo for this period?",
+    "Do the example commit subjects describe product/research movement rather than generated churn?",
+    "Would this card add information not already captured by profile, transcript, or calendar timeline items?"
+  ],
+  "verbatim": false,
+  "generated_at": "2026-06-18T13:46:14.987Z",
+  "evidence": {
+    "commit_count": 32,
+    "human_commit_count": 29,
+    "bot_commit_count": 3,
+    "admin_commit_count": 0,
+    "useful_commit_count": 29,
+    "categories": [
+      {
+        "key": "fix",
+        "count": 9
+      },
+      {
+        "key": "maintenance",
+        "count": 8
+      },
+      {
+        "key": "feature",
+        "count": 6
+      },
+      {
+        "key": "docs",
+        "count": 4
+      }
+    ],
+    "topics": [
+      {
+        "key": "ops",
+        "count": 9
+      },
+      {
+        "key": "runtime",
+        "count": 5
+      },
+      {
+        "key": "data",
+        "count": 4
+      },
+      {
+        "key": "agent",
+        "count": 1
+      }
+    ],
+    "authors": [
+      {
+        "key": "dmarzzz",
+        "count": 19
+      },
+      {
+        "key": "dmarz",
+        "count": 10
+      },
+      {
+        "key": "dependabot[bot]",
+        "count": 3
+      }
+    ],
+    "examples": [
+      "fix(fetch): arxiv pdf URLs → fetch abs page for proper title",
+      "feat(events): emit contribution_merged on self-fetched index_page",
+      "fix(daemon): point SSL_CERT_FILE at bundled certifi (fixes indexer in PyInstaller builds)"
+    ]
+  },
+  "reviewed_at": "2026-06-18T13:48:22.265Z",
+  "reviewed_by": "operator",
+  "review_note": "fresh 2026-06-18 audit; clean weekly product movement",
+  "promotion_source_file": "cohort-data/artifacts/github-progress/generated/github-progress-searxng-wth-frnds-dmarzzz-searxng-wth-frnds-2026-05-18.json",
+  "promotion_rules_version": 1
+}

@@ -105,6 +105,38 @@ const releases = [
   },
 ];
 
+// A weekly-summary artifact carrying the top-level `collaboration` snapshot that
+// scripts/check-github-progress.mjs now threads through: Ada (on team `delta`)
+// committed to team `alpha`'s public repo, which is a cross-team contribution.
+const crossTeamProgress = [
+  {
+    artifact_id: "github-progress:alpha:demo:2026-06-01",
+    artifact_kind: "github_progress_weekly_summary",
+    record_type: "team",
+    record_id: "alpha",
+    date: "2026-06-01",
+    week_start: "2026-06-01",
+    source_repo: "alpha/demo",
+    evidence: { useful_commit_count: 9 },
+    collaboration: {
+      matched_cohort_people: [
+        { person_id: "ada", person_name: "Ada Stone", person_team_ids: ["delta"], confidence: "high", commit_count: 4 },
+      ],
+      possible_cross_team_contributions: [
+        {
+          person_id: "ada",
+          person_name: "Ada Stone",
+          person_team_ids: ["delta"],
+          repo_team_ids: ["alpha"],
+          confidence: "medium",
+          commit_count: 4,
+          examples: [{ date: "2026-06-01", sha: "abc123def456", subject: "feat: wire attestation into delta flow" }],
+        },
+      ],
+    },
+  },
+];
+
 test("cohort insight bundle separates deterministic cards from gated rotation", () => {
   const bundle = engine.buildCohortInsightBundle({
     teams,
@@ -121,6 +153,9 @@ test("cohort insight bundle separates deterministic cards from gated rotation", 
   assert.equal(bundle.read_models.project_identity, undefined);
   assert.equal(bundle.quality.kind_counts.say_did_shipped, teams.length);
   assert.ok(bundle.quality.kind_counts.latent_overlap >= 1);
+  // The default progress fixture carries no collaboration snapshot, so no edges.
+  assert.equal(bundle.quality.kind_counts.collaboration_edge, 0);
+  assert.equal(bundle.read_models.collaboration_edges.length, 0);
   assert.equal(bundle.quality.kind_counts.rotation, 0);
   assert.equal(bundle.read_models.say_did_shipped.length, teams.length);
   assert.equal(bundle.read_models.rotation.status, "not_generated");
@@ -327,6 +362,102 @@ test("public cohort insights require published approval, not approval alone", ()
 
   assert.deepEqual(publicBundle.cards.map(card => card.id), ["published-public"]);
   assert.equal(publicBundle.quality.card_count, 1);
+});
+
+test("collaboration edges turn cross-team commit attribution into team-pair cards", () => {
+  const cards = engine.buildCollaborationEdgeCards({ teams, githubProgressArtifacts: crossTeamProgress });
+
+  assert.equal(cards.length, 1);
+  const edge = cards[0];
+  assert.equal(edge.kind, "collaboration_edge");
+  assert.equal(edge.subject_type, "team_pair");
+  // unordered, sorted by record_id: alpha < delta
+  assert.deepEqual(edge.subject_ids, ["alpha", "delta"]);
+  // observed public commit authorship, but the author->person match keeps it medium
+  assert.equal(edge.evidence_level, "observed_public_metadata");
+  assert.equal(edge.confidence, "medium");
+  // generated + cohort-tier so the app shows review status and the public web excludes it
+  assert.equal(edge.review_status, "generated");
+  assert.equal(edge.surface_tier, "cohort");
+
+  assert.equal(edge.content_json.total_commit_count, 4);
+  assert.equal(edge.content_json.contributor_count, 1);
+  assert.deepEqual(edge.content_json.contributors, ["Ada Stone"]);
+  assert.deepEqual(edge.content_json.repos, ["alpha/demo"]);
+  assert.equal(edge.content_json.directions.length, 1);
+  assert.equal(edge.content_json.directions[0].from_team, "delta");
+  assert.equal(edge.content_json.directions[0].to_team, "alpha");
+  assert.match(edge.claim_text, /Ada Stone/);
+  assert.match(edge.claim_text, /Alpha Lab/);
+  // source refs point at both team records plus the backing progress artifact
+  const refKinds = edge.source_refs.map(ref => ref.kind);
+  assert.ok(refKinds.includes("team_record"));
+  assert.ok(refKinds.includes("github_progress_artifact"));
+});
+
+test("collaboration edges dedupe the replicated repo snapshot and skip same/unknown teams", () => {
+  const adaContribution = {
+    person_id: "ada",
+    person_name: "Ada Stone",
+    person_team_ids: ["delta"],
+    repo_team_ids: ["alpha"],
+    confidence: "medium",
+    commit_count: 4,
+    examples: [],
+  };
+  const base = {
+    artifact_kind: "github_progress_weekly_summary",
+    record_type: "team",
+    record_id: "alpha",
+    source_repo: "alpha/demo",
+    evidence: { useful_commit_count: 4 },
+  };
+  const artifacts = [
+    // Same repo-level snapshot replicated across two weekly artifacts — must count once.
+    { ...base, artifact_id: "github-progress:alpha:demo:2026-06-01", date: "2026-06-01", week_start: "2026-06-01",
+      collaboration: { matched_cohort_people: [], possible_cross_team_contributions: [adaContribution] } },
+    { ...base, artifact_id: "github-progress:alpha:demo:2026-06-08", date: "2026-06-08", week_start: "2026-06-08",
+      collaboration: { matched_cohort_people: [], possible_cross_team_contributions: [adaContribution] } },
+    // Same-team contribution (delta member on a delta repo) — not a cross-team edge.
+    { ...base, artifact_id: "github-progress:delta:repo:2026-06-01", record_id: "delta", source_repo: "delta/repo",
+      date: "2026-06-01", week_start: "2026-06-01",
+      collaboration: { matched_cohort_people: [], possible_cross_team_contributions: [
+        { person_id: "dee", person_name: "Dee", person_team_ids: ["delta"], repo_team_ids: ["delta"], confidence: "low", commit_count: 2 },
+      ] } },
+    // Contribution involving a team id that is not in the cohort — dropped.
+    { ...base, artifact_id: "github-progress:alpha:demo2:2026-06-01", source_repo: "alpha/demo2",
+      date: "2026-06-01", week_start: "2026-06-01",
+      collaboration: { matched_cohort_people: [], possible_cross_team_contributions: [
+        { person_id: "ext", person_name: "Ext", person_team_ids: ["not-a-team"], repo_team_ids: ["alpha"], confidence: "low", commit_count: 9 },
+      ] } },
+  ];
+
+  const cards = engine.buildCollaborationEdgeCards({ teams, githubProgressArtifacts: artifacts });
+
+  assert.equal(cards.length, 1, "only the real alpha/delta cross-team edge should survive");
+  assert.deepEqual(cards[0].subject_ids, ["alpha", "delta"]);
+  // 4, not 8 — the replicated week-2 snapshot is deduped, not summed.
+  assert.equal(cards[0].content_json.total_commit_count, 4);
+  assert.equal(cards[0].content_json.contributor_count, 1);
+});
+
+test("cohort insight bundle surfaces collaboration edges keyed by team pair", () => {
+  const bundle = engine.buildCohortInsightBundle({
+    teams,
+    clusters,
+    dependencies,
+    githubProgressArtifacts: crossTeamProgress,
+    githubReleaseArtifacts: releases,
+  });
+
+  assert.equal(bundle.quality.kind_counts.collaboration_edge, 1);
+  assert.equal(bundle.read_models.collaboration_edges.length, 1);
+  assert.equal(bundle.indices.by_kind.collaboration_edge.length, 1);
+  const edgeId = bundle.read_models.collaboration_edges[0].id;
+  assert.ok(bundle.cards.some(card => card.id === edgeId));
+  // edge is indexed under both of its team subjects
+  assert.ok(bundle.indices.by_subject.alpha.includes(edgeId));
+  assert.ok(bundle.indices.by_subject.delta.includes(edgeId));
 });
 
 test("cohort insight cards do not carry transcript/private-source markers", () => {
