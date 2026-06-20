@@ -307,6 +307,44 @@ test("latent overlap signal dedupes the shared-skill / shared-domain token", () 
   assert.match(alphaBeta.claim_text, /\btee\b/i);
 });
 
+test("latent overlap weights shared terms by rarity (idf), not a hardcoded stopword list", () => {
+  // A distinctive vocabulary shared by exactly one pair is a real signal; the SAME
+  // vocabulary, once it is cohort-ubiquitous, must stop fabricating an overlap — and
+  // without anyone hand-adding it to a stopword list. pp/qq share a weak domain (+18)
+  // plus seven distinctive terms; nothing else links them.
+  const distinctive = "holography metamaterial photonics interferometry birefringence diffraction polarimetry";
+  const pair = [
+    { record_id: "pp", name: "PP", domain: "qx", focus: distinctive, skill_areas: ["skill-pp"], dependencies: [] },
+    { record_id: "qq", name: "QQ", domain: "qx", focus: distinctive, skill_areas: ["skill-qq"], dependencies: [] },
+  ];
+  // Filler teams have unique domain/skill so no OTHER pair ever clears the bar; their
+  // focus is the only knob we turn between the two scenarios.
+  const filler = (id, focus = "") => ({ record_id: id, name: id, domain: `dom-${id}`, focus, skill_areas: [`skill-${id}`], dependencies: [] });
+  const fillerIds = ["f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10"];
+  // Each team in its OWN cluster so nothing is skipped as a same-cluster pair.
+  const clustersOf = (list) => list.map((t) => ({ record_id: `c-${t.record_id}`, label: t.record_id, teams: [t.record_id] }));
+
+  // Scenario A: the distinctive terms live ONLY in the pair (df = 2).
+  const rareTeams = [...pair, ...fillerIds.map((id) => filler(id))];
+  const rareCards = engine.buildLatentOverlapCards({ teams: rareTeams, clusters: clustersOf(rareTeams), dependencies: [] });
+  const rarePQ = rareCards.find((c) => c.subject_ids.includes("pp") && c.subject_ids.includes("qq"));
+  assert.ok(rarePQ, "a pair sharing RARE distinctive terms IS proposed as a latent overlap");
+
+  // Scenario B: identical pair, but now the same terms are everywhere in the cohort.
+  const ubiqTeams = [...pair, ...fillerIds.map((id) => filler(id, distinctive))];
+  const ubiqCards = engine.buildLatentOverlapCards({ teams: ubiqTeams, clusters: clustersOf(ubiqTeams), dependencies: [] });
+  const ubiqPQ = ubiqCards.find((c) => c.subject_ids.includes("pp") && c.subject_ids.includes("qq"));
+
+  if (ubiqPQ) {
+    assert.ok(ubiqPQ.content_json.score < rarePQ.content_json.score,
+      "ubiquitous shared vocabulary must score strictly lower than the same terms when rare");
+  }
+  // The headline: cohort-ubiquitous buzzwords no longer clear the bar on their own —
+  // and no maintainer ever had to add them to a list.
+  assert.equal(Boolean(ubiqPQ), false,
+    "cohort-ubiquitous shared vocabulary must NOT fabricate a latent overlap by itself");
+});
+
 test("public cohort insights exclude generated cohort cards unless explicitly approved", () => {
   const bundle = engine.buildCohortInsightBundle({
     teams,

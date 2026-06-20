@@ -483,10 +483,14 @@ function existingDependencyPairs(teams = [], dependencies = []) {
   return pairs;
 }
 
-const OVERLAP_STOPWORDS = new Set([
-  "about", "across", "agent", "agents", "build", "building", "cohort", "current", "data",
-  "demo", "first", "help", "need", "needs", "project", "public", "ship", "team", "teams",
-  "that", "their", "this", "user", "users", "with", "working",
+// Grammatical glue only. DOMAIN ubiquity (agent / tee / data / build / ship ...) used to
+// be hand-listed here, which meant a maintainer had to remember to stopword every new
+// cohort-wide buzzword or it would pad overlap scores. That job now belongs to the
+// inverse-document-frequency weighting in buildLatentOverlapCards: a term that appears
+// across the whole cohort decays to ~0 on its own. This set keeps only function words
+// that carry no signal at any frequency.
+const GENERIC_STOPWORDS = new Set([
+  "about", "across", "that", "their", "this", "with",
 ]);
 
 function overlapTokens(team) {
@@ -507,17 +511,21 @@ function overlapTokens(team) {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, " ")
       .split(/\s+/)
-      .filter(token => token.length >= 4 && !OVERLAP_STOPWORDS.has(token))
+      .filter(token => token.length >= 4 && !GENERIC_STOPWORDS.has(token))
       .forEach(token => out.add(token));
   }
   return out;
 }
 
-function scoreLatentOverlap({ sharedSkills, domainMatch, commonDependencies, sharedTokens }) {
+// sharedTokenWeight is the summed inverse-document-frequency weight of the pair's shared
+// public terms (a term shared only by this pair counts ~1; a cohort-ubiquitous term ~0),
+// so common vocabulary can no longer pad an overlap. Same 24-point ceiling as the former
+// count-based term component, so existing thresholds and confidence bands still hold.
+function scoreLatentOverlap({ sharedSkills, domainMatch, commonDependencies, sharedTokenWeight = 0 }) {
   const score = (sharedSkills.length * 22)
     + (domainMatch ? 18 : 0)
     + (commonDependencies.length * 16)
-    + Math.min(24, sharedTokens.length * 3);
+    + Math.min(24, Math.round(sharedTokenWeight * 3));
   return Math.min(100, Math.round(score));
 }
 
@@ -543,6 +551,23 @@ function buildLatentOverlapCards({ teams = [], clusters = [], dependencies = [],
   const skillSets = new Map(teamList.map(team => [team.record_id, normalizedSet(team.skill_areas)]));
   const dependencySets = new Map(teamList.map(team => [team.record_id, normalizedSet(team.dependencies)]));
   const tokenSets = new Map(teamList.map(team => [team.record_id, overlapTokens(team)]));
+  // Inverse document frequency across the cohort. A term in N of N teams carries no
+  // signal (weight 0); a term shared by only one pair carries full weight. This is what
+  // replaces the old hardcoded domain stopword list — ubiquity decays automatically, so
+  // "agent"/"tee"/"data" stop padding scores the moment they go cohort-wide.
+  const teamCount = teamList.length;
+  const tokenDocFreq = new Map();
+  for (const set of tokenSets.values()) {
+    for (const token of set) tokenDocFreq.set(token, (tokenDocFreq.get(token) || 0) + 1);
+  }
+  // idfMax is the weight of the rarest possible SHARED token (df = 2, the pair itself),
+  // used to normalize every weight into [0, 1]. With < 2 teams idf is meaningless.
+  const idfMax = Math.log(Math.max(2, teamCount) / 2);
+  const idfWeight = (token) => {
+    if (idfMax <= 0) return 1;
+    const df = tokenDocFreq.get(token) || teamCount;
+    return Math.max(0, Math.min(1, Math.log(teamCount / df) / idfMax));
+  };
   const cards = [];
 
   for (let i = 0; i < teamList.length; i += 1) {
@@ -562,8 +587,12 @@ function buildLatentOverlapCards({ teams = [], clusters = [], dependencies = [],
         .filter(id => id !== a.record_id && id !== b.record_id);
       const sharedTokens = intersection(tokenSets.get(a.record_id), tokenSets.get(b.record_id))
         .filter(token => !sharedSkills.includes(token))
+        // Order shared terms by how distinctive they are so the displayed signal leads
+        // with the rare, meaningful overlap rather than whatever sorts first alphabetically.
+        .sort((x, y) => idfWeight(y) - idfWeight(x) || x.localeCompare(y))
         .slice(0, 8);
-      const score = scoreLatentOverlap({ sharedSkills, domainMatch, commonDependencies, sharedTokens });
+      const sharedTokenWeight = sharedTokens.reduce((sum, token) => sum + idfWeight(token), 0);
+      const score = scoreLatentOverlap({ sharedSkills, domainMatch, commonDependencies, sharedTokenWeight });
       if (score < 35) continue;
 
       const reasons = latentReasonList({ sharedSkills, domainMatch, commonDependencies, sharedTokens, a, b });
