@@ -3738,6 +3738,13 @@ function constRelationshipMeaning(edge) {
       note: "The teams share an underlying technical stack, market genre, or operating context. This is ecosystem context, not proof they rely on each other.",
     };
   }
+  if (edge.relation === "contributed_to") {
+    return {
+      key: "collaboration",
+      label: "contributed to",
+      note: "A cohort member from the source team has public GitHub commits on the target team's repo. Observed cross-team collaboration, not a declared dependency.",
+    };
+  }
   return {
     key: "unknown",
     label: "mapped source link",
@@ -3754,6 +3761,7 @@ function constRelationshipDirection(edge, fromName, toName) {
   if (edge.relation === "pairs_with") return `${a} is a pairing or collaboration candidate with ${b}.`;
   if (edge.relation === "complements") return `${a} complements ${b}.`;
   if (edge.relation === "shares_substrate") return `${a} and ${b} share substrate or ecosystem context.`;
+  if (edge.relation === "contributed_to") return `${a} has members contributing to ${b}'s public repo.`;
   return `${a} is linked to ${b} by a declared relationship record.`;
 }
 
@@ -3765,6 +3773,7 @@ function constRelationshipVerb(edge) {
     pairs_with: "could work with",
     complements: "complements",
     shares_substrate: "shares infrastructure with",
+    contributed_to: "contributes code to",
     declared: "is connected to",
   };
   return labels[edge.relation] || (edge.relation_label || "is connected to");
@@ -3783,6 +3792,8 @@ function constRelationshipStatus(edge) {
     blocked: "blocked",
     resolved: "already handled",
     declared: "declared",
+    session_observed: "session-observed",
+    github_observed: "GitHub-observed",
     unknown: "status unknown",
   };
   const notes = {
@@ -3791,6 +3802,8 @@ function constRelationshipStatus(edge) {
     blocked: "The record says progress is blocked on this relationship.",
     resolved: "The record says this relationship has already been resolved.",
     declared: "The record declares a connection but does not add operating status.",
+    session_observed: "Observed in a reviewed cohort session, not a declared dependency. Treat as a lead to confirm.",
+    github_observed: "Derived from public GitHub commits across the team boundary (review status visible). Confidence is medium/low — confirm before treating as a committed dependency.",
     unknown: "The record does not declare status.",
   };
   return {

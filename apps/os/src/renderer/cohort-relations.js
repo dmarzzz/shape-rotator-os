@@ -71,6 +71,7 @@ const DEP_RELATION_LABELS = {
   pairs_with: "pairs with",
   shares_substrate: "shared substrate",
   complements: "complements",
+  contributed_to: "contributed to",
   declared: "declared link",
 };
 const DEP_STATUS_LABELS = {
@@ -79,6 +80,8 @@ const DEP_STATUS_LABELS = {
   active: "active",
   blocked: "blocked",
   resolved: "resolved",
+  session_observed: "session-observed",
+  github_observed: "GitHub-observed",
   legacy: "profile-declared",
   unknown: "unknown",
 };

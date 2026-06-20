@@ -626,6 +626,155 @@ function buildLatentOverlapCards({ teams = [], clusters = [], dependencies = [],
   }).slice(0, limit);
 }
 
+// GitHub-attested cross-team collaboration edges. The github-progress audit attaches
+// a repo-level `collaboration.possible_cross_team_contributions` snapshot to each weekly
+// summary artifact: cohort members whose commits land on a repo linked to a DIFFERENT
+// team than their own. That snapshot is replicated across every weekly artifact for the
+// repo, so we dedupe on (repo, person, direction) before aggregating per unordered team
+// pair. Unlike latent_overlap (an INFERRED structural similarity), these edges are
+// OBSERVED public-commit authorship — but still confidence medium/low because the
+// author→person match is itself heuristic (github-noreply email = medium, exact name = low).
+function collaborationEdgeConfidence(contributions) {
+  return contributions.some(contrib => contrib.confidence === "medium") ? "medium" : "low";
+}
+
+function buildCollaborationEdgeCards({ teams = [], githubProgressArtifacts = [], limit = 40 } = {}) {
+  const teamById = new Map(
+    asArray(teams).filter(team => team?.record_id).map(team => [String(team.record_id).toLowerCase(), team]),
+  );
+  // pairKey -> Map(fingerprint -> contribution); the inner map dedupes the repo-level
+  // snapshot that the audit replicates into each weekly artifact for the same repo.
+  const edges = new Map();
+
+  for (const artifact of asArray(githubProgressArtifacts)) {
+    if (artifact?.artifact_kind && artifact.artifact_kind !== "github_progress_weekly_summary") continue;
+    const collaboration = artifact?.collaboration || {};
+    const repo = String(artifact?.source_repo || "").trim().toLowerCase();
+    const artifactId = artifact?.artifact_id || "";
+    const weekStart = isoDate(artifact?.week_start || artifact?.date);
+    for (const contrib of asArray(collaboration.possible_cross_team_contributions)) {
+      const personId = String(contrib?.person_id || "").trim();
+      if (!personId) continue;
+      const personName = compactText(contrib?.person_name || personId, 80);
+      const personTeams = [...new Set(asArray(contrib?.person_team_ids).map(id => String(id).toLowerCase()).filter(Boolean))];
+      const repoTeams = [...new Set(asArray(contrib?.repo_team_ids).map(id => String(id).toLowerCase()).filter(Boolean))];
+      const commitCount = Number(contrib?.commit_count) || 0;
+      const confidence = String(contrib?.confidence || "low").toLowerCase();
+      const examples = asArray(contrib?.examples)
+        .map(example => compactText(example?.subject || example, 120))
+        .filter(Boolean)
+        .slice(0, 2);
+      for (const fromTeam of personTeams) {
+        for (const toTeam of repoTeams) {
+          // Only real, distinct cohort teams form an edge. fromTeam = the contributor's
+          // own team; toTeam = the team whose public repo received the commits.
+          if (fromTeam === toTeam) continue;
+          if (!teamById.has(fromTeam) || !teamById.has(toTeam)) continue;
+          const pairKey = unorderedPairKey(fromTeam, toTeam);
+          if (!edges.has(pairKey)) edges.set(pairKey, new Map());
+          const contributions = edges.get(pairKey);
+          const fingerprint = `${repo}|${personId}|${fromTeam}|${toTeam}`;
+          const existing = contributions.get(fingerprint);
+          // A contributor committing across N weeks appears in N replicated snapshots,
+          // each carrying the same repo-level total; keep the largest, never sum.
+          if (!existing || commitCount > existing.commit_count) {
+            contributions.set(fingerprint, {
+              person_id: personId,
+              person_name: personName,
+              from_team: fromTeam,
+              to_team: toTeam,
+              repo,
+              commit_count: commitCount,
+              confidence,
+              examples,
+              artifact_id: artifactId,
+              week_start: weekStart,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  const cards = [];
+  for (const [pairKey, contributionMap] of edges) {
+    const contributions = [...contributionMap.values()];
+    if (!contributions.length) continue;
+    const [teamAId, teamBId] = pairKey.split("|");
+    const aName = teamById.get(teamAId)?.name || teamAId;
+    const bName = teamById.get(teamBId)?.name || teamBId;
+    const totalCommits = contributions.reduce((sum, contrib) => sum + contrib.commit_count, 0);
+    const contributors = [...new Set(contributions.map(contrib => contrib.person_name))];
+    const repos = [...new Set(contributions.map(contrib => contrib.repo).filter(Boolean))];
+    const confidence = collaborationEdgeConfidence(contributions);
+
+    // Roll the deduped contributions up by direction (who committed to whose repo) so a
+    // bidirectional pair reads as two clear arrows instead of a flattened blob.
+    const directions = [...groupBy(contributions, contrib => `${contrib.from_team}->${contrib.to_team}`).entries()]
+      .map(([dirKey, list]) => {
+        const [fromTeam, toTeam] = dirKey.split("->");
+        return {
+          from_team: fromTeam,
+          to_team: toTeam,
+          from_team_name: teamById.get(fromTeam)?.name || fromTeam,
+          to_team_name: teamById.get(toTeam)?.name || toTeam,
+          contributors: [...new Set(list.map(contrib => contrib.person_name))],
+          repos: [...new Set(list.map(contrib => contrib.repo).filter(Boolean))],
+          commit_count: list.reduce((sum, contrib) => sum + contrib.commit_count, 0),
+        };
+      })
+      .sort((a, b) => b.commit_count - a.commit_count
+        || `${a.from_team}->${a.to_team}`.localeCompare(`${b.from_team}->${b.to_team}`));
+
+    const claimText = directions.length === 1
+      ? `${directions[0].contributors.join(", ")} (${directions[0].from_team_name}) committed to ${directions[0].to_team_name}'s public repo (${totalCommits} commit${totalCommits === 1 ? "" : "s"}).`
+      : `${contributors.length} cohort contributor${contributors.length === 1 ? "" : "s"} link ${aName} and ${bName} through ${repos.length} shared public repo${repos.length === 1 ? "" : "s"} (${totalCommits} commit${totalCommits === 1 ? "" : "s"}).`;
+
+    cards.push(makeInsightCard({
+      id: `cohort-insight:collaboration-edge:${slugPart(teamAId)}:${slugPart(teamBId)}`,
+      kind: "collaboration_edge",
+      subjectType: "team_pair",
+      subjectIds: [teamAId, teamBId],
+      title: `${aName} / ${bName}: GitHub collaboration`,
+      claimText,
+      summary: `Observed public-GitHub cross-team contribution: ${directions.map(dir => `${dir.contributors.join(", ")} (${dir.from_team_name}) → ${dir.to_team_name}`).join("; ")}.`,
+      evidenceLevel: "observed_public_metadata",
+      confidence,
+      sourceRefs: [
+        sourceRef("team_record", { record_id: teamAId, path: `cohort-data/teams/${teamAId}.md` }),
+        sourceRef("team_record", { record_id: teamBId, path: `cohort-data/teams/${teamBId}.md` }),
+        ...contributions
+          .filter(contrib => contrib.artifact_id)
+          .slice(0, 6)
+          .map(contrib => sourceRef("github_progress_artifact", {
+            artifact_id: contrib.artifact_id,
+            source_repo: contrib.repo,
+            week_start: contrib.week_start,
+          })),
+      ],
+      contentJson: {
+        team_pair: [teamAId, teamBId],
+        total_commit_count: totalCommits,
+        contributor_count: contributors.length,
+        contributors,
+        repos,
+        directions,
+        evidence_basis: "public_github_commit_authorship",
+        suggested_actions: [
+          "confirm the cross-team contribution with both teams",
+          "record a dependency or collaboration if the work is ongoing",
+          "dismiss as a false positive if the commit-author match is wrong",
+        ],
+      },
+    }));
+  }
+
+  return cards
+    .sort((a, b) => (b.content_json?.total_commit_count || 0) - (a.content_json?.total_commit_count || 0)
+      || a.title.localeCompare(b.title))
+    .slice(0, limit);
+}
+
 function buildRotationReadModel() {
   return {
     status: "not_generated",
@@ -684,9 +833,10 @@ function buildCohortInsightBundle({
 } = {}) {
   const sayDidShipped = buildSayDidShippedCards({ teams, githubProgressArtifacts, githubReleaseArtifacts });
   const latentOverlaps = buildLatentOverlapCards({ teams, clusters, dependencies });
+  const collaborationEdges = buildCollaborationEdgeCards({ teams, githubProgressArtifacts });
   const awards = buildAwardCards({ teams, dependencies, githubProgressArtifacts, githubReleaseArtifacts, editorialCategories });
   const rotation = buildRotationReadModel();
-  const cards = [...sayDidShipped, ...latentOverlaps, ...awards];
+  const cards = [...sayDidShipped, ...latentOverlaps, ...collaborationEdges, ...awards];
   return {
     schema_version: INSIGHT_SCHEMA_VERSION,
     artifact_kind: "cohort_insight_bundle",
@@ -711,6 +861,7 @@ function buildCohortInsightBundle({
     read_models: {
       say_did_shipped: sayDidShipped,
       latent_overlaps: latentOverlaps,
+      collaboration_edges: collaborationEdges,
       awards,
       rotation,
     },
@@ -719,6 +870,7 @@ function buildCohortInsightBundle({
       kind_counts: {
         say_did_shipped: sayDidShipped.length,
         latent_overlap: latentOverlaps.length,
+        collaboration_edge: collaborationEdges.length,
         award: awards.length,
         rotation: 0,
       },
@@ -729,6 +881,7 @@ function buildCohortInsightBundle({
       public_release_artifact_count: asArray(githubReleaseArtifacts).length,
       say_did_shipped_card_count: sayDidShipped.length,
       latent_overlap_candidate_count: latentOverlaps.length,
+      collaboration_edge_candidate_count: collaborationEdges.length,
       unobserved_say_did_shipped_count: sayDidShipped.filter(card => card.content_json?.observed_status === "unobserved").length,
     },
     policy: {
@@ -759,6 +912,7 @@ function publicCohortInsights(source) {
     read_models: {
       say_did_shipped: [],
       latent_overlaps: [],
+      collaboration_edges: [],
       awards: [],
       rotation: buildRotationReadModel(),
     },
@@ -767,6 +921,7 @@ function publicCohortInsights(source) {
       kind_counts: {
         say_did_shipped: 0,
         latent_overlap: 0,
+        collaboration_edge: 0,
         award: 0,
         rotation: 0,
       },
@@ -780,6 +935,7 @@ module.exports = {
   buildAwardCards,
   loadEditorialAwardCategories: awardScaffold.loadEditorialAwardCategories,
   buildCohortInsightBundle,
+  buildCollaborationEdgeCards,
   buildLatentOverlapCards,
   buildRotationReadModel,
   buildSayDidShippedCards,
