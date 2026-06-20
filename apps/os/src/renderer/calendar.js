@@ -631,10 +631,30 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       </section>`;
   }
 
-  // NOTE: the category-filter, scope chip and signal-row chooser are folded away
-  // for the residency-rhythm composition below; they'll be re-introduced inside
-  // its frame. (scopeId/scopeName/catHide still flow through the data model.)
-  void scopeName; void catHide;
+  // Controls folded INTO B's frame: scope (focuses presence + shipping on one
+  // workstream) sits by the week facts; the category filter doubles as the
+  // "this week" legend (drops a gathering type from the panel). Both reuse the
+  // existing .c2-scope / .c2-filter markup, so their wiring carries over.
+  const scopeChip = scopeTeams.length ? `
+    <div class="c2-scope rr-scope" data-c2-scope-ctl>
+      <button class="c2-scope-btn${scopeId ? " is-on" : ""}" data-c2-scope-toggle aria-haspopup="listbox" aria-expanded="false"
+              aria-label="focus presence + shipping on one workstream" type="button">
+        <span class="c2-scope-k">scope</span><span class="c2-scope-v">${escHtml(scopeName)}</span><i class="c2-chev" aria-hidden="true"></i>
+      </button>
+      <div class="c2-scope-menu" role="listbox" aria-label="workstream" hidden>
+        ${[{ id: "", name: "all cohort" }, ...scopeTeams].map(o => `
+          <button class="c2-scope-opt" role="option" data-c2-scope="${escAttr(o.id)}"
+                  aria-selected="${(o.id || null) === scopeId ? "true" : "false"}" type="button">${escHtml(o.name)}</button>`).join("")}
+      </div>
+    </div>` : "";
+  const filterBar = `
+    <div class="c2-filter rr-filter" role="group" aria-label="filter gatherings by type">
+      ${C2_LEGEND.map(c => `
+        <button class="c2-filter-item${catHide.has(c.key) ? " is-off" : ""}" data-c2-cat="${escAttr(c.key)}" data-cat="${escAttr(c.key)}"
+                type="button" aria-pressed="${catHide.has(c.key) ? "false" : "true"}">
+          <i class="c2-chip-dot" aria-hidden="true"></i>${escHtml(c.label)}
+        </button>`).join("")}
+    </div>`;
 
   // ── stale banner (same contract as the calendar page) ───────────────
   const staleBanner = source === "bundled" ? `
@@ -694,10 +714,13 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
         <h2 class="rr-title">${escHtml(weekTitle)}</h2>
         <div class="rr-sub">${escHtml(rangeLabel)} — ${escHtml(descriptor)}.</div>
       </div>
-      <div class="rr-stats">
-        <div class="rr-stat"><div class="rr-stat-lab">in town</div><div class="rr-stat-big">${inTownToday}<small> /${rosterTotal}</small></div><div class="rr-stat-note rr-tone-pres">${satPct}% of the house</div></div>
-        <div class="rr-stat"><div class="rr-stat-lab">shipped</div><div class="rr-stat-big">${shipCount}</div><div class="rr-stat-note rr-tone-ship">release${shipCount === 1 ? "" : "s"} this wk</div></div>
-        <div class="rr-stat"><div class="rr-stat-lab">gathered</div><div class="rr-stat-big">${gatherCount}</div><div class="rr-stat-note">${gatherHrs}h together</div></div>
+      <div class="rr-head-r">
+        ${scopeChip}
+        <div class="rr-stats">
+          <div class="rr-stat"><div class="rr-stat-lab">in town</div><div class="rr-stat-big">${inTownToday}<small> /${rosterTotal}</small></div><div class="rr-stat-note rr-tone-pres">${satPct}% of the house</div></div>
+          <div class="rr-stat"><div class="rr-stat-lab">shipped</div><div class="rr-stat-big">${shipCount}</div><div class="rr-stat-note rr-tone-ship">release${shipCount === 1 ? "" : "s"} this wk</div></div>
+          <div class="rr-stat"><div class="rr-stat-lab">gathered</div><div class="rr-stat-big">${gatherCount}</div><div class="rr-stat-note">${gatherHrs}h together</div></div>
+        </div>
       </div>
     </header>`;
 
@@ -825,7 +848,8 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       ${arcHtml}
       <section class="rr-panel">
         <div class="rr-panel-head">
-          <div class="rr-section-lab">this week <em>— build-time is the ground; gatherings are punctuation</em></div>
+          <div class="rr-section-lab">this week <em>— build is the ground; gatherings are punctuation</em></div>
+          ${filterBar}
         </div>
         <div class="rr-grid" role="grid" aria-label="week schedule">
           <div class="rr-corner"></div>

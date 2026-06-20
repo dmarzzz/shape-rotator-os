@@ -1314,6 +1314,13 @@
 .rr-stat-note { font-size: 10px; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; color: var(--ed-ink-3); }
 .rr-tone-pres { color: var(--rr-pres); }
 .rr-tone-ship { color: var(--rr-ship); }
+/* scope chip sits above the week facts (it focuses presence + shipping) */
+.rr-head-r { display: flex; flex-direction: column; align-items: flex-end; gap: 13px; flex: 0 0 auto; }
+.rr-scope { align-self: flex-end; }
+/* the category filter doubles as the "this week" legend — compact, right-aligned */
+.rr-panel-head { gap: 14px 24px; flex-wrap: wrap; }
+.rr-panel-head .rr-filter { flex-wrap: wrap; justify-content: flex-end; gap: 4px 5px; max-width: 66%; }
+.rr-panel-head .c2-filter-item { font-size: 10px; padding: 2px 8px; }
 
 /* ── section labels + legend ─────────────────────────────────────────── */
 .rr-section-lab { font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ed-ink-3); }
