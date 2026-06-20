@@ -177,9 +177,12 @@ test("say/did/shipped cards carry a grammar-correct identity lead", () => {
   assert.equal(alpha.evidence_level, "observed_public_metadata");
   // article + lowercase company type + first focus clause — no "Infra", no "·", no "it does"
   assert.equal(alpha.content_json.what_it_is, "an infra project in trusted compute focused on TEE contract runtime");
-  assert.equal(alpha.content_json.what_it_does, "provides an attestation-backed contract runtime for agent workflows");
+  // The capability lead is ALWAYS declared mood (observed activity != observed capability),
+  // so even an observed team reads "aims to provide", with the observed proof in did/shipped.
+  assert.equal(alpha.content_json.what_it_does, "aims to provide an attestation-backed contract runtime for agent workflows");
+  assert.equal(alpha.content_json.what_it_does_basis, "declared");
   assert.equal(alpha.content_json.who_it_serves, "agent builders that need verifiable contract execution");
-  assert.match(alpha.claim_text, /^Alpha Lab is an infra project in trusted compute focused on TEE contract runtime; it provides an attestation-backed contract runtime for agent workflows\.$/);
+  assert.match(alpha.claim_text, /^Alpha Lab is an infra project in trusted compute focused on TEE contract runtime; it aims to provide an attestation-backed contract runtime for agent workflows\.$/);
 });
 
 test("identity text normalizes company type, focus delimiters, and conjugates verbs by mood", () => {
@@ -202,10 +205,12 @@ test("identity text normalizes company type, focus delimiters, and conjugates ve
   const by = new Map(cards.map(card => [card.subject_ids[0], card]));
   // "·" secondary clause stripped from the focus
   assert.equal(by.get("dot").content_json.what_it_is, "an infra project in trusted compute focused on formal verification");
-  // observed -> imperative lead AND compound "and <verb>" both conjugated to third person
-  assert.equal(by.get("imp").content_json.what_it_does, "productizes anonymous broadcast and explores relays");
-  assert.equal(by.get("imp").content_json.claim_basis, "observed");
-  // declared-only -> aspirational mood: a noun-phrase solution reads "aims to provide ..."
+  // The capability lead is ALWAYS declared mood, so an imperative lead + compound "and <verb>"
+  // base-form under "plans to ..." even for the OBSERVED team (its did/shipped carry the proof).
+  assert.equal(by.get("imp").content_json.what_it_does, "plans to productize anonymous broadcast and explore relays");
+  assert.equal(by.get("imp").content_json.claim_basis, "observed"); // card-level basis still tracks the observed did/shipped
+  assert.equal(by.get("imp").content_json.what_it_does_basis, "declared");
+  // declared-only -> a noun-phrase solution reads "aims to provide ..."
   assert.equal(by.get("dot").content_json.what_it_does, "aims to provide a registry and proof workflow");
   assert.equal(by.get("dot").content_json.claim_basis, "declared");
   // all-caps acronym company type preserved (not lowercased to "ai")
@@ -227,6 +232,16 @@ test("say/did/shipped cards distinguish observed public movement from unobserved
   assert.equal(bySubject.get("beta").evidence_level, "declared_only");
 });
 
+test("declared mood base-forms a conjugated verb lead and compound (plans to build/power, not builds/powers)", () => {
+  const sample = [
+    { record_id: "cv", name: "Cv", domain: "ai", focus: "router",
+      journey: { company_type: "Infra", solution: "builds a P2P router and powers agent payments" } },
+  ];
+  const card = engine.buildSayDidShippedCards({ teams: sample }).find(c => c.subject_ids[0] === "cv");
+  assert.equal(card.content_json.what_it_does, "plans to build a P2P router and power agent payments");
+  assert.doesNotMatch(card.content_json.what_it_does, /plans to builds|and powers/);
+});
+
 test("say/did/shipped recovers matched_cohort_people as a contributor roster", () => {
   const progressWithPeople = [{
     artifact_kind: "github_progress_weekly_summary", record_type: "team", record_id: "alpha",
@@ -243,13 +258,15 @@ test("say/did/shipped recovers matched_cohort_people as a contributor roster", (
   const card = engine.buildSayDidShippedCards({ teams, githubProgressArtifacts: progressWithPeople })
     .find(c => c.subject_ids[0] === "alpha");
   const roster = card.content_json.contributors;
-  assert.equal(roster.length, 2);
-  assert.equal(roster[0].person_name, "Ada Stone"); // sorted by commit_count desc
+  // PRIV-3: only the reliable github-noreply email match NAMES a person; the exact-name
+  // namesake (Ben) is excluded so a possible-namesake match never attributes named authorship.
+  assert.equal(roster.length, 1);
+  assert.equal(roster[0].person_name, "Ada Stone");
   assert.equal(roster[0].match_quality, "github-noreply email match");
-  assert.equal(roster[1].match_quality, "exact-name match (possible namesake)");
+  assert.ok(roster.every(p => p.match_quality === "github-noreply email match"));
   // and it travels in the trace as a contributors signal, citing the progress artifacts
   const sig = card.content_json.trace.signals.find(s => s.name === "contributors");
-  assert.ok(sig && sig.value.length === 2, "contributors ride the trace");
+  assert.ok(sig && sig.value.length === 1, "named contributors ride the trace");
 });
 
 test("github progress loader deduplicates generated/reviewed team-week copies", () => {
@@ -401,7 +418,9 @@ test("cards carry a recomputable reasoning trace with an honest basis", () => {
   // latent_overlap: inferred basis, and the score breakdown SUMS to the published score
   const lt = lo.content_json.trace;
   assert.equal(lt.basis, "inferred");
-  assert.equal(lt.version, 2);
+  assert.equal(lt.version, 3);
+  // every contributing latent-overlap signal cites the two team records it came from
+  assert.ok(lt.signals.filter(s => s.contribution > 0).every(s => Array.isArray(s.source_refs) && s.source_refs.length));
   const bd = lo.content_json.score_breakdown;
   const sum = bd.shared_skills.subtotal + bd.domain_match.subtotal + bd.common_dependencies.subtotal + bd.shared_terms_idf.subtotal;
   assert.equal(Math.min(100, sum), lo.content_json.score, "score is explained by its component breakdown");

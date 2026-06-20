@@ -212,7 +212,7 @@ const EVIDENCE_BASIS = Object.freeze({
 // IDF rewrite is v2). Travels on every trace as trace.version.
 const ALGORITHM_VERSIONS = Object.freeze({
   say_did_shipped: 1,
-  latent_overlap: 2,
+  latent_overlap: 3, // 2 = IDF token weighting; 3 = full-set weight sum (no top-8 truncation in score)
   collaboration_edge: 1,
   award: 1,
 });
@@ -340,6 +340,14 @@ const ACTION_VERB_MAP = {
   productizes: "productizes", run: "runs", runs: "runs", turn: "turns", turns: "turns",
   power: "powers", powers: "powers", deliver: "delivers", delivers: "delivers",
 };
+// Inverse of ACTION_VERB_MAP for the declared branch: a source field that already leads
+// with a conjugated verb ("Builds X", "Powers Y") must read "plans to build X", not the
+// ungrammatical "plans to builds X". Base-form leads fall through to themselves via `|| lead`.
+const BASE_VERB_MAP = {
+  builds: "build", makes: "make", creates: "create", enables: "enable",
+  offers: "offer", provides: "provide", explores: "explore", productizes: "productize",
+  runs: "run", turns: "turn", powers: "power", delivers: "deliver",
+};
 // mood "observed" -> present-tense operating claim ("builds X" / "provides X");
 // mood "declared" -> aspirational, so an unbuilt self-declared plan never reads as a
 // shipped capability ("plans to build X" / "aims to provide X"). The mood is chosen by
@@ -356,7 +364,16 @@ function actionPredicate(rawDoes, { mood = EVIDENCE_BASIS.OBSERVED } = {}) {
     // Declared mood keeps the base imperative under "plans to ..." ("plans to make X and
     // explore Y"); observed mood conjugates each verb to third person ("makes X and
     // explores Y") — including a second imperative joined by "and"/"&".
-    if (declared) return `plans to ${lead}${text.slice(match[1].length)}`.replace(/\s+/g, " ").trim();
+    if (declared) {
+      const base = BASE_VERB_MAP[lead] || lead;
+      // Base-form a second imperative joined by "and"/"&" too, so "Builds X and powers Y"
+      // reads "plans to build X and power Y", not "...and powers Y" (symmetric with observed).
+      const rest = text.slice(match[1].length).replace(
+        /\b(and|&)\s+([a-z][a-z-]*)\b/g,
+        (whole, conj, verb) => (BASE_VERB_MAP[verb.toLowerCase()] ? `${conj} ${BASE_VERB_MAP[verb.toLowerCase()]}` : whole),
+      );
+      return `plans to ${base}${rest}`.replace(/\s+/g, " ").trim();
+    }
     const rest = text.slice(match[1].length).replace(
       /\b(and|&)\s+([a-z][a-z-]*)\b/g,
       (whole, conj, verb) => (ACTION_VERB_MAP[verb.toLowerCase()] ? `${conj} ${ACTION_VERB_MAP[verb.toLowerCase()]}` : whole),
@@ -405,6 +422,11 @@ function aggregateMatchedContributors(progressArtifacts) {
     for (const person of asArray(artifact?.collaboration?.matched_cohort_people)) {
       const id = String(person?.person_id || "").trim();
       if (!id) continue;
+      // Only NAME a cohort member when the identity match is the reliable github-noreply
+      // email match. An exact-name match is a possible namesake (the engine cannot tell two
+      // people with the same name apart), so it must never attribute named authorship on a
+      // surfaced card — privacy + honesty (PRIV-3).
+      if (person?.reason !== "github_noreply_email") continue;
       const commitCount = Number(person?.commit_count) || 0;
       const existing = byPerson.get(id);
       if (!existing || commitCount > existing.commit_count) {
@@ -442,13 +464,16 @@ function buildSayDidShippedCards({ teams = [], githubProgressArtifacts = [], git
       // matched_cohort_people; commits observed, person identity heuristically matched).
       const contributors = aggregateMatchedContributors(act.progress);
 
-      // The verb mood is chosen from whether any PUBLIC artifact backs the team: an
-      // observed team "provides/builds" (present tense); a declared-only team "aims to
-      // provide / plans to build" so an unbuilt plan is never read as a shipped product.
+      // The card-level basis reflects the strongest PROOF line (the did/shipped GitHub trace).
       const claimBasis = act.observed ? EVIDENCE_BASIS.OBSERVED : EVIDENCE_BASIS.DECLARED;
+      // The capability identity lead ("it ___") is ALWAYS a declared self-description from
+      // journey.solution/team.now. Observed repo activity does NOT attest the specific declared
+      // capability — a Stripe-billing commit is not proof of "confidential TEE inference" — so
+      // what_it_does keeps declared/aspirational mood regardless of activity; the observed proof
+      // lives in the did/shipped lines, which carry their own per-line basis.
       const whatItDoes = actionPredicate(
         firstText(journey.solution, team.now, team.weekly_goals, focusFirstClause(team.focus)),
-        { mood: claimBasis },
+        { mood: EVIDENCE_BASIS.DECLARED },
       );
       // Avoid the "focused on X ... provides an X" stutter: drop the focus clause from the
       // identity lead when the predicate names that focus right after an article. Matching
@@ -468,7 +493,19 @@ function buildSayDidShippedCards({ teams = [], githubProgressArtifacts = [], git
       // "Declared" so it never reads as observed. Transcript-derived did/shipped is a
       // RUNTIME concern (gated Supabase view); it must NOT be baked into this committed
       // public bundle (source_boundary: public_bundle).
-      const declaredDid = firstText(team.traction, team.journey?.next_milestone);
+      // traction is free-text; for many teams it holds FOUNDER PEDIGREE (ex-employer,
+      // university, fellowship, citations) rather than project output. Don't promote a resume
+      // into the project's "did" slot: if traction reads as pedigree (and isn't also
+      // describing shipped project work), prefer the declared next step for "did" and route
+      // the background to its own field so a credential isn't mislabelled as an accomplishment.
+      const tractionText = firstText(team.traction);
+      const PEDIGREE_RX = /\b(ex-|alumn|fellow|phd|university|college|\d+\+?\s*(yrs?|years)\b|citations?|co-author)\b/i;
+      const PROJECT_RX = /\b(launched|live|users?|shipped|prototype|pilot|sessions?|sdk|demo|mainnet|testnet|beta|waitlist|signups?)\b/i;
+      const tractionIsPedigree = Boolean(tractionText) && PEDIGREE_RX.test(tractionText) && !PROJECT_RX.test(tractionText);
+      const teamBackground = tractionIsPedigree ? compactText(tractionText, 200) : "";
+      const declaredDid = tractionIsPedigree
+        ? firstText(team.journey?.next_milestone, tractionText)
+        : firstText(tractionText, team.journey?.next_milestone);
       const did = act.latest
         ? compactText(act.latest.summary || latestExamples.join("; "), 220)
         : declaredDid
@@ -559,7 +596,9 @@ function buildSayDidShippedCards({ teams = [], githubProgressArtifacts = [], git
           shipped_basis: shippedBasis,
           observed_status: act.observed ? "public_signal_observed" : "unobserved",
           claim_basis: claimBasis,
+          what_it_does_basis: "declared",
           stage_qualifier: stageQualifier,
+          team_background: teamBackground,
           contributors,
           public_activity: {
             observed_status: act.observed ? "public_signal_observed" : "declared_only",
@@ -734,26 +773,32 @@ function buildLatentOverlapCards({ teams = [], clusters = [], dependencies = [],
       const domainMatch = Boolean(a.domain && b.domain && String(a.domain).toLowerCase() === String(b.domain).toLowerCase());
       const commonDependencies = intersection(dependencySets.get(a.record_id), dependencySets.get(b.record_id))
         .filter(id => id !== a.record_id && id !== b.record_id);
-      const sharedTokensAll = intersection(tokenSets.get(a.record_id), tokenSets.get(b.record_id))
+      const sharedTokensFull = intersection(tokenSets.get(a.record_id), tokenSets.get(b.record_id))
         .filter(token => !sharedSkills.includes(token))
         // Order shared terms by how distinctive they are so the displayed signal leads
         // with the rare, meaningful overlap rather than whatever sorts first alphabetically.
-        .sort((x, y) => idfWeight(y) - idfWeight(x) || x.localeCompare(y))
-        .slice(0, 8);
-      // Each shared term with its cohort document frequency + normalized IDF weight, so the
-      // "ubiquity decays to ~0" claim is visible and the term ranking is reproducible from
-      // the card alone (closes trace gap G1).
-      const sharedTermsWeighted = sharedTokensAll.map(term => ({
+        .sort((x, y) => idfWeight(y) - idfWeight(x) || x.localeCompare(y));
+      // Sum the IDF weight over EVERY shared term (cohort-ubiquitous filler is ~0, so it
+      // cannot pad the score) — the score must reflect the FULL overlap, not just the top 8
+      // that get displayed. Summing the post-slice top-8 silently understated wide overlaps.
+      const sharedTokenWeight = sharedTokensFull.reduce((sum, token) => sum + idfWeight(token), 0);
+      // The trace/display keep only the most distinctive terms; the breakdown records the
+      // pre-slice total + a truncation flag so a recomputer holding the card knows the shown
+      // list is a top-N subset of a larger set (closes trace gap G1; each term carries its
+      // cohort document frequency + normalized IDF weight).
+      const sharedTokensTop = sharedTokensFull.slice(0, 8);
+      const sharedTermsWeighted = sharedTokensTop.map(term => ({
         term,
         doc_freq: tokenDocFreq.get(term) || teamCount,
         idf_weight: Math.round(idfWeight(term) * 100) / 100,
       }));
-      // Displayed terms drop near-zero-weight filler ("around"/"where"/"data") so the
-      // public-trace chips reflect real signal (honesty fix H-O4); the full weighted list
-      // rides the trace, and the score still sums every term's weight (filler ~0 anyway).
+      // Displayed terms also drop near-zero-weight filler ("around"/"where"/"data") so the
+      // public-trace chips reflect real signal (honesty fix H-O4).
       const sharedTokens = sharedTermsWeighted.filter(t => t.idf_weight >= LATENT_TERM_DISPLAY_FLOOR).map(t => t.term);
-      const sharedTokenWeight = sharedTokensAll.reduce((sum, token) => sum + idfWeight(token), 0);
       const { total: score, breakdown: scoreBreakdown } = scoreLatentOverlap({ sharedSkills, domainMatch, commonDependencies, sharedTokenWeight });
+      scoreBreakdown.shared_terms_idf.shared_terms_total = sharedTokensFull.length;
+      scoreBreakdown.shared_terms_idf.shared_terms_shown = sharedTokensTop.length;
+      scoreBreakdown.shared_terms_idf.truncated = sharedTokensFull.length > sharedTokensTop.length;
       if (score < 35) continue;
 
       const reasons = latentReasonList({ sharedSkills, domainMatch, commonDependencies, sharedTokens, a, b });
@@ -772,12 +817,12 @@ function buildLatentOverlapCards({ teams = [], clusters = [], dependencies = [],
       ).values()].slice(0, 4).join(", ");
       const teamRefA = sourceRef("team_record", { record_id: a.record_id, path: `cohort-data/teams/${a.record_id}.md` });
       const teamRefB = sourceRef("team_record", { record_id: b.record_id, path: `cohort-data/teams/${b.record_id}.md` });
-      const refs = [
-        teamRefA,
-        teamRefB,
-        sourceRef("cluster_record", { record_id: aCluster.id, label: aCluster.label }),
-        sourceRef("cluster_record", { record_id: bCluster.id, label: bCluster.label }),
-      ];
+      // A team with no primary cluster gets a distinct "cluster_unassigned" ref (label only,
+      // no record_id) so every cluster_record ref still resolves to a real on-disk cluster file.
+      const clusterRef = (cluster) => cluster.id === "_unclustered"
+        ? sourceRef("cluster_unassigned", { label: cluster.label })
+        : sourceRef("cluster_record", { record_id: cluster.id, label: cluster.label });
+      const refs = [teamRefA, teamRefB, clusterRef(aCluster), clusterRef(bCluster)];
       const trace = makeTrace({
         method: "latent_overlap_idf",
         version: ALGORITHM_VERSIONS.latent_overlap,
@@ -787,8 +832,8 @@ function buildLatentOverlapCards({ teams = [], clusters = [], dependencies = [],
         signals: [
           traceSignal({ name: "shared_skill_areas", value: sharedSkills, contribution: scoreBreakdown.shared_skills.subtotal, of: 100, sourceRefs: [teamRefA, teamRefB] }),
           traceSignal({ name: "shared_domain", value: domainMatch ? a.domain : "", contribution: scoreBreakdown.domain_match.subtotal, of: 100, sourceRefs: [teamRefA, teamRefB] }),
-          traceSignal({ name: "shared_dependency_targets", value: commonDependencies, contribution: scoreBreakdown.common_dependencies.subtotal, of: 100 }),
-          traceSignal({ name: "shared_terms_idf", value: sharedTermsWeighted, detail: `idf-weighted across ${teamCount} cohort teams`, contribution: scoreBreakdown.shared_terms_idf.subtotal, of: 100 }),
+          traceSignal({ name: "shared_dependency_targets", value: commonDependencies, contribution: scoreBreakdown.common_dependencies.subtotal, of: 100, sourceRefs: [teamRefA, teamRefB] }),
+          traceSignal({ name: "shared_terms_idf", value: sharedTermsWeighted, detail: `idf-weighted across ${teamCount} cohort teams`, contribution: scoreBreakdown.shared_terms_idf.subtotal, of: 100, sourceRefs: [teamRefA, teamRefB] }),
         ],
         inputs: refs,
         recompute: "buildLatentOverlapCards over committed cohort-data teams/clusters/dependencies",

@@ -93,11 +93,27 @@ test("data nominations rank by public signal and dedupe dependency degree", () =
   assert.equal(build.candidates[0].value, 3);
 
   // gamma->alpha counted once: each endpoint has degree 1, not 2.
-  const connected = byId.get("cohort-insight:award:most-connected").content_json;
+  const connectedCard = byId.get("cohort-insight:award:most-connected");
+  const connected = connectedCard.content_json;
   const degreeByTeam = new Map(connected.candidates.map(c => [c.record_id, c.value]));
   assert.equal(degreeByTeam.get("alpha"), 1);
   assert.equal(degreeByTeam.get("gamma"), 1);
   assert.equal(degreeByTeam.has("beta"), false, "teams with no edges are not nominated");
+
+  // H3: the basis follows the METRIC. release/commit counts are observed GitHub artifacts;
+  // dependency degree is summed from DECLARED dependency records, so most-connected must NOT
+  // claim observed_public_metadata — and its github-metric peers must.
+  assert.equal(byId.get("cohort-insight:award:shipped-most").evidence_level, "observed_public_metadata");
+  assert.equal(byId.get("cohort-insight:award:most-active-build").evidence_level, "observed_public_metadata");
+  assert.equal(connectedCard.evidence_level, "declared_only");
+  assert.equal(connected.basis, "declared_dependency_graph");
+  assert.equal(connected.trace.basis, "declared");
+  assert.doesNotMatch(connectedCard.claim_text, /public data only/);
+  // TI-3/TI-4: an observed candidate's value resolves to the github artifact it was summed
+  // from, and trace.inputs equals the card's source_refs.
+  const buildCard = byId.get("cohort-insight:award:most-active-build");
+  assert.ok(buildCard.content_json.trace.signals[0].source_refs.some(r => r.kind === "github_progress_artifact"));
+  assert.deepEqual(buildCard.content_json.trace.inputs, buildCard.source_refs);
 });
 
 test("editorial slot is empty and routed to private judgment", () => {

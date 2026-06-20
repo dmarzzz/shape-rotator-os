@@ -68,6 +68,10 @@ export const MODES = {
       "apps/web/calendar.json",
       "cohort-data/artifacts/public-transcript-articles/generated/manifest.json",
       "cohort-data/artifacts/public-transcript-articles/generated",
+      // The committed cohort-insight bundle — the only tracked surface that carries
+      // content_json.trace today, so the default scan must audit it for private markers.
+      "cohort-data/artifacts/cohort-insights/generated/manifest.json",
+      "cohort-data/artifacts/cohort-insights/generated",
       // Defensive: distilled per-session inputs live outside the public repo
       // (cohort-data/.private/, gitignored). If any get re-committed at their old
       // canonical paths these targets catch it. Absent paths are tolerated.

@@ -26,11 +26,14 @@ const yaml = require("js-yaml");
 const COHORT_SUBJECT = "cohort";
 const MAX_CANDIDATES = 5;
 
-// Categories the public bundle can back with public data only.
+// Categories the public bundle can back with public data. `observed` marks whether the
+// METRIC is an observed public artifact (releases/commits) or a DECLARED signal: dependency
+// degree is summed from teams' own declared dependency records, so it is NOT observed and
+// must not be stamped observed_public_metadata (H3).
 const DATA_CATEGORIES = [
-  { id: "shipped-most", label: "Shipped the Most (public releases)", metric: "public_release_count" },
-  { id: "most-active-build", label: "Most Active Build (useful public commits)", metric: "useful_commit_count" },
-  { id: "most-connected", label: "Most Connected (dependency-graph degree)", metric: "dependency_degree" },
+  { id: "shipped-most", label: "Shipped the Most (public releases)", metric: "public_release_count", observed: true },
+  { id: "most-active-build", label: "Most Active Build (useful public commits)", metric: "useful_commit_count", observed: true },
+  { id: "most-connected", label: "Most Connected (dependency-graph degree)", metric: "dependency_degree", observed: false },
 ];
 
 function teamName(team) {
@@ -65,57 +68,68 @@ function dependencyDegree(teams, dependencies, asArray) {
   return degree;
 }
 
-function buildDataNominationCard({ category, candidates, makeInsightCard, sourceRef, helpers = {} }) {
-  const observed = candidates.length > 0;
-  const lead = observed
+function buildDataNominationCard({ category, candidates, makeInsightCard, sourceRef, candidateRefs, helpers = {} }) {
+  const hasCandidates = candidates.length > 0;
+  // basis follows the METRIC's provenance, not merely candidate presence (H3): release /
+  // commit counts are observed GitHub artifacts; dependency_degree is summed from DECLARED
+  // dependency records, so "most-connected" reads declared, never observed_public_metadata.
+  const observedMetric = Boolean(category.observed) && hasCandidates;
+  const lead = hasCandidates
     ? candidates.slice(0, 3).map((c) => `${c.name} (${c.value})`).join(", ")
-    : "no public signal yet";
+    : "no signal yet";
+  const dataPhrase = category.observed ? "public data" : "declared dependency records";
+  const refsFor = typeof candidateRefs === "function" ? candidateRefs : () => [];
   const { makeTrace, traceSignal, EVIDENCE_BASIS = {}, ALGORITHM_VERSIONS = {} } = helpers;
-  // A nomination, never a verdict: the trace records the ranking metric and each
-  // candidate's value with a ref to the team it came from, so the list is verifiable.
+  const categoryRef = sourceRef("award_category", { category_id: category.id, basis: category.observed ? "public_signal" : "declared_dependency_graph" });
+  // Each candidate cites the actual artifacts/records its metric was summed from, so an
+  // observed value resolves to the artifact it came from (TI-3). source_refs == trace.inputs
+  // (TI-4) so the recompute basis is self-contained.
+  const teamRef = (id) => sourceRef("team_record", { record_id: id, path: `cohort-data/teams/${id}.md` });
+  const perCandidateRefs = candidates.map((c) => {
+    const r = refsFor(category, c.record_id);
+    return r.length ? r : [teamRef(c.record_id)];
+  });
+  const refs = [categoryRef, ...perCandidateRefs.flat()];
   const trace = typeof makeTrace === "function"
     ? makeTrace({
-      method: "award_scaffold_public_signal",
+      method: category.observed ? "award_scaffold_public_signal" : "award_scaffold_declared_graph",
       version: ALGORITHM_VERSIONS.award,
-      basis: observed ? EVIDENCE_BASIS.OBSERVED : EVIDENCE_BASIS.DECLARED,
+      basis: observedMetric ? EVIDENCE_BASIS.OBSERVED : EVIDENCE_BASIS.DECLARED,
       confidence: "low",
-      confidenceBasis: `candidate list ranked by ${category.metric} from public metadata — a nomination, never a verdict`,
-      signals: candidates.map((c) => traceSignal({
+      confidenceBasis: `candidate list ranked by ${category.metric} from ${dataPhrase} — a nomination, never a verdict`,
+      signals: candidates.map((c, i) => traceSignal({
         name: c.record_id,
         value: c.value,
         detail: category.metric,
-        sourceRefs: [sourceRef("team_record", { record_id: c.record_id, path: `cohort-data/teams/${c.record_id}.md` })],
+        sourceRefs: perCandidateRefs[i],
       })),
-      inputs: [sourceRef("award_category", { category_id: category.id, basis: "public_signal" })],
-      recompute: `rank teams by ${category.metric} over committed github/dependency artifacts`,
+      inputs: refs,
+      recompute: `rank teams by ${category.metric} over committed ${category.observed ? "github" : "dependency"} artifacts`,
     })
     : null;
   return makeInsightCard({
     id: `cohort-insight:award:${category.id}`,
     kind: "award",
     subjectType: COHORT_SUBJECT,
-    subjectIds: observed ? candidates.map((c) => c.record_id) : [COHORT_SUBJECT],
+    subjectIds: hasCandidates ? candidates.map((c) => c.record_id) : [COHORT_SUBJECT],
     title: `Award nomination — ${category.label}`,
-    claimText: `Public-signal candidates for "${category.label}": ${lead}. Candidate list from public data only, not a verdict.`,
-    summary: observed
-      ? `Ranked by ${category.metric} from public GitHub/cohort metadata. Awaiting reviewed judgment before any winner is named.`
-      : `No public ${category.metric} signal is available yet; this category needs reviewed judgment to nominate.`,
-    evidenceLevel: observed ? "observed_public_metadata" : "declared_only",
+    claimText: `${category.observed ? "Public-signal" : "Declared-graph"} candidates for "${category.label}": ${lead}. Candidate list from ${dataPhrase} only, not a verdict.`,
+    summary: hasCandidates
+      ? `Ranked by ${category.metric} from ${category.observed ? "public GitHub/cohort metadata" : "declared dependency records"}. Awaiting reviewed judgment before any winner is named.`
+      : `No ${category.metric} signal is available yet; this category needs reviewed judgment to nominate.`,
+    evidenceLevel: observedMetric ? "observed_public_metadata" : "declared_only",
     confidence: "low",
-    sourceRefs: [
-      sourceRef("award_category", { category_id: category.id, basis: "public_signal" }),
-      ...candidates.map((c) => sourceRef("team_record", { record_id: c.record_id, path: `cohort-data/teams/${c.record_id}.md` })),
-    ],
+    sourceRefs: refs,
     contentJson: {
       award_kind: "data_nomination",
       category_id: category.id,
       category_label: category.label,
-      basis: "public_signal",
+      basis: category.observed ? "public_signal" : "declared_dependency_graph",
       metric: category.metric,
       candidates,
       verdict: null,
       status: "awaiting_review",
-      note: "Candidate list from public data only. The winner is a reviewed judgment, not produced by this deterministic public bundle.",
+      note: `Candidate list from ${dataPhrase} only. The winner is a reviewed judgment, not produced by this deterministic public bundle.`,
       ...(trace ? { trace } : {}),
     },
   });
@@ -192,11 +206,26 @@ function buildAwardCards({
     dependency_degree: (team) => degree.get(team.record_id) || 0,
   };
 
+  // The real artifacts/records a candidate's metric was summed from, so an observed value
+  // resolves to its source (TI-3). dependency_degree is declared, so it cites the team record.
+  const candidateRefs = (category, recordId) => {
+    if (category.metric === "public_release_count") {
+      return asArray(releasesByTeam.get(recordId)).slice(0, 3)
+        .map((a) => sourceRef("github_release_artifact", { artifact_id: a.artifact_id || "", record_id: recordId, source_repo: a.source_repo || "" }));
+    }
+    if (category.metric === "useful_commit_count") {
+      return asArray(progressByTeam.get(recordId)).slice(0, 4)
+        .map((a) => sourceRef("github_progress_artifact", { artifact_id: a.artifact_id || "", record_id: recordId, source_repo: a.source_repo || "" }));
+    }
+    return [sourceRef("team_record", { record_id: recordId, path: `cohort-data/teams/${recordId}.md` })];
+  };
+
   const dataCards = DATA_CATEGORIES.map((category) => buildDataNominationCard({
     category,
     candidates: rankCandidates(teamList, metricFns[category.metric]),
     makeInsightCard,
     sourceRef,
+    candidateRefs,
     helpers,
   }));
 
