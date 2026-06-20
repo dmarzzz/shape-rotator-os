@@ -169,6 +169,7 @@ const C2_CATEGORIES = [
   { key: "demo",    label: "demo night",     re: /demo night|showcase|demo day/i },
   { key: "oh",      label: "office hour",    re: /office hour|pmf check|\bcheck[ -]?point|\b1:1/i },
   { key: "salon",   label: "salon",          re: /salon/i },
+  { key: "social",  label: "tea / social",   re: /tea on roof|\btea\b|happy hour|coffee|social hour|\bmixer\b/i },
   { key: "weekly",  label: "sr weekly",      re: /\bweekly\b|what did you do/i },
   { key: "coord",   label: "coordination",   re: /coordinat|attribution/i },
   { key: "hack",    label: "hacking",        re: /\bhack|hackathon|open jam|\bfinals\b|submission|build night/i },
@@ -177,6 +178,7 @@ const C2_CATEGORIES = [
 export const C2_LEGEND = [
   { key: "oh",     label: "office hours" },
   { key: "salon",  label: "salon" },
+  { key: "social", label: "tea / social" },
   { key: "weekly", label: "weekly / self-org" },
   { key: "coord",  label: "coordination" },
   { key: "review", label: "demo review" },
@@ -862,14 +864,16 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
           <div class="rr-section-lab">this week <em>— build is the ground; gatherings are punctuation</em></div>
           ${filterBar}
         </div>
-        <div class="rr-grid" role="grid" aria-label="week schedule">
-          <div class="rr-corner"></div>
-          ${dhHtml}
-          ${spineHtml}
-          ${fieldsHtml}
+        <div class="rr-weekscroll">
+          <div class="rr-grid" role="grid" aria-label="week schedule">
+            <div class="rr-corner"></div>
+            ${dhHtml}
+            ${spineHtml}
+            ${fieldsHtml}
+          </div>
+          ${ribbonRow}
+          ${shipRow}
         </div>
-        ${ribbonRow}
-        ${shipRow}
         ${navHtml}
       </section>
       <footer class="rr-foot">
