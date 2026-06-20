@@ -1302,6 +1302,9 @@
 .rr-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; padding: 6px 0 24px; border-bottom: 1px solid var(--ed-rule-2); }
 .rr-head-l { min-width: 0; }
 .rr-eyebrow { font-size: 10px; letter-spacing: 0.26em; text-transform: uppercase; color: var(--ed-ink-3); margin-bottom: 15px; }
+/* Shape Rotator signature mark — a small rotated square (a "shape"), the brand
+   thread: it opens the eyebrow and recurs as the ship/now marks below. */
+.rr-eyebrow::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 10px; background: var(--rr-ox); border-radius: 1px; transform: rotate(45deg); vertical-align: middle; }
 .rr-title { font-family: var(--ed-display); font-weight: 500; font-size: 52px; line-height: 0.96; letter-spacing: -0.022em; color: var(--ed-ink-1); margin: 0; text-wrap: balance; }
 .rr-sub { font-family: var(--ed-display); font-style: italic; font-size: 19px; letter-spacing: -0.01em; color: var(--ed-ink-3); margin-top: 12px; text-wrap: pretty; }
 .rr-stats { display: flex; text-align: right; flex: 0 0 auto; }
@@ -1337,9 +1340,9 @@
 .rr-arc-bar { display: grid; grid-template-columns: repeat(10, 1fr); gap: 10px; align-items: end; }
 .rr-wk { appearance: none; cursor: pointer; background: transparent; border: 0; padding: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative; transition: transform 110ms cubic-bezier(0.19,1,0.22,1); }
 .rr-ticks { display: flex; gap: 3px; height: 11px; align-items: center; }
-.rr-shipdot { width: 5px; height: 5px; border-radius: 2px; background: var(--rr-ship); opacity: 0.85; }
-.rr-pcol { width: 100%; height: 48px; display: flex; align-items: flex-end; }
-.rr-pbar { width: 100%; background: color-mix(in oklch, var(--rr-pres) 28%, transparent); border-top: 2px solid color-mix(in oklch, var(--rr-pres) 64%, transparent); border-radius: 2px 2px 0 0; transition: background 160ms ease, border-color 160ms ease; }
+.rr-shipdot { width: 5px; height: 5px; border-radius: 1px; background: var(--rr-ship); opacity: 0.85; transform: rotate(45deg); }
+.rr-pcol { width: 100%; height: 42px; display: flex; align-items: flex-end; }
+.rr-pbar { width: 100%; background: color-mix(in oklch, var(--rr-pres) 22%, transparent); border-top: 2px solid color-mix(in oklch, var(--rr-pres) 56%, transparent); border-radius: 2px 2px 0 0; transition: background 160ms ease, border-color 160ms ease; }
 .rr-num { font-family: var(--ed-mono); font-variant-numeric: tabular-nums; font-size: 10px; color: var(--ed-ink-3); }
 .rr-num b { color: var(--rr-ox); font-weight: 400; letter-spacing: 0.04em; }
 .rr-wk:hover .rr-pbar { background: color-mix(in oklch, var(--rr-pres) 42%, transparent); }
@@ -1353,7 +1356,7 @@
 .rr-wk.active .rr-ticks, .rr-wk.active .rr-pcol, .rr-wk.active .rr-num { position: relative; z-index: 1; }
 .rr-wk.active .rr-pbar { background: color-mix(in oklch, var(--rr-pres) 46%, transparent); border-top: 2px solid var(--rr-pres); }
 .rr-wk.active .rr-num { color: var(--ed-ink-1); font-weight: 500; }
-.rr-wk.demo .rr-shipdot { background: var(--rr-ox); width: 6px; height: 6px; box-shadow: 0 0 0 3px color-mix(in oklch, var(--rr-ox) 20%, transparent); }
+.rr-wk.demo .rr-shipdot { background: var(--rr-ox); width: 6px; height: 6px; box-shadow: 0 0 7px color-mix(in oklch, var(--rr-ox) 45%, transparent); }
 .rr-wk.demo .rr-pbar { background: repeating-linear-gradient(135deg, color-mix(in oklch, var(--rr-ox) 16%, transparent) 0 2px, transparent 2px 6px); border-top: 1px dashed color-mix(in oklch, var(--rr-ox) 48%, transparent); }
 
 /* ── this week panel — build is the ground, gatherings are punctuation ── */
@@ -1365,26 +1368,32 @@
 .rr-dh-n { display: block; font-family: var(--ed-mono); font-variant-numeric: tabular-nums; font-size: 10.5px; color: var(--ed-ink-3); margin-top: 1px; }
 .rr-dh.dim .rr-dh-d { color: var(--ed-ink-3); }
 .rr-dh.dim .rr-dh-n { color: var(--ed-ink-4); }
-.rr-dh.today { border-left: 1px solid var(--rr-ox); background: linear-gradient(180deg, color-mix(in oklch, var(--rr-ox) 8%, transparent), transparent 70%); }
+.rr-dh.today { position: relative; border-left: 1px solid var(--rr-ox); background: linear-gradient(180deg, color-mix(in oklch, var(--rr-ox) 8%, transparent), transparent 70%); }
+.rr-dh.today::after { content: ""; position: absolute; top: 13px; right: 11px; width: 5px; height: 5px; background: var(--rr-ox); border-radius: 1px; transform: rotate(45deg); }
 .rr-dh.today .rr-dh-d { color: var(--ed-ink-1); }
 .rr-dh.today .rr-dh-n { color: var(--rr-ox); }
-.rr-spine { position: relative; height: 300px; border-top: 1px solid var(--ed-rule-2); }
+.rr-spine { position: relative; height: 236px; border-top: 1px solid var(--ed-rule); }
 .rr-t { position: absolute; right: 8px; font-family: var(--ed-mono); font-variant-numeric: tabular-nums; font-size: 9px; color: var(--ed-ink-4); transform: translateY(-50%); white-space: nowrap; }
 .rr-t.acc { color: var(--rr-ox); }
-.rr-field { position: relative; height: 300px; border-left: 1px solid var(--ed-rule); border-top: 1px solid var(--ed-rule-2); background: repeating-linear-gradient(0deg, transparent 0 23px, var(--ed-rule) 23px 24px); overflow: hidden; }
-.rr-field.today { border-left: 1px solid var(--rr-ox); background: linear-gradient(color-mix(in oklch, var(--rr-ox) 5%, transparent), color-mix(in oklch, var(--rr-ox) 5%, transparent)), repeating-linear-gradient(0deg, transparent 0 23px, var(--ed-rule) 23px 24px); }
-.rr-buildlab { position: absolute; top: 7px; left: 9px; font-size: 8px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ed-ink-4); }
+/* a calm build-ground: a faint 2-hour guide (not a busy hourly grid), softer
+   borders; the today column drinks a quiet oxide wash. */
+.rr-field { position: relative; height: 236px; border-left: 1px solid var(--ed-rule); border-top: 1px solid var(--ed-rule); background: repeating-linear-gradient(0deg, transparent 0 47px, rgba(var(--ink-rgb), 0.028) 47px 48px); overflow: hidden; }
+.rr-field.today { border-left: 1px solid color-mix(in oklch, var(--rr-ox) 55%, transparent); background: linear-gradient(180deg, color-mix(in oklch, var(--rr-ox) 6%, transparent), color-mix(in oklch, var(--rr-ox) 1.5%, transparent)), repeating-linear-gradient(0deg, transparent 0 47px, rgba(var(--ink-rgb), 0.028) 47px 48px); }
 .rr-ghost { position: absolute; top: 50%; left: 0; right: 0; text-align: center; transform: translateY(-50%); font-family: var(--ed-display); font-style: italic; font-size: 13px; letter-spacing: -0.01em; color: var(--ed-ink-4); }
 .rr-allday { position: absolute; top: 0; left: 4px; right: 4px; height: 19px; display: flex; align-items: center; padding: 0 8px; border: 0; border-left: 2px solid var(--c2-acc, #8f817a); border-radius: 0 5px 5px 0; background: color-mix(in oklch, var(--c2-acc, #8f817a) 15%, transparent); color: var(--ed-ink-1); font-family: var(--ed-mono); font-size: 9.5px; cursor: pointer; z-index: 2; overflow: hidden; transition: background 150ms ease; }
 .rr-allday span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rr-allday:hover, .rr-allday:focus-visible { outline: none; background: color-mix(in oklch, var(--c2-acc, #8f817a) 26%, transparent); }
+/* a multi-day item's later days read as a quiet continuation, not a repeat */
+.rr-allday.is-cont { background: transparent; border-left-style: dashed; border-left-color: color-mix(in oklch, var(--c2-acc, #8f817a) 45%, transparent); }
+.rr-allday.is-cont span { font-style: italic; color: var(--ed-ink-3); }
+.rr-allday.is-cont:hover { background: color-mix(in oklch, var(--c2-acc, #8f817a) 12%, transparent); }
 .rr-tick { position: absolute; left: 5px; right: 5px; display: flex; flex-direction: column; gap: 1px; padding: 5px 8px; border: 1px solid color-mix(in oklch, var(--c2-acc, #8f817a) 50%, transparent); border-radius: 7px; background: color-mix(in oklch, var(--c2-acc, #8f817a) 17%, var(--ed-bg-1)); color: var(--ed-ink-1); cursor: pointer; z-index: 3; text-align: left; transition: background 150ms cubic-bezier(0.16,1,0.3,1), border-color 150ms ease, transform 110ms ease, box-shadow 150ms ease; }
 .rr-tick:hover, .rr-tick:focus-visible { outline: none; background: color-mix(in oklch, var(--c2-acc, #8f817a) 27%, var(--ed-bg-1)); border-color: color-mix(in oklch, var(--c2-acc, #8f817a) 72%, transparent); box-shadow: 0 12px 28px rgba(0,0,0,0.32); z-index: 6; }
 .rr-tick:active { transform: scale(0.99); }
 .rr-tick-nm { font-family: var(--ed-mono); font-size: 10.5px; letter-spacing: -0.005em; line-height: 1.25; color: var(--ed-ink-1); }
 .rr-tick-tm { font-family: var(--ed-mono); font-variant-numeric: tabular-nums; font-size: 9px; color: color-mix(in oklch, var(--c2-acc, #8f817a) 80%, var(--ed-ink-2)); }
 .rr-now { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid var(--rr-ox); box-shadow: 0 0 10px -1px color-mix(in srgb, var(--rr-ox) 35%, transparent); z-index: 4; pointer-events: none; }
-.rr-now-dot { position: absolute; left: -3px; width: 7px; height: 7px; border-radius: 50%; background: var(--rr-ox); transform: translateY(-50%); z-index: 5; pointer-events: none; animation: c2-now-pulse 2.8s cubic-bezier(0.22,1,0.36,1) infinite; }
+.rr-now-dot { position: absolute; left: -3px; width: 7px; height: 7px; border-radius: 1px; background: var(--rr-ox); transform: translateY(-50%) rotate(45deg); z-index: 5; pointer-events: none; animation: c2-now-pulse 2.8s cubic-bezier(0.22,1,0.36,1) infinite; }
 
 /* ── ribbon (in town) + ship rows — aligned to the same 7-col grid ───── */
 .rr-row { display: grid; grid-template-columns: 48px repeat(7, minmax(0, 1fr)); }
@@ -1405,7 +1414,7 @@
 .rr-ship.has { padding: 9px 8px; }
 .rr-ship.today { border-left: 1px solid color-mix(in oklch, var(--rr-ox) 30%, transparent); }
 .rr-pulses { display: flex; align-items: center; gap: 5px; margin-bottom: 5px; }
-.rr-pulse { width: 7px; height: 7px; border-radius: 2px; background: var(--rr-ship); box-shadow: 0 0 0 3px color-mix(in oklch, var(--rr-ship) 16%, transparent); }
+.rr-pulse { width: 6px; height: 6px; border-radius: 1px; background: var(--rr-ship); transform: rotate(45deg); box-shadow: 0 0 7px color-mix(in oklch, var(--rr-ship) 38%, transparent); }
 .rr-rels { display: flex; flex-direction: column; gap: 2px; }
 .rr-rel { appearance: none; background: transparent; border: 0; padding: 0; text-align: left; cursor: pointer; font-family: var(--ed-mono); font-size: 9.5px; line-height: 1.45; letter-spacing: -0.005em; color: #b6cdb9; transition: color 140ms ease; }
 .rr-rel-team { color: #cfe1d0; }

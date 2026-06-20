@@ -647,14 +647,20 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
                   aria-selected="${(o.id || null) === scopeId ? "true" : "false"}" type="button">${escHtml(o.name)}</button>`).join("")}
       </div>
     </div>` : "";
-  const filterBar = `
+  // The legend doubles as the filter but stays decluttered: it lists only the
+  // gathering types actually IN this week (plus any you've switched off, so you
+  // can turn them back on) — not all seven categories every week.
+  const presentCatKeys = new Set();
+  for (const d of days) for (const ev of d.timed) if (ev.cat && ev.cat.key !== "default" && ev.cat.label) presentCatKeys.add(ev.cat.key);
+  const legendCats = C2_LEGEND.filter(c => presentCatKeys.has(c.key) || catHide.has(c.key));
+  const filterBar = legendCats.length ? `
     <div class="c2-filter rr-filter" role="group" aria-label="filter gatherings by type">
-      ${C2_LEGEND.map(c => `
+      ${legendCats.map(c => `
         <button class="c2-filter-item${catHide.has(c.key) ? " is-off" : ""}" data-c2-cat="${escAttr(c.key)}" data-cat="${escAttr(c.key)}"
                 type="button" aria-pressed="${catHide.has(c.key) ? "false" : "true"}">
           <i class="c2-chip-dot" aria-hidden="true"></i>${escHtml(c.label)}
         </button>`).join("")}
-    </div>`;
+    </div>` : "";
 
   // ── stale banner (same contract as the calendar page) ───────────────
   const staleBanner = source === "bundled" ? `
@@ -777,14 +783,19 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
   const fieldsHtml = days.map((d, di) => {
     const banners = d.allday.map((item, ai) => {
       const title = item.kind === "anchor" ? item.title : item.content.title;
-      return `<button class="rr-allday" data-cat="${escAttr(item.cat.key)}" data-c2-ev="a:${di}:${ai}" type="button" title="${escAttr(title)}"><span>${escHtml(title)}</span></button>`;
+      // A multi-day item is the SAME object mirrored onto each covered day; if
+      // yesterday already carried it, this day is a continuation — show a quiet
+      // "→ continues" rather than repeating the full title (less clutter).
+      const isCont = di > 0 && (days[di - 1].allday || []).includes(item);
+      return `<button class="rr-allday${isCont ? " is-cont" : ""}" data-cat="${escAttr(item.cat.key)}" data-c2-ev="a:${di}:${ai}" type="button" title="${escAttr(title)}"><span>${isCont ? "→ continues" : escHtml(title)}</span></button>`;
     }).join("");
     const ticks = d.timed.map((ev, ti) => {
       const time = `${fmtMin(ev.timing.startMin)}–${fmtMin(ev.timing.endMin)}`;
       return `<button class="rr-tick" data-cat="${escAttr(ev.cat.key)}" data-c2-ev="t:${di}:${ti}" type="button" style="top:${bPct(ev.timing.startMin).toFixed(1)}%" aria-label="${escAttr(time + " " + ev.content.title)}"><span class="rr-tick-nm">${escHtml(ev.content.title)}</span><span class="rr-tick-tm">${escHtml(time)}${ev.cat.tbc ? " · tbc" : ""}</span></button>`;
     }).join("");
-    const empty = !d.timed.length && !d.allday.length;
-    const ground = empty ? `<span class="rr-ghost">${isWeekend(d.name) ? "rest" : "open build"}</span>` : `<span class="rr-buildlab">build</span>`;
+    // Empty days name the ground (open build / rest); populated days let the
+    // gatherings speak — no redundant "build" label on every column.
+    const ground = (!d.timed.length && !d.allday.length) ? `<span class="rr-ghost">${isWeekend(d.name) ? "rest" : "open build"}</span>` : "";
     const nowEls = d.isToday && nowMin >= bWinStart && nowMin <= bWinEnd
       ? `<span class="rr-now" style="top:${bPct(nowMin).toFixed(1)}%"></span><span class="rr-now-dot" style="top:${bPct(nowMin).toFixed(1)}%"></span>` : "";
     const cls = ["rr-field", d.isToday ? "today" : "", isWeekend(d.name) ? "weekend" : ""].filter(Boolean).join(" ");
