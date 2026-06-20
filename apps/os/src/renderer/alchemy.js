@@ -54,7 +54,7 @@ import {
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
 import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
 import { indexCohortEvidence, teamEvidence, recentClaims, teamTimeline, claimLane } from "./cohort-evidence-index.mjs";
-import { cardTraceBodyHtml } from "./cohort-trace-view.mjs";
+import { cardTraceBodyHtml, cardTraceHtml } from "./cohort-trace-view.mjs";
 import { getCohortTimeline } from "./cohort-timeline.js";
 import { buildActivityLane, isPresent, buildStandingLane } from "./cohort-timeline-tracks.mjs";
 import { getStandingWeekly } from "./cohort-standing-weekly.js";
@@ -11582,6 +11582,7 @@ function collabLatentOverlapSectionHtml() {
           <span class="cb-latent-review">${escHtml(latentReviewLine(card))}</span>
           ${actions.map(action => `<span>${escHtml(action)}</span>`).join("")}
         </div>
+        ${cardTraceHtml(card)}
       </article>`;
   }).join("");
   return `
