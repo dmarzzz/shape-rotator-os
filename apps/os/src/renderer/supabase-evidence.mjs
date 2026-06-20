@@ -129,6 +129,60 @@ export async function fetchCohortEvidenceCards({ storage, fetchImpl, config } = 
   return { cards, source: "supabase-cohort" };
 }
 
+// Columns the gated cohort-insight view exposes (must match the engine migration's
+// select list for cohort_app_cohort_insight_cards).
+const COHORT_INSIGHT_COLUMNS = [
+  "id", "kind", "subject_type", "subject_ids", "title", "claim_text", "summary",
+  "evidence_level", "confidence", "surface_tier", "source_refs", "content_json",
+  "generated_at", "created_at", "reviewed_at",
+].join(",");
+
+export function cohortInsightCardsUrl(baseUrl) {
+  const url = new URL(`${baseUrl}/rest/v1/cohort_app_cohort_insight_cards`);
+  url.searchParams.set("select", COHORT_INSIGHT_COLUMNS);
+  url.searchParams.set("order", "generated_at.desc");
+  return url.toString();
+}
+
+// Fetch GATED cohort-tier insight cards (collaboration_contribution, project_narrative)
+// with the cohort key — the runtime source for the engine-produced collaboration edges
+// (the engine generates + reviews these and publishes them to Supabase; the OS only
+// renders). No-ops (source:"unconfigured") without a cohort key. Always resolves; a
+// Supabase outage degrades to "no collaboration edges".
+export async function fetchCohortInsightCards({ storage, fetchImpl, config } = {}) {
+  const doFetch = fetchImpl || globalThis.fetch;
+  const { url, anonKey, cohortKey } = config || readSupabaseConfig(storage);
+  if (!url || !anonKey || !cohortKey || typeof doFetch !== "function") {
+    return { cards: [], source: "unconfigured" };
+  }
+  let res;
+  try {
+    res = await doFetch(cohortInsightCardsUrl(url), {
+      headers: { apikey: anonKey, authorization: `Bearer ${cohortKey}`, accept: "application/json" },
+      cache: "no-store",
+    });
+  } catch (error) {
+    return { cards: [], source: "error", error: String(error && error.message ? error.message : error) };
+  }
+  if (!res || !res.ok) return { cards: [], source: "error", error: `HTTP ${res ? res.status : "no response"}` };
+  let rows;
+  try { rows = await res.json(); } catch { return { cards: [], source: "error", error: "invalid JSON from Supabase" }; }
+  const cards = Array.isArray(rows) ? rows.filter((r) => r && r.id).map((r) => ({
+    id: String(r.id),
+    kind: String(r.kind || ""),
+    subject_type: String(r.subject_type || ""),
+    subject_ids: Array.isArray(r.subject_ids) ? r.subject_ids : [],
+    title: String(r.title || ""),
+    claim_text: String(r.claim_text || ""),
+    summary: r.summary == null ? null : String(r.summary),
+    evidence_level: String(r.evidence_level || ""),
+    confidence: String(r.confidence || ""),
+    source_refs: Array.isArray(r.source_refs) ? r.source_refs : [],
+    content_json: (r.content_json && typeof r.content_json === "object") ? r.content_json : {},
+  })) : [];
+  return { cards, source: "supabase-cohort" };
+}
+
 export function publicEvidenceCardsUrl(baseUrl) {
   const url = new URL(`${baseUrl}/rest/v1/public_transcript_evidence_cards`);
   url.searchParams.set("select", PUBLIC_CARD_COLUMNS);
