@@ -5698,10 +5698,19 @@ function showSearchSkeletons() {
     const s = document.createElement("div");
     s.className = "search-skeleton";
     s.innerHTML = `
-      <div class="search-skeleton-line short"></div>
-      <div class="search-skeleton-line host"></div>
-      <div class="search-skeleton-line snippet"></div>
-      <div class="search-skeleton-line snippet-2"></div>
+      <div class="search-skeleton-head">
+        <div class="search-skeleton-line title"></div>
+        <div class="search-skeleton-line host"></div>
+      </div>
+      <div class="search-skeleton-body">
+        <div class="search-skeleton-line snippet"></div>
+        <div class="search-skeleton-line snippet-2"></div>
+      </div>
+      <div class="search-skeleton-margin">
+        <div class="search-skeleton-line meta"></div>
+        <div class="search-skeleton-line meta short"></div>
+        <div class="search-skeleton-line meta short"></div>
+      </div>
     `;
     wrap.appendChild(s);
   }
