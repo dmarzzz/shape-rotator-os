@@ -6987,6 +6987,17 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   color: var(--alchemy-paper-warm);
   font-size: 11.5px;
 }
+/* Orientation headline: the count for the grain you're zoomed to leads; the
+   other two units sit back so the readout reflects what you're reading. */
+.ac-orientation-counts .ac-count-part { color: var(--alchemy-ink-mute); transition: color 200ms var(--ease); }
+.ac-orientation-counts .ac-count-part.is-grain-focus { color: var(--alchemy-paper-warm); }
+.ac-orientation-counts .ac-count-sep { color: rgba(var(--ink-rgb), 0.3); }
+.ac-inspector-hero.is-orientation .ac-orientation-foot {
+  margin-top: 3px;
+  color: var(--alchemy-ink-mute);
+  font-size: 11px;
+  font-style: italic;
+}
 .ac-encoding-list {
   list-style: none;
   margin: 6px 0 0;
@@ -7241,6 +7252,16 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 .alch-constellation-stage svg .ac-bubble-container[data-level="theme"] .ac-bubble-container-label {
   font-size: 10px;
   opacity: 0.84;
+}
+/* The "_other" catch-all ring: dashed + recessive so it reads as "teams still
+   finding a space", not a peer theme/ecosystem (it's also out of the counts). */
+.alch-constellation-stage svg .ac-bubble-container.is-others .ac-bubble-container-shape {
+  opacity: 0.38;
+  stroke-dasharray: 3 5;
+}
+.alch-constellation-stage svg .ac-bubble-container.is-others .ac-bubble-container-label {
+  opacity: 0.5;
+  font-weight: 400;
 }
 /* Colour isolate (the "coloured by [domain]" token): teams not in the picked
    domain recede so the chosen colour reads alone. A deliberate filter dim, so it

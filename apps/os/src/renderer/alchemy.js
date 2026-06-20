@@ -1208,6 +1208,32 @@ function flashCohortZoomControl() {
     cohortZoomFlashTimer = 0;
   }, 1100);
 }
+// On the ecosystem (bubble) map, "zoom" is the grain — themes ▸ ecosystems ▸
+// skills — not a continuous scale, so the corner control steps grains there.
+const BUBBLE_GRAINS = ["themes", "clusters", "skills"];
+function bubbleMapShowing() {
+  return !!(state.canvas && state.canvas.querySelector('.alch-constellation-stage[data-view="bubble"]'));
+}
+function stepBubbleGrain(dir) {
+  const cur = constNormalizeGranularity(state.constellationGranularity);
+  const idx = Math.max(0, BUBBLE_GRAINS.indexOf(cur));
+  const next = BUBBLE_GRAINS[Math.max(0, Math.min(BUBBLE_GRAINS.length - 1, idx + dir))];
+  if (next === cur && !state.constGrainDeep) return;
+  state.constellationGranularity = next;
+  state.constSelection = null;
+  if (next === "skills") { state.constGrainManual = true; state.constGrainDeep = false; }
+  else {
+    state.constGrainManual = false; state.constGrainDeep = false;
+    const z = grainToZoom(next, false);
+    state.cohortZoom = z;
+    try { localStorage.setItem(COHORT_ZOOM_LS_KEY, String(z)); } catch {}
+    applyCohortZoom();
+  }
+  try { localStorage.setItem(CONST_GRANULARITY_LS_KEY, next); } catch {}
+  const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  if (document.startViewTransition && !reduce) document.startViewTransition(() => render());
+  else render();
+}
 function syncCohortZoomControl() {
   if (!state.container) return;
   let el = state.container.querySelector(".alch-zoom-ctl");
@@ -1225,19 +1251,34 @@ function syncCohortZoomControl() {
     el.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-zoom]");
       if (!btn) return;
-      if (btn.dataset.zoom === "in") zoomCohortBy(1);
-      else if (btn.dataset.zoom === "out") zoomCohortBy(-1);
-      else zoomCohortTo(COHORT_ZOOM_DEFAULT, { animate: true });
+      const onBubble = bubbleMapShowing();
+      if (btn.dataset.zoom === "reset") {
+        if (onBubble) stepBubbleGrain(-99); // back to the themes overview
+        else zoomCohortTo(COHORT_ZOOM_DEFAULT, { animate: true });
+      } else if (onBubble) {
+        stepBubbleGrain(btn.dataset.zoom === "in" ? 1 : -1);
+      } else if (btn.dataset.zoom === "in") zoomCohortBy(1);
+      else zoomCohortBy(-1);
     });
     state.container.appendChild(el);
   }
   el.hidden = false;
   const z = clampCohortZoom(state.cohortZoom);
+  const onBubble = bubbleMapShowing();
+  const grain = constNormalizeGranularity(state.constellationGranularity);
+  const gi = BUBBLE_GRAINS.indexOf(grain);
   const val = el.querySelector(".azc-val");
-  if (val) val.textContent = `${Math.round(z * 100)}%`;
-  el.dataset.zoomed = z === COHORT_ZOOM_DEFAULT ? "false" : "true";
-  el.querySelector('[data-zoom="out"]').disabled = z <= COHORT_ZOOM_MIN;
-  el.querySelector('[data-zoom="in"]').disabled = z >= COHORT_ZOOM_MAX;
+  if (val) {
+    // On the bubble map the zoom IS the grain, so show the grain name (a "%"
+    // would imply a continuous scale that no longer applies); elsewhere keep %.
+    val.textContent = onBubble
+      ? (grain === "themes" ? "themes" : grain === "skills" ? "skills" : "ecosystems")
+      : `${Math.round(z * 100)}%`;
+    val.title = onBubble ? "zoom level — themes ▸ ecosystems ▸ skills (click for the overview)" : "reset zoom to 100%";
+  }
+  el.dataset.zoomed = onBubble ? (grain !== "themes" ? "true" : "false") : (z === COHORT_ZOOM_DEFAULT ? "false" : "true");
+  el.querySelector('[data-zoom="out"]').disabled = onBubble ? gi <= 0 : z <= COHORT_ZOOM_MIN;
+  el.querySelector('[data-zoom="in"]').disabled = onBubble ? gi >= BUBBLE_GRAINS.length - 1 : z >= COHORT_ZOOM_MAX;
 }
 
 // The sphere-editor popup's live preview is a standalone mountShape instance
@@ -6838,7 +6879,17 @@ function constBubbleMapSummary(model, grain) {
   const domains = CONST_DOMAIN_KEYS
     .filter(k => (domainCount.get(k) || 0) > 0)
     .map(k => ({ key: k, label: CONST_DOMAIN_LABEL[k], color: CONST_DOMAIN_COLORS[k], n: domainCount.get(k) }));
-  return { themes: themeSet.size, clusters: wells.length, teams, grain: constNormalizeGranularity(grain), domains };
+  // "_other" is the unclustered catch-all, not a real theme/ecosystem — keep it
+  // out of the headline counts (it had inflated "N themes · N ecosystems") and
+  // report its size separately so the orientation reads honestly.
+  const otherWell = wells.find(w => w.id === "_other");
+  const unclustered = otherWell ? ((otherWell.members && otherWell.members.length) || 0) : 0;
+  return {
+    themes: [...themeSet].filter(t => t !== "_other").length,
+    clusters: wells.filter(w => w.id !== "_other").length,
+    teams, unclustered,
+    grain: constNormalizeGranularity(grain), domains,
+  };
 }
 function constBubbleMapDefaultHtml(ctx) {
   const s = ctx && ctx.bubbleMap ? ctx.bubbleMap : { themes: 0, clusters: 0, teams: 0, grain: constNormalizeGranularity(state.constellationGranularity), domains: [] };
@@ -6851,11 +6902,20 @@ function constBubbleMapDefaultHtml(ctx) {
   const swatches = (s.domains || []).map(d =>
     `<span class="ac-legend-chip"><i style="background:${escAttr(d.color)}"></i>${escHtml(d.label)}<em>${escHtml(String(d.n))}</em></span>`
   ).join("");
+  // Headline counts lead with the unit you're currently zoomed to (themes →
+  // ecosystems → teams), so the readout reflects the grain you're reading.
+  const pl = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+  const countLine = [
+    { g: "themes", t: pl(s.themes, "theme") },
+    { g: "clusters", t: pl(s.clusters, "ecosystem") },
+    { g: "skills", t: pl(s.teams, "team") },
+  ].map(p => `<span class="ac-count-part${p.g === grain ? " is-grain-focus" : ""}">${escHtml(p.t)}</span>`).join('<span class="ac-count-sep"> · </span>');
   return `
     <div class="ac-inspector-hero is-orientation">
       <div class="ac-inspector-kicker">where everyone sits</div>
-      <h3>${escHtml(String(s.themes))} themes · ${escHtml(String(s.clusters))} ecosystems · ${escHtml(String(s.teams))} teams</h3>
+      <h3 class="ac-orientation-counts">${countLine}</h3>
       <p>Every team sits by what it works on, so neighbours share a space. ${escHtml(grainNote)}</p>
+      ${s.unclustered ? `<p class="ac-orientation-foot">${escHtml(pl(s.unclustered, "team"))} still finding a space — shown apart.</p>` : ""}
       <p class="ac-orientation-cta">Hover a bubble to read it · click to pin · click a second to compare.</p>
     </div>
     <section class="ac-inspector-section is-orientation-legend">
@@ -7302,13 +7362,30 @@ function constBubbleContainerSvg(c, accentStyle) {
   const fullLabel = c.label || "";
   const charW = c.level === "theme" ? 6.1 : 5.5; // ≈0.61em of the 10px / 9px mono
   const maxChars = Math.max(5, Math.floor((c.r * 2 - 10) / charW));
-  const shownLabel = fullLabel.length > maxChars
-    ? fullLabel.slice(0, Math.max(1, maxChars - 1)).replace(/[\s+/·-]+$/, "") + "…"
-    : fullLabel;
+  // Wrap a long ecosystem title onto a second line rather than truncating it at
+  // the very grain meant for reading the spaces. Full title stays in <title>.
+  const wrapTwo = (text, max) => {
+    if (text.length <= max) return [text];
+    let l1 = "", l2 = "";
+    for (const w of text.split(/\s+/)) {
+      if (!l2 && (l1 ? (l1 + " " + w).length <= max : w.length <= max)) l1 = l1 ? `${l1} ${w}` : w;
+      else l2 = l2 ? `${l2} ${w}` : w;
+    }
+    if (!l1) l1 = text.slice(0, max);
+    if (l2.length > max) l2 = l2.slice(0, Math.max(1, max - 1)).replace(/[\s+/·-]+$/, "") + "…";
+    return l2 ? [l1, l2] : [l1];
+  };
+  const lines = wrapTwo(fullLabel, maxChars);
+  const labelMarkup = showLabel
+    ? `<text class="ac-bubble-container-label" x="${c.cx.toFixed(1)}" y="${labelY}" text-anchor="middle"><title>${escHtml(fullLabel)}</title>${lines.map((ln, i) => `<tspan x="${c.cx.toFixed(1)}"${i ? ' dy="11"' : ""}>${escHtml(ln)}</tspan>`).join("")}</text>`
+    : "";
+  // The "_other" catch-all isn't a real theme/ecosystem — render it as a quiet
+  // "others" ring (de-emphasized) so it doesn't read as a peer space.
+  const otherClass = (c.id === "_other" || String(c.id).endsWith(":_other")) ? " is-others" : "";
   return `
-    <g class="ac-bubble-container" data-level="${escAttr(c.level)}" data-container="${escAttr(c.id)}" data-members="${escAttr((c.members || []).join(" "))}" role="button" tabindex="0" aria-label="${escAttr(aria)}" style="${escAttr(accentStyle + ";view-transition-name:ac-vtc-" + dependencySafeToken(c.id))}">
+    <g class="ac-bubble-container${otherClass}" data-level="${escAttr(c.level)}" data-container="${escAttr(c.id)}" data-members="${escAttr((c.members || []).join(" "))}" role="button" tabindex="0" aria-label="${escAttr(aria)}" style="${escAttr(accentStyle + ";view-transition-name:ac-vtc-" + dependencySafeToken(c.id))}">
       <circle class="ac-bubble-container-shape" cx="${c.cx.toFixed(1)}" cy="${c.cy.toFixed(1)}" r="${c.r.toFixed(1)}"/>
-      ${showLabel ? `<text class="ac-bubble-container-label" x="${c.cx.toFixed(1)}" y="${labelY}" text-anchor="middle"><title>${escHtml(fullLabel)}</title>${escHtml(shownLabel)}</text>` : ""}
+      ${labelMarkup}
     </g>`;
 }
 
