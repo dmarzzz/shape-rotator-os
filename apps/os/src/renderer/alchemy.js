@@ -298,7 +298,6 @@ const state = {
     initialMount: true,           // first render? drives scroll-to-now
     detach: null,                 // teardown returned by attachCalendarPageBehavior
     catHidden: [],                // category keys the legend-filter has switched off
-    rowsHidden: [],               // daily-signal lanes toggled off ("intown" | "shipped")
     scope: null,                  // team record_id the signals are focused on (null = all cohort)
   },
   events: [],          // normalized feed items, latest-first
@@ -9712,12 +9711,23 @@ function computeCalendarSignals() {
     const present = Math.round(sum / 7);
     weeklyOccupancy.push({ week: w, present, frac: rosterTotal ? present / rosterTotal : 0, isCurrent: w === wi });
   }
+  // Per-week shipping counts (releases) so the residency arc carries ship marks
+  // across all ten weeks, not just the viewed one.
+  const whatsNew = Array.isArray(live?.whats_new) ? live.whats_new : [];
+  const weeklyShips = new Array(WEEKS_TOTAL).fill(0);
+  for (const a of whatsNew) {
+    if (!a || a.kind !== "release" || !a.date) continue;
+    const t = Date.parse(`${a.date}T12:00:00Z`);
+    if (!Number.isFinite(t)) continue;
+    const wIdx = Math.floor((t - PROGRAM_START_MS) / WK);
+    if (wIdx >= 0 && wIdx < WEEKS_TOTAL) weeklyShips[wIdx] += 1;
+  }
   return {
-    rowsHidden: Array.isArray(cal.rowsHidden) ? cal.rowsHidden : [],
     scope: { id: scopeId, name: scopeId ? (teams.find(t => t.id === scopeId)?.name || scopeId) : "all cohort", teams },
     perDay,
     rosterTotal,
     weeklyOccupancy,
+    weeklyShips,
   };
 }
 
@@ -9808,9 +9818,6 @@ function wireCalendar() {
     for (const b of state.canvas.querySelectorAll("[data-c2-cat]")) {   // legend → category show/hide
       b.addEventListener("click", () => toggleIn("catHidden", b.getAttribute("data-c2-cat")));
     }
-    for (const b of state.canvas.querySelectorAll("[data-c2-row]")) {   // signal-row show/hide
-      b.addEventListener("click", () => toggleIn("rowsHidden", b.getAttribute("data-c2-row")));
-    }
     // scope dropdown — focuses the daily signals on one workstream. Keyboard:
     // the trigger opens on Enter/↓; once open ↑/↓ roam the options, Enter selects,
     // Escape closes and returns focus to the trigger (listbox a11y pattern).
@@ -9895,7 +9902,7 @@ function wireCalendar() {
     });
   }
 
-  for (const dot of state.canvas.querySelectorAll(".c2-scrub-dot[data-c2-week]")) {
+  for (const dot of state.canvas.querySelectorAll("[data-c2-week]")) {
     dot.addEventListener("click", () => {
       const i = Number(dot.dataset.c2Week);
       if (Number.isFinite(i) && i !== cal.weekIdx) {
