@@ -8,6 +8,7 @@ import {
   cohortEvidenceCardsUrl,
   fetchCohortEvidenceCards,
 } from "../apps/os/src/renderer/supabase-evidence.mjs";
+import { saveCalendarIngressConfig } from "../apps/os/src/renderer/calendar-ingress.mjs";
 
 const DEFAULT_URL = "https://txjntzwksiluvqcpccpc.supabase.co";
 const CONFIG_KEY = "srfg:calendar_ingress_config";
@@ -38,6 +39,36 @@ test("readSupabaseConfig survives malformed config JSON", () => {
   const cfg = readSupabaseConfig(fakeStorage({ [CONFIG_KEY]: "{not json" }));
   assert.equal(cfg.url, DEFAULT_URL);
   assert.match(cfg.anonKey, /^eyJ/, "malformed config falls back to the baked anon key");
+});
+
+test("calendar-ingress save side and readSupabaseConfig round-trip through the same storage key", () => {
+  // Regression guard for the srwk:/srfg: split-brain: the operator panel's
+  // saveCalendarIngressConfig once defaulted to a DIFFERENT localStorage key than
+  // readSupabaseConfig reads, so any Supabase settings saved via that panel were
+  // invisible to every live read. This pins the cross-module contract end-to-end —
+  // what the writer persists is what the reader consults.
+  const store = new Map();
+  const storage = {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, v),
+  };
+
+  // Values DISTINCT from the baked defaults on purpose: readSupabaseConfig falls back
+  // to the published URL + baked anon key when it finds nothing under its key, so only
+  // non-default values prove the reader actually saw what the writer persisted (rather
+  // than coincidentally matching a fallback — which is exactly how the bug hid).
+  saveCalendarIngressConfig({
+    supabaseUrl: "https://custom-project.supabase.co",
+    supabaseAnonKey: "custom-anon-key",
+    supabaseCohortKey: "custom-cohort-jwt",
+  }, storage);
+
+  const cfg = readSupabaseConfig(storage);
+  assert.equal(cfg.url, "https://custom-project.supabase.co");
+  assert.equal(cfg.anonKey, "custom-anon-key");
+  assert.equal(cfg.cohortKey, "custom-cohort-jwt");
+  // …and the bytes physically landed under the canonical srfg: key the reader reads.
+  assert.ok(store.has(CONFIG_KEY), "settings must persist under the key readSupabaseConfig reads");
 });
 
 test("publicEvidenceCardsUrl targets the anon view with the exact column set", () => {

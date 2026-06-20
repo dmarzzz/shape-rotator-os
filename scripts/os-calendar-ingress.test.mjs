@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  DEFAULT_CALENDAR_CONFIG_KEY,
   DEFAULT_GOOGLE_CALENDAR_ID,
   DEFAULT_SUPABASE_URL,
   buildCalendarIngressPayload,
@@ -146,7 +147,7 @@ test("os calendar ingress uses managed calendar and Supabase project defaults", 
   assert.equal(DEFAULT_SUPABASE_URL, "https://txjntzwksiluvqcpccpc.supabase.co");
   assert.equal(loadCalendarIngressConfig(localStorage).calendarId, DEFAULT_GOOGLE_CALENDAR_ID);
   assert.equal(loadCalendarIngressConfig(localStorage).supabaseUrl, DEFAULT_SUPABASE_URL);
-  assert.equal(JSON.parse(storage.get("srwk:calendar_ingress_config")).calendarId, undefined);
+  assert.equal(JSON.parse(storage.get(DEFAULT_CALENDAR_CONFIG_KEY)).calendarId, undefined);
 
   const html = renderCalendarIngressPanel({
     config: loadCalendarIngressConfig(localStorage),
@@ -239,7 +240,7 @@ test("os calendar ingress does not persist bearer access tokens", () => {
   assert.equal(persistableCalendarIngressConfig(config).id_token, undefined);
   saveCalendarIngressConfig(config, localStorage);
 
-  const saved = JSON.parse(storage.get("srwk:calendar_ingress_config"));
+  const saved = JSON.parse(storage.get(DEFAULT_CALENDAR_CONFIG_KEY));
   assert.equal(saved.accessToken, undefined);
   assert.equal(saved.access_token, undefined);
   assert.equal(saved.googleAccessToken, undefined);
