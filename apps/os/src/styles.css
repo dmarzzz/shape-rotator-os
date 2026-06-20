@@ -5926,6 +5926,18 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   height: 100%;
 }
 .alch-constellation-stage svg { width: 100%; height: 100%; display: block; }
+/* Bubble (ecosystem) map: size the stage to the packed content's aspect ratio
+   (set per-render inline from the fitted viewBox) so the map fills it with no
+   top/bottom letterbox — instead of stretching to a tall flex row that the
+   square-ish content can only fill by width. Overrides the flex:1 / min-height /
+   height:100% the shared stage uses for the other (full-bleed) cohort views. */
+.alch-const-main .alch-constellation-stage[data-view="bubble"] {
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 0;
+  width: 100%;
+  align-self: start;
+}
 .alch-constellation-stage svg .ac-edge {
   stroke: rgba(var(--ink-rgb), 0.30); stroke-width: 0.9; fill: none;
   transition: opacity 220ms var(--ease), stroke-width 220ms var(--ease);
