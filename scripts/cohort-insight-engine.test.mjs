@@ -182,7 +182,7 @@ test("say/did/shipped cards carry a grammar-correct identity lead", () => {
   assert.match(alpha.claim_text, /^Alpha Lab is an infra project in trusted compute focused on TEE contract runtime; it provides an attestation-backed contract runtime for agent workflows\.$/);
 });
 
-test("identity text normalizes company type, focus delimiters, and imperative verbs", () => {
+test("identity text normalizes company type, focus delimiters, and conjugates verbs by mood", () => {
   const sample = [
     { record_id: "dot", name: "Dot", domain: "tee", focus: "formal verification · dstack TEE Postgres",
       journey: { company_type: "Infra", solution: "a registry and proof workflow" } },
@@ -191,12 +191,23 @@ test("identity text normalizes company type, focus delimiters, and imperative ve
     { record_id: "acr", name: "Acr", domain: "ai", focus: "context engine",
       journey: { company_type: "AI", solution: "an episode-based context engine" } },
   ];
-  const cards = engine.buildSayDidShippedCards({ teams: sample });
+  // imp has an OBSERVED public artifact -> present-tense operating claim; dot/acr are
+  // declared-only -> aspirational mood, so an unbuilt plan never reads as a shipped product.
+  const observed = [{
+    artifact_kind: "github_progress_weekly_summary", record_type: "team", record_id: "imp",
+    date: "2026-06-01", week_start: "2026-06-01", source_repo: "imp/net",
+    evidence: { useful_commit_count: 4 },
+  }];
+  const cards = engine.buildSayDidShippedCards({ teams: sample, githubProgressArtifacts: observed });
   const by = new Map(cards.map(card => [card.subject_ids[0], card]));
   // "·" secondary clause stripped from the focus
   assert.equal(by.get("dot").content_json.what_it_is, "an infra project in trusted compute focused on formal verification");
-  // imperative lead AND compound "and <verb>" both conjugated to third person
+  // observed -> imperative lead AND compound "and <verb>" both conjugated to third person
   assert.equal(by.get("imp").content_json.what_it_does, "productizes anonymous broadcast and explores relays");
+  assert.equal(by.get("imp").content_json.claim_basis, "observed");
+  // declared-only -> aspirational mood: a noun-phrase solution reads "aims to provide ..."
+  assert.equal(by.get("dot").content_json.what_it_does, "aims to provide a registry and proof workflow");
+  assert.equal(by.get("dot").content_json.claim_basis, "declared");
   // all-caps acronym company type preserved (not lowercased to "ai")
   assert.equal(by.get("acr").content_json.what_it_is, "an AI project in agent infrastructure focused on context engine");
 });
@@ -343,6 +354,35 @@ test("latent overlap weights shared terms by rarity (idf), not a hardcoded stopw
   // and no maintainer ever had to add them to a list.
   assert.equal(Boolean(ubiqPQ), false,
     "cohort-ubiquitous shared vocabulary must NOT fabricate a latent overlap by itself");
+});
+
+test("cards carry a recomputable reasoning trace with an honest basis", () => {
+  const bundle = engine.buildCohortInsightBundle({
+    teams, clusters, dependencies,
+    githubProgressArtifacts: progress, githubReleaseArtifacts: releases,
+  });
+  const sds = bundle.read_models.say_did_shipped.find(c => c.subject_ids[0] === "alpha");
+  const lo = bundle.read_models.latent_overlaps.find(c => c.subject_ids.includes("alpha") && c.subject_ids.includes("beta"));
+
+  // say/did/shipped: observed basis, one signal per line, each citing its own source refs
+  const st = sds.content_json.trace;
+  assert.equal(st.basis, "observed");
+  assert.equal(st.version, 1);
+  assert.deepEqual(st.signals.map(s => s.name), ["say", "did", "shipped"]);
+  assert.ok(st.signals.every(s => Array.isArray(s.source_refs) && s.source_refs.length), "each line cites its source");
+  assert.match(st.confidence_basis, /github-progress/);
+  assert.ok(st.recompute, "records how to recompute");
+
+  // latent_overlap: inferred basis, and the score breakdown SUMS to the published score
+  const lt = lo.content_json.trace;
+  assert.equal(lt.basis, "inferred");
+  assert.equal(lt.version, 2);
+  const bd = lo.content_json.score_breakdown;
+  const sum = bd.shared_skills.subtotal + bd.domain_match.subtotal + bd.common_dependencies.subtotal + bd.shared_terms_idf.subtotal;
+  assert.equal(Math.min(100, sum), lo.content_json.score, "score is explained by its component breakdown");
+  assert.equal(lo.content_json.idf_basis.cohort_team_count, teams.length);
+  // every shared term carries its cohort document frequency + idf weight (recomputable)
+  assert.ok(lo.content_json.shared_terms_weighted.every(t => typeof t.idf_weight === "number" && typeof t.doc_freq === "number"));
 });
 
 test("public cohort insights exclude generated cohort cards unless explicitly approved", () => {

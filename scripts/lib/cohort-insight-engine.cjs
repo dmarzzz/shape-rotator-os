@@ -195,6 +195,55 @@ function makeInsightCard({
   };
 }
 
+// ---- Reasoning trace contract --------------------------------------------
+// Every card carries a uniform, recomputable reasoning record in content_json.trace
+// so a claim can EXPLAIN ITSELF and be re-derived from its source. `basis` names HOW
+// WE KNOW the claim (its mood); it is deliberately kept distinct from review_status
+// (whether a HUMAN confirmed it) so an inferred guess is never dressed as observed fact.
+const EVIDENCE_BASIS = Object.freeze({
+  OBSERVED: "observed",                                          // a public artifact / metadata fact
+  DECLARED: "declared",                                          // the team's own field, unverified
+  INFERRED: "inferred",                                          // an engine derivation over public text
+  OBSERVED_INFERRED_IDENTITY: "observed_with_inferred_identity", // commit observed, person->team heuristic
+});
+
+// Per-kind algorithm version. Bump when a kind's derivation logic changes so two cards
+// with the same score are distinguishable across engine revisions (the latent_overlap
+// IDF rewrite is v2). Travels on every trace as trace.version.
+const ALGORITHM_VERSIONS = Object.freeze({
+  say_did_shipped: 1,
+  latent_overlap: 2,
+  collaboration_edge: 1,
+  award: 1,
+});
+
+// One trace signal = one weighted reasoning step, optionally citing the source_refs it
+// was computed from, so "follow the trace" resolves per-step, not just per-card.
+function traceSignal({ name, value, detail, weight, contribution, of, sourceRefs } = {}) {
+  const out = { name: String(name || "") };
+  if (value !== undefined) out.value = value;
+  if (detail !== undefined && detail !== "") out.detail = detail;
+  if (Number.isFinite(weight)) out.weight = weight;
+  if (Number.isFinite(contribution)) out.contribution = contribution;
+  if (Number.isFinite(of)) out.of = of;
+  const refs = asArray(sourceRefs);
+  if (refs.length) out.source_refs = refs;
+  return out;
+}
+
+function makeTrace({ method, version, basis, confidence, confidenceBasis, signals = [], inputs = [], recompute = "" } = {}) {
+  return {
+    method: String(method || ""),
+    version: Number.isFinite(version) ? version : 1,
+    basis: basis || "",
+    confidence: confidence || "",
+    confidence_basis: compactText(confidenceBasis, 240),
+    signals: asArray(signals),
+    inputs: asArray(inputs),
+    recompute: compactText(recompute, 200),
+  };
+}
+
 function groupBy(items, keyFn) {
   const map = new Map();
   for (const item of asArray(items)) {
@@ -291,21 +340,30 @@ const ACTION_VERB_MAP = {
   productizes: "productizes", run: "runs", runs: "runs", turn: "turns", turns: "turns",
   power: "powers", powers: "powers", deliver: "delivers", delivers: "delivers",
 };
-function actionPredicate(rawDoes) {
+// mood "observed" -> present-tense operating claim ("builds X" / "provides X");
+// mood "declared" -> aspirational, so an unbuilt self-declared plan never reads as a
+// shipped capability ("plans to build X" / "aims to provide X"). The mood is chosen by
+// the caller from whether any PUBLIC artifact backs the team, never invented here. This
+// is the honesty guard: declared intent and observed delivery must not be linguistically
+// identical.
+function actionPredicate(rawDoes, { mood = EVIDENCE_BASIS.OBSERVED } = {}) {
   const text = compactText(rawDoes, 220);
   if (!text) return "";
+  const declared = mood === EVIDENCE_BASIS.DECLARED;
   const match = /^([a-z][a-z-]*)\b/.exec(text);
   const lead = match ? match[1].toLowerCase() : "";
   if (lead && ACTION_VERB_MAP[lead]) {
-    // Conjugate a second imperative joined by "and"/"&" too, so compound
-    // imperatives ("make X and explore Y") don't leave a bare verb dangling.
+    // Declared mood keeps the base imperative under "plans to ..." ("plans to make X and
+    // explore Y"); observed mood conjugates each verb to third person ("makes X and
+    // explores Y") — including a second imperative joined by "and"/"&".
+    if (declared) return `plans to ${lead}${text.slice(match[1].length)}`.replace(/\s+/g, " ").trim();
     const rest = text.slice(match[1].length).replace(
       /\b(and|&)\s+([a-z][a-z-]*)\b/g,
       (whole, conj, verb) => (ACTION_VERB_MAP[verb.toLowerCase()] ? `${conj} ${ACTION_VERB_MAP[verb.toLowerCase()]}` : whole),
     );
     return `${ACTION_VERB_MAP[lead]} ${rest.trim()}`.trim();
   }
-  return `provides ${text}`;
+  return declared ? `aims to provide ${text}` : `provides ${text}`;
 }
 
 function teamKindLabel(team, { includeFocus = true } = {}) {
@@ -352,13 +410,22 @@ function buildSayDidShippedCards({ teams = [], githubProgressArtifacts = [], git
       const journey = team.journey || {};
       const name = team.name || team.record_id;
 
-      const whatItDoes = actionPredicate(firstText(journey.solution, team.now, team.weekly_goals, focusFirstClause(team.focus)));
-      // Avoid the "focused on X ... provides an X" stutter: drop the focus clause
-      // from the identity lead only when the predicate already LEADS with that exact
-      // focus phrase (e.g. "...focused on P2P LLM router; it provides a P2P LLM router").
+      // The verb mood is chosen from whether any PUBLIC artifact backs the team: an
+      // observed team "provides/builds" (present tense); a declared-only team "aims to
+      // provide / plans to build" so an unbuilt plan is never read as a shipped product.
+      const claimBasis = act.observed ? EVIDENCE_BASIS.OBSERVED : EVIDENCE_BASIS.DECLARED;
+      const whatItDoes = actionPredicate(
+        firstText(journey.solution, team.now, team.weekly_goals, focusFirstClause(team.focus)),
+        { mood: claimBasis },
+      );
+      // Avoid the "focused on X ... provides an X" stutter: drop the focus clause from the
+      // identity lead when the predicate names that focus right after an article. Matching
+      // "(a|an|the) <focus>" anywhere (not just at the lead) is mood-agnostic — it collapses
+      // "aims to provide a P2P router" just like "provides a P2P router" — while still
+      // requiring the article so a mere suffix ("episode-based context engine") never trips it.
       const focusClause = focusFirstClause(team.focus);
       const stutters = Boolean(focusClause)
-        && new RegExp(`^[a-z]+\\s+(a|an|the)\\s+${focusClause.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(whatItDoes);
+        && new RegExp(`\\b(a|an|the)\\s+${focusClause.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(whatItDoes);
       const whatItIs = teamKindLabel(team, { includeFocus: !stutters });
       const whoItServes = firstText(journey.icp);
 
@@ -386,6 +453,13 @@ function buildSayDidShippedCards({ teams = [], githubProgressArtifacts = [], git
       const didBasis = act.latest ? "github_progress" : declaredDid ? "declared" : "none";
       const shippedBasis = act.releases.length ? "github_release" : declaredShipped ? "declared" : "none";
       const say = compactText(team.now || team.weekly_goals || focusFirstClause(team.focus) || "", 220);
+      // The team's own self-assessment, carried verbatim so an early-stage declared plan
+      // cannot render as a shipped product. Purely declared, never inferred.
+      const stageQualifier = {
+        stage: Number.isFinite(Number(journey.stage)) ? Number(journey.stage) : null,
+        self_confidence: compactText(journey.confidence || "", 24),
+        note: compactText(journey.evidence_notes || team.evidence_notes || "", 160),
+      };
 
       const refs = [
         sourceRef("team_record", {
@@ -404,6 +478,27 @@ function buildSayDidShippedCards({ teams = [], githubProgressArtifacts = [], git
           source_repo: artifact.source_repo || "",
         })),
       ];
+      const teamRef = refs[0];
+      const progressRefs = refs.filter(ref => ref.kind === "github_progress_artifact");
+      const releaseRefs = refs.filter(ref => ref.kind === "github_release_artifact");
+      // Each of the three lines is traced to the exact basis + refs it was built from, so a
+      // mixed card (observed did, declared shipped) is auditable line by line.
+      const trace = makeTrace({
+        method: "say_did_shipped",
+        version: ALGORITHM_VERSIONS.say_did_shipped,
+        basis: claimBasis,
+        confidence: act.observed ? "medium" : "low",
+        confidenceBasis: act.observed
+          ? `did from ${act.progress.length} github-progress artifact(s) (${act.totalUsefulCommits} useful commits)${act.releases.length ? `, ${act.releases.length} release(s)` : "; shipped is declared"}`
+          : `no public artifact found; identity and proof are the team's own declared fields${stageQualifier.self_confidence ? ` (self-confidence ${stageQualifier.self_confidence}, stage ${stageQualifier.stage ?? "?"})` : ""}`,
+        signals: [
+          traceSignal({ name: "say", value: say, detail: "declared current intent", sourceRefs: [teamRef] }),
+          traceSignal({ name: "did", value: did, detail: `basis: ${didBasis}`, sourceRefs: didBasis === "github_progress" ? progressRefs : [teamRef] }),
+          traceSignal({ name: "shipped", value: shipped, detail: `basis: ${shippedBasis}`, sourceRefs: shippedBasis === "github_release" ? releaseRefs : [teamRef] }),
+        ],
+        inputs: refs,
+        recompute: "buildSayDidShippedCards over committed team record + github-progress/release artifacts",
+      });
 
       return makeInsightCard({
         id: `cohort-insight:say-did-shipped:${slugPart(team.record_id)}`,
@@ -428,6 +523,8 @@ function buildSayDidShippedCards({ teams = [], githubProgressArtifacts = [], git
           shipped,
           shipped_basis: shippedBasis,
           observed_status: act.observed ? "public_signal_observed" : "unobserved",
+          claim_basis: claimBasis,
+          stage_qualifier: stageQualifier,
           public_activity: {
             observed_status: act.observed ? "public_signal_observed" : "declared_only",
             latest_week_start: isoDate(act.latest?.week_start || act.latest?.date),
@@ -436,6 +533,7 @@ function buildSayDidShippedCards({ teams = [], githubProgressArtifacts = [], git
             release_count: act.releases.length,
             useful_commit_count: act.totalUsefulCommits,
           },
+          trace,
         },
       });
     });
@@ -517,16 +615,27 @@ function overlapTokens(team) {
   return out;
 }
 
-// sharedTokenWeight is the summed inverse-document-frequency weight of the pair's shared
-// public terms (a term shared only by this pair counts ~1; a cohort-ubiquitous term ~0),
-// so common vocabulary can no longer pad an overlap. Same 24-point ceiling as the former
-// count-based term component, so existing thresholds and confidence bands still hold.
+// Returns the score AND its component breakdown so a latent_overlap card can explain
+// exactly how its 0-100 number was reached (and a reviewer can verify the IDF term
+// component never exceeds its 24-point ceiling). sharedTokenWeight is the summed inverse-
+// document-frequency weight of the pair's shared terms (rare-shared ~1, cohort-ubiquitous
+// ~0), so common vocabulary can no longer pad an overlap. Same ceilings as the former
+// count-based component, so existing thresholds and confidence bands still hold.
 function scoreLatentOverlap({ sharedSkills, domainMatch, commonDependencies, sharedTokenWeight = 0 }) {
-  const score = (sharedSkills.length * 22)
-    + (domainMatch ? 18 : 0)
-    + (commonDependencies.length * 16)
-    + Math.min(24, Math.round(sharedTokenWeight * 3));
-  return Math.min(100, Math.round(score));
+  const skillsSubtotal = sharedSkills.length * 22;
+  const domainSubtotal = domainMatch ? 18 : 0;
+  const depsSubtotal = commonDependencies.length * 16;
+  const termsSubtotal = Math.min(24, Math.round(sharedTokenWeight * 3));
+  const total = Math.min(100, Math.round(skillsSubtotal + domainSubtotal + depsSubtotal + termsSubtotal));
+  return {
+    total,
+    breakdown: {
+      shared_skills: { count: sharedSkills.length, weight_each: 22, subtotal: skillsSubtotal },
+      domain_match: { matched: Boolean(domainMatch), subtotal: domainSubtotal },
+      common_dependencies: { count: commonDependencies.length, weight_each: 16, subtotal: depsSubtotal },
+      shared_terms_idf: { raw_weight: Math.round(sharedTokenWeight * 1000) / 1000, weight_each: 3, capped_at: 24, subtotal: termsSubtotal },
+    },
+  };
 }
 
 function confidenceForLatentScore(score) {
@@ -568,6 +677,10 @@ function buildLatentOverlapCards({ teams = [], clusters = [], dependencies = [],
     const df = tokenDocFreq.get(token) || teamCount;
     return Math.max(0, Math.min(1, Math.log(teamCount / df) / idfMax));
   };
+  // Below this IDF weight a shared term is treated as filler and dropped from the
+  // DISPLAYED public-trace terms (the score already discounts it to ~0); the full
+  // weighted list still rides the card's trace so nothing is silently lost.
+  const LATENT_TERM_DISPLAY_FLOOR = 0.15;
   const cards = [];
 
   for (let i = 0; i < teamList.length; i += 1) {
@@ -585,14 +698,26 @@ function buildLatentOverlapCards({ teams = [], clusters = [], dependencies = [],
       const domainMatch = Boolean(a.domain && b.domain && String(a.domain).toLowerCase() === String(b.domain).toLowerCase());
       const commonDependencies = intersection(dependencySets.get(a.record_id), dependencySets.get(b.record_id))
         .filter(id => id !== a.record_id && id !== b.record_id);
-      const sharedTokens = intersection(tokenSets.get(a.record_id), tokenSets.get(b.record_id))
+      const sharedTokensAll = intersection(tokenSets.get(a.record_id), tokenSets.get(b.record_id))
         .filter(token => !sharedSkills.includes(token))
         // Order shared terms by how distinctive they are so the displayed signal leads
         // with the rare, meaningful overlap rather than whatever sorts first alphabetically.
         .sort((x, y) => idfWeight(y) - idfWeight(x) || x.localeCompare(y))
         .slice(0, 8);
-      const sharedTokenWeight = sharedTokens.reduce((sum, token) => sum + idfWeight(token), 0);
-      const score = scoreLatentOverlap({ sharedSkills, domainMatch, commonDependencies, sharedTokenWeight });
+      // Each shared term with its cohort document frequency + normalized IDF weight, so the
+      // "ubiquity decays to ~0" claim is visible and the term ranking is reproducible from
+      // the card alone (closes trace gap G1).
+      const sharedTermsWeighted = sharedTokensAll.map(term => ({
+        term,
+        doc_freq: tokenDocFreq.get(term) || teamCount,
+        idf_weight: Math.round(idfWeight(term) * 100) / 100,
+      }));
+      // Displayed terms drop near-zero-weight filler ("around"/"where"/"data") so the
+      // public-trace chips reflect real signal (honesty fix H-O4); the full weighted list
+      // rides the trace, and the score still sums every term's weight (filler ~0 anyway).
+      const sharedTokens = sharedTermsWeighted.filter(t => t.idf_weight >= LATENT_TERM_DISPLAY_FLOOR).map(t => t.term);
+      const sharedTokenWeight = sharedTokensAll.reduce((sum, token) => sum + idfWeight(token), 0);
+      const { total: score, breakdown: scoreBreakdown } = scoreLatentOverlap({ sharedSkills, domainMatch, commonDependencies, sharedTokenWeight });
       if (score < 35) continue;
 
       const reasons = latentReasonList({ sharedSkills, domainMatch, commonDependencies, sharedTokens, a, b });
@@ -609,6 +734,29 @@ function buildLatentOverlapCards({ teams = [], clusters = [], dependencies = [],
           ...sharedTokens,
         ].filter(Boolean).map((token) => [String(token).toLowerCase(), token]),
       ).values()].slice(0, 4).join(", ");
+      const teamRefA = sourceRef("team_record", { record_id: a.record_id, path: `cohort-data/teams/${a.record_id}.md` });
+      const teamRefB = sourceRef("team_record", { record_id: b.record_id, path: `cohort-data/teams/${b.record_id}.md` });
+      const refs = [
+        teamRefA,
+        teamRefB,
+        sourceRef("cluster_record", { record_id: aCluster.id, label: aCluster.label }),
+        sourceRef("cluster_record", { record_id: bCluster.id, label: bCluster.label }),
+      ];
+      const trace = makeTrace({
+        method: "latent_overlap_idf",
+        version: ALGORITHM_VERSIONS.latent_overlap,
+        basis: EVIDENCE_BASIS.INFERRED,
+        confidence: confidenceForLatentScore(score),
+        confidenceBasis: `inferred structural similarity, score ${score}/100 — neither team declared this link and no human confirmed it; a hint to verify, not an established relationship`,
+        signals: [
+          traceSignal({ name: "shared_skill_areas", value: sharedSkills, contribution: scoreBreakdown.shared_skills.subtotal, of: 100, sourceRefs: [teamRefA, teamRefB] }),
+          traceSignal({ name: "shared_domain", value: domainMatch ? a.domain : "", contribution: scoreBreakdown.domain_match.subtotal, of: 100, sourceRefs: [teamRefA, teamRefB] }),
+          traceSignal({ name: "shared_dependency_targets", value: commonDependencies, contribution: scoreBreakdown.common_dependencies.subtotal, of: 100 }),
+          traceSignal({ name: "shared_terms_idf", value: sharedTermsWeighted, detail: `idf-weighted across ${teamCount} cohort teams`, contribution: scoreBreakdown.shared_terms_idf.subtotal, of: 100 }),
+        ],
+        inputs: refs,
+        recompute: "buildLatentOverlapCards over committed cohort-data teams/clusters/dependencies",
+      });
       cards.push(makeInsightCard({
         id: `cohort-insight:latent-overlap:${slugPart(a.record_id)}:${slugPart(b.record_id)}`,
         kind: "latent_overlap",
@@ -619,14 +767,11 @@ function buildLatentOverlapCards({ teams = [], clusters = [], dependencies = [],
         summary: `No direct dependency record exists; the engine found ${reasons.slice(0, 2).join("; ")}.`,
         evidenceLevel: "inferred_public_metadata",
         confidence: confidenceForLatentScore(score),
-        sourceRefs: [
-          sourceRef("team_record", { record_id: a.record_id, path: `cohort-data/teams/${a.record_id}.md` }),
-          sourceRef("team_record", { record_id: b.record_id, path: `cohort-data/teams/${b.record_id}.md` }),
-          sourceRef("cluster_record", { record_id: aCluster.id, label: aCluster.label }),
-          sourceRef("cluster_record", { record_id: bCluster.id, label: bCluster.label }),
-        ],
+        sourceRefs: refs,
         contentJson: {
           score,
+          score_breakdown: scoreBreakdown,
+          idf_basis: { cohort_team_count: teamCount, idf_max: Math.round(idfMax * 1000) / 1000 },
           clusters: {
             [a.record_id]: aCluster,
             [b.record_id]: bCluster,
@@ -635,6 +780,7 @@ function buildLatentOverlapCards({ teams = [], clusters = [], dependencies = [],
           shared_domain: domainMatch ? a.domain : "",
           shared_dependency_targets: commonDependencies,
           shared_public_terms: sharedTokens,
+          shared_terms_weighted: sharedTermsWeighted,
           reasons,
           existing_dependency: false,
           suggested_actions: [
@@ -643,6 +789,7 @@ function buildLatentOverlapCards({ teams = [], clusters = [], dependencies = [],
             "create a dependency record if the overlap is real",
             "dismiss as false positive",
           ],
+          trace,
         },
       }));
     }
