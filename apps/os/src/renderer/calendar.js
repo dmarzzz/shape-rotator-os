@@ -386,16 +386,12 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
   const safeWeekIdx = Math.max(0, Math.min(WEEK_COUNT - 1, weekIdx | 0));
   const week = parseWeekRow(tab[2 + safeWeekIdx] || [], safeWeekIdx);
   const phase = phaseFor(safeWeekIdx + 1);
-  const recurring = parseRecurring(tab);
   const catHide = new Set(Array.isArray(catHidden) ? catHidden : []);
 
   // ── daily-signal state (computed by the host; see signals contract above) ──
-  // Hoisted to the top because the activity ("shipped") lane below reads scopeId.
-  // The agenda's two genuinely-loved signals fold onto the grid: who's in town
-  // (real presence) and what shipped (real activity). Standing is NOT ported —
-  // it's seed data, and the calendar shouldn't headline a placeholder number; it
-  // stays in the standing views where its provenance is explained.
-  const rowHide = new Set(Array.isArray(signals?.rowsHidden) ? signals.rowsHidden : []);
+  // who's in town (real presence) + what shipped (real activity); scope focuses
+  // both on one workstream. Standing is NOT ported — seed data lives in the
+  // standing views where its provenance is explained.
   const scopeTeams = Array.isArray(signals?.scope?.teams) ? signals.scope.teams : [];
   const scopeId = signals?.scope?.id && scopeTeams.some(t => t.id === signals.scope.id) ? signals.scope.id : null;
   const scopeName = scopeId ? (scopeTeams.find(t => t.id === scopeId)?.name || scopeId) : "all cohort";
@@ -503,11 +499,9 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
     },
   };
 
-  // ── hour window hugs the week's actual content ──────────────────────
-  // No fixed 8–22 frame: the grid starts at the first event's hour and
-  // ends at the last one's, so sparse mornings/nights don't render as
-  // dead rows. A 6-hour floor keeps a near-empty week from blowing the
-  // hour height up; an event-free week falls back to 9–18.
+  // ── time window for the build field ─────────────────────────────────
+  // Scan the week's events; B's panel floors this to a residency day below
+  // (bWinStart/bWinEnd) so build-time reads as one continuous ground.
   let minStart = Infinity;
   let maxEnd = -Infinity;
   for (const d of days) {
@@ -516,81 +510,9 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       maxEnd   = Math.max(maxEnd, ev.timing.endMin);
     }
   }
-  let winStart, winEnd;
-  if (!Number.isFinite(minStart)) {
-    winStart = 9 * 60;
-    winEnd   = 18 * 60;
-  } else {
-    winStart = Math.max(0, Math.floor(minStart / 60) * 60);
-    winEnd   = Math.min(24 * 60, Math.ceil(maxEnd / 60) * 60);
-  }
-  const MIN_SPAN = 2 * 60;
-  if (winEnd - winStart < MIN_SPAN) winEnd = Math.min(24 * 60, winStart + MIN_SPAN);
-  if (winEnd - winStart < MIN_SPAN) winStart = Math.max(0, winEnd - MIN_SPAN);
 
-  // ── compress event-free hours ────────────────────────────────────────
-  // A sparse week on a linear axis is mostly dead air. Instead: hours that
-  // contain at least one event (anywhere in the week) render full-height;
-  // runs of 2+ empty hours collapse into a thin "open" band. The remaining
-  // active hours stretch to fill the board, so quiet weeks still read
-  // dense. Single empty hours between busy ones stay linear — collapsing
-  // those would make the axis feel choppy.
-  const hourCount = Math.round((winEnd - winStart) / 60);
-  const occ = new Array(hourCount).fill(false);
-  for (const d of days) {
-    for (const ev of d.timed) {
-      const h0 = Math.max(0, Math.floor((ev.timing.startMin - winStart) / 60));
-      const h1 = Math.min(hourCount - 1, Math.floor((Math.min(ev.timing.endMin, winEnd) - 1 - winStart) / 60));
-      for (let h = h0; h <= h1; h++) occ[h] = true;
-    }
-  }
-  if (!occ.some(Boolean)) occ.fill(true);
-  for (let h = 1; h < hourCount - 1; h++) {
-    if (!occ[h] && occ[h - 1] && occ[h + 1]) occ[h] = true;
-  }
-
-  const segs = [];
-  for (let h = 0; h < hourCount;) {
-    const act = occ[h];
-    let j = h;
-    while (j < hourCount && occ[j] === act) j++;
-    segs.push({ act, s: winStart + h * 60, e: winStart + j * 60, units: act ? (j - h) : 0 });
-    h = j;
-  }
-  // Collapsed gaps stay a thin sliver of the board no matter how sparse
-  // the week is — sized relative to the active hours, not absolutely.
-  const actUnits = segs.reduce((a, s) => a + (s.act ? s.units : 0), 0);
-  const gapUnits = Math.min(0.8, Math.max(0.3, actUnits * 0.1));
-  for (const s of segs) { if (!s.act) s.units = gapUnits; }
-  const totalUnits = segs.reduce((a, s) => a + s.units, 0);
-  let accUnits = 0;
-  for (const s of segs) {
-    s.y0 = (accUnits / totalUnits) * 100;
-    accUnits += s.units;
-    s.y1 = (accUnits / totalUnits) * 100;
-  }
-  const yPct = (min) => {
-    if (min <= winStart) return 0;
-    for (const s of segs) {
-      if (min >= s.s && min <= s.e) return s.y0 + (s.y1 - s.y0) * ((min - s.s) / (s.e - s.s));
-    }
-    return 100;
-  };
-  const pct = (min) => yPct(min).toFixed(3);
-  // Serialized for attachCalendarPageBehavior's now-line tick (same mapping).
-  const segsJson = JSON.stringify(segs.map(s => ({
-    s: s.s, e: s.e, y0: +s.y0.toFixed(4), y1: +s.y1.toFixed(4),
-  })));
-
-  // ── masthead — shared view-nav tabs on top, unified week strip
-  // (← 1 2 … 10 →) centered below on a hairline rail. The week containing today
-  // keeps an under-dot marker; the VIEWED week is the oxide bead, which glides
-  // between weeks (view-transition). The strip only shows on the calendar view —
-  // presence spans the whole program, so weeks don't apply.
+  // The 10-week arc (below) is the week navigator now; the old dot-rail is gone.
   const nowWeekIdx = currentWeekIdx();
-  const scrubDots = Array.from({ length: WEEK_COUNT }, (_, i) => `
-    <button class="c2-scrub-dot${i === nowWeekIdx ? " is-now" : ""}" data-c2-week="${i}"
-            aria-selected="${i === safeWeekIdx}" aria-label="week ${i + 1}" type="button">${i + 1}</button>`).join("");
 
   const isPresence = view === "presence";
   // Same shared view-nav component as the cohort / context / program pages
@@ -614,9 +536,7 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       <span class="c2-subscribe-label">subscribe</span>
       <svg class="c2-subscribe-hook" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8"/></svg>
     </a>`;
-  // The 10-week ARC below is the week navigator now (it carries presence +
-  // shipping per week), so the masthead is just the view tabs + subscribe.
-  void scrubDots;
+  // The masthead is just the view tabs + subscribe; the arc navigates weeks.
   const masthead = `
     <div class="c2-toolbar">
       ${viewTabs}
@@ -653,7 +573,10 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
   // gathering types actually IN this week (plus any you've switched off, so you
   // can turn them back on) — not all seven categories every week.
   const presentCatKeys = new Set();
-  for (const d of days) for (const ev of d.timed) if (ev.cat && ev.cat.key !== "default" && ev.cat.label) presentCatKeys.add(ev.cat.key);
+  for (const d of days) {
+    for (const ev of d.timed) if (ev.cat && ev.cat.key !== "default" && ev.cat.label) presentCatKeys.add(ev.cat.key);
+    for (const it of d.allday) if (it.cat && it.cat.key !== "default" && it.cat.label) presentCatKeys.add(it.cat.key);
+  }
   const legendCats = C2_LEGEND.filter(c => presentCatKeys.has(c.key) || catHide.has(c.key));
   const filterBar = legendCats.length ? `
     <div class="c2-filter rr-filter" role="group" aria-label="filter gatherings by type">
@@ -739,10 +662,15 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
         <div class="rr-section-lab">the arc <em>— ten weeks, presence over shipping</em></div>
         <div class="rr-legend"><span><i class="rr-sw rr-sw-pres"></i>presence</span><span><i class="rr-sw rr-sw-ship"></i>ship</span></div>
       </div>
-      <div class="rr-arc-bar" role="tablist" aria-label="select week">
+      <div class="rr-arc-bar" role="group" aria-label="select week">
         ${Array.from({ length: WEEK_COUNT }, (_, w) => {
           const frac = Number(weekly[w]?.frac);
-          const h = Number.isFinite(frac) && frac > 0 ? Math.max(10, Math.round(frac * 100)) : 36;
+          // Window the bar to the same near-full band the ribbon uses (roster-8..
+          // roster), so 42 vs 45 reads as a real height difference instead of a
+          // flat 93–96% — the arc IS the presence sparkline.
+          const occN = Number.isFinite(frac) ? frac * rosterTotal : 0;
+          const win = Math.max(0, Math.min(1, (occN - (rosterTotal - 8)) / 8));
+          const h = Number.isFinite(frac) && frac > 0 ? Math.round(14 + win * 84) : 28;
           const ships = Number(weeklyShips[w]) || 0;
           const isActive = w === safeWeekIdx;
           const isFuture = w > nowWeekIdx;
@@ -752,7 +680,7 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
             ? `<span class="rr-shipdot"></span>`
             : Array.from({ length: Math.min(3, ships) }, () => `<span class="rr-shipdot"></span>`).join("");
           return `
-          <button class="${cls}" data-c2-week="${w}" role="tab" aria-selected="${isActive}" aria-label="week ${w + 1}${isDemo ? " · demo" : ""}${isActive ? " (current view)" : ""}" type="button">
+          <button class="${cls}" data-c2-week="${w}" aria-label="week ${w + 1}${isDemo ? " · demo" : ""}${isActive ? " (current view)" : ""}"${isActive ? ' aria-current="true"' : ""} type="button">
             ${isActive ? `<span class="rr-ring" aria-hidden="true"></span>` : ""}
             <span class="rr-ticks" aria-hidden="true">${dots}</span>
             <span class="rr-pcol"><span class="rr-pbar" style="height:${h}%"></span></span>
@@ -764,7 +692,9 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
 
   // ── this week — linear time field floored to a residency day so build reads
   // as continuous ground; gatherings drop at their real time. ──
-  let bWinStart = 9 * 60, bWinEnd = 21 * 60;
+  // Floor the day to a core 12:00–20:00 window (expanded if events fall outside)
+  // so the afternoon gatherings aren't stranded above/below a 9–21 void.
+  let bWinStart = 12 * 60, bWinEnd = 20 * 60;
   if (Number.isFinite(minStart)) { bWinStart = Math.min(bWinStart, Math.floor(minStart / 60) * 60); bWinEnd = Math.max(bWinEnd, Math.ceil(maxEnd / 60) * 60); }
   const bSpan = Math.max(120, bWinEnd - bWinStart);
   const bPct = (m) => ((Math.max(bWinStart, Math.min(bWinEnd, m)) - bWinStart) / bSpan) * 100;
@@ -777,10 +707,11 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
     return `<div class="${cls}"><span class="rr-dh-d">${escHtml(cap(d.name))}</span><span class="rr-dh-n">${escHtml(num)}${d.isToday ? " · today" : ""}</span></div>`;
   }).join("");
 
+  // A quiet 3-hour ruler only — each gathering carries its own exact time on its
+  // tick, so the shared gutter never implies a time only one column actually has.
   const spineMarks = [];
-  for (let m = bWinStart; m <= bWinEnd; m += 4 * 60) spineMarks.push({ m, label: fmtHour(m), acc: false });
-  for (const m of [...new Set(days.flatMap(d => d.timed.map(ev => ev.timing.startMin)))].sort((a, b) => a - b)) spineMarks.push({ m, label: fmtMin(m), acc: true });
-  const spineHtml = `<div class="rr-spine" aria-hidden="true">${spineMarks.map(s => `<span class="rr-t${s.acc ? " acc" : ""}" style="top:${bPct(s.m).toFixed(1)}%">${escHtml(s.label)}</span>`).join("")}</div>`;
+  for (let m = Math.ceil(bWinStart / 180) * 180; m <= bWinEnd; m += 3 * 60) spineMarks.push(m);
+  const spineHtml = `<div class="rr-spine" aria-hidden="true">${spineMarks.map(m => `<span class="rr-t" style="top:${bPct(m).toFixed(1)}%">${escHtml(fmtHour(m))}</span>`).join("")}</div>`;
 
   const fieldsHtml = days.map((d, di) => {
     const banners = d.allday.map((item, ai) => {
@@ -791,17 +722,26 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       const isCont = di > 0 && (days[di - 1].allday || []).includes(item);
       return `<button class="rr-allday${isCont ? " is-cont" : ""}" data-cat="${escAttr(item.cat.key)}" data-c2-ev="a:${di}:${ai}" type="button" title="${escAttr(title)}"><span>${isCont ? "→ continues" : escHtml(title)}</span></button>`;
     }).join("");
-    const ticks = d.timed.map((ev, ti) => {
+    // Place each gathering at its real time, then nudge later ones down so two
+    // close gatherings (tea 15:30 + retro 17:00) don't overlap. Each tick is ~2
+    // lines tall; SLOT is that height as a % of the field.
+    const SLOT = 17;
+    const tickItems = d.timed
+      .map((ev, ti) => ({ ev, ti, top: bPct(ev.timing.startMin) }))
+      .sort((a, b) => a.top - b.top);
+    let prevTop = -SLOT;
+    for (const it of tickItems) { if (it.top < prevTop + SLOT) it.top = prevTop + SLOT; prevTop = it.top; }
+    const ticks = tickItems.map(({ ev, ti, top }) => {
       const time = `${fmtMin(ev.timing.startMin)}–${fmtMin(ev.timing.endMin)}`;
-      return `<button class="rr-tick" data-cat="${escAttr(ev.cat.key)}" data-c2-ev="t:${di}:${ti}" type="button" style="top:${bPct(ev.timing.startMin).toFixed(1)}%" aria-label="${escAttr(time + " " + ev.content.title)}"><span class="rr-tick-nm">${escHtml(ev.content.title)}</span><span class="rr-tick-tm">${escHtml(time)}${ev.cat.tbc ? " · tbc" : ""}</span></button>`;
+      return `<button class="rr-tick" data-cat="${escAttr(ev.cat.key)}" data-c2-ev="t:${di}:${ti}" type="button" style="top:${Math.min(top, 84).toFixed(1)}%" aria-label="${escAttr(time + " " + ev.content.title)}"><span class="rr-tick-nm">${escHtml(ev.content.title)}</span><span class="rr-tick-tm">${escHtml(time)}${ev.cat.tbc ? " · tbc" : ""}</span></button>`;
     }).join("");
     // Empty days name the ground (open build / rest); populated days let the
     // gatherings speak — no redundant "build" label on every column.
     const ground = (!d.timed.length && !d.allday.length) ? `<span class="rr-ghost">${isWeekend(d.name) ? "rest" : "open build"}</span>` : "";
     const nowEls = d.isToday && nowMin >= bWinStart && nowMin <= bWinEnd
       ? `<span class="rr-now" style="top:${bPct(nowMin).toFixed(1)}%"></span><span class="rr-now-dot" style="top:${bPct(nowMin).toFixed(1)}%"></span>` : "";
-    const cls = ["rr-field", d.isToday ? "today" : "", isWeekend(d.name) ? "weekend" : ""].filter(Boolean).join(" ");
-    return `<div class="${cls}">${ground}${banners}${ticks}${nowEls}</div>`;
+    const cls = ["rr-field", d.isToday ? "today" : ""].filter(Boolean).join(" ");
+    return `<div class="${cls}"${d.isToday ? ` data-rr-win="${bWinStart}:${bWinEnd}"` : ""}>${ground}${banners}${ticks}${nowEls}</div>`;
   }).join("");
 
   // ── presence ribbon — one honest near-full line, windowed to the top of roster ──
@@ -884,56 +824,37 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
     </section>`;
 }
 
-// ── behavior — now-line tick + initial scroll ────────────────────────
-// Returns a teardown fn; the consumer calls it before every repaint so
-// intervals don't stack (same contract as attachWeekViewBehavior).
-export function attachCalendarPageBehavior(root, { scrollToNow = true } = {}) {
+// ── behavior — now-line tick ─────────────────────────────────────────
+// Advances today's now-line + dot across the build field every 30s using the
+// SAME linear window the renderer used (serialized onto the today field as
+// data-rr-win="start:end" in minutes). No-ops cleanly when the viewed week has
+// no today column. Returns a teardown fn the consumer calls before each repaint
+// so intervals don't stack.
+export function attachCalendarPageBehavior(root) {
   if (!root) return () => {};
-  const grid = root.querySelector(".c2-grid");
-  const scroll = root.querySelector(".c2-scroll");
-  if (!grid) return () => {};
-  // Piecewise time→y mapping serialized by the renderer — the axis is
-  // non-linear (collapsed gaps), so the tick must use the same segments.
-  let segs = [];
-  try { segs = JSON.parse(grid.dataset.c2Segs || "[]"); } catch {}
-
-  let placedOnce = false;
+  const field = root.querySelector(".rr-field.today");
+  const line = field?.querySelector(".rr-now");
+  const dot = field?.querySelector(".rr-now-dot");
+  if (!field || !line) return () => {};
+  let winStart = 12 * 60, winEnd = 20 * 60;
+  try {
+    const w = String(field.dataset.rrWin || "").split(":").map(Number);
+    if (w.length === 2 && w.every(Number.isFinite)) { winStart = w[0]; winEnd = w[1]; }
+  } catch {}
+  const span = Math.max(1, winEnd - winStart);
   function placeNow() {
-    const line = grid.querySelector(".c2-now");
-    if (!line) return;
     const d = new Date();
     const m = d.getHours() * 60 + d.getMinutes();
-    const seg = segs.find(s => m >= s.s && m <= s.e);
-    if (!seg) { line.style.display = "none"; return; }
-    line.style.display = "";
-    line.style.top = (seg.y0 + (seg.y1 - seg.y0) * ((m - seg.s) / (seg.e - seg.s))).toFixed(3) + "%";
-    // Enable the eased glide only AFTER the first placement, so the line
-    // doesn't slide in from top:0 on mount.
-    if (placedOnce) line.classList.add("is-tracking");
-    placedOnce = true;
+    const show = m >= winStart && m <= winEnd;
+    line.style.display = show ? "" : "none";
+    if (dot) dot.style.display = show ? "" : "none";
+    if (!show) return;
+    const top = (((m - winStart) / span) * 100).toFixed(1) + "%";
+    line.style.top = top;
+    if (dot) dot.style.top = top;
   }
   placeNow();
   const timer = setInterval(placeNow, 30000);
-
-  if (scrollToNow && scroll) {
-    requestAnimationFrame(() => {
-      const line = grid.querySelector(".c2-now");
-      if (line && line.style.display !== "none") {
-        // Park the now-line a third of the way down the viewport so the next
-        // few hours are what the eye lands on — gliding it into view rather
-        // than jumping (honors reduced-motion via the smooth/auto switch).
-        let reduce = false;
-        try {
-          reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-            || document.documentElement.getAttribute("data-reduce-motion") === "1";
-        } catch {}
-        const top = Math.max(0, line.offsetTop - scroll.clientHeight * 0.35);
-        try { scroll.scrollTo({ top, behavior: reduce ? "auto" : "smooth" }); }
-        catch { scroll.scrollTop = top; }
-      }
-    });
-  }
-
   return function teardown() { clearInterval(timer); };
 }
 
