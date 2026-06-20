@@ -4213,337 +4213,8 @@ function constellationCurrentInspectorContext() {
   // update) inspector keeps the positional sidebar after hover/refocus.
   const mode = (baseMode === "map" && scope === "projects") ? "bubble" : baseMode;
   const base = { ...ctx, clusters, mode, scope, distributionWells: model.wellsDef, lens: mode === "ring" ? "all" : constNormalizeConstellationLens(state.constellationLens), interest: constInterestContext(teams, clusters, edges, state.constInterest), bubbleMap: mode === "bubble" ? constBubbleMapSummary(model, constNormalizeGranularity(state.constellationGranularity)) : null };
-  return mode === "stack" ? { ...base, stackModel: constProductStackModel(teams, base) } : base;
+  return base;
 }
-
-function constEvidenceItems(team, ctx) {
-  const j = journeyFor(team);
-  const assessed = journeyAssessed(team);
-  const paperCount = constList(team.paper_basis).length;
-  const shipCount = constList(team.prior_shipping).length;
-  const inbound = ctx?.inBy?.get(team.record_id)?.length || 0;
-  const outbound = ctx?.outBy?.get(team.record_id)?.length || 0;
-  const operating = [team.now, team.weekly_goals, team.graduation_target, team.monthly_milestones].filter(constText).length;
-  const marketBits = [team.traction, assessed && j.icp, assessed && j.evidence_notes, assessed && j.next_milestone].filter(Boolean).length;
-  const profileNote = "profile only; no stronger proof signal";
-  return [
-    { key: "market", label: "customer traction", value: Math.min(5, marketBits), note: team.traction || (assessed ? j.evidence_notes : "") || profileNote },
-    { key: "build", label: "product shipped", value: Math.min(5, shipCount + (team.hackathon_note ? 1 : 0)), note: shipCount ? `${shipCount} public shipping signals` : (team.hackathon_note || profileNote) },
-    { key: "research", label: "research basis", value: Math.min(5, paperCount), note: paperCount ? `${paperCount} paper / mechanism references` : profileNote },
-    { key: "cohort", label: "cohort pull", value: Math.min(5, inbound + outbound), note: `${inbound} pointing in · ${outbound} pointing out` },
-    { key: "operating", label: "operating data", value: Math.min(5, operating), note: operating ? `${operating}/4 operating fields` : profileNote },
-  ];
-}
-
-
-
-const CONST_STACK_COLUMNS = [
-  {
-    key: "substrate",
-    label: "substrate",
-    hint: "runtime, TEE, storage, routing, protocol, or network layer",
-    terms: ["tee", "tdx", "sev", "dstack", "confidential", "cvm", "postgres", "storage", "routing", "router", "protocol", "network", "runtime", "sdk", "evm", "tevm", "identity", "attested", "tls", "infrastructure"],
-  },
-  {
-    key: "developer",
-    label: "developer tooling",
-    hint: "builder workflows, coding agents, frameworks, repos, test systems",
-    terms: ["developer", "github", "code", "coding", "repo", "framework", "plugin", "agent framework", "runtime", "langgraph", "test", "corpus", "programming", "automation", "abstraction", "sdk", "tooling"],
-  },
-  {
-    key: "proof",
-    label: "proof / data",
-    hint: "attestation, research IP, market data, verification, knowledge layer",
-    terms: ["proof", "attestation", "verify", "verified", "measurement", "data", "market data", "research", "paper", "mechanism", "microstructure", "prediction market", "oracle", "belief", "retrieval", "knowledge", "biosensor", "privacy"],
-  },
-  {
-    key: "application",
-    label: "application",
-    hint: "end-user app, workflow, interface, creative or consumer experience",
-    terms: ["app", "ios", "consumer", "speaking", "practice", "chat", "signal", "relationship", "hardware", "creative", "experience", "workflow", "interface", "ux", "payer", "ehr", "prior authorization"],
-  },
-  {
-    key: "market",
-    label: "market / customer",
-    hint: "buyer, GTM, paid pilot, distribution, customer or marketplace motion",
-    terms: ["customer", "buyer", "paid", "pilot", "users", "gtm", "bd", "sales", "distribution", "market", "marketplace", "pharma", "payer", "fundraising", "commercial", "monetization", "retention"],
-  },
-];
-
-const CONST_STACK_ROWS = [
-  { key: "market", label: "customer traction", hint: "traction, paid use, user behavior, ICP, or customer proof" },
-  { key: "build", label: "product shipped", hint: "working product, shipped code, prior shipping, or live prototype" },
-  { key: "research", label: "research lineage", hint: "paper basis, mechanism research, citations, or research-to-product work" },
-  { key: "cohort", label: "cohort leverage", hint: "inbound/outbound cohort relationships and dependency surface" },
-  { key: "profile", label: "profile only", hint: "domain, focus, skills, and current notes; orientation, not proof" },
-];
-
-
-
-function constStackSourceText(team) {
-  const j = journeyFor(team);
-  return [
-    team?.name,
-    team?.domain,
-    team?.focus,
-    team?.now,
-    team?.traction,
-    team?.weekly_goals,
-    team?.graduation_target,
-    team?.monthly_milestones,
-    team?.hackathon_note,
-    ...(Array.isArray(team?.skill_areas) ? team.skill_areas : []),
-    ...(Array.isArray(team?.success_dimensions) ? team.success_dimensions : []),
-    ...(Array.isArray(team?.prior_shipping) ? team.prior_shipping : []),
-    ...(Array.isArray(team?.paper_basis) ? team.paper_basis : []),
-    ...(Array.isArray(team?.seeking) ? team.seeking : []),
-    ...(Array.isArray(team?.offering) ? team.offering : []),
-    j.company_type,
-    j.problem,
-    j.solution,
-    j.icp,
-    j.evidence_notes,
-    j.next_milestone,
-  ].map(constText).filter(Boolean).join(" ").toLowerCase();
-}
-
-function constTermMatches(text, term) {
-  const haystack = ` ${String(text || "").toLowerCase().replace(/[^a-z0-9]+/g, " ")} `;
-  const needle = String(term || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  if (!needle) return false;
-  if (haystack.includes(` ${needle} `)) return true;
-  if (needle.includes(" ") || needle.length < 3) return false;
-  const plural = needle.endsWith("s") ? needle.slice(0, -1) : `${needle}s`;
-  return plural.length > 3 && haystack.includes(` ${plural} `);
-}
-
-function constTermHits(text, terms = []) {
-  const hits = [];
-  for (const term of terms) {
-    const needle = String(term || "").toLowerCase();
-    if (needle && constTermMatches(text, needle)) hits.push(needle);
-  }
-  return hits;
-}
-
-const CONST_STACK_TERM_LABELS = new Map([
-  ["tee", "TEE"],
-  ["tdx", "TDX"],
-  ["sev", "SEV"],
-  ["dstack", "dstack"],
-  ["cvm", "CVM"],
-  ["tls", "TLS"],
-  ["sdk", "SDK"],
-  ["evm", "EVM"],
-  ["tevm", "tEVM"],
-  ["github", "GitHub"],
-  ["repo", "repository"],
-  ["langgraph", "LangGraph"],
-  ["ios", "iOS"],
-  ["ux", "UX"],
-  ["ehr", "EHR"],
-  ["gtm", "GTM"],
-  ["bd", "BD"],
-  ["icp", "ICP"],
-  ["paid", "paid use"],
-  ["pilot", "pilot"],
-  ["users", "users"],
-  ["user", "user"],
-  ["customer", "customer"],
-  ["buyer", "buyer"],
-  ["attested", "attestation"],
-  ["attestation", "attestation"],
-  ["confidential", "confidential compute"],
-  ["postgres", "Postgres"],
-  ["prediction market", "prediction market"],
-  ["market data", "market data"],
-  ["agent framework", "agent framework"],
-  ["prior authorization", "prior authorization"],
-]);
-
-function constStackTermLabel(term) {
-  const raw = constText(term).toLowerCase();
-  if (!raw) return "";
-  return CONST_STACK_TERM_LABELS.get(raw) || raw.replace(/\b\w/g, c => c.toUpperCase());
-}
-
-function constStackRoleReason(hits = [], domain = "") {
-  const labels = [];
-  for (const hit of hits) {
-    const label = constStackTermLabel(hit);
-    if (label && !labels.includes(label)) labels.push(label);
-    if (labels.length >= 3) break;
-  }
-  if (labels.length) return `source mentions: ${labels.join(" · ")}`;
-  const domainLabel = CONST_DOMAIN_LABEL[domain];
-  if (domainLabel) return `domain signal: ${domainLabel}`;
-  return "profile only";
-}
-
-function constMarketRoleForTeam(team) {
-  const text = constStackSourceText(team);
-  const domain = constDomainClass(team?.domain);
-  const scores = new Map(CONST_STACK_COLUMNS.map(col => [col.key, 0]));
-  const hitsByKey = new Map();
-  for (const col of CONST_STACK_COLUMNS) {
-    const hits = constTermHits(text, col.terms);
-    hitsByKey.set(col.key, hits);
-    scores.set(col.key, (scores.get(col.key) || 0) + hits.length);
-  }
-  if (domain === "tee") scores.set("substrate", (scores.get("substrate") || 0) + 3);
-  if (domain === "ai") scores.set("developer", (scores.get("developer") || 0) + 2);
-  if (domain === "crypto") {
-    scores.set("proof", (scores.get("proof") || 0) + 1);
-    scores.set("substrate", (scores.get("substrate") || 0) + 1);
-  }
-  if (domain === "app-ux") scores.set("application", (scores.get("application") || 0) + 3);
-  if (constList(team?.paper_basis).length) scores.set("proof", (scores.get("proof") || 0) + 2);
-  if (/paid|pilot|users?|customer|buyer|retention|monetization|gtm|bd/.test(text)) scores.set("market", (scores.get("market") || 0) + 2);
-  const ranked = CONST_STACK_COLUMNS
-    .map((col, idx) => ({ ...col, score: scores.get(col.key) || 0, hits: hitsByKey.get(col.key) || [], idx }))
-    .sort((a, b) => b.score - a.score || a.idx - b.idx);
-  const primary = ranked[0];
-  // No keyword hits, no domain boost, no proof/market signal: the source data
-  // does not place this team anywhere. Don't fold it into substrate (the
-  // lowest-index column) as if it had a real placement — surface it as unplaced.
-  if (!primary.score) {
-    return {
-      key: "unplaced",
-      label: "no stack signal yet",
-      score: 0,
-      secondary: null,
-      reason: "profile only — no product-stack signal in declared text",
-      unplaced: true,
-    };
-  }
-  const secondary = ranked.find(item => item.key !== primary.key && item.score > 0) || null;
-  const roleReason = constStackRoleReason(primary.hits, domain);
-  return {
-    key: primary.key,
-    label: primary.label,
-    score: primary.score,
-    secondary,
-    reason: roleReason,
-  };
-}
-
-function constEvidenceModeForTeam(team, ctx) {
-  const order = new Map(CONST_STACK_ROWS.map((row, idx) => [row.key, idx]));
-  const items = constEvidenceItems(team, ctx);
-  const ranked = items
-    .filter(item => item.key !== "profile" && order.has(item.key))
-    .sort((a, b) => b.value - a.value || order.get(a.key) - order.get(b.key));
-  const top = ranked[0] || { key: "build", value: 0, note: "profile only; no stronger proof signal" };
-  if ((top.value || 0) <= 0) {
-    const profileSpec = CONST_STACK_ROWS.find(row => row.key === "profile");
-    const operating = items.find(item => item.key === "operating");
-    return { ...profileSpec, value: operating?.value || 0, note: profileSpec.hint };
-  }
-  const spec = CONST_STACK_ROWS.find(row => row.key === top.key) || CONST_STACK_ROWS[1];
-  return { ...spec, value: top.value, note: top.note || spec.hint };
-}
-
-function constProductStackModel(teams = [], ctx) {
-  const cells = new Map();
-  for (const row of CONST_STACK_ROWS) {
-    for (const col of CONST_STACK_COLUMNS) cells.set(`${row.key}:${col.key}`, []);
-  }
-  const teamRows = (Array.isArray(teams) ? teams : [])
-    .filter(team => team?.record_id && teamKind(team) !== "person")
-    .map(team => {
-      const role = constMarketRoleForTeam(team);
-      const evidence = constEvidenceModeForTeam(team, ctx);
-      const inbound = ctx?.inBy?.get(team.record_id)?.length || 0;
-      const outbound = ctx?.outBy?.get(team.record_id)?.length || 0;
-      const allEdges = [
-        ...(ctx?.inBy?.get(team.record_id) || []),
-        ...(ctx?.outBy?.get(team.record_id) || []),
-      ];
-      const typed = allEdges.filter(edge => edge.normalized).length;
-      const profile = Math.max(0, allEdges.length - typed);
-      const item = { team, role, evidence, inbound, outbound, typed, profile };
-      const key = `${evidence.key}:${role.key}`;
-      if (!cells.has(key)) cells.set(key, []);
-      cells.get(key).push(item);
-      return item;
-    });
-  for (const list of cells.values()) {
-    list.sort((a, b) =>
-      (b.inbound + b.outbound) - (a.inbound + a.outbound)
-      || String(a.team.name || a.team.record_id).localeCompare(String(b.team.name || b.team.record_id)));
-  }
-  const columnCounts = CONST_STACK_COLUMNS.map(col => ({
-    ...col,
-    count: teamRows.filter(item => item.role.key === col.key).length,
-  }));
-  return { rows: CONST_STACK_ROWS, columns: columnCounts, cells, teamRows, columnCounts };
-}
-
-function constStackItemForTeam(ctx, rid) {
-  const recordId = constText(rid);
-  return (ctx?.stackModel?.teamRows || []).find(item => item.team?.record_id === recordId) || null;
-}
-
-function constStackPlacementHtml(team, ctx) {
-  if (ctx?.mode !== "stack") return "";
-  const item = constStackItemForTeam(ctx, team?.record_id);
-  if (!item) return "";
-  const secondary = item.role.secondary;
-  const proof = `${item.evidence.label}${item.evidence.key === "profile" ? "" : ` · ${item.evidence.value}/5`}`;
-  const secondaryRead = secondary ? `also reads as ${secondary.label}` : "";
-  return `
-    <section class="ac-inspector-section is-stack-placement">
-      <h4>stack placement</h4>
-      <dl class="ac-bet-list">
-        <div><dt>product layer</dt><dd>${escHtml(item.role.label)}</dd></div>
-        ${secondaryRead ? `<div><dt>secondary role</dt><dd>${escHtml(secondaryRead)}</dd></div>` : ""}
-        <div><dt>role basis</dt><dd>${escHtml(constShortText(item.role.reason, 160))}</dd></div>
-        <div><dt>evidence</dt><dd>${escHtml(proof)}</dd></div>
-        <div><dt>evidence basis</dt><dd>${escHtml(constShortText(item.evidence.note, 170))}</dd></div>
-      </dl>
-    </section>`;
-}
-
-function constStackSummaryHtml(ctx) {
-  const model = ctx?.stackModel;
-  if (!model) return "";
-  const top = model.columnCounts.slice().sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)).slice(0, 3);
-  return `
-    <section class="ac-inspector-section is-stack-summary">
-      <h4>largest product layers</h4>
-      <div class="ac-view-chips">
-        ${top.map(item => `<span>${escHtml(item.label)}<em>${escHtml(String(item.count))}</em></span>`).join("")}
-      </div>
-    </section>`;
-}
-
-function constStackReadoutHtml(ctx) {
-  const model = ctx?.stackModel;
-  if (!model) return "";
-  const ordered = model.columnCounts.slice().sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
-  const top = ordered[0];
-  const second = ordered[1];
-  const market = ordered.find(item => item.key === "market");
-  const total = model.teamRows?.length || 0;
-  const title = top
-    ? `${top.label} is the largest product layer`
-    : "No product layers to place yet";
-  const body = top
-    ? `${top.count}/${total} projects currently read as ${top.label}${second ? `, followed by ${second.label}` : ""}. ${market && market.count <= Math.max(1, Math.floor(total * 0.16)) ? "Market/customer signal is still thin." : "Market/customer signal is visible but should be checked against traction."}`
-    : "Add team/project records before using the stack view.";
-  // No layer-count chip row here: the stack columns below already label
-  // every product layer with its count (ac-stack-layer-head), and the
-  // sentence bar carries the domain breakdown. The headline names the
-  // largest layer; the columns are the breakdown.
-  return `
-    <section class="ac-main-readout is-stack-readout" aria-label="product stack readout">
-      <div class="ac-inspector-kicker">generated stack read</div>
-      <h3>${escHtml(title)}</h3>
-      <p>${escHtml(body)}</p>
-    </section>`;
-}
-
-
 
 
 function constTeamOperatingHtml(team) {
@@ -5340,8 +5011,8 @@ function constTeamInspectorHtml(team, ctx) {
   const marketFitBody = assessed
     ? journeyDetailSection(team)
     : `<p class="ac-inspector-note">No explicit PMF journey read yet. Use the relationship and profile evidence above first.</p>`;
-  const marketFitSection = ctx?.mode === "stack" ? "" : constInspectorDetailsHtml("PMF evidence", marketFitBody);
-  const sourceProofDetails = (ctx?.mode === "stack" || !sourceProof) ? "" : constInspectorDetailsHtml("source proof", sourceProof);
+  const marketFitSection = constInspectorDetailsHtml("PMF evidence", marketFitBody);
+  const sourceProofDetails = sourceProof ? constInspectorDetailsHtml("source proof", sourceProof) : "";
   const currentBetRows = [
     ["live bet", liveBet],
     ["uncertainty", uncertainty],
@@ -5384,7 +5055,6 @@ function constTeamInspectorHtml(team, ctx) {
       <h4 class="ac-overlap-title">Where it sits</h4>
       ${constEgocentricOverlapSvg(team, ctx)}
     </section>
-    ${constStackPlacementHtml(team, ctx)}
     ${isBubble ? "" : constTeamActionCardHtml(team, ctx)}
     ${constTeamPeopleHtml(team, ctx)}
     ${isBubble ? "" : relationshipDetails}
@@ -5727,11 +5397,6 @@ function constellationInspectorDefaultHtml(ctx) {
       ${constMapReadoutHeroHtml(ctx, "ring readout")}
       ${constCorridorReadoutHtml(ctx)}
       ${constDataCoverageHtml(ctx)}`;
-  }
-  if (ctx?.mode === "stack") {
-    return `
-      ${constStackReadoutHtml(ctx)}
-      ${constStackSummaryHtml(ctx)}`;
   }
   if (ctx?.interest?.active) {
     return `
@@ -6567,7 +6232,7 @@ function constGoalPlanModel(teams = []) {
   const medianPrev = prevPw != null ? med(tracked.map(r => teamWeekRead(r.team, prevPw).stage).sort((a, b) => a - b)) : null;
   const trend = (medianStage != null && medianPrev != null) ? Math.round((medianStage - medianPrev) * 10) / 10 : null;
   const summary = { counts, mom, medianStage, trend, topMover, topSlip, atRisk, week: active, weekLabel: standingWeekLabel(active), hasWeekly: standingWeeklyWeeks().length > 0 };
-  // teamRows keep the stack hover tooltip (constStackItemForTeam) consistent.
+  // Each row carries a compact role read (standing + momentum) for the standing view.
   const teamRows = rows.map(r => ({
     team: r.team,
     role: {
@@ -7594,6 +7259,12 @@ function constBubbleContainerSvg(c, accentStyle) {
     </g>`;
 }
 
+// Resting team labels on the bubble map: the per-space anchor (rank 0) always
+// shows; other teams reveal their name at rest only if their bubble is at least
+// this big (viewBox radius units). Large teams have room to carry a label; small
+// ones stay hover-only so the at-rest map doesn't collapse into a name pile.
+const BUBBLE_LABEL_R_MIN = 12.5;
+
 function renderConstellation() {
   const cohort = activeConstellationCohort();
   const teams = cohort.teams || [];
@@ -7806,7 +7477,9 @@ function renderConstellation() {
     // so the at-rest map reads as: space labels = where things are, one anchor
     // name per space, and any team's name on hover (sidebar + in-place).
     const labelLines = constNodeLabelLines(team, viewMode);
-    const smallBubble = isBubble && rank !== 0 && !grainDeep; // deepest zoom band rests ALL team labels
+    // Anchor (rank 0) always rests a label; other teams rest one only if their
+    // bubble is large enough to carry it (BUBBLE_LABEL_R_MIN). Deepest zoom rests all.
+    const smallBubble = isBubble && rank !== 0 && r < BUBBLE_LABEL_R_MIN && !grainDeep;
     const fullLabel = constText(team.name || team.record_id);
     return `
     <g class="ac-node-group ac-node-domain-${constDomainClass(team.domain)}${orphan}${sourceClass}${interestClass}${densityClass}${keystoneClass}${secondaryClass}${bridgeRank ? " is-bridge-ranked" : ""}${domainFilter !== "all" && constDomainClass(team.domain) !== domainFilter ? " is-domain-dim" : ""}"${smallBubble ? ' data-small-bubble="true"' : ""} data-record-id="${escHtml(team.record_id)}" data-profile-link-count="${gapCount}" style="${escAttr(nodeAccentStyle + vtName)}" role="button" tabindex="0" aria-label="${escAttr(`inspect ${team.name || team.record_id}`)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
@@ -8362,9 +8035,42 @@ function wireDetailDismiss() {
 }
 
 // ─── constellation hover ─────────────────────────────────────────────
+// At-rest team labels on the bubble map: BUBBLE_LABEL_R_MIN lets larger non-anchor
+// teams carry a resting name, but two big bubbles can still sit close enough that
+// their labels touch. After layout, greedily keep labels by priority (anchor first,
+// then larger radius) and demote any whose measured box overlaps a kept one to
+// hover-only (data-small-bubble). Real geometry, so the resting map never piles up.
+function deconflictBubbleLabels(stage) {
+  if (!stage) return;
+  const groups = [...stage.querySelectorAll('.ac-node-group[data-record-id]:not([data-small-bubble])')];
+  const cand = [];
+  for (const g of groups) {
+    const txt = g.querySelector('text');
+    if (!txt) continue;
+    const box = txt.getBoundingClientRect();
+    if (!box.width || !box.height) continue;
+    const shape = g.querySelector('.ac-node-shape');
+    const r = shape ? (parseFloat(shape.getAttribute('r')) || 0) : 0;
+    cand.push({ g, box, r, anchor: g.classList.contains('is-keystone-label') });
+  }
+  cand.sort((a, b) => (Number(b.anchor) - Number(a.anchor)) || (b.r - a.r));
+  const kept = [];
+  const PAD = 2; // px breathing room so labels that merely touch still deconflict
+  for (const c of cand) {
+    const a = c.box;
+    const hit = kept.some(k => {
+      const b = k.box;
+      return a.left - PAD < b.right && b.left - PAD < a.right && a.top - PAD < b.bottom && b.top - PAD < a.bottom;
+    });
+    if (hit) c.g.setAttribute('data-small-bubble', 'true');
+    else kept.push(c);
+  }
+}
+
 function wireConstellationHover() {
   wireConstellationModeNav();
   const stage = state.canvas.querySelector(".alch-constellation-stage");
+  if (stage && stage.getAttribute("data-view") === "bubble") deconflictBubbleLabels(stage);
   // Selection chip + readout name-links live OUTSIDE the inspector (which
   // has its own delegated handler), so the canvas owns them. Bound once —
   // state.canvas survives innerHTML swaps, so per-render binds would pile up.
@@ -8425,9 +8131,7 @@ function wireConstellationHover() {
     const activeLens = viewMode === "ring" || viewMode === "stack" ? "all" : constNormalizeConstellationLens(state.constellationLens);
     const baseInspectorCtx = { ...constellationInspectorContext(teams, edges, cohort?.people || []), clusters, distributionWells: model.wellsDef, lens: activeLens, mode: viewMode, scope, interest: constInterestContext(teams, clusters, edges, state.constInterest), bubbleMap: viewMode === "bubble" ? constBubbleMapSummary(model, constNormalizeGranularity(state.constellationGranularity)) : null };
     const peopleModel = scope === "people" ? constPeopleNetworkModel(cohort?.people || [], teams, 1120, 620) : null;
-    const inspectorCtx = viewMode === "stack"
-      ? { ...baseInspectorCtx, stackModel: constProductStackModel(teams, baseInspectorCtx) }
-      : (peopleModel ? { ...baseInspectorCtx, peopleModel } : baseInspectorCtx);
+    const inspectorCtx = peopleModel ? { ...baseInspectorCtx, peopleModel } : baseInspectorCtx;
     const indeg = constellationIndegree(teams, cohort?.dependencies || []);
     const sourceStatsByRid = new Map();
     for (const edge of edges) {
