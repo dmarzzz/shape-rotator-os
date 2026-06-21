@@ -14,7 +14,6 @@ links:
   github: null
   x: null
   website: null
-dietary_restrictions:
 go_to_them_for:
   - post-quantum identity implementation
   - anonymous credential systems

@@ -48,7 +48,8 @@ on:
       - ".github/workflows/github-releases-sync.yml"
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
 
 # Serialize against main; queue rather than cancel so we never drop a refresh.
 concurrency:
@@ -81,6 +82,26 @@ jobs:
 
       - name: rebuild apps/os/src/cohort-surface.json
         run: npm run build:cohort
+
+      - name: open guarded bundle refresh PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SYNC_BRANCH: automation/github-releases-sync
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$SYNC_BRANCH"
+          git add cohort-data/artifacts/github-releases cohort-data/artifacts/cohort-insights apps/os/src/cohort-surface.json
+          node scripts/check-commit-privacy-boundary.mjs --staged
+          npm run surface:scan
+          if git diff --cached --quiet; then
+            echo "No committed release-bundle changes."
+          else
+            git commit -m "chore(releases): sync cohort GitHub releases"
+            git push --force-with-lease origin "$SYNC_BRANCH"
+            gh pr create --base main --head "$SYNC_BRANCH" --title "chore(releases): sync cohort GitHub releases" --body "Automated refresh of generated cohort GitHub release artifacts and offline cohort surface." || echo "Bundle refresh PR already exists or could not be created."
+          fi
 
       - name: publish release feed to Supabase (live source)
         # The apps read this row LIVE (public_releases_feed), so a new release

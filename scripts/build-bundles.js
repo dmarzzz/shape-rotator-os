@@ -80,6 +80,17 @@ function pickSurface(obj, whitelist) {
   return out;
 }
 
+function sanitizePersonSurface(surface) {
+  delete surface.email;
+  delete surface.dietary_restrictions;
+  if (surface.links && typeof surface.links === "object") {
+    const links = { ...surface.links };
+    delete links.telegram;
+    surface.links = links;
+  }
+  return surface;
+}
+
 function extractPublicPersonBio(body) {
   const raw = String(body || "").trim();
   if (!raw) return "";
@@ -111,6 +122,7 @@ function loadDir(dir, recordType, surfaceFields) {
     }
     const surface = pickSurface(frontmatter, surfaceFields);
     if (recordType === "person") {
+      sanitizePersonSurface(surface);
       const bio = extractPublicPersonBio(body);
       if (bio) surface.bio_md = bio;
     }

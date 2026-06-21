@@ -8,7 +8,6 @@ role: lattice cryptography
 role_class: cohort-member
 geo: NYC (Columbia)
 domain: crypto
-email: null
 dates_start: 2026-05-18
 dates_end: 2026-07-25
 links:
@@ -16,7 +15,6 @@ links:
   x: lilariv_
   website: null
   linkedin: null
-dietary_restrictions:
 now: "Working on Pramaana's lattice-cryptography side for post-quantum anonymous identity."
 skill_areas:
   - lattice-cryptography

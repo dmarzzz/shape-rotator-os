@@ -8,7 +8,6 @@ role: "lead"
 role_class: visiting-scholar
 geo: "SF / Bay Area"
 domain: ai
-email: developer@elizalabs.ai
 links:
   github: lalalune
   x: shawmakesmagic

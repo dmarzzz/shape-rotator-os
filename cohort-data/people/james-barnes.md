@@ -8,7 +8,6 @@ role: lead
 role_class: cohort-member
 geo: NYC (the Convent)
 domain: ai
-email: null
 dates_start: 2026-05-18
 dates_end: 2026-07-25
 links:
@@ -16,7 +15,6 @@ links:
   x: null
   website: null
   linkedin: null
-dietary_restrictions:
 now: "Shipping Etherea's revenue-positive creative-AI surface: speech, music, and motion into real-time video and shaders."
 skill_areas:
   - generative-media

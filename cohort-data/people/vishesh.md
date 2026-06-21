@@ -8,7 +8,6 @@ role: lead
 role_class: visiting-scholar
 geo: NYC/FL
 domain: ai
-email: null
 dates_start: 2026-05-15
 dates_end: 2026-06-14
 links:
@@ -16,7 +15,6 @@ links:
   x: visavishesh
   website: null
   linkedin: null
-dietary_restrictions:
 now: "Building real-time generative visualization and audio-reactive volumetric LED experiments."
 skill_areas:
   - generative-media

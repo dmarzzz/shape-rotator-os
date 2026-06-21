@@ -32,6 +32,21 @@ jobs:
       - name: cohort bundle is current
         run: npm run check:cohort
 
+      - name: vendor web assets
+        run: npm run vendor:web
+
+      - name: materialize cohort bundle
+        run: npm run build:cohort
+
+      - name: privacy boundary scan
+        run: node scripts/check-commit-privacy-boundary.mjs --all
+
+      - name: public surface scan
+        run: npm run surface:scan
+
+      - name: full unit suite
+        run: npm test
+
       - name: cohort web/electron detail parity
         run: npm run check:cohort-detail-parity
 

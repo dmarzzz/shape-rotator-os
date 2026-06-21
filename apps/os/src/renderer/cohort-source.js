@@ -1129,12 +1129,23 @@ export function isSyncAvailable() {
   return !!_cache?._syncAvailable;
 }
 
+function refreshIntervalMs() {
+  return _cache?._syncAvailable ? SYNC_REFRESH_MS : REFRESH_MS;
+}
+
+function rescheduleRefreshTimerIfNeeded(prevSyncAvailable) {
+  const nextSyncAvailable = !!_cache?._syncAvailable;
+  if (prevSyncAvailable === nextSyncAvailable) return;
+  if (_refreshTimer) { clearInterval(_refreshTimer); _refreshTimer = null; }
+  scheduleRefresh();
+}
+
 function scheduleRefresh() {
   if (_refreshTimer) return;
   // Use the faster cadence when sync is live so a peer's profile edit
   // shows up within one sync tick instead of waiting on the github poll.
   // The fallback is still gh-only when swf-node is unreachable.
-  const interval = _cache?._syncAvailable ? SYNC_REFRESH_MS : REFRESH_MS;
+  const interval = refreshIntervalMs();
   _refreshTimer = setInterval(refreshTick, interval);
 }
 
@@ -1144,13 +1155,9 @@ async function refreshTick() {
   // in sync. The LS write + subscriber notify happens inside
   // _startBackgroundRefresh; we only handle sync-availability cadence
   // switching here.
-  const prevSyncAvail = !!_cache?._syncAvailable;
+  const prevSyncAvailable = !!_cache?._syncAvailable;
   await _startBackgroundRefresh();
-  const nextSyncAvail = !!_cache?._syncAvailable;
-  if (prevSyncAvail !== nextSyncAvail) {
-    if (_refreshTimer) { clearInterval(_refreshTimer); _refreshTimer = null; }
-    scheduleRefresh();
-  }
+  rescheduleRefreshTimerIfNeeded(prevSyncAvailable);
 }
 
 /**

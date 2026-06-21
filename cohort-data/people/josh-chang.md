@@ -8,7 +8,6 @@ role: cofounder
 role_class: cohort-member
 geo: NYC (Cornell Tech)
 domain: crypto
-email: null
 dates_start: 2026-05-18
 dates_end: 2026-07-25
 links:
@@ -16,7 +15,6 @@ links:
   x: null
   website: null
   linkedin: null
-dietary_restrictions:
 now: "Co-building Crossroads, a Liquefaction-based wallet for policy-constrained cross-chain signing."
 skill_areas:
   - cross-chain

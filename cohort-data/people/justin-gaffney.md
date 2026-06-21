@@ -8,7 +8,6 @@ role: lead
 role_class: cohort-member
 geo: null
 domain: null
-email: null
 dates_start: 2026-05-18
 dates_end: 2026-07-25
 links:
@@ -16,7 +15,6 @@ links:
   x: null
   website: null
   linkedin: null
-dietary_restrictions:
 now: "Running Prova's TEE-attested healthcare-agent workflow across prior authorization and EHR integration."
 skill_areas:
   - healthcare-ai

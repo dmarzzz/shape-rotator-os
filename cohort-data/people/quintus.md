@@ -8,7 +8,6 @@ role: lead
 role_class: visiting-scholar
 geo: null
 domain: tee
-email: null
 dates_start: 2026-05-18
 dates_end: 2026-07-25
 absences:
@@ -23,7 +22,6 @@ links:
   x: 0xQuintus
   website: null
   linkedin: null
-dietary_restrictions:
 now: working on Trustless TEE and the trust-root assumptions under confidential-compute systems
 skill_areas:
   - tee

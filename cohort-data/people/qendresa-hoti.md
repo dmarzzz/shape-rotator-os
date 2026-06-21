@@ -8,7 +8,6 @@ role: null
 role_class: visiting-scholar
 geo: NYC (from mid-April)
 domain: ai
-email: null
 dates_start: 2026-05-18
 dates_end: 2026-07-25
 links:
@@ -16,7 +15,6 @@ links:
   x: null
   website: qendresa.dev
   linkedin: null
-dietary_restrictions:
 now: "Building AgentEval, a pre-deployment evaluation system for commerce AI agents."
 skill_areas:
   - ai-evaluation

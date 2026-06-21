@@ -8,7 +8,6 @@ role: ml infrastructure
 role_class: cohort-member
 geo: NYC
 domain: ai
-email: null
 dates_start: 2026-05-18
 dates_end: 2026-07-25
 links:
@@ -16,7 +15,6 @@ links:
   x: null
   website: null
   linkedin: mira-ozawa
-dietary_restrictions:
 now: "Working in ML infrastructure around Contexto-style agent context, memory, and retrieval systems."
 skill_areas:
   - agentic-workflows

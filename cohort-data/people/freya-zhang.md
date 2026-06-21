@@ -8,7 +8,6 @@ role: cofounder
 role_class: cohort-member
 geo: distributed (NYC / SF / Asia)
 domain: crypto
-email: null
 dates_start: 2026-05-18
 dates_end: 2026-07-25
 links:
@@ -16,7 +15,6 @@ links:
   x: null
   website: null
   linkedin: null
-dietary_restrictions:
 now: "Backtesting delta-neutral stock-portfolio hedges on Polymarket sports markets — scraping L2/L3 orderbook history toward a demo."
 skill_areas:
   - prediction-markets

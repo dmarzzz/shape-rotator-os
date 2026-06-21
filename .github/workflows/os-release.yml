@@ -212,6 +212,12 @@ jobs:
       - name: regenerate cohort-surface.json from cohort-data/
         run: npm run build:cohort
 
+      - name: privacy boundary scan
+        run: node scripts/check-commit-privacy-boundary.mjs --all
+
+      - name: public surface scan
+        run: npm run surface:scan
+
       # Fast fail-early gate: bundle the renderer's full import graph with
       # esbuild's real resolver before the ~10-min electron-builder run.
       # Catches a renderer module importing a bare package that isn't

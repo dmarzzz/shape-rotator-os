@@ -8,7 +8,6 @@ role: "I Vibe"
 role_class: visiting-scholar
 geo: "London"
 domain: crypto
-email: null
 links:
   github: "mikeishiring"
   x: "mikeishiring"
@@ -19,7 +18,6 @@ contribute_interests: "Live fire rounds of feedback from a non technical perspec
 availability_pref: null
 weekly_intention: "Trial Centaur"
 now: "Shape Rotator OS product feedback and Centaur trial"
-dietary_restrictions: null
 skill_areas:
   - product-feedback
   - crypto-product

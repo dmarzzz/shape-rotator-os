@@ -8,7 +8,6 @@ role: lead
 role_class: visiting-scholar
 geo: PT (distributed)
 domain: tee
-email: null
 dates_start: 2026-06-01
 dates_end: 2026-07-25
 links:
@@ -16,7 +15,6 @@ links:
   x: null
   website: tuvalugpt.tv
   linkedin: null
-dietary_restrictions:
 now: "Building TvEE RL's attested reinforcement-learning workflow and tuvalugpt demo surface."
 skill_areas:
   - tee

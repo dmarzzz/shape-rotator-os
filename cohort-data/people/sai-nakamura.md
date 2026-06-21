@@ -8,7 +8,6 @@ role: agent runtime
 role_class: cohort-member
 geo: PST
 domain: ai
-email: null
 dates_start: 2026-05-18
 dates_end: 2026-07-25
 links:
@@ -16,7 +15,6 @@ links:
   x: sainak
   website: sainak.dev
   linkedin: null
-dietary_restrictions:
 now: "Co-building JJHub's agent runtime and developer-tooling surface."
 skill_areas:
   - agentic-workflows

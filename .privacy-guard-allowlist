@@ -1,0 +1,11 @@
+# Privacy guard allowlist — exact repo-relative paths the privacy boundary may skip.
+# One path per line. Only add a TRUE false positive, with a one-line reason above it.
+# Adding a path here is a deliberate, reviewable decision — never bypass with --no-verify.
+#
+# Format: <repo-relative-path>
+# Example (do not uncomment unless real):
+#   # documented example token shape, not a real secret
+#   docs/some-doc-with-example-token.md
+
+# fake GOCSPX-shaped fixture used to test the redactor — not a real secret
+scripts/distillation-contract.test.mjs

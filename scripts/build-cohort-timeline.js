@@ -99,6 +99,17 @@ function pickSurface(obj, whitelist) {
   return out;
 }
 
+function sanitizePersonSurface(surface) {
+  delete surface.email;
+  delete surface.dietary_restrictions;
+  if (surface.links && typeof surface.links === "object") {
+    const links = { ...surface.links };
+    delete links.telegram;
+    surface.links = links;
+  }
+  return surface;
+}
+
 function showFile(ref, repoPath) {
   return git(["show", `${ref}:${repoPath}`], { allowFail: true });
 }
@@ -184,6 +195,7 @@ function loadRecordFromRaw(raw, sourceLabel, spec, schema, includeBodyMarker = f
   if (!frontmatter.record_id) return null;
   const whitelist = schema[spec.key]?.surface_fields || [];
   const surface = pickSurface(frontmatter, whitelist);
+  if (spec.recordType === "person") sanitizePersonSurface(surface);
   if (includeBodyMarker) {
     Object.defineProperty(surface, "__body_hash", {
       value: hashJson(normalizeBody(body)),
@@ -226,12 +238,11 @@ function resolveSnapshotRef(snapshot, baseRef) {
 
 function commitInfo(commit) {
   const line = git(["show", "-s", "--format=%H%x1f%ct%x1f%an%x1f%ae%x1f%s", commit]).trim();
-  const [hash, epoch, authorName, authorEmail, subject] = line.split("\x1f");
+  const [hash, epoch, authorName, _authorEmail, subject] = line.split("\x1f");
   return {
     commit: hash,
     committed_at: new Date(Number(epoch) * 1000).toISOString(),
     author_name: authorName || "",
-    author_email: authorEmail || "",
     subject: subject || "",
   };
 }
@@ -247,7 +258,6 @@ function commitInfoMap(commits) {
       commit: hash,
       committed_at: new Date(Number(epoch) * 1000).toISOString(),
       author_name: authorName || "",
-      author_email: authorEmail || "",
       subject: subject || "",
     });
   }
@@ -434,7 +444,6 @@ function buildEvents(schema, baseRef) {
         commit: c.commit,
         commit_short: c.commit.slice(0, 7),
         author_name: c.authorName || "",
-        author_email: c.authorEmail || "",
         subject: c.subject || "",
         collection: spec.key,
         record_type: record.record_type || spec.recordType,

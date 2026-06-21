@@ -8,7 +8,6 @@ role: null
 role_class: cohort-member
 geo: NYC
 domain: ai
-email: sl9639@nyu.edu
 dates_start: 2026-05-18
 dates_end: 2026-07-25
 links:
@@ -16,8 +15,6 @@ links:
   x: kelrouter
   website: null
   linkedin: kelsen-liu-668b72258
-  telegram: kelsenLu
-dietary_restrictions:
 now: "Repositioned Bitrouter around reliability + cost for coding agents — stars 2× post-Shaw-retweet; working signups one by one toward first paid."
 skill_areas:
   - ai-infrastructure

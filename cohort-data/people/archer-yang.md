@@ -8,7 +8,6 @@ role: cofounder
 role_class: cohort-member
 geo: Hong Kong
 domain: ai
-email: null
 dates_start: 2026-05-18
 dates_end: 2026-07-25
 links:
@@ -16,7 +15,6 @@ links:
   x: null
   website: null
   linkedin: null
-dietary_restrictions:
 now: "Building BitRouter's technical core, including x402 and MPP payment integrations for P2P model routing."
 skill_areas:
   - p2p-networks
