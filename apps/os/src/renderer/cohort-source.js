@@ -25,11 +25,12 @@
 
 import yaml from "js-yaml";
 import { getManifest, getRecord } from "./sync-client.js";
-import { fetchPublicEvidenceCards, fetchCohortEvidenceCards, COHORT_APP_READER_ENABLED } from "./supabase-evidence.mjs";
-import { evidenceDependencyRecords, insightCollaborationDependencyRecords } from "./cohort-evidence-index.mjs";
+import { fetchPublicEvidenceCards, fetchCohortEvidenceCards, COHORT_APP_READER_ENABLED, fetchCohortInsightCards } from "./supabase-evidence.mjs";
+import { evidenceDependencyRecords, insightCollaborationDependencyRecords, collaborationContributionDependencyRecords } from "./cohort-evidence-index.mjs";
 import { fetchCohortArticles } from "./supabase-articles.mjs";
 import { fetchCohortDistillations } from "./supabase-distillations.mjs";
 import { fetchAllSpheres } from "./supabase-sphere.mjs";
+import { fetchReleasesFeed } from "./supabase-releases.mjs";
 
 const GH_REPO     = "dmarzzz/shape-rotator-os";
 const GH_BRANCH   = "main";
@@ -751,34 +752,61 @@ async function applyEvidenceOverlay(surface) {
     // The gated T2 cohort read is ENABLED (see COHORT_APP_READER_ENABLED): when a
     // cohort key is configured the named/cohort-internal T2 cards load live; with no
     // key it no-ops gracefully and we serve T2 from the committed bundle + the anon T3
-    // read. Both reads run in parallel and never throw.
-    const [cohort, pub] = await Promise.all([
+    // read. The 3rd read pulls gated cohort-insight cards (collaboration_contribution)
+    // for the live clique-edge path. All reads run in parallel and never throw.
+    const [cohort, pub, insight] = await Promise.all([
       COHORT_APP_READER_ENABLED ? fetchCohortEvidenceCards() : Promise.resolve({ cards: [], source: "disabled" }),
       fetchPublicEvidenceCards(),
+      fetchCohortInsightCards(),
     ]);
     const gotCohort = cohort.source === "supabase-cohort";
     const gotPublic = pub.source === "supabase";
-    if (!gotCohort && !gotPublic) return surface; // no live read succeeded — keep existing
-    const seen = new Set();
-    const merged = [];
-    for (const card of [...(gotCohort ? cohort.cards : []), ...(gotPublic ? pub.cards : [])]) {
-      if (card && card.id && !seen.has(card.id)) { seen.add(card.id); merged.push(card); }
-    }
-    surface.transcript_evidence_cards = merged;
-    surface._evidenceSource = gotCohort ? (gotPublic ? "supabase-cohort+public" : "supabase-cohort") : "supabase-live";
+    if (gotCohort || gotPublic) {
+      const seen = new Set();
+      const merged = [];
+      for (const card of [...(gotCohort ? cohort.cards : []), ...(gotPublic ? pub.cards : [])]) {
+        if (card && card.id && !seen.has(card.id)) { seen.add(card.id); merged.push(card); }
+      }
+      surface.transcript_evidence_cards = merged;
+      surface._evidenceSource = gotCohort ? (gotPublic ? "supabase-cohort+public" : "supabase-cohort") : "supabase-live";
 
-    // Shape collaboration-edge evidence into dependency records so the relationship
-    // map renders them NATIVELY (no view code) — deduped vs the declared deps the
-    // surface already carries, provenance-tagged (status=session_observed). Additive
-    // + idempotent (skip any evidence-edge id already present on re-overlay).
-    const baseDeps = Array.isArray(surface.dependencies) ? surface.dependencies : [];
-    const edgeRecords = evidenceDependencyRecords(merged, baseDeps);
-    if (edgeRecords.length) {
-      const have = new Set(baseDeps.map((d) => d && d.record_id).filter(Boolean));
-      surface.dependencies = [...baseDeps, ...edgeRecords.filter((r) => !have.has(r.record_id))];
+      // Shape collaboration-edge evidence into dependency records so the relationship
+      // map renders them NATIVELY (no view code) — deduped vs the declared deps the
+      // surface already carries, provenance-tagged (status=session_observed). Additive
+      // + idempotent (skip any evidence-edge id already present on re-overlay).
+      const baseDeps = Array.isArray(surface.dependencies) ? surface.dependencies : [];
+      const edgeRecords = evidenceDependencyRecords(merged, baseDeps);
+      if (edgeRecords.length) {
+        const have = new Set(baseDeps.map((d) => d && d.record_id).filter(Boolean));
+        surface.dependencies = [...baseDeps, ...edgeRecords.filter((r) => !have.has(r.record_id))];
+      }
     }
+    // GATED cohort-insight cards (collaboration_contribution) — kept independent of the
+    // evidence read above so collaboration edges light up even if only the insight view
+    // returned. No cards (no key / outage) ⇒ surface keeps whatever it already carries.
+    if (insight && insight.source === "supabase-cohort" && Array.isArray(insight.cards)) {
+      surface._cohortInsightCards = insight.cards;
+    }
+    applyCollaborationEdges(surface);
   } catch {
     // keep whatever the surface already carries
+  }
+  return surface;
+}
+
+// Inject GitHub collaboration-contribution edges into the dependency set so the
+// ecosystem/relationship map + collab board render them natively (cohort-relations.js
+// → constellationDependencyEdges). Reads the gated cohort-insight cards
+// (surface._cohortInsightCards, from the Supabase view); teams that co-contributed to
+// the same repo become contributed_to edges. Additive + idempotent; no cards ⇒ no-op.
+function applyCollaborationEdges(surface) {
+  const cards = surface && surface._cohortInsightCards;
+  if (!Array.isArray(cards) || !cards.length) return surface;
+  const baseDeps = Array.isArray(surface.dependencies) ? surface.dependencies : [];
+  const records = collaborationContributionDependencyRecords(cards, baseDeps);
+  if (records.length) {
+    const have = new Set(baseDeps.map((d) => d && d.record_id).filter(Boolean));
+    surface.dependencies = [...baseDeps, ...records.filter((r) => !have.has(r.record_id))];
   }
   return surface;
 }
@@ -835,6 +863,30 @@ async function applySphereOverlay(surface) {
     if (source === "supabase") {
       surface.person_spheres = spheres;
       surface._sphereSource = "supabase-live";
+    }
+  } catch {
+    // keep whatever the surface already carries
+  }
+  return surface;
+}
+
+// Apply the live Supabase release-feed overlay. The membrane "what's new" feed
+// (whats_new + github_releases) is published to public_releases_feed by the
+// github-releases-sync workflow, so a new release shows up live — no git PR into
+// protected main required (which is what previously froze the feed). This is the
+// SAME live-source / committed-fallback split the calendar uses. On a Supabase
+// outage — or before the table exists — the surface keeps whatever it already
+// carries (the committed bundle's whats_new, or an LS-cached set), so the feed
+// degrades gracefully instead of going stale-forever. We only overwrite when the
+// live row actually carries items, so an empty/missing row never blanks a feed
+// the committed bundle could still render.
+async function applyReleaseOverlay(surface) {
+  try {
+    const { whatsNew, githubReleases, source } = await fetchReleasesFeed();
+    if (source === "supabase") {
+      if (Array.isArray(whatsNew) && whatsNew.length) surface.whats_new = whatsNew;
+      if (Array.isArray(githubReleases) && githubReleases.length) surface.github_releases = githubReleases;
+      surface._releaseSource = "supabase-live";
     }
   } catch {
     // keep whatever the surface already carries
@@ -1016,6 +1068,7 @@ function _startBackgroundRefresh({ forceGithub = false } = {}) {
       await applyArticleOverlay(merged);
       await applyDistillationOverlay(merged);
       await applySphereOverlay(merged);
+      await applyReleaseOverlay(merged);
       merged._sig = signatureOf(merged);
       // Did anything actually change? If not, no subscriber notify.
       const prevSig = _cache?._sig;

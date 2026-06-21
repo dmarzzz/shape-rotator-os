@@ -18,6 +18,10 @@ import {
   parseWeekRow, parseRecurring, currentWeekIdx, phaseFor,
   CALENDAR_URL,
 } from "@shape-rotator/shape-ui";
+// The curated session→transcript join (date + title fragments → recorded source).
+// Previously consumed only by build-bundles for dossier timelines; surfacing it here
+// makes the calendar tell you which sessions were recorded, instead of being silent.
+import { CALENDAR_TRANSCRIPT_MATCHES } from "../content/context/calendar-transcript-matches.js";
 
 const PRIMARY_TAB = "May 18 Start";
 const WEEK_COUNT  = 10;
@@ -126,7 +130,7 @@ function uidForGoogleRecord(record = {}, blockIndex = 1) {
   return blockIndex === 1 ? baseUid : baseUid.replace("@", `-block-${blockIndex}@`);
 }
 
-function addGoogleOnlyManagedEvents(days = [], calendarGoogleEvents = {}, seenShapeKeys = new Set()) {
+function addGoogleOnlyManagedEvents(days = [], calendarGoogleEvents = {}, seenShapeKeys = new Set(), catHide = new Set()) {
   const dayByIso = new Map(days.map((day) => [isoDay(day.dayMs), day]));
   const records = Object.values(calendarGoogleEvents?.by_shape_key || {});
   for (const record of records) {
@@ -135,13 +139,17 @@ function addGoogleOnlyManagedEvents(days = [], calendarGoogleEvents = {}, seenSh
     const day = dayByIso.get(googleRecordStartIso(record));
     if (!day) continue;
     const block = googleRecordBlockText(record);
+    const cat = c2Category(block);
+    // Category filter (shared with the grid's own events) — a hidden type
+    // simply isn't added, so the board reflows around it.
+    if (catHide.has(cat.key)) { seenShapeKeys.add(shapeKey); continue; }
     const timing = googleRecordTiming(record);
     const blockIndex = Number(record.shape_calendar_block_index) || 1;
     const item = {
       kind: "event",
       block,
       content: c2ParseBlock(block),
-      cat: c2Category(block),
+      cat,
       timing,
       calendar: {
         baseUid: record.shape_calendar_base_uid || "",
@@ -165,6 +173,7 @@ const C2_CATEGORIES = [
   { key: "demo",    label: "demo night",     re: /demo night|showcase|demo day/i },
   { key: "oh",      label: "office hour",    re: /office hour|pmf check|\bcheck[ -]?point|\b1:1/i },
   { key: "salon",   label: "salon",          re: /salon/i },
+  { key: "social",  label: "tea / social",   re: /tea on roof|\btea\b|happy hour|coffee|social hour|\bmixer\b/i },
   { key: "weekly",  label: "sr weekly",      re: /\bweekly\b|what did you do/i },
   { key: "coord",   label: "coordination",   re: /coordinat|attribution/i },
   { key: "hack",    label: "hacking",        re: /\bhack|hackathon|open jam|\bfinals\b|submission|build night/i },
@@ -173,6 +182,7 @@ const C2_CATEGORIES = [
 export const C2_LEGEND = [
   { key: "oh",     label: "office hours" },
   { key: "salon",  label: "salon" },
+  { key: "social", label: "tea / social" },
   { key: "weekly", label: "weekly / self-org" },
   { key: "coord",  label: "coordination" },
   { key: "review", label: "demo review" },
@@ -367,12 +377,29 @@ export function flattenScheduleEvents(data) {
 // view: "cal" (the timeline grid) | "presence" (caller-supplied availability
 // gantt — the same renderer the legacy calendar page uses, passed in as
 // presenceHtml so this module stays presentation-only).
-export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 0, source = null, view = "cal", presenceHtml = "", timelineHtml = "", activity = [] } = {}) {
+//
+// catHidden: category keys the legend-filter has switched off (events of those
+// types are dropped and the board reflows around them).
+// signals: caller-computed daily context that rides under the day headers —
+//   { rowsHidden:[], scope:{id,name,teams:[{id,name}]}, perDay:[{inTown,inTownNames[]}], standing:{stage,label}|null }
+// People presence + per-week PMF live outside this module's data, so the host
+// (alchemy.js) computes them and passes the shaped result in; this module stays
+// presentation-only.
+export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 0, source = null, view = "cal", presenceHtml = "", activity = [], catHidden = [], signals = null } = {}) {
   const tab = data?.tabs?.[PRIMARY_TAB] || [];
   const safeWeekIdx = Math.max(0, Math.min(WEEK_COUNT - 1, weekIdx | 0));
   const week = parseWeekRow(tab[2 + safeWeekIdx] || [], safeWeekIdx);
   const phase = phaseFor(safeWeekIdx + 1);
-  const recurring = parseRecurring(tab);
+  const catHide = new Set(Array.isArray(catHidden) ? catHidden : []);
+
+  // ── daily-signal state (computed by the host; see signals contract above) ──
+  // who's in town (real presence) + what shipped (real activity); scope focuses
+  // both on one workstream. Standing is NOT ported — seed data lives in the
+  // standing views where its provenance is explained.
+  const scopeTeams = Array.isArray(signals?.scope?.teams) ? signals.scope.teams : [];
+  const scopeId = signals?.scope?.id && scopeTeams.some(t => t.id === signals.scope.id) ? signals.scope.id : null;
+  const scopeName = scopeId ? (scopeTeams.find(t => t.id === scopeId)?.name || scopeId) : "all cohort";
+  const perDaySig = Array.isArray(signals?.perDay) ? signals.perDay : [];
 
   // ── per-day model: split timed vs all-day, classify, layout overlaps ─
   const seenShapeKeys = new Set();
@@ -384,15 +411,17 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       allday.push({ kind: "anchor", title: a.title, subtitle: a.subtitle, cat: { key: "default", label: "", tbc: false } });
     }
     d.blocks.forEach((block, blockIndex) => {
-      const timing = c2BlockTiming(block);
       const blockNumber = blockIndex + 1;
       const shapeKey = calendarShapeKey(baseUid, blockNumber);
-      seenShapeKeys.add(shapeKey);
+      seenShapeKeys.add(shapeKey);  // still claim the key so its google twin stays hidden too
+      const cat = c2Category(block);
+      if (catHide.has(cat.key)) return;  // legend-filter dropped this type
+      const timing = c2BlockTiming(block);
       const item = {
         kind: "event",
         block,
         content: c2ParseBlock(block),
-        cat: c2Category(block),
+        cat,
         timing,
         calendar: {
           baseUid,
@@ -441,30 +470,42 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
     }
   }
 
-  addGoogleOnlyManagedEvents(days, calendarGoogleEvents, seenShapeKeys);
+  addGoogleOnlyManagedEvents(days, calendarGoogleEvents, seenShapeKeys, catHide);
 
-  // ── cohort activity lane ─────────────────────────────────────────────
+  // ── cohort activity lane ("shipped") ─────────────────────────────────
   // Releases + commits land on their day as clickable blocks — the calendar
-  // becomes "what the cohort shipped this week", not just the schedule. Each
-  // block drills to its team (data-c2-act = record id) via wireCalendar.
+  // becomes "what the cohort shipped this week", not just the schedule. A click
+  // now REVEALS the ship in place (with a secondary "open team →"), instead of
+  // teleporting straight to the team dossier. Scoped to one workstream when the
+  // scope chip picks one.
   const ACT_KINDS = new Set(["release", "commit"]);
   const activityList = Array.isArray(activity) ? activity : [];
   for (const day of days) {
     const iso = isoDay(day.dayMs);
     day.activity = activityList
-      .filter(a => a && a.date === iso && ACT_KINDS.has(a.kind) && a.nav && a.nav.recordId)
-      .map(a => ({ kind: a.kind, label: a.label || "", team: a.meta || "", recordId: a.nav.recordId }));
+      .filter(a => a && a.date === iso && ACT_KINDS.has(a.kind) && a.nav && a.nav.recordId
+        && (!scopeId || a.nav.recordId === scopeId))
+      .map(a => ({ kind: a.kind, label: a.label || "", team: a.meta || "", recordId: a.nav.recordId, date: iso }));
   }
 
   for (const day of days) layoutTimed(day.timed);
 
-  _model = { days, weekIdx: safeWeekIdx, calendarGoogleEvents };
+  // The reveal popovers (events, activity chips, in-town signal) read from the
+  // last-rendered model rather than re-parsing the DOM — render + wire share it.
+  _model = {
+    days, weekIdx: safeWeekIdx, calendarGoogleEvents,
+    inTown: {
+      perDay: perDaySig,
+      weekly: Array.isArray(signals?.weeklyOccupancy) ? signals.weeklyOccupancy : [],
+      rosterTotal: Math.max(1, Number(signals?.rosterTotal) || 0),
+      scopeName,
+      days: days.map(d => ({ name: d.name, date: d.date })),
+    },
+  };
 
-  // ── hour window hugs the week's actual content ──────────────────────
-  // No fixed 8–22 frame: the grid starts at the first event's hour and
-  // ends at the last one's, so sparse mornings/nights don't render as
-  // dead rows. A 6-hour floor keeps a near-empty week from blowing the
-  // hour height up; an event-free week falls back to 9–18.
+  // ── time window for the build field ─────────────────────────────────
+  // Scan the week's events; B's panel floors this to a residency day below
+  // (bWinStart/bWinEnd) so build-time reads as one continuous ground.
   let minStart = Infinity;
   let maxEnd = -Infinity;
   for (const d of days) {
@@ -473,96 +514,22 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       maxEnd   = Math.max(maxEnd, ev.timing.endMin);
     }
   }
-  let winStart, winEnd;
-  if (!Number.isFinite(minStart)) {
-    winStart = 9 * 60;
-    winEnd   = 18 * 60;
-  } else {
-    winStart = Math.max(0, Math.floor(minStart / 60) * 60);
-    winEnd   = Math.min(24 * 60, Math.ceil(maxEnd / 60) * 60);
-  }
-  const MIN_SPAN = 2 * 60;
-  if (winEnd - winStart < MIN_SPAN) winEnd = Math.min(24 * 60, winStart + MIN_SPAN);
-  if (winEnd - winStart < MIN_SPAN) winStart = Math.max(0, winEnd - MIN_SPAN);
 
-  // ── compress event-free hours ────────────────────────────────────────
-  // A sparse week on a linear axis is mostly dead air. Instead: hours that
-  // contain at least one event (anywhere in the week) render full-height;
-  // runs of 2+ empty hours collapse into a thin "open" band. The remaining
-  // active hours stretch to fill the board, so quiet weeks still read
-  // dense. Single empty hours between busy ones stay linear — collapsing
-  // those would make the axis feel choppy.
-  const hourCount = Math.round((winEnd - winStart) / 60);
-  const occ = new Array(hourCount).fill(false);
-  for (const d of days) {
-    for (const ev of d.timed) {
-      const h0 = Math.max(0, Math.floor((ev.timing.startMin - winStart) / 60));
-      const h1 = Math.min(hourCount - 1, Math.floor((Math.min(ev.timing.endMin, winEnd) - 1 - winStart) / 60));
-      for (let h = h0; h <= h1; h++) occ[h] = true;
-    }
-  }
-  if (!occ.some(Boolean)) occ.fill(true);
-  for (let h = 1; h < hourCount - 1; h++) {
-    if (!occ[h] && occ[h - 1] && occ[h + 1]) occ[h] = true;
-  }
-
-  const segs = [];
-  for (let h = 0; h < hourCount;) {
-    const act = occ[h];
-    let j = h;
-    while (j < hourCount && occ[j] === act) j++;
-    segs.push({ act, s: winStart + h * 60, e: winStart + j * 60, units: act ? (j - h) : 0 });
-    h = j;
-  }
-  // Collapsed gaps stay a thin sliver of the board no matter how sparse
-  // the week is — sized relative to the active hours, not absolutely.
-  const actUnits = segs.reduce((a, s) => a + (s.act ? s.units : 0), 0);
-  const gapUnits = Math.min(0.8, Math.max(0.3, actUnits * 0.1));
-  for (const s of segs) { if (!s.act) s.units = gapUnits; }
-  const totalUnits = segs.reduce((a, s) => a + s.units, 0);
-  let accUnits = 0;
-  for (const s of segs) {
-    s.y0 = (accUnits / totalUnits) * 100;
-    accUnits += s.units;
-    s.y1 = (accUnits / totalUnits) * 100;
-  }
-  const yPct = (min) => {
-    if (min <= winStart) return 0;
-    for (const s of segs) {
-      if (min >= s.s && min <= s.e) return s.y0 + (s.y1 - s.y0) * ((min - s.s) / (s.e - s.s));
-    }
-    return 100;
-  };
-  const pct = (min) => yPct(min).toFixed(3);
-  // Serialized for attachCalendarPageBehavior's now-line tick (same mapping).
-  const segsJson = JSON.stringify(segs.map(s => ({
-    s: s.s, e: s.e, y0: +s.y0.toFixed(4), y1: +s.y1.toFixed(4),
-  })));
-
-  // ── masthead — shared view-nav tabs on top, unified week strip
-  // (← 1 2 … 10 →) centered below on a hairline rail. The week containing today
-  // keeps an under-dot marker; the VIEWED week is the oxide bead, which glides
-  // between weeks (view-transition). The strip only shows on the calendar view —
-  // presence spans the whole program, so weeks don't apply.
+  // The 10-week arc (below) is the week navigator now; the old dot-rail is gone.
   const nowWeekIdx = currentWeekIdx();
-  const scrubDots = Array.from({ length: WEEK_COUNT }, (_, i) => `
-    <button class="c2-scrub-dot${i === nowWeekIdx ? " is-now" : ""}" data-c2-week="${i}"
-            aria-selected="${i === safeWeekIdx}" aria-label="week ${i + 1}" type="button">${i + 1}</button>`).join("");
 
   const isPresence = view === "presence";
-  const isTimeline = view === "timeline";
   // Same shared view-nav component as the cohort / context / program pages
-  // (.alch-page-views) — one visual language for in-page tabs everywhere.
+  // (.alch-page-views) — one visual language for in-page tabs everywhere. The
+  // agenda tab is gone: the grid below now carries its filter + signals, so the
+  // two views are one.
   const viewTabs = `
     <nav class="alch-page-views" role="tablist" aria-label="calendar view">
-      <button class="alch-page-view-btn" data-c2-view="cal" role="tab" aria-selected="${!isPresence && !isTimeline}" type="button">
+      <button class="alch-page-view-btn" data-c2-view="cal" role="tab" aria-selected="${!isPresence}" type="button">
         <span class="apv-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></span><span class="apv-label">calendar</span>
       </button>
       <button class="alch-page-view-btn" data-c2-view="presence" role="tab" aria-selected="${isPresence}" type="button">
         <span class="apv-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg></span><span class="apv-label">presence</span>
-      </button>
-      <button class="alch-page-view-btn" data-c2-view="timeline" role="tab" aria-selected="${isTimeline}" type="button">
-        <span class="apv-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4v16"/><path d="M8 7h11"/><path d="M6 12h9"/><path d="M10 17h8"/></svg></span><span class="apv-label">agenda</span>
       </button>
     </nav>`;
   const subscribeAction = `
@@ -573,19 +540,12 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       <span class="c2-subscribe-label">subscribe</span>
       <svg class="c2-subscribe-hook" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8"/></svg>
     </a>`;
+  // The masthead is just the view tabs + subscribe; the arc navigates weeks.
   const masthead = `
     <div class="c2-toolbar">
       ${viewTabs}
       ${subscribeAction}
-    </div>
-    ${(isPresence || isTimeline) ? "" : `
-    <header class="c2-masthead">
-      <div class="c2-scrub" role="tablist" aria-label="program week">
-        <button class="c2-scrub-arrow" data-c2-nav="prev" aria-label="previous week" ${safeWeekIdx === 0 ? "disabled" : ""} type="button">←</button>
-        ${scrubDots}
-        <button class="c2-scrub-arrow" data-c2-nav="next" aria-label="next week" ${safeWeekIdx === WEEK_COUNT - 1 ? "disabled" : ""} type="button">→</button>
-      </div>
-    </header>`}`;
+    </div>`;
 
   if (isPresence) {
     return `
@@ -597,15 +557,39 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       </section>`;
   }
 
-  if (isTimeline) {
-    return `
-      <section class="c2 c2--timeline" data-phase="${escAttr(phase)}">
-        ${masthead}
-        <div class="c2-timeline">
-          ${timelineHtml || `<div class="c2-loading">timeline view not available.</div>`}
-        </div>
-      </section>`;
+  // Controls folded INTO B's frame: scope (focuses presence + shipping on one
+  // workstream) sits by the week facts; the category filter doubles as the
+  // "this week" legend (drops a gathering type from the panel). Both reuse the
+  // existing .c2-scope / .c2-filter markup, so their wiring carries over.
+  const scopeChip = scopeTeams.length ? `
+    <div class="c2-scope rr-scope" data-c2-scope-ctl>
+      <button class="c2-scope-btn${scopeId ? " is-on" : ""}" data-c2-scope-toggle aria-haspopup="listbox" aria-expanded="false"
+              aria-label="focus presence + shipping on one workstream" type="button">
+        <span class="c2-scope-k">scope</span><span class="c2-scope-v">${escHtml(scopeName)}</span><i class="c2-chev" aria-hidden="true"></i>
+      </button>
+      <div class="c2-scope-menu" role="listbox" aria-label="workstream" hidden>
+        ${[{ id: "", name: "all cohort" }, ...scopeTeams].map(o => `
+          <button class="c2-scope-opt" role="option" data-c2-scope="${escAttr(o.id)}"
+                  aria-selected="${(o.id || null) === scopeId ? "true" : "false"}" type="button">${escHtml(o.name)}</button>`).join("")}
+      </div>
+    </div>` : "";
+  // The legend doubles as the filter but stays decluttered: it lists only the
+  // gathering types actually IN this week (plus any you've switched off, so you
+  // can turn them back on) — not all seven categories every week.
+  const presentCatKeys = new Set();
+  for (const d of days) {
+    for (const ev of d.timed) if (ev.cat && ev.cat.key !== "default" && ev.cat.label) presentCatKeys.add(ev.cat.key);
+    for (const it of d.allday) if (it.cat && it.cat.key !== "default" && it.cat.label) presentCatKeys.add(it.cat.key);
   }
+  const legendCats = C2_LEGEND.filter(c => presentCatKeys.has(c.key) || catHide.has(c.key));
+  const filterBar = legendCats.length ? `
+    <div class="c2-filter rr-filter" role="group" aria-label="filter gatherings by type">
+      ${legendCats.map(c => `
+        <button class="c2-filter-item${catHide.has(c.key) ? " is-off" : ""}" data-c2-cat="${escAttr(c.key)}" data-cat="${escAttr(c.key)}"
+                type="button" aria-pressed="${catHide.has(c.key) ? "false" : "true"}">
+          <i class="c2-chip-dot" aria-hidden="true"></i>${escHtml(c.label)}
+        </button>`).join("")}
+    </div>` : "";
 
   // ── stale banner (same contract as the calendar page) ───────────────
   const staleBanner = source === "bundled" ? `
@@ -622,232 +606,259 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       </section>`;
   }
 
-  // ── day headers ──────────────────────────────────────────────────────
-  const headCells = days.map((d) => `
-      <div class="c2-dayhead ${d.isToday ? "is-today" : ""}" role="columnheader" ${d.isToday ? 'aria-current="date"' : ""}>
-        <span class="c2-dh-name">${escHtml(d.name)}</span>
-        <span class="c2-dh-num">${escHtml(d.date.replace(/^[a-z]+\s+/, ""))}</span>
-      </div>`).join("");
-
-  // ── cohort-activity lane (releases + commits, clickable → team) ──────
-  const ACT_VERB = { release: "shipped", commit: "committed" };
-  const hasActivity = days.some(d => (d.activity || []).length);
-  const activityRow = hasActivity ? `
-    <div class="c2-row c2-activity">
-      <div class="c2-gutter-cell">shipped</div>
-      ${days.map((d) => `
-        <div class="c2-activity-cell ${d.isToday ? "is-today" : ""}">
-          ${(d.activity || []).map((a) => `
-            <button class="c2-act-chip" data-act-kind="${escAttr(a.kind)}" data-c2-act="${escAttr(a.recordId)}" type="button"
-                    title="${escAttr(`${a.team} ${ACT_VERB[a.kind] || a.kind} ${a.label} — open ${a.team}`)}">
-              <span class="c2-act-dot" aria-hidden="true"></span>
-              <span class="c2-act-team">${escHtml(a.team)}</span>
-              <span class="c2-act-label">${escHtml(a.label)}</span>
-            </button>`).join("")}
-        </div>`).join("")}
-    </div>` : "";
-
-  // ── all-day lane (only when something is in it) ──────────────────────
-  const hasAllday = days.some(d => d.allday.length);
-  const alldayRow = hasAllday ? `
-    <div class="c2-row c2-allday">
-      <div class="c2-gutter-cell">all-day</div>
-      ${days.map((d, di) => `
-        <div class="c2-allday-cell ${d.isToday ? "is-today" : ""}">
-          ${d.allday.map((item, ai) => {
-            const googleLink = calendarGoogleEventLinkForItem(item, calendarGoogleEvents);
-            return `
-            <button class="c2-chip${googleLink ? " has-google-link" : ""}" data-cat="${escAttr(item.cat.key)}" data-c2-ev="a:${di}:${ai}" type="button"
-                    title="${escAttr(item.kind === "anchor" ? item.title : item.content.title)}">
-              <span class="c2-chip-dot" aria-hidden="true"></span>
-              <span class="c2-chip-label">${escHtml(item.kind === "anchor" ? item.title : item.content.title)}</span>
-            </button>`;
-          }).join("")}
-        </div>`).join("")}
-    </div>` : "";
-
-  // ── hour gutter + hairlines + collapsed-gap bands ────────────────────
-  // Hour boundaries only exist inside active segments now, so lines and
-  // labels are emitted per-boundary instead of via a repeating background.
-  const boundaries = [];
-  for (const s of segs) {
-    if (!s.act) continue;
-    for (let m = s.s; m <= s.e; m += 60) {
-      if (!boundaries.includes(m)) boundaries.push(m);
-    }
-  }
-  const hourLabels = boundaries.map((m) => {
-    const y = yPct(m);
-    const edge = y < 0.5 ? " is-first" : y > 99.5 ? " is-last" : "";
-    return `<span class="c2-hour${edge}" style="top:${y.toFixed(3)}%">${fmtMin(m)}</span>`;
-  }).join("");
-  const hourLines = boundaries.map((m) =>
-    `<i class="c2-line" style="top:${pct(m)}%"></i>`).join("");
-  const skipBands = segs.filter(s => !s.act).map(s => `
-    <div class="c2-skip" style="top:${s.y0.toFixed(3)}%;height:${(s.y1 - s.y0).toFixed(3)}%">
-      <span class="c2-skip-label">${fmtMin(s.s)} – ${fmtMin(s.e)} · open</span>
-    </div>`).join("");
-
-  // ── day columns with positioned events ──────────────────────────────
-  // Whatever a day doesn't schedule gets tiled with quiet "open" blocks —
-  // the board is always a full mosaic, never bare grid. Unscheduled time
-  // in the residency is build time, so the tiles say so.
+  // ── residency-rhythm composition (Direction B) ───────────────────────
+  // Designed from the residency's truth: the 10-week ARC is the navigator AND a
+  // sparkline (presence height · ship marks); the focused week is a panel where
+  // build-time is the GROUND and the few gatherings are punctuation at their
+  // real time; presence is one honest near-full ribbon; shipping is a row of
+  // pulses. Reuses the data attributes (data-c2-ev / -intown / -act / -week /
+  // -nav) so the modal, reveals and week-nav wiring carry over unchanged.
+  const cap = (x) => String(x || "").charAt(0).toUpperCase() + String(x || "").slice(1);
   const isWeekend = (name) => name === "sat" || name === "sun";
-  const cols = days.map((d, di) => {
-    const busy = d.timed
-      .map(ev => [ev.timing.startMin, Math.min(ev.timing.endMin, winEnd)])
-      .sort((a, b) => a[0] - b[0]);
-    const merged = [];
-    for (const [s, e] of busy) {
-      if (merged.length && s <= merged[merged.length - 1][1]) {
-        merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], e);
-      } else merged.push([s, e]);
-    }
-    const freePieces = [];
-    for (const seg of segs) {
-      if (!seg.act) continue;
-      let cur = seg.s;
-      for (const [s, e] of merged) {
-        if (e <= seg.s || s >= seg.e) continue;
-        if (s > cur) freePieces.push([cur, Math.min(s, seg.e)]);
-        cur = Math.max(cur, e);
-      }
-      if (cur < seg.e) freePieces.push([cur, seg.e]);
-    }
-    const freeBlocks = freePieces.map(([s, e]) => {
-      const top = yPct(s);
-      const h = yPct(e) - yPct(s);
-      if (h < 2.5) return "";
-      const label = h >= 7 ? `<span class="c2-free-label">open</span>` : "";
-      return `<div class="c2-free" aria-hidden="true" style="top:${top.toFixed(3)}%;height:${h.toFixed(3)}%">${label}</div>`;
-    }).join("");
-    const evs = d.timed.map((ev, ti) => {
-      const top = pct(ev.timing.startMin);
-      const bottom = Math.min(ev.timing.endMin, winEnd);
-      const height = (yPct(bottom) - yPct(ev.timing.startMin)).toFixed(3);
-      const left = ((ev.col / ev.cols) * 100).toFixed(2);
-      const width = (100 / ev.cols).toFixed(2);
-      const timeLabel = `${fmtMin(ev.timing.startMin)} – ${fmtMin(ev.timing.endMin)}`;
-      // Details ride along in the card and reveal when the rendered card
-      // is tall enough (container query in CSS) — no click needed.
-      const shownDetails = ev.content.details.slice(0, 6);
-      const moreCount = ev.content.details.length - shownDetails.length;
-      const googleLink = calendarGoogleEventLinkForItem(ev, calendarGoogleEvents);
-      const body = shownDetails.length
-        ? `<span class="c2-ev-body">${shownDetails.map(t => `<i>${escHtml(t)}</i>`).join("")}${moreCount > 0 ? `<i class="c2-ev-more">+${moreCount} more</i>` : ""}</span>`
-        : "";
-      return `
-        <button class="c2-ev${ev.cat.tbc ? " is-tbc" : ""}${googleLink ? " has-google-link" : ""}" data-cat="${escAttr(ev.cat.key)}"
-                data-c2-ev="t:${di}:${ti}" type="button"
-                style="top:${top}%;height:${height}%;left:${left}%;width:calc(${width}% - 2px)"
-                aria-label="${escAttr(`${timeLabel} ${ev.content.title}`)}">
-          <span class="c2-ev-in">
-            <span class="c2-ev-time">${escHtml(timeLabel)}${ev.cat.tbc ? `<i class="c2-ev-tbc">tbc</i>` : ""}</span>
-            <span class="c2-ev-title">${escHtml(ev.content.title)}</span>
-            ${body}
-          </span>
-        </button>`;
-    }).join("");
-    const nowLine = d.isToday ? `<div class="c2-now" aria-hidden="true"><i class="c2-now-dot"></i></div>` : "";
-    return `
-      <div class="c2-col ${d.isToday ? "is-today" : ""} ${isWeekend(d.name) ? "is-weekend" : ""}" data-day="${di}">
-        ${freeBlocks}${evs}${nowLine}
-      </div>`;
-  }).join("");
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const DAY_MS = 86400000;
+  const shortDate = (ms) => { const d = new Date(ms); return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`; };
+  const fmtHour = (m) => String(Math.floor(m / 60) % 24).padStart(2, "0");
+  const presColor = "oklch(0.70 0.055 155)";
 
-  // ── recurring footer + legend ────────────────────────────────────────
-  const legend = `
-    <div class="c2-key" role="list" aria-label="event categories">
-      ${C2_LEGEND.map(c => `<span class="c2-key-item" data-cat="${escAttr(c.key)}"><i class="c2-chip-dot" aria-hidden="true"></i>${escHtml(c.label)}</span>`).join("")}
-    </div>`;
-  const recurringHtml = recurring.length ? `
-    <div class="c2-recur">
-      <span class="c2-recur-h">recurring</span>
-      ${recurring.map(r => `<span class="c2-recur-item">${escHtml(r.what)}</span>`).join("")}
-    </div>` : "";
+  const weekStartMs = Number.isFinite(days[0]?.dayMs) ? days[0].dayMs : null;
+  const weekEndMs = Number.isFinite(days[6]?.dayMs) ? days[6].dayMs : null;
+  const rangeLabel = (weekStartMs != null && weekEndMs != null) ? `${shortDate(weekStartMs)} – ${shortDate(weekEndMs)}` : "";
+  const WEEK_TITLES = ["First light", "Settling in", "Finding the shape", "Into the work", "The middle weeks", "Past the midpoint", "Pushing to fit", "Sharpening the pitch", "The final stretch", "Toward demo night"];
+  const NAV_MID = ["the opening days", "still arriving", "finding the rhythm", "into the work", "halfway up the residency", "past the midpoint", "the push begins", "sharpening the pitch", "the final stretch", "demo week"];
+  const weekTitle = WEEK_TITLES[safeWeekIdx] || `Week ${safeWeekIdx + 1}`;
 
-  return `
-    <section class="c2" data-phase="${escAttr(phase)}">
-      ${masthead}
-      ${staleBanner}
-      <div class="c2-board" role="grid" aria-label="week timeline">
-        <div class="c2-row c2-daysbar">
-          <div class="c2-gutter-cell"></div>
-          ${headCells}
-        </div>
-        ${activityRow}
-        ${alldayRow}
-        <div class="c2-scroll">
-          <div class="c2-grid" style="--c2-units:${totalUnits.toFixed(2)}" data-c2-segs="${escAttr(segsJson)}">
-            <div class="c2-hours">${hourLabels}</div>
-            ${cols}
-            <div class="c2-rules" aria-hidden="true">${hourLines}</div>
-            <div class="c2-skips" aria-hidden="true">${skipBands}</div>
-          </div>
+  const rosterTotal = Math.max(1, Number(signals?.rosterTotal) || perDaySig.reduce((m, s) => Math.max(m, Number(s?.inTown) || 0), 1));
+  const weekly = Array.isArray(signals?.weeklyOccupancy) ? signals.weeklyOccupancy : [];
+  const weeklyShips = Array.isArray(signals?.weeklyShips) ? signals.weeklyShips : [];
+
+  // stats — who's here, what shipped, how much we gathered
+  const todayIdx = days.findIndex(d => d.isToday);
+  const refIdx = todayIdx >= 0 ? todayIdx : 6;
+  const inTownToday = Number(perDaySig[refIdx]?.inTown) || perDaySig.reduce((m, s) => Math.max(m, Number(s?.inTown) || 0), 0);
+  const satPct = rosterTotal ? Math.round((inTownToday / rosterTotal) * 100) : 0;
+  const gatherCount = days.reduce((n, d) => n + d.timed.length, 0);
+  const gatherHrs = Math.round(days.reduce((n, d) => n + d.timed.reduce((s, ev) => s + (ev.timing.endMin - ev.timing.startMin), 0), 0) / 60);
+  const shipCount = days.reduce((n, d) => n + (d.activity || []).filter(a => a.kind === "release").length, 0);
+  const descriptor = gatherCount === 0 ? "a pure build week" : gatherCount <= 6 ? "mostly building, lightly gathered" : "a gathering-heavy week";
+
+  const headHtml = `
+    <header class="rr-head">
+      <div class="rr-head-l">
+        <div class="rr-eyebrow">residency · may 18 → jul 26 · week ${String(safeWeekIdx + 1).padStart(2, "0")} / ${WEEK_COUNT}</div>
+        <h2 class="rr-title">${escHtml(weekTitle)}</h2>
+        <div class="rr-sub">${escHtml(rangeLabel)} — ${escHtml(descriptor)}.</div>
+      </div>
+      <div class="rr-head-r">
+        ${scopeChip}
+        <div class="rr-stats">
+          <div class="rr-stat"><div class="rr-stat-lab">in town</div><div class="rr-stat-big">${inTownToday}<small> /${rosterTotal}</small></div><div class="rr-stat-note rr-tone-pres">${satPct}% of the house</div></div>
+          <div class="rr-stat"><div class="rr-stat-lab">shipped</div><div class="rr-stat-big">${shipCount}</div><div class="rr-stat-note rr-tone-ship">release${shipCount === 1 ? "" : "s"} this wk</div></div>
+          <div class="rr-stat"><div class="rr-stat-lab">gathered</div><div class="rr-stat-big">${gatherCount}</div><div class="rr-stat-note">${gatherHrs}h together</div></div>
         </div>
       </div>
-      <footer class="c2-foot">
-        ${legend}
-        ${recurringHtml}
-        <div class="c2-source">
-          <span>source · <a href="${escAttr(CALENDAR_URL)}" data-external>os-web.shaperotator.xyz/calendar.json</a></span>
-          <span aria-hidden="true">·</span>
-          <span>cohort may 18 → jul 26 2026</span>
+    </header>`;
+
+  // ── the arc — ten weeks, presence height over ship marks; the navigator ──
+  const arcHtml = `
+    <section class="rr-arc" aria-label="program weeks">
+      <div class="rr-arc-head">
+        <div class="rr-section-lab">the arc <em>— ten weeks, presence over shipping</em></div>
+        <div class="rr-legend"><span><i class="rr-sw rr-sw-pres"></i>presence</span><span><i class="rr-sw rr-sw-ship"></i>ship</span></div>
+      </div>
+      <div class="rr-arc-bar" role="group" aria-label="select week">
+        ${Array.from({ length: WEEK_COUNT }, (_, w) => {
+          const frac = Number(weekly[w]?.frac);
+          // Window the bar to the same near-full band the ribbon uses (roster-8..
+          // roster), so 42 vs 45 reads as a real height difference instead of a
+          // flat 93–96% — the arc IS the presence sparkline.
+          const occN = Number.isFinite(frac) ? frac * rosterTotal : 0;
+          const win = Math.max(0, Math.min(1, (occN - (rosterTotal - 8)) / 8));
+          const h = Number.isFinite(frac) && frac > 0 ? Math.round(14 + win * 84) : 28;
+          const ships = Number(weeklyShips[w]) || 0;
+          const isActive = w === safeWeekIdx;
+          const isFuture = w > nowWeekIdx;
+          const isDemo = w === WEEK_COUNT - 1;
+          const cls = ["rr-wk", isActive ? "active" : "", isFuture ? "future" : "", isDemo ? "demo" : ""].filter(Boolean).join(" ");
+          const dots = isDemo
+            ? `<span class="rr-shipdot"></span>`
+            : Array.from({ length: Math.min(3, ships) }, () => `<span class="rr-shipdot"></span>`).join("");
+          return `
+          <button class="${cls}" data-c2-week="${w}" aria-label="week ${w + 1}${isDemo ? " · demo" : ""}${isActive ? " (current view)" : ""}"${isActive ? ' aria-current="true"' : ""} type="button">
+            ${isActive ? `<span class="rr-ring" aria-hidden="true"></span>` : ""}
+            <span class="rr-ticks" aria-hidden="true">${dots}</span>
+            <span class="rr-pcol"><span class="rr-pbar" style="height:${h}%"></span></span>
+            <span class="rr-num">${String(w + 1).padStart(2, "0")}${isDemo ? `<b> demo</b>` : ""}</span>
+          </button>`;
+        }).join("")}
+      </div>
+    </section>`;
+
+  // ── this week — linear time field floored to a residency day so build reads
+  // as continuous ground; gatherings drop at their real time. ──
+  // Floor the day to a core 12:00–20:00 window (expanded if events fall outside)
+  // so the afternoon gatherings aren't stranded above/below a 9–21 void.
+  let bWinStart = 12 * 60, bWinEnd = 20 * 60;
+  if (Number.isFinite(minStart)) { bWinStart = Math.min(bWinStart, Math.floor(minStart / 60) * 60); bWinEnd = Math.max(bWinEnd, Math.ceil(maxEnd / 60) * 60); }
+  const bSpan = Math.max(120, bWinEnd - bWinStart);
+  const bPct = (m) => ((Math.max(bWinStart, Math.min(bWinEnd, m)) - bWinStart) / bSpan) * 100;
+  const nowD = new Date();
+  const nowMin = nowD.getHours() * 60 + nowD.getMinutes();
+
+  const dhHtml = days.map((d) => {
+    const num = d.date.replace(/^[a-z]+\s+/, "");
+    const cls = ["rr-dh", d.isToday ? "today" : "", isWeekend(d.name) ? "dim" : ""].filter(Boolean).join(" ");
+    return `<div class="${cls}"><span class="rr-dh-d">${escHtml(cap(d.name))}</span><span class="rr-dh-n">${escHtml(num)}${d.isToday ? " · today" : ""}</span></div>`;
+  }).join("");
+
+  // A quiet 3-hour ruler only — each gathering carries its own exact time on its
+  // tick, so the shared gutter never implies a time only one column actually has.
+  const spineMarks = [];
+  for (let m = Math.ceil(bWinStart / 180) * 180; m <= bWinEnd; m += 3 * 60) spineMarks.push(m);
+  const spineHtml = `<div class="rr-spine" aria-hidden="true">${spineMarks.map(m => `<span class="rr-t" style="top:${bPct(m).toFixed(1)}%">${escHtml(fmtHour(m))}</span>`).join("")}</div>`;
+
+  const fieldsHtml = days.map((d, di) => {
+    const banners = d.allday.map((item, ai) => {
+      const title = item.kind === "anchor" ? item.title : item.content.title;
+      // A multi-day item is the SAME object mirrored onto each covered day; if
+      // yesterday already carried it, this day is a continuation — show a quiet
+      // "→ continues" rather than repeating the full title (less clutter).
+      const isCont = di > 0 && (days[di - 1].allday || []).includes(item);
+      return `<button class="rr-allday${isCont ? " is-cont" : ""}" data-cat="${escAttr(item.cat.key)}" data-c2-ev="a:${di}:${ai}" type="button" title="${escAttr(title)}"><span>${isCont ? "→ continues" : escHtml(title)}</span></button>`;
+    }).join("");
+    // Place each gathering at its real time, then nudge later ones down so two
+    // close gatherings (tea 15:30 + retro 17:00) don't overlap. Each tick is ~2
+    // lines tall; SLOT is that height as a % of the field.
+    const SLOT = 17;
+    const tickItems = d.timed
+      .map((ev, ti) => ({ ev, ti, top: bPct(ev.timing.startMin) }))
+      .sort((a, b) => a.top - b.top);
+    let prevTop = -SLOT;
+    for (const it of tickItems) { if (it.top < prevTop + SLOT) it.top = prevTop + SLOT; prevTop = it.top; }
+    const ticks = tickItems.map(({ ev, ti, top }) => {
+      const time = `${fmtMin(ev.timing.startMin)}–${fmtMin(ev.timing.endMin)}`;
+      return `<button class="rr-tick" data-cat="${escAttr(ev.cat.key)}" data-c2-ev="t:${di}:${ti}" type="button" style="top:${Math.min(top, 84).toFixed(1)}%" aria-label="${escAttr(time + " " + ev.content.title)}"><span class="rr-tick-nm">${escHtml(ev.content.title)}</span><span class="rr-tick-tm">${escHtml(time)}${ev.cat.tbc ? " · tbc" : ""}</span></button>`;
+    }).join("");
+    // Empty days name the ground (open build / rest); populated days let the
+    // gatherings speak — no redundant "build" label on every column.
+    const ground = (!d.timed.length && !d.allday.length) ? `<span class="rr-ghost">${isWeekend(d.name) ? "rest" : "open build"}</span>` : "";
+    const nowEls = d.isToday && nowMin >= bWinStart && nowMin <= bWinEnd
+      ? `<span class="rr-now" style="top:${bPct(nowMin).toFixed(1)}%"></span><span class="rr-now-dot" style="top:${bPct(nowMin).toFixed(1)}%"></span>` : "";
+    const cls = ["rr-field", d.isToday ? "today" : ""].filter(Boolean).join(" ");
+    return `<div class="${cls}"${d.isToday ? ` data-rr-win="${bWinStart}:${bWinEnd}"` : ""}>${ground}${banners}${ticks}${nowEls}</div>`;
+  }).join("");
+
+  // ── presence ribbon — one honest near-full line, windowed to the top of roster ──
+  const RW = 700, RH = 52, rPad = 9;
+  const rLo = Math.max(0, rosterTotal - 8), rHi = rosterTotal;
+  const yFor = (n) => { const f = Math.max(0, Math.min(1, (n - rLo) / Math.max(1, rHi - rLo))); return rPad + (1 - f) * (RH - rPad - 13); };
+  const rpts = days.map((d, i) => ({ x: (i + 0.5) / 7 * RW, y: yFor(Number(perDaySig[i]?.inTown) || 0) }));
+  let rLine = `M0 ${rpts[0].y.toFixed(1)} L${rpts[0].x.toFixed(1)} ${rpts[0].y.toFixed(1)}`;
+  for (let i = 1; i < rpts.length; i++) rLine += ` L${rpts[i].x.toFixed(1)} ${rpts[i].y.toFixed(1)}`;
+  rLine += ` L${RW} ${rpts[rpts.length - 1].y.toFixed(1)}`;
+  const rArea = `${rLine} L${RW} ${RH} L0 ${RH} Z`;
+  const rCircles = rpts.map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="2.3"></circle>`).join("");
+  const ribbonRow = `
+    <div class="rr-row">
+      <div class="rr-rowlab"><span>in town</span></div>
+      <div class="rr-ribbon">
+        <svg viewBox="0 0 ${RW} ${RH}" preserveAspectRatio="none" aria-hidden="true">
+          <defs><linearGradient id="rrPres" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${presColor}" stop-opacity="0.4"></stop><stop offset="1" stop-color="${presColor}" stop-opacity="0.04"></stop></linearGradient></defs>
+          <path d="${rArea}" fill="url(#rrPres)"></path>
+          <path d="${rLine}" fill="none" stroke="${presColor}" stroke-width="1.5"></path>
+          <g fill="${presColor}">${rCircles}</g>
+        </svg>
+        <div class="rr-pcells">
+          ${days.map((d, di) => {
+            const n = Number(perDaySig[di]?.inTown) || 0;
+            const lbl = n ? `${d.name} ${d.date.replace(/^[a-z]+\s+/, "")} · ${n} of ${rosterTotal} in town — open presence` : `${d.name} · nobody in town — open presence`;
+            return `<div class="rr-pcell${n >= rosterTotal - 2 ? " hi" : ""}${d.isToday ? " today" : ""}" data-c2-intown="${di}" role="button" tabindex="0" aria-label="${escAttr(lbl)}"><span>${n || "·"}</span></div>`;
+          }).join("")}
         </div>
+      </div>
+    </div>`;
+
+  const shipRow = `
+    <div class="rr-row">
+      <div class="rr-rowlab"><span>shipped</span></div>
+      ${days.map((d, di) => {
+        const acts = d.activity || [];
+        if (!acts.length) return `<div class="rr-ship${d.isToday ? " today" : ""}"></div>`;
+        const pulses = `<div class="rr-pulses">${acts.slice(0, 5).map(() => `<span class="rr-pulse"></span>`).join("")}</div>`;
+        const lines = acts.map((a, ai) => `<button class="rr-rel" data-c2-act="${di}:${ai}" type="button" title="${escAttr(`${a.team} ${a.label}`)}"><span class="rr-rel-team">${escHtml(a.team)}</span> ${escHtml(a.label)}</button>`).join("");
+        return `<div class="rr-ship has${d.isToday ? " today" : ""}">${pulses}<div class="rr-rels">${lines}</div></div>`;
+      }).join("")}
+    </div>`;
+
+  const navHtml = `
+    <div class="rr-nav">
+      <button class="rr-navbtn rr-prev" data-c2-nav="prev"${safeWeekIdx === 0 ? " disabled" : ""} type="button">${safeWeekIdx === 0 ? "start of residency" : `← wk ${String(safeWeekIdx).padStart(2, "0")} · ${escHtml(weekStartMs != null ? shortDate(weekStartMs - 7 * DAY_MS) : "")}`}</button>
+      <span class="rr-nav-mid">${escHtml(NAV_MID[safeWeekIdx] || "")}</span>
+      <button class="rr-navbtn rr-next" data-c2-nav="next"${safeWeekIdx === WEEK_COUNT - 1 ? " disabled" : ""} type="button">${safeWeekIdx === WEEK_COUNT - 1 ? "demo week" : `wk ${String(safeWeekIdx + 2).padStart(2, "0")} · ${escHtml(weekStartMs != null ? shortDate(weekStartMs + 7 * DAY_MS) : "")} →`}</button>
+    </div>`;
+
+  return `
+    <section class="c2 rr-cal" data-phase="${escAttr(phase)}">
+      ${masthead}
+      ${staleBanner}
+      ${headHtml}
+      ${arcHtml}
+      <section class="rr-panel">
+        <div class="rr-panel-head">
+          <div class="rr-section-lab">this week <em>— build is the ground; gatherings are punctuation</em></div>
+          ${filterBar}
+        </div>
+        <div class="rr-weekscroll">
+          <div class="rr-grid" role="grid" aria-label="week schedule">
+            <div class="rr-corner"></div>
+            ${dhHtml}
+            ${spineHtml}
+            ${fieldsHtml}
+          </div>
+          ${ribbonRow}
+          ${shipRow}
+        </div>
+        ${navHtml}
+      </section>
+      <footer class="rr-foot">
+        <span>source · <a href="${escAttr(CALENDAR_URL)}" data-external>os-web.shaperotator.xyz/calendar.json</a></span>
+        <span aria-hidden="true">·</span>
+        <span>cohort may 18 → jul 26 2026</span>
       </footer>
     </section>`;
 }
 
-// ── behavior — now-line tick + initial scroll ────────────────────────
-// Returns a teardown fn; the consumer calls it before every repaint so
-// intervals don't stack (same contract as attachWeekViewBehavior).
-export function attachCalendarPageBehavior(root, { scrollToNow = true } = {}) {
+// ── behavior — now-line tick ─────────────────────────────────────────
+// Advances today's now-line + dot across the build field every 30s using the
+// SAME linear window the renderer used (serialized onto the today field as
+// data-rr-win="start:end" in minutes). No-ops cleanly when the viewed week has
+// no today column. Returns a teardown fn the consumer calls before each repaint
+// so intervals don't stack.
+export function attachCalendarPageBehavior(root) {
   if (!root) return () => {};
-  const grid = root.querySelector(".c2-grid");
-  const scroll = root.querySelector(".c2-scroll");
-  if (!grid) return () => {};
-  // Piecewise time→y mapping serialized by the renderer — the axis is
-  // non-linear (collapsed gaps), so the tick must use the same segments.
-  let segs = [];
-  try { segs = JSON.parse(grid.dataset.c2Segs || "[]"); } catch {}
-
-  let placedOnce = false;
+  const field = root.querySelector(".rr-field.today");
+  const line = field?.querySelector(".rr-now");
+  const dot = field?.querySelector(".rr-now-dot");
+  if (!field || !line) return () => {};
+  let winStart = 12 * 60, winEnd = 20 * 60;
+  try {
+    const w = String(field.dataset.rrWin || "").split(":").map(Number);
+    if (w.length === 2 && w.every(Number.isFinite)) { winStart = w[0]; winEnd = w[1]; }
+  } catch {}
+  const span = Math.max(1, winEnd - winStart);
   function placeNow() {
-    const line = grid.querySelector(".c2-now");
-    if (!line) return;
     const d = new Date();
     const m = d.getHours() * 60 + d.getMinutes();
-    const seg = segs.find(s => m >= s.s && m <= s.e);
-    if (!seg) { line.style.display = "none"; return; }
-    line.style.display = "";
-    line.style.top = (seg.y0 + (seg.y1 - seg.y0) * ((m - seg.s) / (seg.e - seg.s))).toFixed(3) + "%";
-    // Enable the eased glide only AFTER the first placement, so the line
-    // doesn't slide in from top:0 on mount.
-    if (placedOnce) line.classList.add("is-tracking");
-    placedOnce = true;
+    const show = m >= winStart && m <= winEnd;
+    line.style.display = show ? "" : "none";
+    if (dot) dot.style.display = show ? "" : "none";
+    if (!show) return;
+    const top = (((m - winStart) / span) * 100).toFixed(1) + "%";
+    line.style.top = top;
+    if (dot) dot.style.top = top;
   }
   placeNow();
   const timer = setInterval(placeNow, 30000);
-
-  if (scrollToNow && scroll) {
-    requestAnimationFrame(() => {
-      const line = grid.querySelector(".c2-now");
-      if (line && line.style.display !== "none") {
-        // Park the now-line a third of the way down the viewport so the next
-        // few hours are what the eye lands on — gliding it into view rather
-        // than jumping (honors reduced-motion via the smooth/auto switch).
-        let reduce = false;
-        try {
-          reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-            || document.documentElement.getAttribute("data-reduce-motion") === "1";
-        } catch {}
-        const top = Math.max(0, line.offsetTop - scroll.clientHeight * 0.35);
-        try { scroll.scrollTo({ top, behavior: reduce ? "auto" : "smooth" }); }
-        catch { scroll.scrollTop = top; }
-      }
-    });
-  }
-
   return function teardown() { clearInterval(timer); };
 }
 
@@ -915,6 +926,38 @@ function positionEventPanel(overlay, anchorRect) {
 
 // ── event modal ──────────────────────────────────────────────────────
 // ref = "t:<dayIdx>:<timedIdx>" | "a:<dayIdx>:<alldayIdx>" from data-c2-ev.
+// Find the curated transcript match for a calendar event (date + title fragment)
+// and render a "session recorded" block — what was captured and whether the record
+// is a public distilled recap or held privately in the vault. "" when no session
+// record matches the event, so ordinary events render unchanged.
+function sessionRecordHtml(day, title) {
+  if (!day || !title) return "";
+  const iso = isoDay(day.dayMs);
+  const t = String(title).toLowerCase();
+  const match = CALENDAR_TRANSCRIPT_MATCHES.find(e =>
+    e && e.date === iso && Array.isArray(e.title_contains)
+    && e.title_contains.some(frag => t.includes(String(frag).toLowerCase())));
+  if (!match) return "";
+  const sources = Array.isArray(match.sources) ? match.sources : [];
+  const rows = sources.map(s => {
+    const role = String(s.role || "record").replace(/_/g, " ");
+    const held = s.held === "private-vault" || (!s.path && s.vault_id);
+    const status = held
+      ? `<span class="c2-rec-status c2-rec-held">held privately</span>`
+      : `<span class="c2-rec-status c2-rec-public">distilled recap</span>`;
+    const label = String(s.label || match.section || role);
+    return `<li class="c2-rec-row"><span class="c2-rec-role">${escHtml(role)}</span><span class="c2-rec-label">${escHtml(label)}</span>${status}</li>`;
+  }).join("");
+  if (!rows) return "";
+  const conf = match.confidence ? ` · ${escHtml(match.confidence)} confidence` : "";
+  return `
+    <div class="c2-modal-record">
+      <div class="c2-rec-head">session recorded${conf}</div>
+      <ul class="c2-rec-list">${rows}</ul>
+      <p class="c2-rec-note">Recaps live in Context → transcripts; private records stay in the vault until cleared.</p>
+    </div>`;
+}
+
 export function openCalendarEvent(ref, { anchor = null, anchorRect = null } = {}) {
   if (!_model || typeof document === "undefined") return;
   const m = String(ref || "").match(/^([ta]):(\d+):(\d+)$/);
@@ -961,6 +1004,7 @@ export function openCalendarEvent(ref, { anchor = null, anchorRect = null } = {}
       </div>
       <h3 class="c2-modal-title"><em>${escHtml(title)}</em></h3>
       ${details.length ? `<ul class="c2-modal-details">${details.map(d => `<li>${escHtml(d)}</li>`).join("")}</ul>` : ""}
+      ${sessionRecordHtml(day, title)}
       ${(addEventHref || googleLink) ? `
         <div class="c2-modal-actions">
           ${addEventHref ? `<a class="c2-modal-google" href="${escAttr(addEventHref)}" data-external>
@@ -1018,4 +1062,156 @@ export function openCalendarEvent(ref, { anchor = null, anchorRect = null } = {}
   document.body.appendChild(overlay);
   positionEventPanel(overlay, eventAnchorRect);
   overlay.querySelector(".c2-modal-close")?.focus?.({ preventScroll: true });
+}
+
+// ── shipped-chip reveal ──────────────────────────────────────────────
+// ref = "<dayIdx>:<activityIdx>" from a shipped chip's data-c2-act. Shows WHAT
+// shipped, in place (same overlay as an event) — a single click no longer
+// teleports off the calendar. The drill to the team dossier is now an explicit,
+// secondary button (onOpenTeam callback), so the team page is one deliberate
+// click away rather than the unavoidable consequence of touching the chip.
+export function openCalendarActivity(ref, { anchor = null, anchorRect = null, onOpenTeam = null } = {}) {
+  if (!_model || typeof document === "undefined") return;
+  const m = String(ref || "").match(/^(\d+):(\d+)$/);
+  if (!m) return;
+  const day = _model.days[+m[1]];
+  if (!day) return;
+  const item = (day.activity || [])[+m[2]];
+  if (!item) return;
+
+  const weekday = DAY_NAMES_FULL[day.name] || day.name;
+  const VERB = { release: "shipped", commit: "committed" };
+  const verb = VERB[item.kind] || item.kind;
+  const eventAnchor = anchor || null;
+  const eventAnchorRect = anchorRect || rectFromAnchor(eventAnchor);
+
+  document.querySelector(".c2-modal")?.remove();
+  clearCalendarEventSelection();
+  eventAnchor?.classList?.add?.("is-selected");
+  const overlay = document.createElement("div");
+  overlay.className = "c2-modal";
+  overlay.innerHTML = `
+    <div class="c2-modal-panel c2-modal-panel--act" data-act-kind="${escAttr(item.kind)}" role="dialog" aria-modal="true" aria-label="activity details">
+      <button class="c2-modal-close" type="button" aria-label="close">×</button>
+      <div class="c2-modal-meta">
+        <div class="c2-modal-when">${escHtml(weekday)} · ${escHtml(day.date)}</div>
+        <div class="c2-modal-cat"><i class="c2-act-dot" aria-hidden="true"></i>${escHtml(verb)}</div>
+      </div>
+      <h3 class="c2-modal-title"><em>${escHtml(item.team || "a team")}</em></h3>
+      ${item.label ? `<p class="c2-modal-actlabel">${escHtml(item.label)}</p>` : ""}
+      ${item.recordId && typeof onOpenTeam === "function" ? `
+        <div class="c2-modal-actions">
+          <button class="c2-modal-team" type="button" data-open-team="${escAttr(item.recordId)}">
+            <span class="c2-action-glyph" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+              </svg>
+            </span>
+            <span class="c2-action-copy"><strong>open ${escHtml(item.team || "team")}</strong><small>team dossier</small></span>
+          </button>
+        </div>` : ""}
+    </div>`;
+  const close = () => {
+    clearCalendarEventSelection();
+    document.removeEventListener("keydown", onKey);
+    if (overlay.dataset.closing === "1") return;
+    overlay.dataset.closing = "1";
+    let reduce = false;
+    try {
+      reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        || document.documentElement.getAttribute("data-reduce-motion") === "1";
+    } catch {}
+    if (reduce) { overlay.remove(); return; }
+    overlay.classList.add("is-closing");
+    const done = () => { try { overlay.remove(); } catch {} };
+    overlay.addEventListener("animationend", done, { once: true });
+    setTimeout(done, 180);
+  };
+  function onKey(e) { if (e.key === "Escape") close(); }
+  overlay.addEventListener("click", (e) => {
+    const openTeam = e.target?.closest?.("[data-open-team]");
+    if (openTeam) {
+      e.preventDefault();
+      const rid = openTeam.getAttribute("data-open-team");
+      close();
+      if (rid) { try { onOpenTeam(rid); } catch {} }
+      return;
+    }
+    if (e.target === overlay) close();
+  });
+  overlay.querySelector(".c2-modal-close")?.addEventListener("click", close);
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(overlay);
+  positionEventPanel(overlay, eventAnchorRect);
+  overlay.querySelector(".c2-modal-close")?.focus?.({ preventScroll: true });
+}
+
+// ── in-town hover/focus reveal ────────────────────────────────────────
+// The third layer for the presence signal: glance reads the bar + count, this
+// reveal names WHO is in town that day and places the week in the residency's
+// occupancy arc (a week-by-week sparkline). Display-only (pointer-events:none),
+// so it never traps the pointer; click on the cell commits to the presence view.
+let _inTownPop = null;
+export function closeCalendarInTown() {
+  if (_inTownPop) { try { _inTownPop.remove(); } catch {} _inTownPop = null; }
+}
+export function openCalendarInTown(ref, { anchor = null } = {}) {
+  if (!_model || !_model.inTown || typeof document === "undefined") return;
+  const di = Number(ref);
+  const it = _model.inTown;
+  const day = it.days[di];
+  if (!day) return;
+  const s = (it.perDay || [])[di] || {};
+  const n = Number(s.inTown) || 0;
+  const names = Array.isArray(s.inTownNames) ? s.inTownNames : [];
+  const total = it.rosterTotal || Math.max(1, n);
+  const weekday = DAY_NAMES_FULL[day.name] || day.name;
+  const dateNum = String(day.date).replace(/^[a-z]+\s+/, "");
+
+  // sparkline — weekly occupancy across the residency, current week accented.
+  const weekly = Array.isArray(it.weekly) ? it.weekly : [];
+  let spark = "";
+  if (weekly.length) {
+    const W = 132, H = 26, gap = 2;
+    const bw = (W - gap * (weekly.length - 1)) / weekly.length;
+    const maxFrac = Math.max(0.001, ...weekly.map(w => w.frac || 0));
+    const bars = weekly.map((w, i) => {
+      const h = Math.max(1.5, (Math.max(0, w.frac || 0) / maxFrac) * (H - 2));
+      const x = i * (bw + gap);
+      return `<rect class="c2-spark-bar${w.isCurrent ? " is-current" : ""}" x="${x.toFixed(1)}" y="${(H - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="1"></rect>`;
+    }).join("");
+    spark = `<div class="c2-pop-spark"><svg class="c2-spark" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">${bars}</svg><span class="c2-pop-sparklabel">in town · weeks 1–${weekly.length}</span></div>`;
+  }
+
+  const CAP = 24;
+  const shown = names.slice(0, CAP);
+  const moreCount = names.length - shown.length;
+  const nameCloud = names.length
+    ? `<div class="c2-pop-names">${shown.map(x => `<span>${escHtml(x)}</span>`).join("")}${moreCount > 0 ? `<span class="c2-pop-more">+${moreCount} more</span>` : ""}</div>`
+    : `<div class="c2-pop-empty">nobody in town this day</div>`;
+
+  closeCalendarInTown();
+  const pop = document.createElement("div");
+  pop.className = "c2-sig-pop";
+  pop.innerHTML = `
+    <div class="c2-pop-head"><em>${escHtml(weekday)} ${escHtml(dateNum)}</em> · <strong>${n}</strong> of ${total} in town${it.scopeName && it.scopeName !== "all cohort" ? ` · ${escHtml(it.scopeName)}` : ""}</div>
+    ${spark}
+    ${nameCloud}`;
+  document.body.appendChild(pop);
+  _inTownPop = pop;
+
+  // Position below the anchor, clamped to the viewport; flip above if it'd clip.
+  try {
+    const r = anchor?.getBoundingClientRect?.();
+    if (r) {
+      const vw = window.innerWidth || 1024, vh = window.innerHeight || 768, margin = 10;
+      const pr = pop.getBoundingClientRect();
+      let x = r.left + r.width / 2 - pr.width / 2;
+      x = Math.max(margin, Math.min(x, vw - pr.width - margin));
+      let y = r.bottom + 8;
+      if (y + pr.height > vh - margin) y = r.top - pr.height - 8;
+      pop.style.left = `${Math.round(x)}px`;
+      pop.style.top = `${Math.round(Math.max(margin, y))}px`;
+    }
+  } catch {}
 }

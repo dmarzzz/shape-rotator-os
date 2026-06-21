@@ -70,6 +70,7 @@ const DEP_RELATION_LABELS = {
   unblocks: "unblocks",
   pairs_with: "pairs with",
   shares_substrate: "shared substrate",
+  contributed_to: "contributed to",
   complements: "complements",
   contributed_to: "contributed to",
   declared: "declared link",
@@ -82,6 +83,7 @@ const DEP_STATUS_LABELS = {
   resolved: "resolved",
   session_observed: "session-observed",
   github_observed: "GitHub-observed",
+  insight_derived: "github-observed",
   legacy: "profile-declared",
   unknown: "unknown",
 };

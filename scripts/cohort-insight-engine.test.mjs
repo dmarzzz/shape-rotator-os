@@ -269,6 +269,33 @@ test("say/did/shipped recovers matched_cohort_people as a contributor roster", (
   assert.ok(sig && sig.value.length === 1, "named contributors ride the trace");
 });
 
+test("public_activity aggregates change-type / topic / author mix across weeks and filters bot authors", () => {
+  const sample = [{ record_id: "agg", name: "Agg", domain: "ai", focus: "x", journey: {} }];
+  const mk = (week, evidence) => ({ record_id: "agg", artifact_kind: "github_progress_weekly_summary", week_start: week, date: week, evidence });
+  const progressAgg = [
+    mk("2026-05-18", { useful_commit_count: 5,
+      categories: [{ key: "feature", count: 3 }, { key: "other", count: 2 }],
+      topics: [{ key: "agent", count: 2 }],
+      authors: [{ key: "Ada", count: 4 }, { key: "github-actions[bot]", count: 10 }] }),
+    mk("2026-05-25", { useful_commit_count: 4,
+      categories: [{ key: "feature", count: 1 }, { key: "fix", count: 4 }],
+      topics: [{ key: "agent", count: 1 }, { key: "auth", count: 3 }],
+      authors: [{ key: "Ada", count: 2 }, { key: "dependabot[bot]", count: 7 }] }),
+  ];
+  const card = engine.buildSayDidShippedCards({ teams: sample, githubProgressArtifacts: progressAgg })[0];
+  const pa = card.content_json.public_activity;
+  // change types summed across weeks, sorted desc (feature 4, fix 4, other 2)
+  assert.equal(pa.change_types[0].key, "feature");
+  assert.equal(pa.change_types.find(c => c.key === "fix").count, 4);
+  // topics merged (agent 3, auth 3)
+  assert.equal(pa.topics[0].key, "agent");
+  assert.ok(pa.topics.some(t => t.key === "auth"));
+  // authors: bots dropped, the human survives with the summed count
+  assert.equal(pa.authors[0].key, "Ada");
+  assert.equal(pa.authors[0].count, 6);
+  assert.ok(!pa.authors.some(a => /\[bot\]/.test(a.key)), "bot authors must be filtered out");
+});
+
 test("github progress loader deduplicates generated/reviewed team-week copies", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cohort-insight-progress-"));
   const generatedDir = path.join(root, "cohort-data", "artifacts", "github-progress", "generated");

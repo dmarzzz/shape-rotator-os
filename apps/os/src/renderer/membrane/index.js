@@ -1264,13 +1264,37 @@ export function mountMembrane(container, opts = {}) {
     // Each item is wrapped in a positioned row so a quiet dismiss control can
     // sit on the card's inner corner (hidden at rest, revealed on hover/focus
     // — the "subtle hidden feature" — see .mfeed-dismiss in membrane.css).
-    const feedHtml = items.map(({ it, key }, i) => {
+    // Collapse SAME-DAY same-source repo activity (releases / commit digests)
+    // into ONE stacked card showing that day's most recent item, instead of a
+    // vertical run of near-identical rows. Different days stay separate; asks /
+    // events stay individual. Items are newest-first, so the first per group key
+    // is that day's latest.
+    const GROUPED_KINDS = new Set(['release', 'commit']);
+    const groups = [];
+    const groupByKey = new Map();
+    for (const { it, key } of items) {
+      const gk = GROUPED_KINDS.has(it.kind) ? `${it.kind}|${it.meta || ''}|${it.date || ''}` : null;
+      if (gk && groupByKey.has(gk)) {
+        const g = groupByKey.get(gk);
+        g.count += 1;
+        g.keys.push(key);
+        continue;
+      }
+      const g = { rep: it, key, count: 1, keys: [key] };
+      groups.push(g);
+      if (gk) groupByKey.set(gk, g);
+    }
+    const reps = groups.map((g) => g.rep);
+    const feedHtml = groups.map((g, i) => {
+      const it = g.rep;
+      const key = g.key;
+      const stacked = g.count > 1;
       // Hover layer reveals the EXACT date/time (the resting card shows only the
       // relative age) plus the click destination — new info, never a restatement.
       const whenFull = Number.isFinite(Date.parse(it.date)) ? fmtFullDate(it.date) : '';
       return `
       <div class="mfeed-row" data-row-key="${escHtml('feed:' + key)}">
-        <button type="button" class="mfeed-item mfeed-${escHtml(it.kind)}" data-feed-i="${i}" aria-label="${escHtml([it.label || '', it.meta || '', whenFull || feedAge(it.date), feedCta(it.kind)].filter(Boolean).join('. '))}">
+        <button type="button" class="mfeed-item mfeed-${escHtml(it.kind)}${stacked ? ' mfeed-stacked' : ''}" data-feed-i="${i}" aria-label="${escHtml([it.label || '', it.meta || '', stacked ? `${g.count} updates` : '', whenFull || feedAge(it.date), feedCta(it.kind)].filter(Boolean).join('. '))}">
           ${feedIcon(it.kind)}
           <span class="mfeed-body">
             <span class="mfeed-label">${escHtml(it.label || '')}</span>
@@ -1278,8 +1302,9 @@ export function mountMembrane(container, opts = {}) {
             <span class="mfeed-cta" aria-hidden="true"><span class="mfeed-cta-inner">${whenFull ? `<span class="mfeed-cta-when">${escHtml(whenFull)}</span>` : ''}<span class="mfeed-cta-go">${escHtml(feedCta(it.kind))} →</span></span></span>
           </span>
           <span class="mfeed-age">${escHtml(feedAge(it.date))}</span>
+          ${stacked ? `<span class="mfeed-count" title="${g.count} updates">${g.count}</span>` : ''}
         </button>
-        <button type="button" class="mfeed-dismiss" data-dismiss-key="${escHtml(key)}" aria-label="dismiss ${escHtml(it.label || 'notification')}" title="dismiss">${DISMISS_X}</button>
+        <button type="button" class="mfeed-dismiss" data-group-i="${i}" aria-label="dismiss ${escHtml(it.label || 'notification')}" title="dismiss">${DISMISS_X}</button>
       </div>`;
     }).join('');
     // One stream: incoming (forward-looking) flows straight into the activity
@@ -1300,7 +1325,7 @@ export function mountMembrane(container, opts = {}) {
     });
     feedEl.querySelectorAll('[data-feed-i]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const it = items[+btn.dataset.feedI]?.it;
+        const it = reps[+btn.dataset.feedI];
         if (!it || !it.nav) return;
         if (typeof window.__srwkOpenInNewTab === 'function') {
           window.__srwkOpenInNewTab({ tab: 'alchemy', ...it.nav });
@@ -1317,7 +1342,11 @@ export function mountMembrane(container, opts = {}) {
         // re-render mid-animation can never resurrect the card.
         const incKey = btn.dataset.incomingKey;
         if (incKey) { incomingDismissed.add(incKey); acknowledgeIncoming(incKey); }
-        else { feedDismissed.add(btn.dataset.dismissKey); }
+        else {
+          // Dismiss the whole stack (all collapsed members), not just the rep.
+          const g = groups[+btn.dataset.groupI];
+          if (g) g.keys.forEach((k) => feedDismissed.add(k));
+        }
         dismissCard(btn.closest('.mfeed-row'), () => renderFeed());
       });
     });

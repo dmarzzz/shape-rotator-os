@@ -56,7 +56,10 @@
           "progress_artifact_count": 0,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 0
+          "useful_commit_count": 0,
+          "change_types": [],
+          "topics": [],
+          "authors": []
         },
         "trace": {
           "method": "say_did_shipped",
@@ -164,7 +167,10 @@
           "progress_artifact_count": 0,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 0
+          "useful_commit_count": 0,
+          "change_types": [],
+          "topics": [],
+          "authors": []
         },
         "trace": {
           "method": "say_did_shipped",
@@ -286,7 +292,41 @@
           "progress_artifact_count": 2,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 15
+          "useful_commit_count": 15,
+          "change_types": [
+            {
+              "key": "other",
+              "count": 13
+            },
+            {
+              "key": "feature",
+              "count": 1
+            },
+            {
+              "key": "test",
+              "count": 1
+            }
+          ],
+          "topics": [
+            {
+              "key": "agent",
+              "count": 3
+            },
+            {
+              "key": "data",
+              "count": 1
+            },
+            {
+              "key": "auth",
+              "count": 1
+            }
+          ],
+          "authors": [
+            {
+              "key": "Prakhar Ojha",
+              "count": 15
+            }
+          ]
         },
         "trace": {
           "method": "say_did_shipped",
@@ -417,7 +457,10 @@
           "progress_artifact_count": 0,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 0
+          "useful_commit_count": 0,
+          "change_types": [],
+          "topics": [],
+          "authors": []
         },
         "trace": {
           "method": "say_did_shipped",
@@ -525,7 +568,10 @@
           "progress_artifact_count": 0,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 0
+          "useful_commit_count": 0,
+          "change_types": [],
+          "topics": [],
+          "authors": []
         },
         "trace": {
           "method": "say_did_shipped",
@@ -633,7 +679,10 @@
           "progress_artifact_count": 0,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 0
+          "useful_commit_count": 0,
+          "change_types": [],
+          "topics": [],
+          "authors": []
         },
         "trace": {
           "method": "say_did_shipped",
@@ -741,7 +790,10 @@
           "progress_artifact_count": 0,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 0
+          "useful_commit_count": 0,
+          "change_types": [],
+          "topics": [],
+          "authors": []
         },
         "trace": {
           "method": "say_did_shipped",
@@ -877,7 +929,45 @@
           "progress_artifact_count": 4,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 25
+          "useful_commit_count": 25,
+          "change_types": [
+            {
+              "key": "other",
+              "count": 8
+            },
+            {
+              "key": "feature",
+              "count": 7
+            },
+            {
+              "key": "docs",
+              "count": 6
+            }
+          ],
+          "topics": [
+            {
+              "key": "privacy",
+              "count": 5
+            },
+            {
+              "key": "agent",
+              "count": 3
+            },
+            {
+              "key": "runtime",
+              "count": 3
+            }
+          ],
+          "authors": [
+            {
+              "key": "Kristian Koci",
+              "count": 23
+            },
+            {
+              "key": "kristian koci",
+              "count": 2
+            }
+          ]
         },
         "trace": {
           "method": "say_did_shipped",
@@ -1057,7 +1147,49 @@
           "progress_artifact_count": 3,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 959
+          "useful_commit_count": 959,
+          "change_types": [
+            {
+              "key": "fix",
+              "count": 367
+            },
+            {
+              "key": "feature",
+              "count": 115
+            },
+            {
+              "key": "other",
+              "count": 109
+            }
+          ],
+          "topics": [
+            {
+              "key": "ui",
+              "count": 204
+            },
+            {
+              "key": "runtime",
+              "count": 114
+            },
+            {
+              "key": "ops",
+              "count": 114
+            }
+          ],
+          "authors": [
+            {
+              "key": "Shaw",
+              "count": 318
+            },
+            {
+              "key": "lalalune",
+              "count": 250
+            },
+            {
+              "key": "NubsCarson",
+              "count": 103
+            }
+          ]
         },
         "trace": {
           "method": "say_did_shipped",
@@ -1202,7 +1334,10 @@
           "progress_artifact_count": 0,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 0
+          "useful_commit_count": 0,
+          "change_types": [],
+          "topics": [],
+          "authors": []
         },
         "trace": {
           "method": "say_did_shipped",
@@ -1310,7 +1445,10 @@
           "progress_artifact_count": 0,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 0
+          "useful_commit_count": 0,
+          "change_types": [],
+          "topics": [],
+          "authors": []
         },
         "trace": {
           "method": "say_did_shipped",
@@ -1418,7 +1556,10 @@
           "progress_artifact_count": 0,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 0
+          "useful_commit_count": 0,
+          "change_types": [],
+          "topics": [],
+          "authors": []
         },
         "trace": {
           "method": "say_did_shipped",
@@ -1526,7 +1667,10 @@
           "progress_artifact_count": 0,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 0
+          "useful_commit_count": 0,
+          "change_types": [],
+          "topics": [],
+          "authors": []
         },
         "trace": {
           "method": "say_did_shipped",
@@ -1655,7 +1799,49 @@
           "progress_artifact_count": 3,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 200
+          "useful_commit_count": 200,
+          "change_types": [
+            {
+              "key": "fix",
+              "count": 80
+            },
+            {
+              "key": "feature",
+              "count": 50
+            },
+            {
+              "key": "docs",
+              "count": 28
+            }
+          ],
+          "topics": [
+            {
+              "key": "agent",
+              "count": 27
+            },
+            {
+              "key": "ops",
+              "count": 24
+            },
+            {
+              "key": "ui",
+              "count": 14
+            }
+          ],
+          "authors": [
+            {
+              "key": "William Cory",
+              "count": 138
+            },
+            {
+              "key": "Will Cory",
+              "count": 43
+            },
+            {
+              "key": "Shaw",
+              "count": 10
+            }
+          ]
         },
         "trace": {
           "method": "say_did_shipped",
@@ -1800,7 +1986,10 @@
           "progress_artifact_count": 0,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 0
+          "useful_commit_count": 0,
+          "change_types": [],
+          "topics": [],
+          "authors": []
         },
         "trace": {
           "method": "say_did_shipped",
@@ -1908,7 +2097,10 @@
           "progress_artifact_count": 0,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 0
+          "useful_commit_count": 0,
+          "change_types": [],
+          "topics": [],
+          "authors": []
         },
         "trace": {
           "method": "say_did_shipped",
@@ -2043,7 +2235,45 @@
           "progress_artifact_count": 3,
           "release_artifact_count": 1,
           "release_count": 16,
-          "useful_commit_count": 30
+          "useful_commit_count": 30,
+          "change_types": [
+            {
+              "key": "fix",
+              "count": 10
+            },
+            {
+              "key": "maintenance",
+              "count": 9
+            },
+            {
+              "key": "feature",
+              "count": 6
+            }
+          ],
+          "topics": [
+            {
+              "key": "ops",
+              "count": 10
+            },
+            {
+              "key": "runtime",
+              "count": 6
+            },
+            {
+              "key": "data",
+              "count": 5
+            }
+          ],
+          "authors": [
+            {
+              "key": "dmarzzz",
+              "count": 20
+            },
+            {
+              "key": "dmarz",
+              "count": 10
+            }
+          ]
         },
         "trace": {
           "method": "say_did_shipped",
@@ -2195,7 +2425,10 @@
           "progress_artifact_count": 0,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 0
+          "useful_commit_count": 0,
+          "change_types": [],
+          "topics": [],
+          "authors": []
         },
         "trace": {
           "method": "say_did_shipped",
@@ -2337,7 +2570,49 @@
           "progress_artifact_count": 4,
           "release_artifact_count": 1,
           "release_count": 82,
-          "useful_commit_count": 378
+          "useful_commit_count": 378,
+          "change_types": [
+            {
+              "key": "maintenance",
+              "count": 225
+            },
+            {
+              "key": "other",
+              "count": 181
+            },
+            {
+              "key": "feature",
+              "count": 125
+            }
+          ],
+          "topics": [
+            {
+              "key": "ops",
+              "count": 229
+            },
+            {
+              "key": "ui",
+              "count": 68
+            },
+            {
+              "key": "agent",
+              "count": 25
+            }
+          ],
+          "authors": [
+            {
+              "key": "Mikeishiring",
+              "count": 317
+            },
+            {
+              "key": "dmarzzz",
+              "count": 104
+            },
+            {
+              "key": "freddmannen",
+              "count": 61
+            }
+          ]
         },
         "trace": {
           "method": "say_did_shipped",
@@ -2516,7 +2791,25 @@
           "progress_artifact_count": 1,
           "release_artifact_count": 1,
           "release_count": 1,
-          "useful_commit_count": 1
+          "useful_commit_count": 1,
+          "change_types": [
+            {
+              "key": "feature",
+              "count": 1
+            }
+          ],
+          "topics": [
+            {
+              "key": "auth",
+              "count": 1
+            }
+          ],
+          "authors": [
+            {
+              "key": "Ron Turetzky",
+              "count": 1
+            }
+          ]
         },
         "trace": {
           "method": "say_did_shipped",
@@ -2647,7 +2940,49 @@
           "progress_artifact_count": 1,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 283
+          "useful_commit_count": 283,
+          "change_types": [
+            {
+              "key": "other",
+              "count": 112
+            },
+            {
+              "key": "feature",
+              "count": 78
+            },
+            {
+              "key": "fix",
+              "count": 50
+            }
+          ],
+          "topics": [
+            {
+              "key": "runtime",
+              "count": 50
+            },
+            {
+              "key": "agent",
+              "count": 25
+            },
+            {
+              "key": "ops",
+              "count": 25
+            }
+          ],
+          "authors": [
+            {
+              "key": "Ocean Vael",
+              "count": 187
+            },
+            {
+              "key": "nikolaixyz",
+              "count": 58
+            },
+            {
+              "key": "Yo Lo",
+              "count": 20
+            }
+          ]
         },
         "trace": {
           "method": "say_did_shipped",
@@ -2778,7 +3113,41 @@
           "progress_artifact_count": 2,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 28
+          "useful_commit_count": 28,
+          "change_types": [
+            {
+              "key": "maintenance",
+              "count": 20
+            },
+            {
+              "key": "fix",
+              "count": 12
+            },
+            {
+              "key": "feature",
+              "count": 6
+            }
+          ],
+          "topics": [
+            {
+              "key": "ops",
+              "count": 22
+            },
+            {
+              "key": "privacy",
+              "count": 22
+            },
+            {
+              "key": "agent",
+              "count": 5
+            }
+          ],
+          "authors": [
+            {
+              "key": "James",
+              "count": 28
+            }
+          ]
         },
         "trace": {
           "method": "say_did_shipped",
@@ -2909,7 +3278,10 @@
           "progress_artifact_count": 0,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 0
+          "useful_commit_count": 0,
+          "change_types": [],
+          "topics": [],
+          "authors": []
         },
         "trace": {
           "method": "say_did_shipped",
@@ -3017,7 +3389,10 @@
           "progress_artifact_count": 0,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 0
+          "useful_commit_count": 0,
+          "change_types": [],
+          "topics": [],
+          "authors": []
         },
         "trace": {
           "method": "say_did_shipped",
@@ -3125,7 +3500,10 @@
           "progress_artifact_count": 0,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 0
+          "useful_commit_count": 0,
+          "change_types": [],
+          "topics": [],
+          "authors": []
         },
         "trace": {
           "method": "say_did_shipped",
@@ -3233,7 +3611,10 @@
           "progress_artifact_count": 0,
           "release_artifact_count": 0,
           "release_count": 0,
-          "useful_commit_count": 0
+          "useful_commit_count": 0,
+          "change_types": [],
+          "topics": [],
+          "authors": []
         },
         "trace": {
           "method": "say_did_shipped",
@@ -15681,7 +16062,10 @@
             "progress_artifact_count": 0,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 0
+            "useful_commit_count": 0,
+            "change_types": [],
+            "topics": [],
+            "authors": []
           },
           "trace": {
             "method": "say_did_shipped",
@@ -15789,7 +16173,10 @@
             "progress_artifact_count": 0,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 0
+            "useful_commit_count": 0,
+            "change_types": [],
+            "topics": [],
+            "authors": []
           },
           "trace": {
             "method": "say_did_shipped",
@@ -15911,7 +16298,41 @@
             "progress_artifact_count": 2,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 15
+            "useful_commit_count": 15,
+            "change_types": [
+              {
+                "key": "other",
+                "count": 13
+              },
+              {
+                "key": "feature",
+                "count": 1
+              },
+              {
+                "key": "test",
+                "count": 1
+              }
+            ],
+            "topics": [
+              {
+                "key": "agent",
+                "count": 3
+              },
+              {
+                "key": "data",
+                "count": 1
+              },
+              {
+                "key": "auth",
+                "count": 1
+              }
+            ],
+            "authors": [
+              {
+                "key": "Prakhar Ojha",
+                "count": 15
+              }
+            ]
           },
           "trace": {
             "method": "say_did_shipped",
@@ -16042,7 +16463,10 @@
             "progress_artifact_count": 0,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 0
+            "useful_commit_count": 0,
+            "change_types": [],
+            "topics": [],
+            "authors": []
           },
           "trace": {
             "method": "say_did_shipped",
@@ -16150,7 +16574,10 @@
             "progress_artifact_count": 0,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 0
+            "useful_commit_count": 0,
+            "change_types": [],
+            "topics": [],
+            "authors": []
           },
           "trace": {
             "method": "say_did_shipped",
@@ -16258,7 +16685,10 @@
             "progress_artifact_count": 0,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 0
+            "useful_commit_count": 0,
+            "change_types": [],
+            "topics": [],
+            "authors": []
           },
           "trace": {
             "method": "say_did_shipped",
@@ -16366,7 +16796,10 @@
             "progress_artifact_count": 0,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 0
+            "useful_commit_count": 0,
+            "change_types": [],
+            "topics": [],
+            "authors": []
           },
           "trace": {
             "method": "say_did_shipped",
@@ -16502,7 +16935,45 @@
             "progress_artifact_count": 4,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 25
+            "useful_commit_count": 25,
+            "change_types": [
+              {
+                "key": "other",
+                "count": 8
+              },
+              {
+                "key": "feature",
+                "count": 7
+              },
+              {
+                "key": "docs",
+                "count": 6
+              }
+            ],
+            "topics": [
+              {
+                "key": "privacy",
+                "count": 5
+              },
+              {
+                "key": "agent",
+                "count": 3
+              },
+              {
+                "key": "runtime",
+                "count": 3
+              }
+            ],
+            "authors": [
+              {
+                "key": "Kristian Koci",
+                "count": 23
+              },
+              {
+                "key": "kristian koci",
+                "count": 2
+              }
+            ]
           },
           "trace": {
             "method": "say_did_shipped",
@@ -16682,7 +17153,49 @@
             "progress_artifact_count": 3,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 959
+            "useful_commit_count": 959,
+            "change_types": [
+              {
+                "key": "fix",
+                "count": 367
+              },
+              {
+                "key": "feature",
+                "count": 115
+              },
+              {
+                "key": "other",
+                "count": 109
+              }
+            ],
+            "topics": [
+              {
+                "key": "ui",
+                "count": 204
+              },
+              {
+                "key": "runtime",
+                "count": 114
+              },
+              {
+                "key": "ops",
+                "count": 114
+              }
+            ],
+            "authors": [
+              {
+                "key": "Shaw",
+                "count": 318
+              },
+              {
+                "key": "lalalune",
+                "count": 250
+              },
+              {
+                "key": "NubsCarson",
+                "count": 103
+              }
+            ]
           },
           "trace": {
             "method": "say_did_shipped",
@@ -16827,7 +17340,10 @@
             "progress_artifact_count": 0,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 0
+            "useful_commit_count": 0,
+            "change_types": [],
+            "topics": [],
+            "authors": []
           },
           "trace": {
             "method": "say_did_shipped",
@@ -16935,7 +17451,10 @@
             "progress_artifact_count": 0,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 0
+            "useful_commit_count": 0,
+            "change_types": [],
+            "topics": [],
+            "authors": []
           },
           "trace": {
             "method": "say_did_shipped",
@@ -17043,7 +17562,10 @@
             "progress_artifact_count": 0,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 0
+            "useful_commit_count": 0,
+            "change_types": [],
+            "topics": [],
+            "authors": []
           },
           "trace": {
             "method": "say_did_shipped",
@@ -17151,7 +17673,10 @@
             "progress_artifact_count": 0,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 0
+            "useful_commit_count": 0,
+            "change_types": [],
+            "topics": [],
+            "authors": []
           },
           "trace": {
             "method": "say_did_shipped",
@@ -17280,7 +17805,49 @@
             "progress_artifact_count": 3,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 200
+            "useful_commit_count": 200,
+            "change_types": [
+              {
+                "key": "fix",
+                "count": 80
+              },
+              {
+                "key": "feature",
+                "count": 50
+              },
+              {
+                "key": "docs",
+                "count": 28
+              }
+            ],
+            "topics": [
+              {
+                "key": "agent",
+                "count": 27
+              },
+              {
+                "key": "ops",
+                "count": 24
+              },
+              {
+                "key": "ui",
+                "count": 14
+              }
+            ],
+            "authors": [
+              {
+                "key": "William Cory",
+                "count": 138
+              },
+              {
+                "key": "Will Cory",
+                "count": 43
+              },
+              {
+                "key": "Shaw",
+                "count": 10
+              }
+            ]
           },
           "trace": {
             "method": "say_did_shipped",
@@ -17425,7 +17992,10 @@
             "progress_artifact_count": 0,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 0
+            "useful_commit_count": 0,
+            "change_types": [],
+            "topics": [],
+            "authors": []
           },
           "trace": {
             "method": "say_did_shipped",
@@ -17533,7 +18103,10 @@
             "progress_artifact_count": 0,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 0
+            "useful_commit_count": 0,
+            "change_types": [],
+            "topics": [],
+            "authors": []
           },
           "trace": {
             "method": "say_did_shipped",
@@ -17668,7 +18241,45 @@
             "progress_artifact_count": 3,
             "release_artifact_count": 1,
             "release_count": 16,
-            "useful_commit_count": 30
+            "useful_commit_count": 30,
+            "change_types": [
+              {
+                "key": "fix",
+                "count": 10
+              },
+              {
+                "key": "maintenance",
+                "count": 9
+              },
+              {
+                "key": "feature",
+                "count": 6
+              }
+            ],
+            "topics": [
+              {
+                "key": "ops",
+                "count": 10
+              },
+              {
+                "key": "runtime",
+                "count": 6
+              },
+              {
+                "key": "data",
+                "count": 5
+              }
+            ],
+            "authors": [
+              {
+                "key": "dmarzzz",
+                "count": 20
+              },
+              {
+                "key": "dmarz",
+                "count": 10
+              }
+            ]
           },
           "trace": {
             "method": "say_did_shipped",
@@ -17820,7 +18431,10 @@
             "progress_artifact_count": 0,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 0
+            "useful_commit_count": 0,
+            "change_types": [],
+            "topics": [],
+            "authors": []
           },
           "trace": {
             "method": "say_did_shipped",
@@ -17962,7 +18576,49 @@
             "progress_artifact_count": 4,
             "release_artifact_count": 1,
             "release_count": 82,
-            "useful_commit_count": 378
+            "useful_commit_count": 378,
+            "change_types": [
+              {
+                "key": "maintenance",
+                "count": 225
+              },
+              {
+                "key": "other",
+                "count": 181
+              },
+              {
+                "key": "feature",
+                "count": 125
+              }
+            ],
+            "topics": [
+              {
+                "key": "ops",
+                "count": 229
+              },
+              {
+                "key": "ui",
+                "count": 68
+              },
+              {
+                "key": "agent",
+                "count": 25
+              }
+            ],
+            "authors": [
+              {
+                "key": "Mikeishiring",
+                "count": 317
+              },
+              {
+                "key": "dmarzzz",
+                "count": 104
+              },
+              {
+                "key": "freddmannen",
+                "count": 61
+              }
+            ]
           },
           "trace": {
             "method": "say_did_shipped",
@@ -18141,7 +18797,25 @@
             "progress_artifact_count": 1,
             "release_artifact_count": 1,
             "release_count": 1,
-            "useful_commit_count": 1
+            "useful_commit_count": 1,
+            "change_types": [
+              {
+                "key": "feature",
+                "count": 1
+              }
+            ],
+            "topics": [
+              {
+                "key": "auth",
+                "count": 1
+              }
+            ],
+            "authors": [
+              {
+                "key": "Ron Turetzky",
+                "count": 1
+              }
+            ]
           },
           "trace": {
             "method": "say_did_shipped",
@@ -18272,7 +18946,49 @@
             "progress_artifact_count": 1,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 283
+            "useful_commit_count": 283,
+            "change_types": [
+              {
+                "key": "other",
+                "count": 112
+              },
+              {
+                "key": "feature",
+                "count": 78
+              },
+              {
+                "key": "fix",
+                "count": 50
+              }
+            ],
+            "topics": [
+              {
+                "key": "runtime",
+                "count": 50
+              },
+              {
+                "key": "agent",
+                "count": 25
+              },
+              {
+                "key": "ops",
+                "count": 25
+              }
+            ],
+            "authors": [
+              {
+                "key": "Ocean Vael",
+                "count": 187
+              },
+              {
+                "key": "nikolaixyz",
+                "count": 58
+              },
+              {
+                "key": "Yo Lo",
+                "count": 20
+              }
+            ]
           },
           "trace": {
             "method": "say_did_shipped",
@@ -18403,7 +19119,41 @@
             "progress_artifact_count": 2,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 28
+            "useful_commit_count": 28,
+            "change_types": [
+              {
+                "key": "maintenance",
+                "count": 20
+              },
+              {
+                "key": "fix",
+                "count": 12
+              },
+              {
+                "key": "feature",
+                "count": 6
+              }
+            ],
+            "topics": [
+              {
+                "key": "ops",
+                "count": 22
+              },
+              {
+                "key": "privacy",
+                "count": 22
+              },
+              {
+                "key": "agent",
+                "count": 5
+              }
+            ],
+            "authors": [
+              {
+                "key": "James",
+                "count": 28
+              }
+            ]
           },
           "trace": {
             "method": "say_did_shipped",
@@ -18534,7 +19284,10 @@
             "progress_artifact_count": 0,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 0
+            "useful_commit_count": 0,
+            "change_types": [],
+            "topics": [],
+            "authors": []
           },
           "trace": {
             "method": "say_did_shipped",
@@ -18642,7 +19395,10 @@
             "progress_artifact_count": 0,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 0
+            "useful_commit_count": 0,
+            "change_types": [],
+            "topics": [],
+            "authors": []
           },
           "trace": {
             "method": "say_did_shipped",
@@ -18750,7 +19506,10 @@
             "progress_artifact_count": 0,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 0
+            "useful_commit_count": 0,
+            "change_types": [],
+            "topics": [],
+            "authors": []
           },
           "trace": {
             "method": "say_did_shipped",
@@ -18858,7 +19617,10 @@
             "progress_artifact_count": 0,
             "release_artifact_count": 0,
             "release_count": 0,
-            "useful_commit_count": 0
+            "useful_commit_count": 0,
+            "change_types": [],
+            "topics": [],
+            "authors": []
           },
           "trace": {
             "method": "say_did_shipped",

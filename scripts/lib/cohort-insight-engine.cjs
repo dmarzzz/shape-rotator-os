@@ -398,6 +398,28 @@ function teamKindLabel(team, { includeFocus = true } = {}) {
   return "a cohort project";
 }
 
+// Merge an evidence facet ([{key,count},…]) across all of a team's progress
+// artifacts, summing counts and returning the top-N keys. The per-week artifacts
+// each carry evidence.{categories,topics,authors}; the engine previously collapsed
+// every artifact to a single useful_commit_count, dropping the qualitative "what
+// KIND of work, by whom" signal entirely. This rescues it onto the surface so a
+// consumer can show "feature+fix on agent/runtime by X" instead of a bare count.
+const BOT_AUTHOR_RE = /\[bot\]|github-actions?\b|dependabot|renovate|semantic-release/i;
+function mergeEvidenceFacet(progress, facet, limit = 3, { exclude } = {}) {
+  const totals = new Map();
+  for (const artifact of asArray(progress)) {
+    for (const row of asArray(artifact?.evidence?.[facet])) {
+      const key = String(row?.key || "").trim();
+      const count = Number(row?.count) || 0;
+      if (key && !(exclude && exclude.test(key))) totals.set(key, (totals.get(key) || 0) + count);
+    }
+  }
+  return [...totals.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([key, count]) => ({ key, count }));
+}
+
 function teamActivity(team, progressByTeam, releasesByTeam) {
   const progress = asArray(progressByTeam.get(team.record_id)).slice().sort(sortProgressArtifacts);
   const releaseArtifacts = asArray(releasesByTeam.get(team.record_id));
@@ -408,7 +430,13 @@ function teamActivity(team, progressByTeam, releasesByTeam) {
   const observed = Boolean(latest || releases.length);
   const totalUsefulCommits = progress.reduce((sum, artifact) => sum + usefulCommitCount(artifact), 0);
   const releaseNames = releases.slice(0, 3).map(release => release.name || release.tag).filter(Boolean);
-  return { progress, releaseArtifacts, releases, latest, observed, totalUsefulCommits, releaseNames };
+  // Qualitative activity mix aggregated across the whole tracked window.
+  const activityMix = {
+    change_types: mergeEvidenceFacet(progress, "categories"),
+    topics: mergeEvidenceFacet(progress, "topics"),
+    authors: mergeEvidenceFacet(progress, "authors", 3, { exclude: BOT_AUTHOR_RE }),
+  };
+  return { progress, releaseArtifacts, releases, latest, observed, totalUsefulCommits, releaseNames, activityMix };
 }
 
 // Recover the matched_cohort_people signal the github-progress scanner attaches to each
@@ -607,6 +635,11 @@ function buildSayDidShippedCards({ teams = [], githubProgressArtifacts = [], git
             release_artifact_count: act.releaseArtifacts.length,
             release_count: act.releases.length,
             useful_commit_count: act.totalUsefulCommits,
+            // Qualitative mix (top change types / topics / authors) so a consumer
+            // can render "what kind of work, by whom" — not just the count above.
+            change_types: act.activityMix.change_types,
+            topics: act.activityMix.topics,
+            authors: act.activityMix.authors,
           },
           trace,
         },

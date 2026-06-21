@@ -917,6 +917,13 @@ function mountSharedOverlay(overlay) {
   let raf = 0;
   let running = true;
   let started = performance.now();
+  // Render-rate governor (battery): when the window is blurred (visible but
+  // unfocused — Electron does NOT throttle that state) drop to ~10fps, and skip
+  // entirely when hidden. When focused, render at the full refresh rate. Kept
+  // self-contained so this vendored module stays decoupled from the app.
+  const BLUR_FRAME_MS = 1000 / 10;
+  let _focused = typeof document.hasFocus === "function" ? document.hasFocus() : true;
+  let _lastDraw = 0;
 
   // Build the placeholder list once + cache it; refresh only when the
   // DOM under the alchemy host changes. Prior shape: queried the DOM +
@@ -1102,6 +1109,13 @@ function mountSharedOverlay(overlay) {
     // visibilitychange handler installed below re-arms us when the
     // user comes back to the window.
     if (document.hidden) { raf = 0; return; }
+    // Throttle gate: when blurred the window is still visible so Electron won't
+    // throttle us — we self-limit to a low rate; when focused we render at the
+    // full refresh rate. rAF stays armed so we resume immediately when
+    // focus/visibility returns.
+    const budget = _focused ? 0 : BLUR_FRAME_MS;
+    if (now - _lastDraw < budget - 1) { raf = requestAnimationFrame(frame); return; }
+    _lastDraw = now;
     const t = (now - started) / 1000;
     gl.viewport(0, 0, overlay.width, overlay.height);
     gl.scissor(0, 0, overlay.width, overlay.height);
@@ -1221,12 +1235,24 @@ function mountSharedOverlay(overlay) {
   };
   document.addEventListener("visibilitychange", _onVisibilityChange);
 
+  // Track window focus so we can throttle to a low rate while the app is
+  // blurred (visible but unfocused) — a state Electron does not throttle.
+  const _onWindowFocus = () => {
+    _focused = true;
+    if (running && raf === 0 && !document.hidden) raf = requestAnimationFrame(frame);
+  };
+  const _onWindowBlur = () => { _focused = false; };
+  window.addEventListener("focus", _onWindowFocus);
+  window.addEventListener("blur", _onWindowBlur);
+
   return {
     destroy() {
       pause();
       detachDrag(drag.el);
       _mo.disconnect();
       document.removeEventListener("visibilitychange", _onVisibilityChange);
+      window.removeEventListener("focus", _onWindowFocus);
+      window.removeEventListener("blur", _onWindowBlur);
       window.removeEventListener("resize", resize);
       const lose = gl.getExtension("WEBGL_lose_context");
       if (lose) try { lose.loseContext(); } catch {}

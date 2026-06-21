@@ -51,12 +51,13 @@ import {
   CONTEXT_SUBMISSION_KINDS,
   submitContext,
 } from "./context-submit.mjs";
-import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable } from "./cohort-source.js";
+import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable, refreshCohortFromGithub } from "./cohort-source.js";
+import { readSupabaseConfig, persistCohortKeyOverride } from "./supabase-evidence.mjs";
 import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
 import { indexCohortEvidence, teamEvidence, recentClaims, teamTimeline, claimLane } from "./cohort-evidence-index.mjs";
 import { cardTraceBodyHtml, cardTraceHtml } from "./cohort-trace-view.mjs";
 import { getCohortTimeline } from "./cohort-timeline.js";
-import { buildActivityLane, isPresent, buildStandingLane } from "./cohort-timeline-tracks.mjs";
+import { isPresent } from "./cohort-timeline-tracks.mjs";
 import { getStandingWeekly } from "./cohort-standing-weekly.js";
 import { periodScrubberHtml, wireScrubber, weekStopsFrom, snapshotStopsFrom } from "./cohort-period-scrubber.mjs";
 import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
@@ -282,7 +283,7 @@ const state = {
   constellationLens: "all",   // map line lens: "all" | "relies" | "works" | "substrate" — changes which relationship claim is foregrounded
   constPeopleLinkFilter: "all", // people-map legend/filter: "all" | "same-team" | "profile" | "shared-context"
   constInterest: "all",       // map ecosystem focus: "all" or a cluster record_id from cohort-data/clusters
-  constellationGranularity: "clusters", // bubble map grain: "themes" | "clusters" | "skills"
+  constellationGranularity: "themes", // bubble map grain: "themes" | "clusters" | "skills" (overview-first on entry)
   constellationSizeBy: "maturity", // bubble map size channel; persisted to CONST_SIZE_LS_KEY
   constDomainFilter: "all", // bubble map: isolate one domain colour; persisted to CONST_DOMAIN_FILTER_LS_KEY
   constRailW: null, // user-dragged inspector rail width in px (null = default clamp); CONST_RAIL_LS_KEY
@@ -293,12 +294,14 @@ const state = {
   renderSeq: 0,               // monotonic render guard; stale delayed swaps must not overwrite the latest view
   calendar: {                     // calendar tab state — see renderCalendar()
     weekIdx: null,                // 0..9; resolved on first render via calendarCurrentWeekIdx()
-    view: "cal",                  // "cal" (timeline grid) | "presence" (availability gantt)
+    view: "cal",                  // "cal" (the unified hour grid + filter + signals) | "presence" (availability gantt)
     data: null,                   // raw Phala JSON — live response or bundled snapshot
     source: null,                 // "live" | "bundled" | null (no data yet)
     loading: false,               // true while the async live fetch is in flight
     initialMount: true,           // first render? drives scroll-to-now
     detach: null,                 // teardown returned by attachCalendarPageBehavior
+    catHidden: [],                // category keys the legend-filter has switched off
+    scope: null,                  // team record_id the signals are focused on (null = all cohort)
   },
   events: [],          // normalized feed items, latest-first
   fetchedAt: 0,
@@ -341,12 +344,13 @@ export function mount(container) {
     state.constellationLens = constNormalizeConstellationLens(localStorage.getItem(CONST_LENS_LS_KEY));
     state.constEdgeTier = constNormalizeEdgeTier(localStorage.getItem(CONST_TIER_LS_KEY));
     state.constPeopleLinkFilter = constNormalizePeopleLinkFilter(localStorage.getItem(CONST_PEOPLE_LINK_LS_KEY));
-    const granLsRaw = localStorage.getItem(CONST_GRANULARITY_LS_KEY);
-    // Fresh default = themes: the map opens on the pulled-back overview (a few
-    // big spaces), then zooming in breaks themes → ecosystems → teams. A saved
-    // grain still wins so a returning user keeps the detail level they chose.
-    state.constellationGranularity = (granLsRaw != null && granLsRaw !== "")
-      ? constNormalizeGranularity(granLsRaw) : "themes";
+    // Overview-first: the relationship map always OPENS on the themes layer (the
+    // few big spaces) so you see where everything sits, then zoom in to drill
+    // themes → ecosystems → teams. We deliberately do NOT restore a saved grain
+    // at entry — a stale "clusters"/"skills" pick must not pin you below the
+    // overview on every launch. Within a session, zoom + the grain dropdown still
+    // change grain freely (and persist for the zoom→grain bridge).
+    state.constellationGranularity = "themes";
     state.constellationSizeBy = constNormalizeSizeBy(localStorage.getItem(CONST_SIZE_LS_KEY));
     state.constDomainFilter = constNormalizeDomainFilter(localStorage.getItem(CONST_DOMAIN_FILTER_LS_KEY));
     state.constRailW = clampConstRail(localStorage.getItem(CONST_RAIL_LS_KEY));
@@ -403,12 +407,11 @@ export function mount(container) {
       const timelineIdx = Number(timelineIdxRaw);
       if (Number.isFinite(timelineIdx)) state.constellationTimelineIdx = timelineIdx;
     }
-    const zoomLsRaw = localStorage.getItem(COHORT_ZOOM_LS_KEY);
-    // Fresh default zoom matches the default grain so the map opens coherently
-    // pulled back (themes band) rather than mid-zoom. A saved zoom still wins.
-    state.cohortZoom = (zoomLsRaw != null && zoomLsRaw !== "")
-      ? clampCohortZoom(zoomLsRaw)
-      : (state.constellationGranularity === "themes" ? grainToZoom("themes", false) : COHORT_ZOOM_DEFAULT);
+    // Enter at the themes zoom band to match the forced themes grain, so grain +
+    // zoom agree and the first zoom-in drills cleanly into clusters → teams. The
+    // saved zoom is intentionally not restored at entry (overview-first); zoom is
+    // shared across cohort views, so they too open pulled back.
+    state.cohortZoom = grainToZoom("themes", false);
     // Deep-detail is implied by zoom for the clusters grain; recompute from the
     // restored zoom so a reload keeps the all-labels-visible view.
     if (constNormalizeGranularity(state.constellationGranularity) === "clusters") {
@@ -1388,6 +1391,32 @@ function flashCohortZoomControl() {
     cohortZoomFlashTimer = 0;
   }, 1100);
 }
+// On the ecosystem (bubble) map, "zoom" is the grain — themes ▸ ecosystems ▸
+// skills — not a continuous scale, so the corner control steps grains there.
+const BUBBLE_GRAINS = ["themes", "clusters", "skills"];
+function bubbleMapShowing() {
+  return !!(state.canvas && state.canvas.querySelector('.alch-constellation-stage[data-view="bubble"]'));
+}
+function stepBubbleGrain(dir) {
+  const cur = constNormalizeGranularity(state.constellationGranularity);
+  const idx = Math.max(0, BUBBLE_GRAINS.indexOf(cur));
+  const next = BUBBLE_GRAINS[Math.max(0, Math.min(BUBBLE_GRAINS.length - 1, idx + dir))];
+  if (next === cur && !state.constGrainDeep) return;
+  state.constellationGranularity = next;
+  state.constSelection = null;
+  if (next === "skills") { state.constGrainManual = true; state.constGrainDeep = false; }
+  else {
+    state.constGrainManual = false; state.constGrainDeep = false;
+    const z = grainToZoom(next, false);
+    state.cohortZoom = z;
+    try { localStorage.setItem(COHORT_ZOOM_LS_KEY, String(z)); } catch {}
+    applyCohortZoom();
+  }
+  try { localStorage.setItem(CONST_GRANULARITY_LS_KEY, next); } catch {}
+  const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  if (document.startViewTransition && !reduce) document.startViewTransition(() => render());
+  else render();
+}
 function syncCohortZoomControl() {
   if (!state.container) return;
   let el = state.container.querySelector(".alch-zoom-ctl");
@@ -1405,19 +1434,34 @@ function syncCohortZoomControl() {
     el.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-zoom]");
       if (!btn) return;
-      if (btn.dataset.zoom === "in") zoomCohortBy(1);
-      else if (btn.dataset.zoom === "out") zoomCohortBy(-1);
-      else zoomCohortTo(COHORT_ZOOM_DEFAULT, { animate: true });
+      const onBubble = bubbleMapShowing();
+      if (btn.dataset.zoom === "reset") {
+        if (onBubble) stepBubbleGrain(-99); // back to the themes overview
+        else zoomCohortTo(COHORT_ZOOM_DEFAULT, { animate: true });
+      } else if (onBubble) {
+        stepBubbleGrain(btn.dataset.zoom === "in" ? 1 : -1);
+      } else if (btn.dataset.zoom === "in") zoomCohortBy(1);
+      else zoomCohortBy(-1);
     });
     state.container.appendChild(el);
   }
   el.hidden = false;
   const z = clampCohortZoom(state.cohortZoom);
+  const onBubble = bubbleMapShowing();
+  const grain = constNormalizeGranularity(state.constellationGranularity);
+  const gi = BUBBLE_GRAINS.indexOf(grain);
   const val = el.querySelector(".azc-val");
-  if (val) val.textContent = `${Math.round(z * 100)}%`;
-  el.dataset.zoomed = z === COHORT_ZOOM_DEFAULT ? "false" : "true";
-  el.querySelector('[data-zoom="out"]').disabled = z <= COHORT_ZOOM_MIN;
-  el.querySelector('[data-zoom="in"]').disabled = z >= COHORT_ZOOM_MAX;
+  if (val) {
+    // On the bubble map the zoom IS the grain, so show the grain name (a "%"
+    // would imply a continuous scale that no longer applies); elsewhere keep %.
+    val.textContent = onBubble
+      ? (grain === "themes" ? "themes" : grain === "skills" ? "skills" : "ecosystems")
+      : `${Math.round(z * 100)}%`;
+    val.title = onBubble ? "zoom level — themes ▸ ecosystems ▸ skills (click for the overview)" : "reset zoom to 100%";
+  }
+  el.dataset.zoomed = onBubble ? (grain !== "themes" ? "true" : "false") : (z === COHORT_ZOOM_DEFAULT ? "false" : "true");
+  el.querySelector('[data-zoom="out"]').disabled = onBubble ? gi <= 0 : z <= COHORT_ZOOM_MIN;
+  el.querySelector('[data-zoom="in"]').disabled = onBubble ? gi >= BUBBLE_GRAINS.length - 1 : z >= COHORT_ZOOM_MAX;
 }
 
 // The sphere-editor popup's live preview is a standalone mountShape instance
@@ -2934,7 +2978,7 @@ function journeyDetailSection(rec) {
 // page, five ways of understanding the cohort.
 const CONST_VIEWS = [
   { mode: "directory", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>', label: "directory", hint: "teams, projects, people" },
-  { mode: "map",     glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>', label: "relationship map", hint: "declared links by ecosystem" },
+  { mode: "map",     glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>', label: "ecosystem map", hint: "where every team sits, grouped by what it builds" },
   { mode: "journey", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>', label: "pmf evidence", hint: "market-fit signal coverage" },
   { mode: "stack",   glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>', label: "standing", hint: "status + gap to target" },
   // "targets" folded into "standing" as a projection toggle (2026-06): same
@@ -4404,337 +4448,8 @@ function constellationCurrentInspectorContext() {
   // update) inspector keeps the positional sidebar after hover/refocus.
   const mode = (baseMode === "map" && scope === "projects") ? "bubble" : baseMode;
   const base = { ...ctx, clusters, mode, scope, distributionWells: model.wellsDef, lens: mode === "ring" ? "all" : constNormalizeConstellationLens(state.constellationLens), interest: constInterestContext(teams, clusters, edges, state.constInterest), bubbleMap: mode === "bubble" ? constBubbleMapSummary(model, constNormalizeGranularity(state.constellationGranularity)) : null };
-  return mode === "stack" ? { ...base, stackModel: constProductStackModel(teams, base) } : base;
+  return base;
 }
-
-function constEvidenceItems(team, ctx) {
-  const j = journeyFor(team);
-  const assessed = journeyAssessed(team);
-  const paperCount = constList(team.paper_basis).length;
-  const shipCount = constList(team.prior_shipping).length;
-  const inbound = ctx?.inBy?.get(team.record_id)?.length || 0;
-  const outbound = ctx?.outBy?.get(team.record_id)?.length || 0;
-  const operating = [team.now, team.weekly_goals, team.graduation_target, team.monthly_milestones].filter(constText).length;
-  const marketBits = [team.traction, assessed && j.icp, assessed && j.evidence_notes, assessed && j.next_milestone].filter(Boolean).length;
-  const profileNote = "profile only; no stronger proof signal";
-  return [
-    { key: "market", label: "customer traction", value: Math.min(5, marketBits), note: team.traction || (assessed ? j.evidence_notes : "") || profileNote },
-    { key: "build", label: "product shipped", value: Math.min(5, shipCount + (team.hackathon_note ? 1 : 0)), note: shipCount ? `${shipCount} public shipping signals` : (team.hackathon_note || profileNote) },
-    { key: "research", label: "research basis", value: Math.min(5, paperCount), note: paperCount ? `${paperCount} paper / mechanism references` : profileNote },
-    { key: "cohort", label: "cohort pull", value: Math.min(5, inbound + outbound), note: `${inbound} pointing in · ${outbound} pointing out` },
-    { key: "operating", label: "operating data", value: Math.min(5, operating), note: operating ? `${operating}/4 operating fields` : profileNote },
-  ];
-}
-
-
-
-const CONST_STACK_COLUMNS = [
-  {
-    key: "substrate",
-    label: "substrate",
-    hint: "runtime, TEE, storage, routing, protocol, or network layer",
-    terms: ["tee", "tdx", "sev", "dstack", "confidential", "cvm", "postgres", "storage", "routing", "router", "protocol", "network", "runtime", "sdk", "evm", "tevm", "identity", "attested", "tls", "infrastructure"],
-  },
-  {
-    key: "developer",
-    label: "developer tooling",
-    hint: "builder workflows, coding agents, frameworks, repos, test systems",
-    terms: ["developer", "github", "code", "coding", "repo", "framework", "plugin", "agent framework", "runtime", "langgraph", "test", "corpus", "programming", "automation", "abstraction", "sdk", "tooling"],
-  },
-  {
-    key: "proof",
-    label: "proof / data",
-    hint: "attestation, research IP, market data, verification, knowledge layer",
-    terms: ["proof", "attestation", "verify", "verified", "measurement", "data", "market data", "research", "paper", "mechanism", "microstructure", "prediction market", "oracle", "belief", "retrieval", "knowledge", "biosensor", "privacy"],
-  },
-  {
-    key: "application",
-    label: "application",
-    hint: "end-user app, workflow, interface, creative or consumer experience",
-    terms: ["app", "ios", "consumer", "speaking", "practice", "chat", "signal", "relationship", "hardware", "creative", "experience", "workflow", "interface", "ux", "payer", "ehr", "prior authorization"],
-  },
-  {
-    key: "market",
-    label: "market / customer",
-    hint: "buyer, GTM, paid pilot, distribution, customer or marketplace motion",
-    terms: ["customer", "buyer", "paid", "pilot", "users", "gtm", "bd", "sales", "distribution", "market", "marketplace", "pharma", "payer", "fundraising", "commercial", "monetization", "retention"],
-  },
-];
-
-const CONST_STACK_ROWS = [
-  { key: "market", label: "customer traction", hint: "traction, paid use, user behavior, ICP, or customer proof" },
-  { key: "build", label: "product shipped", hint: "working product, shipped code, prior shipping, or live prototype" },
-  { key: "research", label: "research lineage", hint: "paper basis, mechanism research, citations, or research-to-product work" },
-  { key: "cohort", label: "cohort leverage", hint: "inbound/outbound cohort relationships and dependency surface" },
-  { key: "profile", label: "profile only", hint: "domain, focus, skills, and current notes; orientation, not proof" },
-];
-
-
-
-function constStackSourceText(team) {
-  const j = journeyFor(team);
-  return [
-    team?.name,
-    team?.domain,
-    team?.focus,
-    team?.now,
-    team?.traction,
-    team?.weekly_goals,
-    team?.graduation_target,
-    team?.monthly_milestones,
-    team?.hackathon_note,
-    ...(Array.isArray(team?.skill_areas) ? team.skill_areas : []),
-    ...(Array.isArray(team?.success_dimensions) ? team.success_dimensions : []),
-    ...(Array.isArray(team?.prior_shipping) ? team.prior_shipping : []),
-    ...(Array.isArray(team?.paper_basis) ? team.paper_basis : []),
-    ...(Array.isArray(team?.seeking) ? team.seeking : []),
-    ...(Array.isArray(team?.offering) ? team.offering : []),
-    j.company_type,
-    j.problem,
-    j.solution,
-    j.icp,
-    j.evidence_notes,
-    j.next_milestone,
-  ].map(constText).filter(Boolean).join(" ").toLowerCase();
-}
-
-function constTermMatches(text, term) {
-  const haystack = ` ${String(text || "").toLowerCase().replace(/[^a-z0-9]+/g, " ")} `;
-  const needle = String(term || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  if (!needle) return false;
-  if (haystack.includes(` ${needle} `)) return true;
-  if (needle.includes(" ") || needle.length < 3) return false;
-  const plural = needle.endsWith("s") ? needle.slice(0, -1) : `${needle}s`;
-  return plural.length > 3 && haystack.includes(` ${plural} `);
-}
-
-function constTermHits(text, terms = []) {
-  const hits = [];
-  for (const term of terms) {
-    const needle = String(term || "").toLowerCase();
-    if (needle && constTermMatches(text, needle)) hits.push(needle);
-  }
-  return hits;
-}
-
-const CONST_STACK_TERM_LABELS = new Map([
-  ["tee", "TEE"],
-  ["tdx", "TDX"],
-  ["sev", "SEV"],
-  ["dstack", "dstack"],
-  ["cvm", "CVM"],
-  ["tls", "TLS"],
-  ["sdk", "SDK"],
-  ["evm", "EVM"],
-  ["tevm", "tEVM"],
-  ["github", "GitHub"],
-  ["repo", "repository"],
-  ["langgraph", "LangGraph"],
-  ["ios", "iOS"],
-  ["ux", "UX"],
-  ["ehr", "EHR"],
-  ["gtm", "GTM"],
-  ["bd", "BD"],
-  ["icp", "ICP"],
-  ["paid", "paid use"],
-  ["pilot", "pilot"],
-  ["users", "users"],
-  ["user", "user"],
-  ["customer", "customer"],
-  ["buyer", "buyer"],
-  ["attested", "attestation"],
-  ["attestation", "attestation"],
-  ["confidential", "confidential compute"],
-  ["postgres", "Postgres"],
-  ["prediction market", "prediction market"],
-  ["market data", "market data"],
-  ["agent framework", "agent framework"],
-  ["prior authorization", "prior authorization"],
-]);
-
-function constStackTermLabel(term) {
-  const raw = constText(term).toLowerCase();
-  if (!raw) return "";
-  return CONST_STACK_TERM_LABELS.get(raw) || raw.replace(/\b\w/g, c => c.toUpperCase());
-}
-
-function constStackRoleReason(hits = [], domain = "") {
-  const labels = [];
-  for (const hit of hits) {
-    const label = constStackTermLabel(hit);
-    if (label && !labels.includes(label)) labels.push(label);
-    if (labels.length >= 3) break;
-  }
-  if (labels.length) return `source mentions: ${labels.join(" · ")}`;
-  const domainLabel = CONST_DOMAIN_LABEL[domain];
-  if (domainLabel) return `domain signal: ${domainLabel}`;
-  return "profile only";
-}
-
-function constMarketRoleForTeam(team) {
-  const text = constStackSourceText(team);
-  const domain = constDomainClass(team?.domain);
-  const scores = new Map(CONST_STACK_COLUMNS.map(col => [col.key, 0]));
-  const hitsByKey = new Map();
-  for (const col of CONST_STACK_COLUMNS) {
-    const hits = constTermHits(text, col.terms);
-    hitsByKey.set(col.key, hits);
-    scores.set(col.key, (scores.get(col.key) || 0) + hits.length);
-  }
-  if (domain === "tee") scores.set("substrate", (scores.get("substrate") || 0) + 3);
-  if (domain === "ai") scores.set("developer", (scores.get("developer") || 0) + 2);
-  if (domain === "crypto") {
-    scores.set("proof", (scores.get("proof") || 0) + 1);
-    scores.set("substrate", (scores.get("substrate") || 0) + 1);
-  }
-  if (domain === "app-ux") scores.set("application", (scores.get("application") || 0) + 3);
-  if (constList(team?.paper_basis).length) scores.set("proof", (scores.get("proof") || 0) + 2);
-  if (/paid|pilot|users?|customer|buyer|retention|monetization|gtm|bd/.test(text)) scores.set("market", (scores.get("market") || 0) + 2);
-  const ranked = CONST_STACK_COLUMNS
-    .map((col, idx) => ({ ...col, score: scores.get(col.key) || 0, hits: hitsByKey.get(col.key) || [], idx }))
-    .sort((a, b) => b.score - a.score || a.idx - b.idx);
-  const primary = ranked[0];
-  // No keyword hits, no domain boost, no proof/market signal: the source data
-  // does not place this team anywhere. Don't fold it into substrate (the
-  // lowest-index column) as if it had a real placement — surface it as unplaced.
-  if (!primary.score) {
-    return {
-      key: "unplaced",
-      label: "no stack signal yet",
-      score: 0,
-      secondary: null,
-      reason: "profile only — no product-stack signal in declared text",
-      unplaced: true,
-    };
-  }
-  const secondary = ranked.find(item => item.key !== primary.key && item.score > 0) || null;
-  const roleReason = constStackRoleReason(primary.hits, domain);
-  return {
-    key: primary.key,
-    label: primary.label,
-    score: primary.score,
-    secondary,
-    reason: roleReason,
-  };
-}
-
-function constEvidenceModeForTeam(team, ctx) {
-  const order = new Map(CONST_STACK_ROWS.map((row, idx) => [row.key, idx]));
-  const items = constEvidenceItems(team, ctx);
-  const ranked = items
-    .filter(item => item.key !== "profile" && order.has(item.key))
-    .sort((a, b) => b.value - a.value || order.get(a.key) - order.get(b.key));
-  const top = ranked[0] || { key: "build", value: 0, note: "profile only; no stronger proof signal" };
-  if ((top.value || 0) <= 0) {
-    const profileSpec = CONST_STACK_ROWS.find(row => row.key === "profile");
-    const operating = items.find(item => item.key === "operating");
-    return { ...profileSpec, value: operating?.value || 0, note: profileSpec.hint };
-  }
-  const spec = CONST_STACK_ROWS.find(row => row.key === top.key) || CONST_STACK_ROWS[1];
-  return { ...spec, value: top.value, note: top.note || spec.hint };
-}
-
-function constProductStackModel(teams = [], ctx) {
-  const cells = new Map();
-  for (const row of CONST_STACK_ROWS) {
-    for (const col of CONST_STACK_COLUMNS) cells.set(`${row.key}:${col.key}`, []);
-  }
-  const teamRows = (Array.isArray(teams) ? teams : [])
-    .filter(team => team?.record_id && teamKind(team) !== "person")
-    .map(team => {
-      const role = constMarketRoleForTeam(team);
-      const evidence = constEvidenceModeForTeam(team, ctx);
-      const inbound = ctx?.inBy?.get(team.record_id)?.length || 0;
-      const outbound = ctx?.outBy?.get(team.record_id)?.length || 0;
-      const allEdges = [
-        ...(ctx?.inBy?.get(team.record_id) || []),
-        ...(ctx?.outBy?.get(team.record_id) || []),
-      ];
-      const typed = allEdges.filter(edge => edge.normalized).length;
-      const profile = Math.max(0, allEdges.length - typed);
-      const item = { team, role, evidence, inbound, outbound, typed, profile };
-      const key = `${evidence.key}:${role.key}`;
-      if (!cells.has(key)) cells.set(key, []);
-      cells.get(key).push(item);
-      return item;
-    });
-  for (const list of cells.values()) {
-    list.sort((a, b) =>
-      (b.inbound + b.outbound) - (a.inbound + a.outbound)
-      || String(a.team.name || a.team.record_id).localeCompare(String(b.team.name || b.team.record_id)));
-  }
-  const columnCounts = CONST_STACK_COLUMNS.map(col => ({
-    ...col,
-    count: teamRows.filter(item => item.role.key === col.key).length,
-  }));
-  return { rows: CONST_STACK_ROWS, columns: columnCounts, cells, teamRows, columnCounts };
-}
-
-function constStackItemForTeam(ctx, rid) {
-  const recordId = constText(rid);
-  return (ctx?.stackModel?.teamRows || []).find(item => item.team?.record_id === recordId) || null;
-}
-
-function constStackPlacementHtml(team, ctx) {
-  if (ctx?.mode !== "stack") return "";
-  const item = constStackItemForTeam(ctx, team?.record_id);
-  if (!item) return "";
-  const secondary = item.role.secondary;
-  const proof = `${item.evidence.label}${item.evidence.key === "profile" ? "" : ` · ${item.evidence.value}/5`}`;
-  const secondaryRead = secondary ? `also reads as ${secondary.label}` : "";
-  return `
-    <section class="ac-inspector-section is-stack-placement">
-      <h4>stack placement</h4>
-      <dl class="ac-bet-list">
-        <div><dt>product layer</dt><dd>${escHtml(item.role.label)}</dd></div>
-        ${secondaryRead ? `<div><dt>secondary role</dt><dd>${escHtml(secondaryRead)}</dd></div>` : ""}
-        <div><dt>role basis</dt><dd>${escHtml(constShortText(item.role.reason, 160))}</dd></div>
-        <div><dt>evidence</dt><dd>${escHtml(proof)}</dd></div>
-        <div><dt>evidence basis</dt><dd>${escHtml(constShortText(item.evidence.note, 170))}</dd></div>
-      </dl>
-    </section>`;
-}
-
-function constStackSummaryHtml(ctx) {
-  const model = ctx?.stackModel;
-  if (!model) return "";
-  const top = model.columnCounts.slice().sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)).slice(0, 3);
-  return `
-    <section class="ac-inspector-section is-stack-summary">
-      <h4>largest product layers</h4>
-      <div class="ac-view-chips">
-        ${top.map(item => `<span>${escHtml(item.label)}<em>${escHtml(String(item.count))}</em></span>`).join("")}
-      </div>
-    </section>`;
-}
-
-function constStackReadoutHtml(ctx) {
-  const model = ctx?.stackModel;
-  if (!model) return "";
-  const ordered = model.columnCounts.slice().sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
-  const top = ordered[0];
-  const second = ordered[1];
-  const market = ordered.find(item => item.key === "market");
-  const total = model.teamRows?.length || 0;
-  const title = top
-    ? `${top.label} is the largest product layer`
-    : "No product layers to place yet";
-  const body = top
-    ? `${top.count}/${total} projects currently read as ${top.label}${second ? `, followed by ${second.label}` : ""}. ${market && market.count <= Math.max(1, Math.floor(total * 0.16)) ? "Market/customer signal is still thin." : "Market/customer signal is visible but should be checked against traction."}`
-    : "Add team/project records before using the stack view.";
-  // No layer-count chip row here: the stack columns below already label
-  // every product layer with its count (ac-stack-layer-head), and the
-  // sentence bar carries the domain breakdown. The headline names the
-  // largest layer; the columns are the breakdown.
-  return `
-    <section class="ac-main-readout is-stack-readout" aria-label="product stack readout">
-      <div class="ac-inspector-kicker">generated stack read</div>
-      <h3>${escHtml(title)}</h3>
-      <p>${escHtml(body)}</p>
-    </section>`;
-}
-
-
 
 
 function constTeamOperatingHtml(team) {
@@ -5580,7 +5295,6 @@ function constTeamInspectorHtml(team, ctx) {
       <h4 class="ac-overlap-title">Where it sits</h4>
       ${constEgocentricOverlapSvg(team, ctx)}
     </section>
-    ${constStackPlacementHtml(team, ctx)}
     ${isBubble ? "" : constTeamActionCardHtml(team, ctx)}
     ${constTeamPeopleHtml(team, ctx)}
     ${isBubble ? "" : relationshipDetails}
@@ -5802,7 +5516,7 @@ function constTeamPreviewHtml(team, ctx) {
   ].filter(Boolean).join(" · ");
   return `
     <div class="ac-inspector-hero is-preview" data-const-team="${escAttr(rid)}">
-      <div class="ac-inspector-kicker">click to pin · click a second to compare</div>
+      <div class="ac-inspector-kicker">hovering — click to pin, then hover another to compare</div>
       <h3>${escHtml(team.name || rid)}</h3>
       <p class="ac-preview-line"><span class="ac-preview-sector">${escHtml(sector)}</span>${heading ? ` — ${escHtml(heading)}` : ""}</p>
       ${tail ? `<p class="ac-preview-tail">${escHtml(tail)}</p>` : ""}
@@ -5924,11 +5638,6 @@ function constellationInspectorDefaultHtml(ctx) {
       ${constMapReadoutHeroHtml(ctx, "ring readout")}
       ${constCorridorReadoutHtml(ctx)}
       ${constDataCoverageHtml(ctx)}`;
-  }
-  if (ctx?.mode === "stack") {
-    return `
-      ${constStackReadoutHtml(ctx)}
-      ${constStackSummaryHtml(ctx)}`;
   }
   if (ctx?.interest?.active) {
     return `
@@ -6107,24 +5816,16 @@ function constCompareInspectorHtml(selection, ctx) {
   const sharedSpaces = spacesOf(b.record_id).filter(s => sa.has(s));
   const skillsA = new Set((a.skill_areas || []).map(s => String(s).toLowerCase()));
   const sharedSkills = (b.skill_areas || []).filter(s => skillsA.has(String(s).toLowerCase()));
-  const outTargets = (rid) => new Set((ctx?.outBy?.get(rid) || []).map(e => e.to));
-  const inSources = (rid) => new Set((ctx?.inBy?.get(rid) || []).map(e => e.from));
-  const oA = outTargets(a.record_id);
-  const sharedOut = [...outTargets(b.record_id)].filter(x => oA.has(x));
-  const iA = inSources(a.record_id);
-  const sharedIn = [...inSources(b.record_id)].filter(x => iA.has(x));
-  const nameOf = (rid) => ctx?.teamById?.get(rid)?.name || rid;
   const domClassA = constDomainClass(a.domain);
   const domClassB = constDomainClass(b.domain);
   const sameDomain = domClassA === domClassB;
-  const directDep = !!(ctx?.edgeByPair?.get(dependencyPairKey(a.record_id, b.record_id)));
+  // The map compares WHERE two teams sit — shared spaces, skills, domain. Whether
+  // they depend on or could help each other is a RELATIONSHIP: the collab board
+  // owns that, so we point there rather than recompute dependency data here.
   const overlapBits = [];
   if (sharedSpaces.length) overlapBits.push(`${sharedSpaces.length} shared space${sharedSpaces.length === 1 ? "" : "s"}`);
   if (sharedSkills.length) overlapBits.push(`${sharedSkills.length} shared skill${sharedSkills.length === 1 ? "" : "s"}`);
-  if (sharedOut.length) overlapBits.push(`${sharedOut.length} shared dependenc${sharedOut.length === 1 ? "y" : "ies"}`);
-  const summary = directDep
-    ? "one already depends on the other"
-    : (overlapBits.length ? overlapBits.join(" · ") : (sameDomain ? "same domain, nothing shared yet" : "different domains, nothing shared yet"));
+  const summary = overlapBits.length ? overlapBits.join(" · ") : (sameDomain ? "same domain, nothing shared yet" : "different domains, nothing shared yet");
   const sectorLineFor = (t) => {
     const sector = CONST_DOMAIN_LABEL[constDomainClass(t.domain)] || "other";
     const heading = constShortText(t.focus || t.now || "", 60);
@@ -6154,19 +5855,13 @@ function constCompareInspectorHtml(selection, ctx) {
       <dl class="ac-bet-list">
         <div><dt>shared space</dt><dd>${sharedSpaces.length ? sharedSpaces.map(escHtml).join(" · ") : "none — different ecosystems"}</dd></div>
         <div><dt>domain</dt><dd>${sameDomain ? `both ${escHtml(CONST_DOMAIN_LABEL[domClassA] || "other")}` : `${escHtml(CONST_DOMAIN_LABEL[domClassA] || "other")} vs ${escHtml(CONST_DOMAIN_LABEL[domClassB] || "other")}`}</dd></div>
-        <div><dt>direct line</dt><dd>${directDep ? "one depends on the other" : "neither depends on the other"}</dd></div>
       </dl>
     </section>
     <section class="ac-inspector-section">
       <h4>shared skills</h4>
       ${chipRow(sharedSkills, "no skills in common")}
     </section>
-    ${(sharedOut.length || sharedIn.length) ? `
-    <section class="ac-inspector-section">
-      <h4>shared dependencies</h4>
-      ${sharedOut.length ? `<p class="ac-cmp-dep-k">both rely on</p>${chipRow(sharedOut.map(nameOf), "")}` : ""}
-      ${sharedIn.length ? `<p class="ac-cmp-dep-k">both relied on by</p>${chipRow(sharedIn.map(nameOf), "")}` : ""}
-    </section>` : ""}`;
+    <p class="ac-inspector-note ac-collab-pointer">Whether they depend on or could help each other lives on the Collab board.</p>`;
 }
 
 function constellationInspectorHtml(selection, ctx) {
@@ -6778,7 +6473,7 @@ function constGoalPlanModel(teams = []) {
   const medianPrev = prevPw != null ? med(tracked.map(r => teamWeekRead(r.team, prevPw).stage).sort((a, b) => a - b)) : null;
   const trend = (medianStage != null && medianPrev != null) ? Math.round((medianStage - medianPrev) * 10) / 10 : null;
   const summary = { counts, mom, medianStage, trend, topMover, topSlip, atRisk, week: active, weekLabel: standingWeekLabel(active), hasWeekly: standingWeeklyWeeks().length > 0 };
-  // teamRows keep the stack hover tooltip (constStackItemForTeam) consistent.
+  // Each row carries a compact role read (standing + momentum) for the standing view.
   const teamRows = rows.map(r => ({
     team: r.team,
     role: {
@@ -7082,24 +6777,11 @@ function sdsActivity(card) {
 }
 
 function sdsEvidenceParts(card) {
-  const content = sdsActivity(card);
-  const releases = sdsNumber(content, "release_count");
-  const commits = sdsNumber(content, "useful_commit_count");
-  const artifacts = sdsNumber(content, "progress_artifact_count");
-  const latest = constText(content.latest_week_start);
-  const primary = releases
-    ? `${releases} release${releases === 1 ? "" : "s"}`
-    : (commits
-      ? `${commits} useful commit${commits === 1 ? "" : "s"}`
-      : (artifacts ? `${artifacts} progress artifact${artifacts === 1 ? "" : "s"}` : "no public trace yet"));
-  const detail = [];
-  if (releases && commits) detail.push(`${commits} useful commit${commits === 1 ? "" : "s"}`);
-  if ((releases || commits) && artifacts) detail.push(`${artifacts} progress artifact${artifacts === 1 ? "" : "s"}`);
-  if (latest) detail.push(`latest ${latest}`);
+  // The row foot shows only observed-state + review; the per-row release/commit
+  // chips compute their own counts (sdsNumber), so the old build-trace rollup
+  // (primary/detail) was dead. Keep this to the two facts the foot actually reads.
   return {
     status: sdsObserved(card) ? "public signal" : "declared only",
-    primary,
-    detail: detail.join(" · "),
     review: `${insightConfidenceLabel(card)} · ${insightReviewLabel(card)}`,
   };
 }
@@ -7121,7 +6803,48 @@ function sdsEvidenceDidHtml(teamId) {
   const did = recentClaims(teamEvidence(cohortEvidenceIndex(), teamId), "did", 2);
   if (!did.length) return "";
   const items = did.map(d => `<em>${escHtml(d.week)}</em> ${escHtml(constShortText(d.text, 110))}`).join("<br>");
-  return `<span class="ac-sds-evidence" style="display:block;margin-top:3px;opacity:0.72;font-size:0.85em" title="observed in reviewed cohort sessions">↳ sessions · ${items}</span>`;
+  return `<span class="ac-sds-evidence" title="observed in reviewed cohort sessions">↳ sessions · ${items}</span>`;
+}
+
+// The qualitative GitHub activity mix (dominant change types · topics · top author)
+// baked into public_activity by cohort-insight-engine.cjs. Turns the DID cell's bare
+// commit count into "feature+fix · agent/runtime · by X". "" when a team has no
+// tracked repo activity, so the cell stays its declared text + count chip unchanged.
+function sdsActivityMixHtml(act) {
+  if (!act || typeof act !== "object") return "";
+  const keys = (arr, n, skip) => (Array.isArray(arr) ? arr : [])
+    .map(x => String(x?.key || "").trim())
+    .filter(k => k && !(skip && skip.has(k)))
+    .slice(0, n);
+  const kinds = keys(act.change_types, 2, new Set(["other", "chore"]));
+  const topics = keys(act.topics, 2);
+  const author = keys(act.authors, 1)[0];
+  const bits = [];
+  if (kinds.length) bits.push(kinds.join("+"));
+  if (topics.length) bits.push(topics.join("/"));
+  if (author) bits.push(`by ${author}`);
+  if (!bits.length) return "";
+  return `<span class="ac-sds-mix" title="dominant change types · topics · top author (public GitHub activity)">${escHtml(bits.join(" · "))}</span>`;
+}
+
+// The actual published releases for a team, keyed off surface.github_releases (the
+// same per-team release items the membrane feed uses). Turns the SHIPPED cell's bare
+// "N rel" count into the real release names + dates — the view literally answers
+// "what shipped", so it should name them. "" when a team has no releases on the
+// surface, so the cell falls back to its declared text + count chip unchanged.
+function sdsShippedReleasesHtml(teamId) {
+  const all = activeConstellationCohort()?.github_releases;
+  if (!Array.isArray(all) || !all.length) return "";
+  const mine = all
+    .filter(r => r && (r.nav?.recordId === teamId || r.meta === teamId) && (r.label || r.name))
+    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))
+    .slice(0, 2);
+  if (!mine.length) return "";
+  const items = mine.map(r => {
+    const when = r.date ? contextEvidenceDate(r.date) : "";
+    return `<em>${escHtml(when)}</em> ${escHtml(constShortText(r.label || r.name, 40))}`;
+  }).join("<br>");
+  return `<span class="ac-sds-evidence ac-sds-shipped-rel" title="published GitHub releases">↳ released · ${items}</span>`;
 }
 
 // Per-team session evidence for the SHARED dossier — surfaces did / signals / asks /
@@ -7185,8 +6908,19 @@ function renderSayDidShipped() {
     const proof = sdsEvidenceParts(card);
     const relCount = sdsNumber(act, "release_count");
     const commitCount = sdsNumber(act, "useful_commit_count");
+    // The named release list (when present) carries the SHIPPED signal; drop the
+    // bare "N rel" count chip so the cell doesn't show shipping twice. (The count is
+    // all release artifacts; the named list is the recent few off the surface feed —
+    // showing both side by side reads as a contradiction. The dossier "releases · N"
+    // keeps the full total.)
+    const releasedHtml = sdsShippedReleasesHtml(team.record_id);
+    // DID: prefer the richer dated session overlay when present (cohort key), else the
+    // build-baked activity mix — never stack both under the prose, which would unbalance
+    // the 3-across proof strip.
+    const didSessionsHtml = sdsEvidenceDidHtml(team.record_id);
+    const didMixHtml = didSessionsHtml ? "" : sdsActivityMixHtml(act);
     const chips = [
-      relCount ? `<span class="ac-sds-chip"><strong>${relCount}</strong> rel</span>` : "",
+      (relCount && !releasedHtml) ? `<span class="ac-sds-chip"><strong>${relCount}</strong> rel</span>` : "",
       commitCount ? `<span class="ac-sds-chip"><strong>${commitCount}</strong> commits</span>` : "",
     ].filter(Boolean).join("");
     return `
@@ -7203,11 +6937,11 @@ function renderSayDidShipped() {
             <b>say</b><span>${escHtml(constShortText(content.say || team.now || team.focus || "not declared", 120))}</span>
           </span>
           <span class="ac-sds-cell${observedClass}">
-            <b>did</b><span>${escHtml(constShortText(content.did || "not observed", 120))}</span>${sdsEvidenceDidHtml(team.record_id)}
+            <b>did</b><span>${escHtml(constShortText(content.did || "not observed", 120))}</span>${didMixHtml}${didSessionsHtml}
           </span>
           <span class="ac-sds-cell${observedClass}">
             <b>shipped</b><span>${escHtml(constShortText(content.shipped || "not observed", 110))}</span>
-            ${chips ? `<span class="ac-sds-chips">${chips}</span>` : ""}
+            ${chips ? `<span class="ac-sds-chips">${chips}</span>` : ""}${releasedHtml}
           </span>
         </span>
         <span class="ac-sds-foot">
@@ -7294,200 +7028,6 @@ function renderProductStack() {
   markConstellationSelection(state.constSelection);
 }
 
-// Timeline body — the time-native lens of the CALENDAR page (a [week | timeline]
-// view toggle). The calendar's own program-week model (PROGRAM_START_MS..
-// PROGRAM_END_MS, 10 weeks) becomes a shared horizontal axis: a thin calendar
-// ruler on top, then stacked activity lanes, pierced by one set of week gridlines
-// and a single oxide "now" playhead. Past on the left, scheduled future (ghosted)
-// on the right. Reads the LIVE surface — the playhead marks now, it does NOT
-// rewind (per Mike's call). Returns the stage markup; hover/click are wired by
-// wireCalendar. Lane data is normalized by the pure cohort-timeline-tracks module.
-function timelineInnerHtml() {
-  const cohort = activeConstellationCohort();
-  const live = state.cohort || cohort;
-  const whatsNew = Array.isArray(live?.whats_new) ? live.whats_new : [];
-  const people = Array.isArray(live?.people) ? live.people : [];
-  const standingWeekly = state.standingWeekly || null;
-  const cal = state.calendar || {};
-  const nowMs = Date.now();
-
-  const DAY = 86400000, WK = 7 * DAY, WEEKS = 10;
-  const fmtDay = (ms) => new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).toLowerCase();
-  const weekIdxOf = (ms) => Math.max(0, Math.min(WEEKS - 1, Math.floor((ms - PROGRAM_START_MS) / WK)));
-
-  // ── Always the WEEK. This is the agenda complement to the grid's hour-by-hour
-  // week: the grid owns intra-day detail; this owns the at-a-glance "what's on
-  // each day" read across the seven columns. Navigate by week; "today" jumps
-  // back to the current week. (Program / month zoom-outs were dropped — week is
-  // the level that actually reads as a calendar.) ──
-  const anchorMs = Math.max(PROGRAM_START_MS, Math.min(PROGRAM_END_MS - 1, Number.isFinite(cal.tlAnchorMs) ? cal.tlAnchorMs : nowMs));
-  const wi = weekIdxOf(anchorMs);
-  const winStart = PROGRAM_START_MS + wi * WK;
-  const winEnd = Math.min(PROGRAM_END_MS, winStart + WK);
-  const winLabel = `week ${wi + 1} · ${fmtDay(winStart)}–${fmtDay(winEnd - DAY)}`;
-  const prevAnchor = wi > 0 ? PROGRAM_START_MS + (wi - 1) * WK : null;
-  const nextAnchor = wi < WEEKS - 1 ? PROGRAM_START_MS + (wi + 1) * WK : null;
-  const nowWeekIdx = weekIdxOf(nowMs);
-  const onCurrentWeek = wi === nowWeekIdx;
-  const inWin = (ms) => ms >= winStart && ms < winEnd;
-
-  // ── Events (live calendar — same source the grid renders) ───────────────
-  const calModule = calendarLazy.peek();
-  const allEvents = (cal.data && typeof calModule?.flattenScheduleEvents === "function")
-    ? calModule.flattenScheduleEvents(cal.data).filter((e) => inWin(e.ms))
-        .map((e) => ({ ms: e.ms, title: e.title, time: e.time || "", cat: e.cat || "default", allDay: !!e.allDay, isFuture: e.ms > nowMs }))
-    : buildActivityLane(whatsNew, { startMs: winStart, endMs: winEnd, nowMs }).items
-        .filter((i) => i.category === "event" && inWin(i.startMs))
-        .map((i) => ({ ms: i.startMs, title: i.title, time: i.detail || "", cat: "default", allDay: !i.detail, isFuture: i.isFuture }));
-
-  // ── Filter state (persisted on state.calendar; toggled in wireCalendar) ──
-  const catHidden = new Set(Array.isArray(cal.tlCatHidden) ? cal.tlCatHidden : []);
-  const hidePast = !!cal.tlHidePast;
-  const rowOff = new Set(Array.isArray(cal.tlRowsHidden) ? cal.tlRowsHidden : []);
-  const teams = (cohort.teams || []).filter((t) => t && t.record_id && teamKind(t) !== "person")
-    .sort((a, b) => String(a.name || a.record_id).localeCompare(String(b.name || b.record_id)));
-  const scopeId = teams.some((t) => t.record_id === cal.tlScope) ? cal.tlScope : null;
-  const scopeName = scopeId ? (teams.find((t) => t.record_id === scopeId).name || scopeId) : "all cohort";
-
-  // Category filter narrows the schedule (the legend doubles as the control).
-  const eventItems = allEvents.filter((e) => !catHidden.has(e.cat));
-
-  const startMin = (t) => { const m = /(\d{1,2}):(\d{2})/.exec(t || ""); return m ? (+m[1]) * 60 + (+m[2]) : -1; };
-  const dayNames = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-
-  // ── Signals (scoped to the workstream when one is picked) ───────────────
-  // in-town: REAL presence · shipped: STALE activity · standing: SEED PMF.
-  const roster = people.filter((p) => p && (p.dates_start || p.dates_end)
-    && (!scopeId || p.team === scopeId || (Array.isArray(p.secondary_teams) && p.secondary_teams.includes(scopeId))));
-  const updateItems = buildActivityLane(whatsNew, { startMs: winStart, endMs: winEnd, nowMs }).items
-    .filter((i) => i.category !== "event" && inWin(i.startMs) && (!scopeId || i.team === scopeId));
-  let weekStanding = null;
-  if (calModule && standingWeekly) {
-    const teamCell = scopeId && standingWeekly.byTeam ? standingWeekly.byTeam[scopeId] : null;
-    if (teamCell) {
-      const cell = teamCell.weeks?.[wi] ?? teamCell.weeks?.[String(wi)];
-      weekStanding = cell && Number.isFinite(Number(cell.stage)) ? { stage: Number(cell.stage) } : null;
-    } else if (!scopeId) {
-      weekStanding = buildStandingLane(standingWeekly, { startMs: PROGRAM_START_MS, endMs: PROGRAM_END_MS }).points.find((p) => p.programWeek === wi) || null;
-    }
-  }
-
-  // ── Day columns (+ per-day signal values); hide-past drops past columns ──
-  const allCols = [];
-  let maxInTown = 1;
-  for (let k = 0; k < 7; k++) {
-    const dayMs = winStart + k * DAY, dayEnd = dayMs + DAY, noon = dayMs + DAY / 2;
-    const dayEv = eventItems.filter((e) => e.ms >= dayMs && e.ms < dayEnd);
-    const present = roster.length ? roster.filter((p) => isPresent(p, noon)) : [];
-    const inTown = present.length;
-    const shipped = updateItems.filter((i) => i.startMs >= dayMs && i.startMs < dayEnd).length;
-    maxInTown = Math.max(maxInTown, inTown);
-    allCols.push({
-      day: dayNames[k], date: String(new Date(dayMs).getUTCDate()),
-      allDay: dayEv.filter((e) => e.allDay),
-      timed: dayEv.filter((e) => !e.allDay).sort((a, b) => startMin(a.time) - startMin(b.time)),
-      inTown, inTownNames: present.map((p) => p.name || p.record_id), shipped,
-      isToday: nowMs >= dayMs && nowMs < dayEnd, isPast: dayEnd <= nowMs, isWeekend: k >= 5,
-    });
-  }
-  const cols = allCols.filter((c) => !(hidePast && c.isPast));
-  const nDays = cols.length || 1;
-  const tcls = (c) => [c.isToday && "is-today", c.isPast && "is-past", c.isWeekend && "is-weekend"].filter(Boolean).join(" ");
-
-  // ── Cell renderers. Calendar cells (header / all-day / schedule) carry
-  // data-tl-week so a click opens that week's grid; the schedule cell is the
-  // keyboard target. Signal cells are display-only. ──
-  const chip = (e) => `<div class="cw-ev${e.isFuture ? " is-future" : ""}" data-cat="${escAttr(e.cat || "default")}" title="${escAttr(e.time ? `${e.time} · ${e.title}` : e.title)}">${e.time ? `<span class="cw-et">${escHtml(e.time)}</span>` : ""}<span class="cw-ex">${escHtml(e.title)}</span></div>`;
-  const adPill = (e) => `<div class="cw-ad${e.isFuture ? " is-future" : ""}" data-cat="${escAttr(e.cat || "default")}" title="${escAttr(e.title)}">${escHtml(e.title)}</div>`;
-  const CAP = 6;
-  const headRow = cols.map((c) => `<div class="cw-c cw-dh ${tcls(c)}" data-tl-week="${wi}"><span class="cw-d">${escHtml(c.day)}</span><span class="cw-n">${escHtml(c.date)}</span>${c.isToday ? `<span class="cw-today">today</span>` : ""}</div>`).join("");
-  const allDayRow = cols.map((c) => `<div class="cw-c cw-adcell ${tcls(c)}" data-tl-week="${wi}">${c.allDay.map(adPill).join("")}</div>`).join("");
-  const schedRow = cols.map((c) => {
-    const shown = c.timed.slice(0, CAP), more = c.timed.length - shown.length;
-    const body = c.timed.length
-      ? shown.map(chip).join("") + (more > 0 ? `<div class="cw-more">+${more} more</div>` : "")
-      : (c.allDay.length ? "" : `<span class="cw-open">open</span>`);
-    return `<div class="cw-c cw-sched ${tcls(c)}" data-tl-week="${wi}" role="button" tabindex="0" aria-label="${escAttr(`${c.day} ${c.date}${c.isToday ? " (today)" : ""} — open week ${wi + 1} in the calendar grid`)}">${body}</div>`;
-  }).join("");
-  // In-town headcount carries WHO on hover (the day's present roster), so the
-  // signal the user values most reads its detail without leaving the agenda.
-  const inTownTitle = (c) => {
-    const head = `${c.day} ${c.date} · ${c.inTown} in town${scopeId ? " · " + scopeName : ""}`;
-    const names = c.inTownNames || [];
-    if (!names.length) return c.inTown ? head : `${c.day} ${c.date} · nobody in town`;
-    const shown = names.slice(0, 16).join(", ");
-    return `${head}: ${shown}${names.length > 16 ? `, +${names.length - 16} more` : ""}`;
-  };
-  const inTownRow = cols.map((c) => `<div class="cw-c cw-sig cw-intown ${tcls(c)}" title="${escAttr(inTownTitle(c))}" aria-label="${escAttr(inTownTitle(c))}"><span class="cw-bar"><i style="width:${Math.round((c.inTown / maxInTown) * 100)}%"></i></span><span class="cw-v">${c.inTown || "·"}</span></div>`).join("");
-  const shippedRow = cols.map((c) => `<div class="cw-c cw-sig ${tcls(c)}"><span class="cw-v">${c.shipped || `<span class="cw-mut">·</span>`}</span></div>`).join("");
-  const standingCell = (weekStanding && weekStanding.stage != null)
-    ? `<div class="cw-c cw-sig cw-standing" style="grid-column:2/-1"><span class="cw-v">${weekStanding.stage.toFixed(1)}</span><span class="cw-mut">/ 8 · ${escHtml(scopeId ? scopeName + " PMF" : "cohort mean PMF")}</span></div>`
-    : `<div class="cw-c cw-sig cw-standing" style="grid-column:2/-1"><span class="cw-mut">no standing read</span></div>`;
-
-  // Week navigation: ‹ prev · label · next › + a "today" jump (live only off
-  // the current week).
-  const nav = `
-    <div class="ac-tl-winnav">
-      <button type="button" class="ac-tl-navbtn" data-tl-nav="prev" data-tl-nav-to="${prevAnchor == null ? "" : prevAnchor}"${prevAnchor == null ? " disabled" : ""} aria-label="previous week">←</button>
-      <span class="ac-tl-winlabel">${escHtml(winLabel)}</span>
-      <button type="button" class="ac-tl-navbtn" data-tl-nav="next" data-tl-nav-to="${nextAnchor == null ? "" : nextAnchor}"${nextAnchor == null ? " disabled" : ""} aria-label="next week">→</button>
-    </div>
-    <button type="button" class="ac-tl-today" data-tl-nav="today" data-tl-nav-to="${PROGRAM_START_MS + nowWeekIdx * WK}"${onCurrentWeek ? " disabled" : ""} aria-label="jump to the current week">today</button>`;
-
-  // Scope chip — focuses the SIGNAL rows on one workstream (the shared schedule
-  // stays cohort-wide). Label = current scope = trigger.
-  const scopeMenu = [{ id: "", name: "all cohort" }, ...teams.map((t) => ({ id: t.record_id, name: t.name || t.record_id }))]
-    .map((o) => `<button type="button" class="cw-scope-opt" role="option" data-tl-scope="${escAttr(o.id)}" aria-selected="${(o.id || null) === scopeId ? "true" : "false"}">${escHtml(o.name)}</button>`).join("");
-  const scopeChip = `
-    <div class="cw-scope" data-tl-scope-ctl>
-      <button type="button" class="cw-scope-btn${scopeId ? " is-on" : ""}" data-tl-scope-toggle aria-haspopup="listbox" aria-expanded="false" aria-label="focus signals on a workstream"><span class="cw-k">scope</span><span class="cw-scope-v">${escHtml(scopeName)}</span><i class="cw-chev" aria-hidden="true"></i></button>
-      <div class="cw-scope-menu" role="listbox" aria-label="workstream" hidden>${scopeMenu}</div>
-    </div>`;
-
-  // Signal-row toggles — which signal lanes show beneath the calendar. Grouped
-  // under one "rows" key so they read as a single systematized control, not loose
-  // siblings. (The old "when" all/all-day/timed segment was dropped: the all-day
-  // strip already separates all-day from timed visually, so it was redundant.)
-  const rowTogs = [["inTown", "in town"], ["shipped", "shipped"], ["standing", "standing"]]
-    .map(([k, l]) => `<button type="button" class="cw-tog${rowOff.has(k) ? "" : " is-on"}" data-tl-row="${k}" aria-pressed="${rowOff.has(k) ? "false" : "true"}">${l}</button>`).join("");
-
-  const total = eventItems.length;
-
-  // The legend doubles as the category FILTER — click a type to show/hide it
-  // (label = trigger); shares --c2-acc with the grid for the dot colour.
-  const legend = (calModule?.C2_LEGEND || [])
-    .map((c) => `<button type="button" class="cal-legend-item${catHidden.has(c.key) ? " is-off" : ""}" data-tl-cat="${escAttr(c.key)}" data-cat="${escAttr(c.key)}" aria-pressed="${catHidden.has(c.key) ? "false" : "true"}"><i class="cal-legend-dot" aria-hidden="true"></i>${escHtml(c.label)}</button>`).join("");
-
-  // Rows rendered: all-day + schedule always show (the calendar core); the signal
-  // toggles drop their lanes. The schedule row grows to fill the height. When a
-  // workstream is scoped, the signal rails carry an oxide accent (matching the
-  // scope chip) so it's visible that THOSE rows follow the scope while the shared
-  // schedule stays cohort-wide.
-  const sig = !!scopeId;
-  const rows = [{ rail: "", cells: headRow, h: "auto" }];
-  rows.push({ rail: "all-day", cells: allDayRow, h: "auto" });
-  rows.push({ rail: "schedule", cells: schedRow, h: "minmax(118px,1fr)" });
-  if (!rowOff.has("inTown")) rows.push({ rail: "in town", cells: inTownRow, h: "auto", scoped: sig });
-  if (!rowOff.has("shipped")) rows.push({ rail: `shipped<span class="cw-tag">stale</span>`, cells: shippedRow, h: "auto", scoped: sig });
-  if (!rowOff.has("standing")) rows.push({ rail: `standing<span class="cw-tag">seed</span>`, cells: standingCell, h: "auto", scoped: sig });
-
-  // One control row: window nav + event count (left), scope · row toggles ·
-  // hide-past (right). The legend (category filter) sits on the row beneath.
-  return `
-    <div class="ac-tl-stage" data-view="timeline" aria-label="${escAttr(`cohort calendar — ${winLabel}`)}">
-      <div class="ac-tl-controls">
-        <div class="ac-tl-bar">
-          <div class="cw-left">${nav}<span class="ac-tl-count">${total} event${total === 1 ? "" : "s"}</span></div>
-          <div class="cw-right">${scopeChip}<span class="cw-rowgrp"><span class="cw-filt-k">rows</span>${rowTogs}</span><button type="button" class="cw-tog${hidePast ? " is-on" : ""}" data-tl-past aria-pressed="${hidePast ? "true" : "false"}">hide past</button></div>
-        </div>
-        <div class="cal-legend" role="group" aria-label="filter by event category">${legend}</div>
-      </div>
-      <div class="cal-week" style="grid-template-columns:78px repeat(${nDays}, minmax(0, 1fr)); grid-template-rows:${rows.map((r) => r.h).join(" ")};">
-        ${rows.map((r) => `<div class="cw-rail${r.scoped ? " is-scoped" : ""}">${r.rail}</div>${r.cells}`).join("")}
-      </div>
-    </div>`;
-}
-
 // ─── constellation ───────────────────────────────────────────────────
 // ─── cohort map · cluster-well constellation ─────────────────────────
 // Ported (watered-down, PUBLIC-data-only) from the cohort dossier's Map
@@ -7538,10 +7078,20 @@ function constBubbleMapSummary(model, grain) {
   const domains = CONST_DOMAIN_KEYS
     .filter(k => (domainCount.get(k) || 0) > 0)
     .map(k => ({ key: k, label: CONST_DOMAIN_LABEL[k], color: CONST_DOMAIN_COLORS[k], n: domainCount.get(k) }));
-  return { themes: themeSet.size, clusters: wells.length, teams, grain: constNormalizeGranularity(grain), domains };
+  // "_other" is the unclustered catch-all, not a real theme/ecosystem — keep it
+  // out of the headline counts (it had inflated "N themes · N ecosystems") and
+  // report its size separately so the orientation reads honestly.
+  const otherWell = wells.find(w => w.id === "_other");
+  const unclustered = otherWell ? ((otherWell.members && otherWell.members.length) || 0) : 0;
+  return {
+    themes: [...themeSet].filter(t => t !== "_other").length,
+    clusters: wells.filter(w => w.id !== "_other").length,
+    teams, unclustered,
+    grain: constNormalizeGranularity(grain), domains,
+  };
 }
 function constBubbleMapDefaultHtml(ctx) {
-  const s = ctx && ctx.bubbleMap ? ctx.bubbleMap : { themes: 0, clusters: 0, teams: 0, grain: "clusters", domains: [] };
+  const s = ctx && ctx.bubbleMap ? ctx.bubbleMap : { themes: 0, clusters: 0, teams: 0, grain: constNormalizeGranularity(state.constellationGranularity), domains: [] };
   const grain = s.grain;
   const grainNote = grain === "themes"
     ? "Zoom in to break each theme into its ecosystems, then into individual teams."
@@ -7551,11 +7101,20 @@ function constBubbleMapDefaultHtml(ctx) {
   const swatches = (s.domains || []).map(d =>
     `<span class="ac-legend-chip"><i style="background:${escAttr(d.color)}"></i>${escHtml(d.label)}<em>${escHtml(String(d.n))}</em></span>`
   ).join("");
+  // Headline counts lead with the unit you're currently zoomed to (themes →
+  // ecosystems → teams), so the readout reflects the grain you're reading.
+  const pl = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+  const countLine = [
+    { g: "themes", t: pl(s.themes, "theme") },
+    { g: "clusters", t: pl(s.clusters, "ecosystem") },
+    { g: "skills", t: pl(s.teams, "team") },
+  ].map(p => `<span class="ac-count-part${p.g === grain ? " is-grain-focus" : ""}">${escHtml(p.t)}</span>`).join('<span class="ac-count-sep"> · </span>');
   return `
     <div class="ac-inspector-hero is-orientation">
       <div class="ac-inspector-kicker">where everyone sits</div>
-      <h3>${escHtml(String(s.themes))} themes · ${escHtml(String(s.clusters))} ecosystems · ${escHtml(String(s.teams))} teams</h3>
+      <h3 class="ac-orientation-counts">${countLine}</h3>
       <p>Every team sits by what it works on, so neighbours share a space. ${escHtml(grainNote)}</p>
+      ${s.unclustered ? `<p class="ac-orientation-foot">${escHtml(pl(s.unclustered, "team"))} still finding a space — shown apart.</p>` : ""}
       <p class="ac-orientation-cta">Hover a bubble to read it · click to pin · click a second to compare.</p>
     </div>
     <section class="ac-inspector-section is-orientation-legend">
@@ -7990,7 +7549,9 @@ function constBubbleContainerSvg(c, accentStyle) {
   // Level-aware label gate: theme rings are large; cluster/skill rings smaller.
   // A 9px label only earns its place when the ring can hold it without crowding
   // the bubbles inside (the old flat r>30 dropped labels into tiny circles).
-  const showLabel = c.level === "theme" ? c.r > 90 : c.r > 44;
+  // Theme rings are the overview's primary spaces — always name them (they're the
+  // only rings drawn at themes grain). Cluster/skill rings keep the size gate.
+  const showLabel = c.level === "theme" ? c.r > 36 : c.r > 44;
   const labelY = (c.cy - c.r + 14).toFixed(1);
   const count = Array.isArray(c.members) ? c.members.length : 0;
   const aria = `focus ${c.label || c.id}${c.level === "cluster" ? " ecosystem" : ` ${c.level}`}, ${count} team${count === 1 ? "" : "s"}`;
@@ -8000,15 +7561,38 @@ function constBubbleContainerSvg(c, accentStyle) {
   const fullLabel = c.label || "";
   const charW = c.level === "theme" ? 6.1 : 5.5; // ≈0.61em of the 10px / 9px mono
   const maxChars = Math.max(5, Math.floor((c.r * 2 - 10) / charW));
-  const shownLabel = fullLabel.length > maxChars
-    ? fullLabel.slice(0, Math.max(1, maxChars - 1)).replace(/[\s+/·-]+$/, "") + "…"
-    : fullLabel;
+  // Wrap a long ecosystem title onto a second line rather than truncating it at
+  // the very grain meant for reading the spaces. Full title stays in <title>.
+  const wrapTwo = (text, max) => {
+    if (text.length <= max) return [text];
+    let l1 = "", l2 = "";
+    for (const w of text.split(/\s+/)) {
+      if (!l2 && (l1 ? (l1 + " " + w).length <= max : w.length <= max)) l1 = l1 ? `${l1} ${w}` : w;
+      else l2 = l2 ? `${l2} ${w}` : w;
+    }
+    if (!l1) l1 = text.slice(0, max);
+    if (l2.length > max) l2 = l2.slice(0, Math.max(1, max - 1)).replace(/[\s+/·-]+$/, "") + "…";
+    return l2 ? [l1, l2] : [l1];
+  };
+  const lines = wrapTwo(fullLabel, maxChars);
+  const labelMarkup = showLabel
+    ? `<text class="ac-bubble-container-label" x="${c.cx.toFixed(1)}" y="${labelY}" text-anchor="middle"><title>${escHtml(fullLabel)}</title>${lines.map((ln, i) => `<tspan x="${c.cx.toFixed(1)}"${i ? ' dy="11"' : ""}>${escHtml(ln)}</tspan>`).join("")}</text>`
+    : "";
+  // The "_other" catch-all isn't a real theme/ecosystem — render it as a quiet
+  // "others" ring (de-emphasized) so it doesn't read as a peer space.
+  const otherClass = (c.id === "_other" || String(c.id).endsWith(":_other")) ? " is-others" : "";
   return `
-    <g class="ac-bubble-container" data-level="${escAttr(c.level)}" data-container="${escAttr(c.id)}" data-members="${escAttr((c.members || []).join(" "))}" role="button" tabindex="0" aria-label="${escAttr(aria)}" style="${escAttr(accentStyle + ";view-transition-name:ac-vtc-" + dependencySafeToken(c.id))}">
+    <g class="ac-bubble-container${otherClass}" data-level="${escAttr(c.level)}" data-container="${escAttr(c.id)}" data-members="${escAttr((c.members || []).join(" "))}" role="button" tabindex="0" aria-label="${escAttr(aria)}" style="${escAttr(accentStyle + ";view-transition-name:ac-vtc-" + dependencySafeToken(c.id))}">
       <circle class="ac-bubble-container-shape" cx="${c.cx.toFixed(1)}" cy="${c.cy.toFixed(1)}" r="${c.r.toFixed(1)}"/>
-      ${showLabel ? `<text class="ac-bubble-container-label" x="${c.cx.toFixed(1)}" y="${labelY}" text-anchor="middle"><title>${escHtml(fullLabel)}</title>${escHtml(shownLabel)}</text>` : ""}
+      ${labelMarkup}
     </g>`;
 }
+
+// Resting team labels on the bubble map: the per-space anchor (rank 0) always
+// shows; other teams reveal their name at rest only if their bubble is at least
+// this big (viewBox radius units). Large teams have room to carry a label; small
+// ones stay hover-only so the at-rest map doesn't collapse into a name pile.
+const BUBBLE_LABEL_R_MIN = 12.5;
 
 function renderConstellation() {
   const cohort = activeConstellationCohort();
@@ -8222,7 +7806,9 @@ function renderConstellation() {
     // so the at-rest map reads as: space labels = where things are, one anchor
     // name per space, and any team's name on hover (sidebar + in-place).
     const labelLines = constNodeLabelLines(team, viewMode);
-    const smallBubble = isBubble && rank !== 0 && !grainDeep; // deepest zoom band rests ALL team labels
+    // Anchor (rank 0) always rests a label; other teams rest one only if their
+    // bubble is large enough to carry it (BUBBLE_LABEL_R_MIN). Deepest zoom rests all.
+    const smallBubble = isBubble && rank !== 0 && r < BUBBLE_LABEL_R_MIN && !grainDeep;
     const fullLabel = constText(team.name || team.record_id);
     return `
     <g class="ac-node-group ac-node-domain-${constDomainClass(team.domain)}${orphan}${sourceClass}${interestClass}${densityClass}${keystoneClass}${secondaryClass}${bridgeRank ? " is-bridge-ranked" : ""}${domainFilter !== "all" && constDomainClass(team.domain) !== domainFilter ? " is-domain-dim" : ""}"${smallBubble ? ' data-small-bubble="true"' : ""} data-record-id="${escHtml(team.record_id)}" data-profile-link-count="${gapCount}" style="${escAttr(nodeAccentStyle + vtName)}" role="button" tabindex="0" aria-label="${escAttr(`inspect ${team.name || team.record_id}`)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
@@ -8238,9 +7824,13 @@ function renderConstellation() {
   // hover-isolate contract, plus click-to-pin via data-edge-tier on the
   // stage). Node color stays domain in every lens; cluster identity is
   // read from the labeled wells, so no legend swaps with the lens.
-  const containerMarkup = containers.map((c, idx) =>
-    constBubbleContainerSvg(c, constWellAccentStyle(constWellAccentTokens(c.id, idx)))
-  ).join("");
+  // At the themes overview, draw ONLY the big theme rings (hide the nested
+  // cluster sub-rings) so the entry reads as a few large, named spaces — the
+  // cluster rings return when you zoom into the clusters grain.
+  const containerMarkup = containers
+    .filter(c => granularity !== "themes" || c.level === "theme")
+    .map((c, idx) => constBubbleContainerSvg(c, constWellAccentStyle(constWellAccentTokens(c.id, idx))))
+    .join("");
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="${escAttr(viewMode)}">
     ${cohortPageHead(viewMode)}
@@ -8252,7 +7842,7 @@ function renderConstellation() {
     <div class="alch-constellation" data-constellation-view="${escAttr(viewMode)}">
       <div class="alch-const-workbench"${constRailStyleAttr()}>
         <div class="alch-const-main">
-          <div class="alch-constellation-stage" data-view="${escAttr(viewMode)}" data-grain-deep="${grainDeep ? "true" : "false"}" data-lens="${activeLens}" data-edge-tier="${escAttr(edgeTier)}" data-interest="${escAttr(interestCtx.id)}" data-interest-active="${interestCtx.active ? "true" : "false"}" tabindex="0" aria-label="${escAttr(viewMode === "ring" ? "constellation bridge ring graph" : "constellation relationship graph")}">
+          <div class="alch-constellation-stage" data-view="${escAttr(viewMode)}" data-grain-deep="${grainDeep ? "true" : "false"}" data-lens="${activeLens}" data-edge-tier="${escAttr(edgeTier)}" data-interest="${escAttr(interestCtx.id)}" data-interest-active="${interestCtx.active ? "true" : "false"}" style="aspect-ratio:${(vb.w / vb.h).toFixed(3)}" tabindex="0" aria-label="${escAttr(viewMode === "ring" ? "constellation bridge ring graph" : "cohort ecosystem map — teams grouped by what they build")}">
             <svg viewBox="${escAttr(viewBox)}" preserveAspectRatio="xMidYMid meet">
               <defs>
                 <marker id="ac-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -8774,9 +8364,42 @@ function wireDetailDismiss() {
 }
 
 // ─── constellation hover ─────────────────────────────────────────────
+// At-rest team labels on the bubble map: BUBBLE_LABEL_R_MIN lets larger non-anchor
+// teams carry a resting name, but two big bubbles can still sit close enough that
+// their labels touch. After layout, greedily keep labels by priority (anchor first,
+// then larger radius) and demote any whose measured box overlaps a kept one to
+// hover-only (data-small-bubble). Real geometry, so the resting map never piles up.
+function deconflictBubbleLabels(stage) {
+  if (!stage) return;
+  const groups = [...stage.querySelectorAll('.ac-node-group[data-record-id]:not([data-small-bubble])')];
+  const cand = [];
+  for (const g of groups) {
+    const txt = g.querySelector('text');
+    if (!txt) continue;
+    const box = txt.getBoundingClientRect();
+    if (!box.width || !box.height) continue;
+    const shape = g.querySelector('.ac-node-shape');
+    const r = shape ? (parseFloat(shape.getAttribute('r')) || 0) : 0;
+    cand.push({ g, box, r, anchor: g.classList.contains('is-keystone-label') });
+  }
+  cand.sort((a, b) => (Number(b.anchor) - Number(a.anchor)) || (b.r - a.r));
+  const kept = [];
+  const PAD = 2; // px breathing room so labels that merely touch still deconflict
+  for (const c of cand) {
+    const a = c.box;
+    const hit = kept.some(k => {
+      const b = k.box;
+      return a.left - PAD < b.right && b.left - PAD < a.right && a.top - PAD < b.bottom && b.top - PAD < a.bottom;
+    });
+    if (hit) c.g.setAttribute('data-small-bubble', 'true');
+    else kept.push(c);
+  }
+}
+
 function wireConstellationHover() {
   wireConstellationModeNav();
   const stage = state.canvas.querySelector(".alch-constellation-stage");
+  if (stage && stage.getAttribute("data-view") === "bubble") deconflictBubbleLabels(stage);
   // Selection chip + readout name-links live OUTSIDE the inspector (which
   // has its own delegated handler), so the canvas owns them. Bound once —
   // state.canvas survives innerHTML swaps, so per-render binds would pile up.
@@ -8835,11 +8458,9 @@ function wireConstellationHover() {
     // the collab action card (people scope keeps the node-link people network).
     const viewMode = (baseMode === "map" && scope === "projects") ? "bubble" : baseMode;
     const activeLens = viewMode === "ring" || viewMode === "stack" ? "all" : constNormalizeConstellationLens(state.constellationLens);
-    const baseInspectorCtx = { ...constellationInspectorContext(teams, edges, cohort?.people || []), clusters, distributionWells: model.wellsDef, lens: activeLens, mode: viewMode, scope, interest: constInterestContext(teams, clusters, edges, state.constInterest) };
+    const baseInspectorCtx = { ...constellationInspectorContext(teams, edges, cohort?.people || []), clusters, distributionWells: model.wellsDef, lens: activeLens, mode: viewMode, scope, interest: constInterestContext(teams, clusters, edges, state.constInterest), bubbleMap: viewMode === "bubble" ? constBubbleMapSummary(model, constNormalizeGranularity(state.constellationGranularity)) : null };
     const peopleModel = scope === "people" ? constPeopleNetworkModel(cohort?.people || [], teams, 1120, 620) : null;
-    const inspectorCtx = viewMode === "stack"
-      ? { ...baseInspectorCtx, stackModel: constProductStackModel(teams, baseInspectorCtx) }
-      : (peopleModel ? { ...baseInspectorCtx, peopleModel } : baseInspectorCtx);
+    const inspectorCtx = peopleModel ? { ...baseInspectorCtx, peopleModel } : baseInspectorCtx;
     const indeg = constellationIndegree(teams, cohort?.dependencies || []);
     const sourceStatsByRid = new Map();
     for (const edge of edges) {
@@ -8953,10 +8574,15 @@ function wireConstellationHover() {
       lastPreviewRid = rid;
       if (state.constSelection) {
         // A dossier OR a two-team compare is pinned: don't clobber it — float a
-        // compact preview strip on top, leaving the pinned view intact below.
+        // strip on top, leaving the pinned view intact below. When a single team
+        // is pinned, hovering ANOTHER shows their live A⇄B overlap (Mike's "pin
+        // one, compare by hovering another"); clicking it commits the pair.
         let strip = body.querySelector(".ac-hover-strip");
         if (!strip) { strip = document.createElement("div"); strip.className = "ac-hover-strip"; body.prepend(strip); }
-        strip.innerHTML = constTeamPreviewHtml(t, inspectorCtx);
+        const sel = state.constSelection;
+        strip.innerHTML = (sel.type === "team" && sel.rid !== rid)
+          ? constCompareInspectorHtml({ type: "compare", a: sel.rid, b: rid }, inspectorCtx)
+          : constTeamPreviewHtml(t, inspectorCtx);
       } else {
         body.innerHTML = constTeamPreviewHtml(t, inspectorCtx);
       }
@@ -8987,6 +8613,23 @@ function wireConstellationHover() {
     };
     const focusContainer = (el) => {
       const cid = el.getAttribute("data-container");
+      // From the themes overview, clicking a theme DRILLS into it — reveal its
+      // ecosystems and teams (clusters grain) instead of only dimming the rest,
+      // so "click a space to open it" is the natural way in. At clusters/skills
+      // grain, clicking still focuses a space (lit members, rest recede).
+      if (constNormalizeGranularity(state.constellationGranularity) === "themes" && el.getAttribute("data-level") === "theme") {
+        state.constellationGranularity = "clusters";
+        state.constGrainManual = false;
+        state.constGrainDeep = false;
+        const z = grainToZoom("clusters", false);
+        state.cohortZoom = z;
+        try { localStorage.setItem(CONST_GRANULARITY_LS_KEY, "clusters"); localStorage.setItem(COHORT_ZOOM_LS_KEY, String(z)); } catch {}
+        applyCohortZoom();
+        const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+        if (document.startViewTransition && !reduce) document.startViewTransition(() => render());
+        else render();
+        return;
+      }
       if (stage.getAttribute("data-container-focus") === cid) { clearContainerFocus(); return; }
       const members = new Set((el.getAttribute("data-members") || "").split(" ").filter(Boolean));
       stage.setAttribute("data-container-focus", cid);
@@ -9033,48 +8676,17 @@ function wireConstellationHover() {
         selectOrOpen("team", rid);
       });
     }
+    // Standing rows/chips (.ac-stack-team) carry their full read in aria-label
+    // (gap-to-target: stage, target, gap, momentum; untracked: "no standing read
+    // yet"), so they need activation only — no hover tooltip. The old product-stack
+    // "role / proof / source" tip was stale here once PR #464 folded the stack
+    // into the standing view.
     for (const item of stage.querySelectorAll(".ac-stack-team[data-const-team]")) {
       const rid = item.getAttribute("data-const-team");
-      item.addEventListener("mouseenter", (e) => {
-        const t = teamById.get(rid);
-        if (tip && t) {
-          const item = constStackItemForTeam(inspectorCtx, rid);
-          const role = item?.role || constMarketRoleForTeam(t);
-          const evidence = item?.evidence || constEvidenceModeForTeam(t, inspectorCtx);
-          const evidenceRead = evidence.key === "profile"
-            ? evidence.label
-            : `${evidence.label} · ${String(evidence.value)}/5`;
-          const secondary = role.secondary;
-          tip.innerHTML = `
-            <div class="ajt-name">${escHtml(t.name || t.record_id)}</div>
-            <div class="ajt-row"><span class="ajt-k">role</span><span class="ajt-v">${escHtml(role.label)}</span></div>
-            ${secondary ? `<div class="ajt-row"><span class="ajt-k">also</span><span class="ajt-v">${escHtml(secondary.label)}</span></div>` : ""}
-            <div class="ajt-row"><span class="ajt-k">proof</span><span class="ajt-v">${escHtml(evidenceRead)}</span></div>
-            <div class="ajt-row"><span class="ajt-k">source</span><span class="ajt-v">${escHtml(role.reason)}</span></div>`;
-          tip.hidden = false;
-          positionConstTip(stage, tip, e);
-        }
-      });
-      item.addEventListener("mousemove", (e) => positionConstTip(stage, tip, e));
-      item.addEventListener("mouseleave", () => { if (tip) tip.hidden = true; });
       item.addEventListener("click", (e) => {
         e.preventDefault();
         selectOrOpen("team", rid);
       });
-      item.addEventListener("focus", () => {
-        const t = teamById.get(rid);
-        if (tip && t) {
-          const item = constStackItemForTeam(inspectorCtx, rid);
-          const role = item?.role || constMarketRoleForTeam(t);
-          const evidence = item?.evidence || constEvidenceModeForTeam(t, inspectorCtx);
-          const evidenceRead = evidence.key === "profile"
-            ? evidence.label
-            : `${evidence.label} · ${String(evidence.value)}/5`;
-          tip.innerHTML = `<div class="ajt-name">${escHtml(t.name || t.record_id)}</div><div class="ajt-row"><span class="ajt-k">role</span><span class="ajt-v">${escHtml(role.label)}</span></div>${role.secondary ? `<div class="ajt-row"><span class="ajt-k">also</span><span class="ajt-v">${escHtml(role.secondary.label)}</span></div>` : ""}<div class="ajt-row"><span class="ajt-k">proof</span><span class="ajt-v">${escHtml(evidenceRead)}</span></div>`;
-          tip.hidden = false;
-        }
-      });
-      item.addEventListener("blur", () => { if (tip) tip.hidden = true; });
       item.addEventListener("keydown", (e) => {
         if (e.key !== "Enter" && e.key !== " ") return;
         e.preventDefault();
@@ -10072,6 +9684,66 @@ function ensureCalendarSurfaceLoaded() {
     });
 }
 
+// Daily context for the calendar grid — the two agenda signals that fold onto
+// the week: who's in town (real presence, from people dates/absences) and the
+// workstream scope they follow. Shipped activity rides the existing whats_new
+// `activity` path in the renderer; standing is deliberately not surfaced here
+// (seed data — it lives in the standing views). Computed host-side because the
+// renderer (calendar.js) never sees people/team data.
+function computeCalendarSignals() {
+  const cal = state.calendar;
+  const cohort = activeConstellationCohort();
+  const live = state.cohort || cohort;
+  const people = Array.isArray(live?.people) ? live.people : [];
+  const teams = (cohort?.teams || [])
+    .filter(t => t && t.record_id && teamKind(t) !== "person")
+    .sort((a, b) => String(a.name || a.record_id).localeCompare(String(b.name || b.record_id)))
+    .map(t => ({ id: t.record_id, name: t.name || t.record_id }));
+  const scopeId = teams.some(t => t.id === cal.scope) ? cal.scope : null;
+
+  const DAY = 86400000, WK = 7 * DAY;
+  const wi = Number.isFinite(cal.weekIdx) ? cal.weekIdx : 0;
+  const winStart = PROGRAM_START_MS + wi * WK;
+  const roster = people.filter(p => p && (p.dates_start || p.dates_end)
+    && (!scopeId || p.team === scopeId || (Array.isArray(p.secondary_teams) && p.secondary_teams.includes(scopeId))));
+  const rosterTotal = roster.length;
+  const occAt = (ms) => roster.reduce((n, p) => n + (isPresent(p, ms) ? 1 : 0), 0);
+  const perDay = [];
+  for (let k = 0; k < 7; k++) {
+    const noon = winStart + k * DAY + DAY / 2;
+    const present = roster.filter(p => isPresent(p, noon));
+    perDay.push({ inTown: present.length, inTownNames: present.map(p => p.name || p.record_id) });
+  }
+  // Week-over-week occupancy (each week's mean of its 7 days), so the in-town
+  // hover can place "this week" in the arc of the whole residency.
+  const weeklyOccupancy = [];
+  for (let w = 0; w < WEEKS_TOTAL; w++) {
+    const wStart = PROGRAM_START_MS + w * WK;
+    let sum = 0;
+    for (let k = 0; k < 7; k++) sum += occAt(wStart + k * DAY + DAY / 2);
+    const present = Math.round(sum / 7);
+    weeklyOccupancy.push({ week: w, present, frac: rosterTotal ? present / rosterTotal : 0, isCurrent: w === wi });
+  }
+  // Per-week shipping counts (releases) so the residency arc carries ship marks
+  // across all ten weeks, not just the viewed one.
+  const whatsNew = Array.isArray(live?.whats_new) ? live.whats_new : [];
+  const weeklyShips = new Array(WEEKS_TOTAL).fill(0);
+  for (const a of whatsNew) {
+    if (!a || a.kind !== "release" || !a.date) continue;
+    const t = Date.parse(`${a.date}T12:00:00Z`);
+    if (!Number.isFinite(t)) continue;
+    const wIdx = Math.floor((t - PROGRAM_START_MS) / WK);
+    if (wIdx >= 0 && wIdx < WEEKS_TOTAL) weeklyShips[wIdx] += 1;
+  }
+  return {
+    scope: { id: scopeId, name: scopeId ? (teams.find(t => t.id === scopeId)?.name || scopeId) : "all cohort", teams },
+    perDay,
+    rosterTotal,
+    weeklyOccupancy,
+    weeklyShips,
+  };
+}
+
 function paintCalendarView({ wire = false } = {}) {
   seedCalendarData();
   const calendarModule = calendarLazy.peek();
@@ -10082,10 +9754,14 @@ function paintCalendarView({ wire = false } = {}) {
   const cal = state.calendar;
   if (cal.weekIdx == null) cal.weekIdx = calendarCurrentWeekIdx();
   // Tear down the previous now-line ticker before swapping markup so
-  // intervals don't stack across repaints.
+  // intervals don't stack across repaints; drop any open in-town popover (it
+  // lives on <body>, outside the canvas being replaced).
   if (cal.detach) { cal.detach(); cal.detach = null; }
+  calendarModule.closeCalendarInTown?.();
+  // Agenda folded into the grid; only "cal" and "presence" remain. A view value
+  // left over from the retired agenda tab degrades to the calendar grid.
+  if (cal.view !== "presence" && cal.view !== "cal") cal.view = "cal";
   const presence = cal.view === "presence";
-  const timeline = cal.view === "timeline";
   state.canvas.innerHTML = calendarModule.renderCalendarPage({
     data: cal.data,
     calendarGoogleEvents: state.cohort?.calendar_google_events || {},
@@ -10093,15 +9769,15 @@ function paintCalendarView({ wire = false } = {}) {
     source: cal.source,
     view: cal.view,
     presenceHtml: presence ? renderCalAvailability() : "",
-    timelineHtml: timeline ? timelineInnerHtml() : "",
     activity: Array.isArray(state.cohort?.whats_new) ? state.cohort.whats_new : [],
+    catHidden: Array.isArray(cal.catHidden) ? cal.catHidden : [],
+    signals: presence ? null : computeCalendarSignals(),
   });
   if (presence) {
     mountAvailabilityCanvas();
     applyPresenceFocus();
-  } else if (!timeline) {
-    // The grid's now-line ticker; the timeline view has no grid to attach to
-    // (its own hover is wired in wireCalendar).
+  } else {
+    // The grid's now-line ticker.
     cal.detach = calendarModule.attachCalendarPageBehavior(state.canvas, { scrollToNow: cal.initialMount });
     cal.initialMount = false;
   }
@@ -10142,75 +9818,71 @@ function wireCalendar() {
     });
   }
 
-  // timeline-view extras — the lane chart's own mark-hover + open-record click
-  // (the calendar page isn't in constellation mode, so the shared cohort open
-  // handler doesn't reach it). Bound on the fresh-per-paint stage, so no stacking.
-  if (cal.view === "timeline") {
-    const stage = state.canvas.querySelector(".ac-tl-stage");
-    if (stage) {
-      // Each day column commits to that week's hour-grid (glance → click/Enter).
-      const openWeek = (target) => {
-        const col = target.closest("[data-tl-week]");
-        if (!col) return;
-        const wk = Number(col.getAttribute("data-tl-week"));
-        if (Number.isFinite(wk)) {
-          cal.view = "cal";
-          cal.weekIdx = Math.max(0, Math.min(WEEKS_TOTAL - 1, wk));
-          refreshCalendarView();
-        }
-      };
-      stage.addEventListener("click", (e) => openWeek(e.target));
-      stage.addEventListener("keydown", (e) => {
-        if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
-        if (e.target.closest("[data-tl-week]")) { e.preventDefault(); openWeek(e.target); }
-      });
-    }
-    // week nav (‹ prev · next ›) + the "today" jump
-    for (const btn of state.canvas.querySelectorAll("[data-tl-nav]")) {
-      btn.addEventListener("click", () => {
-        const to = Number(btn.dataset.tlNavTo);
-        if (!Number.isFinite(to)) return;
-        cal.tlAnchorMs = to;
-        refreshCalendarView();
-      });
-    }
-    // ── Filters ──────────────────────────────────────────────────────────
+  // calendar-grid controls (the agenda's filter + signals, now on the grid):
+  // category filter, workstream scope, and the signal-row toggles. Only the
+  // calendar view carries them — presence is its own surface.
+  if (cal.view !== "presence") {
     const toggleIn = (arrKey, val) => {
       const set = new Set(Array.isArray(cal[arrKey]) ? cal[arrKey] : []);
       set.has(val) ? set.delete(val) : set.add(val);
       cal[arrKey] = [...set];
       refreshCalendarView();
     };
-    for (const b of state.canvas.querySelectorAll("[data-tl-cat]")) {   // legend → category show/hide
-      b.addEventListener("click", () => toggleIn("tlCatHidden", b.getAttribute("data-tl-cat")));
+    for (const b of state.canvas.querySelectorAll("[data-c2-cat]")) {   // legend → category show/hide
+      b.addEventListener("click", () => toggleIn("catHidden", b.getAttribute("data-c2-cat")));
     }
-    for (const b of state.canvas.querySelectorAll("[data-tl-row]")) {   // signal-row show/hide
-      b.addEventListener("click", () => toggleIn("tlRowsHidden", b.getAttribute("data-tl-row")));
-    }
-    const pastBtn = state.canvas.querySelector("[data-tl-past]");
-    if (pastBtn) pastBtn.addEventListener("click", () => { cal.tlHidePast = !cal.tlHidePast; refreshCalendarView(); });
-    // scope dropdown — focuses the signal rows on a workstream
-    const scopeBtn = state.canvas.querySelector("[data-tl-scope-toggle]");
-    const scopeMenu = state.canvas.querySelector(".cw-scope-menu");
+    // scope dropdown — focuses the daily signals on one workstream. Keyboard:
+    // the trigger opens on Enter/↓; once open ↑/↓ roam the options, Enter selects,
+    // Escape closes and returns focus to the trigger (listbox a11y pattern).
+    const scopeBtn = state.canvas.querySelector("[data-c2-scope-toggle]");
+    const scopeMenu = state.canvas.querySelector(".c2-scope-menu");
     if (scopeBtn && scopeMenu) {
-      scopeBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const willOpen = scopeMenu.hasAttribute("hidden");
-        scopeMenu.toggleAttribute("hidden", !willOpen);
-        scopeBtn.setAttribute("aria-expanded", willOpen ? "true" : "false");
+      const opts = [...scopeMenu.querySelectorAll("[data-c2-scope]")];
+      const setOpen = (open) => {
+        scopeMenu.toggleAttribute("hidden", !open);
+        scopeBtn.setAttribute("aria-expanded", open ? "true" : "false");
+        if (open) (opts.find(o => o.getAttribute("aria-selected") === "true") || opts[0])?.focus();
+      };
+      scopeBtn.addEventListener("click", (e) => { e.stopPropagation(); setOpen(scopeMenu.hasAttribute("hidden")); });
+      scopeBtn.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " " || e.key === "Spacebar") { e.preventDefault(); setOpen(true); }
       });
-      for (const opt of scopeMenu.querySelectorAll("[data-tl-scope]")) {
-        opt.addEventListener("click", () => { cal.tlScope = opt.getAttribute("data-tl-scope") || null; refreshCalendarView(); });
+      for (const opt of opts) {
+        opt.addEventListener("click", () => { cal.scope = opt.getAttribute("data-c2-scope") || null; refreshCalendarView(); });
       }
+      scopeMenu.addEventListener("keydown", (e) => {
+        const i = opts.indexOf(document.activeElement);
+        if (e.key === "ArrowDown") { e.preventDefault(); opts[Math.min(opts.length - 1, i + 1)]?.focus(); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); opts[Math.max(0, i - 1)]?.focus(); }
+        else if (e.key === "Home") { e.preventDefault(); opts[0]?.focus(); }
+        else if (e.key === "End") { e.preventDefault(); opts[opts.length - 1]?.focus(); }
+        else if (e.key === "Escape") { e.preventDefault(); setOpen(false); scopeBtn.focus(); }
+      });
     }
-    if (!state.tlScopeOutsideBound) {
-      state.tlScopeOutsideBound = true;
+    // in-town signal cells: hover/focus reveals WHO is in town + the week-by-week
+    // occupancy arc (openCalendarInTown); click/Enter commits to the presence gantt.
+    const showInTown = (cell) => calendarLazy.peek()?.openCalendarInTown?.(cell.getAttribute("data-c2-intown"), { anchor: cell });
+    const hideInTown = () => calendarLazy.peek()?.closeCalendarInTown?.();
+    const goPresence = () => { hideInTown(); cal.view = "presence"; refreshCalendarView(); };
+    for (const cell of state.canvas.querySelectorAll("[data-c2-intown]")) {
+      cell.addEventListener("mouseenter", () => showInTown(cell));
+      cell.addEventListener("mouseleave", hideInTown);
+      cell.addEventListener("focus", () => showInTown(cell));
+      cell.addEventListener("blur", hideInTown);
+      cell.addEventListener("click", goPresence);
+      cell.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") { e.preventDefault(); goPresence(); }
+        else if (e.key === "Escape") hideInTown();
+      });
+    }
+    if (!state.c2ScopeOutsideBound) {
+      state.c2ScopeOutsideBound = true;
       document.addEventListener("click", (e) => {
         if (state.mode !== "calendar") return;
-        const m = state.canvas?.querySelector(".cw-scope-menu");
-        if (m && !m.hasAttribute("hidden") && !e.target.closest("[data-tl-scope-ctl]")) {
+        const m = state.canvas?.querySelector(".c2-scope-menu");
+        if (m && !m.hasAttribute("hidden") && !e.target.closest("[data-c2-scope-ctl]")) {
           m.setAttribute("hidden", "");
-          state.canvas.querySelector("[data-tl-scope-toggle]")?.setAttribute("aria-expanded", "false");
+          state.canvas.querySelector("[data-c2-scope-toggle]")?.setAttribute("aria-expanded", "false");
         }
       });
     }
@@ -10243,7 +9915,7 @@ function wireCalendar() {
     });
   }
 
-  for (const dot of state.canvas.querySelectorAll(".c2-scrub-dot[data-c2-week]")) {
+  for (const dot of state.canvas.querySelectorAll("[data-c2-week]")) {
     dot.addEventListener("click", () => {
       const i = Number(dot.dataset.c2Week);
       if (Number.isFinite(i) && i !== cal.weekIdx) {
@@ -10259,12 +9931,15 @@ function wireCalendar() {
     });
   }
 
-  // Cohort-activity blocks (releases / commits) drill to the team dossier;
-  // "back" returns to the calendar (detailReturnMode = "calendar").
+  // Shipped chips reveal what shipped in place (same as an event); the drill to
+  // the team dossier is a deliberate, secondary button inside that reveal —
+  // onOpenTeam returns to the calendar on "back" (detailReturnMode = "calendar").
   for (const chip of state.canvas.querySelectorAll("[data-c2-act]")) {
-    chip.addEventListener("click", () => {
-      const rid = chip.dataset.c2Act;
-      if (rid) openDetail(rid, "calendar");
+    chip.addEventListener("click", (event) => {
+      calendarLazy.peek()?.openCalendarActivity?.(chip.dataset.c2Act, {
+        anchor: event.currentTarget,
+        onOpenTeam: (rid) => openDetail(rid, "calendar"),
+      });
     });
   }
 
@@ -11685,8 +11360,6 @@ function collabLensFilterHtml(lens = "all", m) {
   const lensKey = COLLAB_LENSES.has(lens) ? lens : "all";
   const seg = ({ key, cell, mark, label, count }) => `
       <button type="button" class="cb-lens-seg" data-collab-lens="${escAttr(key)}"${cell ? ` data-legend-cell="${escAttr(cell)}" data-collab-legend-lens="${escAttr(key)}"` : ""} aria-pressed="${lensKey === key ? "true" : "false"}" aria-label="${escAttr(`${label}${typeof count === "number" ? `, ${count}` : ""} — ${cell ? "filter the board to this signal" : "show all signals"}`)}">${mark ? `<i class="cb-legend-mark ${escAttr(mark)}"></i>` : ""}<b>${escHtml(label)}</b>${typeof count === "number" ? `<em class="cb-lens-count">${count}</em>` : ""}</button>`;
-  const keyEntry = ({ cell, mark, label, desc }) => `
-      <span class="cb-lens-key" data-legend-cell="${escAttr(cell)}" tabindex="0" title="${escAttr(desc)}"><i class="cb-legend-mark ${escAttr(mark)}"></i>${escHtml(label)}</span>`;
   return `
     <div class="cb-lensfilter" role="group" aria-label="signal filter — hover to preview, click to filter">
       ${seg({ key: "all", cell: "", mark: "", label: "all", count: m.deps.size + m.seekOffer.length })}
@@ -14691,6 +14364,42 @@ function setContextTranscriptsSource(src) {
   if (state.mode === "context") { renderContextVault(); wireContextVault(); }
 }
 
+// Persist the entered cohort key, then re-read the gated cohort surface IN PLACE
+// (no page reload): refreshCohortFromGithub re-runs applyDistillationOverlay — which
+// now sees the key — and notifies the subscriber that repaints the view. We pin the
+// transcripts source to "distilled" so the user lands on the now-populated side, and
+// surface a result count (or a "check the key" hint) when the refresh settles.
+async function submitCohortKeyForm(form) {
+  const input = form && form.querySelector('input[name="cohortKey"]');
+  const raw = input ? input.value : "";
+  const cv = state.contextVault;
+  if (!persistCohortKeyOverride(raw)) {
+    cv.error = "Could not save the cohort key to local storage.";
+    renderContextVault(); wireContextVault();
+    return;
+  }
+  const hasKey = !!String(raw || "").trim();
+  cv.error = "";
+  if (!hasKey) {
+    cv.message = "Cohort key cleared — showing your local raw vault.";
+    try { localStorage.setItem(TRANSCRIPTS_SOURCE_LS_KEY, "raw"); } catch {}
+    renderContextVault(); wireContextVault();
+    return;
+  }
+  try { localStorage.setItem(TRANSCRIPTS_SOURCE_LS_KEY, "distilled"); } catch {}
+  cv.message = "Reading the cohort's distilled readouts live…";
+  renderContextVault(); wireContextVault();
+  try {
+    await refreshCohortFromGithub();
+    await loadCohort();
+  } catch { /* leave the surface as-is; the message below reflects the result */ }
+  const n = contextDistilledList().length;
+  cv.message = n
+    ? `Loaded ${n} distilled readout${n === 1 ? "" : "s"} from the cohort.`
+    : "Key saved, but no distilled readouts came back — double-check it's a current role=cohort_app key.";
+  if (state.mode === "context") { renderContextVault(); wireContextVault(); }
+}
+
 function transcriptsSourceToggleHtml(source, rawCount, distilledCount) {
   const opt = (s, label, count, hint) =>
     `<button class="alch-ev-tier-btn${source === s ? " is-on" : ""}" data-cv-tsource="${s}" type="button" aria-pressed="${source === s}" title="${escAttr(hint)}">${label}${Number.isFinite(count) ? ` ${count}` : ""}</button>`;
@@ -14715,12 +14424,42 @@ function distilledTranscriptMeta(s) {
   return bits.filter(Boolean).join(" · ");
 }
 
+// Whether the gated cohort reads have a key to use — the localStorage override OR
+// a build-baked key. Mirrors the reader exactly (readSupabaseConfig), so the empty
+// state can tell "no key provisioned" apart from "key set but nothing published."
+function cohortKeyConfigured() {
+  try { return !!readSupabaseConfig().cohortKey; } catch { return false; }
+}
+
+// The inline cohort-key affordance shown in the distilled empty state. Lets a
+// provisioned run drop in a role=cohort_app JWT on this machine without an env var
+// or a packaged build — it persists via persistCohortKeyOverride, then refreshes
+// the cohort surface in place (wireContextVault handles the submit). type=password
+// so the soft secret isn't shoulder-surfed; never pre-filled with the live value.
+function cohortKeyFormHtml(configured) {
+  return `
+    <form class="alch-cv-keyform" data-cv-cohort-key-form autocomplete="off">
+      <label class="alch-cv-keyform-label" for="alch-cv-cohort-key">${configured ? "replace cohort key" : "cohort key"} <span class="alch-cv-keyform-tag">role=cohort_app JWT</span></label>
+      <div class="alch-cv-keyform-row">
+        <input id="alch-cv-cohort-key" class="alch-cv-keyform-input" name="cohortKey" type="password" inputmode="text" autocomplete="off" spellcheck="false" placeholder="eyJhbGciOi…" aria-label="cohort key JWT" />
+        <button type="submit" class="alch-cv-keyform-save">use key</button>
+      </div>
+      <p class="alch-cv-keyform-note">Stored only in this app's local storage, on this machine — never committed or sent anywhere but Supabase. Save an empty value to clear it.</p>
+    </form>
+  `;
+}
+
 function renderDistilledTranscriptDetail(selected) {
   if (!selected) {
+    const configured = cohortKeyConfigured();
+    const lede = configured
+      ? `A cohort key is set, but no distilled readouts came back — the key may be wrong/expired, or no sessions are distilled, reviewed &amp; published yet. Re-enter a key below, or switch to <em>raw</em> above for your local vault.`
+      : `The cohort's distilled readouts load live from Supabase once a cohort key is provisioned. Paste one below to read them on this machine, or switch to <em>raw</em> above for your local vault.`;
     return `
       <article class="alch-cv-detail alch-cv-empty-detail">
         <h3>no distilled transcripts yet</h3>
-        <p>The cohort's distilled readouts load live from Supabase once a cohort key is provisioned. Without one the app shows your local raw vault — switch to <em>raw</em> above.</p>
+        <p>${lede}</p>
+        ${cohortKeyFormHtml(configured)}
       </article>
     `;
   }
@@ -15020,6 +14759,13 @@ function wireContextVault() {
       if (!d) return;
       const ok = await copyTextToClipboard(d.body_md || "");
       flashCopyButton(btn, ok);
+    });
+  }
+  const keyForm = state.canvas.querySelector("[data-cv-cohort-key-form]");
+  if (keyForm) {
+    keyForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      submitCohortKeyForm(keyForm);
     });
   }
   // Embedded intel (signals/data views) wires its own internals; the page
@@ -16154,6 +15900,27 @@ function renderTimelineItems(items = []) {
   `;
 }
 
+// The team's published GitHub releases as a dossier section — surface.github_releases
+// filtered to this team (the same per-team items the membrane feed + say/did/shipped
+// SHIPPED cell use). The dossier is the natural home for "what this team shipped";
+// previously releases lived only in the membrane. "" when none ⇒ the section drops.
+function renderTeamReleases(recordId) {
+  const all = activeConstellationCohort()?.github_releases;
+  if (!Array.isArray(all) || !all.length) return "";
+  const mine = all
+    .filter(r => r && (r.nav?.recordId === recordId || r.meta === recordId) && (r.label || r.name))
+    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+  if (!mine.length) return "";
+  const items = mine.map(r => ({ date: r.date, title: r.label || r.name, type: "release" }));
+  return renderDisclosureSection(
+    `releases · ${mine.length}`,
+    renderTimelineItems(items),
+    false,
+    detailTimelinePreview(items),
+    "alch-detail-timeline"
+  );
+}
+
 function renderRecordTimeline(recordKind, recordId) {
   const items = detailTimelineItems(recordKind, recordId);
   if (!items.length) return "";
@@ -16468,6 +16235,7 @@ function renderTeamDetail(team) {
           ${renderDisclosureSection("assessment / plan", detailRows(assessmentRows), false, assessmentPreview)}
           ${renderDisclosureSection("evidence", detailRows(evidenceRows), false, evidencePreview)}
           ${renderWorkstreamTimeline(recordId)}
+          ${renderTeamReleases(recordId)}
           ${renderDisclosureSection("coordination", detailRows(coordinationRows), false, coordinationPreview)}
           ${renderRecordTimeline("team", recordId)}
         </div>

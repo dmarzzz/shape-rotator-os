@@ -5926,6 +5926,18 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   height: 100%;
 }
 .alch-constellation-stage svg { width: 100%; height: 100%; display: block; }
+/* Bubble (ecosystem) map: size the stage to the packed content's aspect ratio
+   (set per-render inline from the fitted viewBox) so the map fills it with no
+   top/bottom letterbox — instead of stretching to a tall flex row that the
+   square-ish content can only fill by width. Overrides the flex:1 / min-height /
+   height:100% the shared stage uses for the other (full-bleed) cohort views. */
+.alch-const-main .alch-constellation-stage[data-view="bubble"] {
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 0;
+  width: 100%;
+  align-self: start;
+}
 .alch-constellation-stage svg .ac-edge {
   stroke: rgba(var(--ink-rgb), 0.30); stroke-width: 0.9; fill: none;
   transition: opacity 220ms var(--ease), stroke-width 220ms var(--ease);
@@ -6975,6 +6987,17 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   color: var(--alchemy-paper-warm);
   font-size: 11.5px;
 }
+/* Orientation headline: the count for the grain you're zoomed to leads; the
+   other two units sit back so the readout reflects what you're reading. */
+.ac-orientation-counts .ac-count-part { color: var(--alchemy-ink-mute); transition: color 200ms var(--ease); }
+.ac-orientation-counts .ac-count-part.is-grain-focus { color: var(--alchemy-paper-warm); }
+.ac-orientation-counts .ac-count-sep { color: rgba(var(--ink-rgb), 0.3); }
+.ac-inspector-hero.is-orientation .ac-orientation-foot {
+  margin-top: 3px;
+  color: var(--alchemy-ink-mute);
+  font-size: 11px;
+  font-style: italic;
+}
 .ac-encoding-list {
   list-style: none;
   margin: 6px 0 0;
@@ -7205,6 +7228,13 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   stroke: var(--well-accent, rgba(193,168,114,0.4));
   stroke-dasharray: 3 4;
 }
+/* Theme rings are the overview's primary spaces — bold, named containers, not the
+   faint 0.13-alpha backdrop they were (which made the themes layer invisible). */
+.alch-constellation-stage svg .ac-bubble-container[data-level="theme"] .ac-bubble-container-shape {
+  stroke: var(--well-accent, rgba(193,168,114,0.5));
+  stroke-width: 1.5;
+  stroke-dasharray: 2 8;
+}
 .alch-constellation-stage svg .ac-bubble-container-label {
   fill: var(--well-accent, var(--alchemy-ink-mute));
   opacity: 0.74;
@@ -7222,6 +7252,16 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
 .alch-constellation-stage svg .ac-bubble-container[data-level="theme"] .ac-bubble-container-label {
   font-size: 10px;
   opacity: 0.84;
+}
+/* The "_other" catch-all ring: dashed + recessive so it reads as "teams still
+   finding a space", not a peer theme/ecosystem (it's also out of the counts). */
+.alch-constellation-stage svg .ac-bubble-container.is-others .ac-bubble-container-shape {
+  opacity: 0.38;
+  stroke-dasharray: 3 5;
+}
+.alch-constellation-stage svg .ac-bubble-container.is-others .ac-bubble-container-label {
+  opacity: 0.5;
+  font-weight: 400;
 }
 /* Colour isolate (the "coloured by [domain]" token): teams not in the picked
    domain recede so the chosen colour reads alone. A deliberate filter dim, so it
@@ -7429,10 +7469,17 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
   border: 0.5px solid rgba(var(--ink-rgb), 0.12);
   color: var(--alchemy-ink, rgba(var(--ink-rgb), 0.82));
 }
-.ac-cmp-dep-k {
-  margin: 4px 0 4px; font-family: var(--font-mono); font-size: 9px;
-  letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--alchemy-ink-mute, rgba(var(--ink-rgb), 0.5));
+/* The pinned compare panel eases in, the team pair trailing a beat behind, so
+   forming a comparison reads as one settling motion rather than a hard swap. */
+@keyframes ac-cmp-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.ac-inspector-hero.is-compare { animation: ac-cmp-in 260ms cubic-bezier(0.19,1,0.22,1) both; }
+.ac-cmp-grid { animation: ac-cmp-in 300ms cubic-bezier(0.19,1,0.22,1) 70ms both; }
+/* In the hover strip (pin A, hover B → live compare) the strip itself fades in;
+   don't re-run the compare entrance on every bubble you sweep over. */
+.ac-hover-strip .ac-inspector-hero.is-compare,
+.ac-hover-strip .ac-cmp-grid { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .ac-inspector-hero.is-compare, .ac-cmp-grid { animation: none; }
 }
 .ac-cmp-dep-k + .ac-cmp-chips { margin-bottom: 8px; }
 /* The pinned compare panel eases in, the team pair trailing a beat behind, so
@@ -8127,24 +8174,6 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
   padding: 8px 0 0;
   overflow: auto;
 }
-.ac-stack-view {
-  display: grid;
-  grid-template-columns: 132px repeat(5, minmax(112px, 1fr));
-  grid-auto-rows: minmax(88px, auto);
-  min-width: 780px;
-  min-height: 496px;
-  border: 1px solid rgba(var(--ink-rgb),0.08);
-  background: rgba(20,17,18,0.32);
-}
-.ac-stack-view.is-layer-list {
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  grid-auto-rows: auto;
-  gap: 10px;
-  min-width: 0;
-  min-height: 0;
-  border: 0;
-  background: transparent;
-}
 .ac-stack-empty {
   margin: 0;
   padding: 22px;
@@ -8286,53 +8315,11 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
 
 /* Keyboard focus ring for the week-nav buttons. */
 .ac-tl-navbtn:focus-visible { outline: 2px solid var(--alchemy-oxide-bright); outline-offset: 1px; }
-/* Each product layer is a translucent glass pane that picks up the cursor
- * sheen (.lg-track). No oxide tint here — it's a repeated content pane, so the
- * signature wash stays on the singular hero/legend surfaces. */
-.ac-stack-layer {
-  min-width: 0;
-  border: 1px solid var(--lg-border);
-  border-radius: 12px;
-  background:
-    radial-gradient(240px 200px at var(--lg-mx, 28%) var(--lg-my, -8%),
-      rgba(var(--lg-sheen-color), calc(0.24 * var(--lg-sheen))), transparent 60%),
-    var(--lg-bg);
-  -webkit-backdrop-filter: var(--lg-blur-sm);
-  backdrop-filter: var(--lg-blur-sm);
-  box-shadow: var(--lg-specular), var(--lg-shadow);
-  overflow: hidden;
-}
-/* The header reads as a frosted lip on the pane. */
-.ac-stack-layer-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 12px 11px 9px;
-  border-bottom: 1px solid var(--lg-border);
-  background: var(--lg-bg-strong);
-  box-shadow: var(--lg-specular);
-}
-.ac-stack-layer-head strong {
-  min-width: 0;
-  color: var(--alchemy-paper-warm);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.ac-stack-layer-head span {
-  flex: 0 0 auto;
-  color: var(--alchemy-ink-mute);
-  font-family: var(--font-mono);
-  font-size: 7.6px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
 
-/* (Unused 2D stack-matrix variant styles removed — .ac-stack-corner /
-   -col-head / -row-head / -cell / -cell-count / -team-list were never emitted;
-   the rendered path is the .ac-stack-view.is-layer-list masonry above.) */
+/* (Old product-stack styles removed — the 6-col matrix grid, .is-layer-list
+   masonry, .ac-stack-layer panes, and the 2D .ac-stack-corner/-col-head/
+   -row-head/-cell/-cell-count/-team-list variants were never emitted by the
+   standing view, which renders .ac-stack-team chips/rows below.) */
 .ac-stack-team {
   appearance: none;
   display: grid;
@@ -8909,12 +8896,9 @@ html.jweek-vt::view-transition-new(root) {
   mix-blend-mode: normal;
 }
 /* 4-family bottleneck palette (collapsed from 10 — see JOURNEY_BOTTLENECK_
-   FAMILIES). Dots fill (svg); legend swatches need background (html span). */
-.alch-journey-stage svg .ac-jfam-0 { fill: #c44025; }  /* market  — oxide red */
-.alch-journey-stage svg .ac-jfam-1 { fill: #c9a35e; }  /* product — brass */
-.alch-journey-stage svg .ac-jfam-2 { fill: #4fa3a0; }  /* growth  — teal */
-.alch-journey-stage svg .ac-jfam-3 { fill: #7a6fb0; }  /* company — violet */
-/* Family swatch colours — unscoped so they tint the key strip, the bottleneck
+   FAMILIES). The svg dots take their colour from an inline fill:url(#jsphere-N)
+   gradient (alchemy.js), so only the html swatches are styled here.
+   Family swatch colours — unscoped so they tint the key strip, the bottleneck
    filter token + its menu, and the tooltip's bottleneck dot, none of which live
    inside .alch-constellation-legend anymore. */
 .acl-jswatch.ac-jfam-0, .ajt-bn-dot.ac-jfam-0 { background: #c44025; }
@@ -9036,49 +9020,8 @@ html.jweek-vt::view-transition-new(root) {
 .alch-view-controls.is-journey-controls {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
 }
-/* The week slider owns the top-right; the key strip flows right after the
-   sentence so the two right-aligned elements don't fight for the corner. */
-.ac-jweek { margin-left: auto; display: inline-flex; align-items: center; gap: 9px; }
-.ac-jweek-cap {
-  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.08em;
-  text-transform: lowercase; color: var(--journey-muted); white-space: nowrap;
-}
-/* Snap scrubber: a thin track with a notch per week and an oxide thumb. The
-   native range (step=1) does the snapping + keyboard; notches are click targets. */
-.ac-jweek-track { position: relative; width: 132px; height: 16px; display: flex; align-items: center; }
-.ac-jweek-track::before {
-  content: ""; position: absolute; left: 6px; right: 6px; top: 50%;
-  height: 2px; border-radius: 2px; background: var(--journey-rule-strong); transform: translateY(-50%);
-}
-.ac-jweek-range {
-  position: relative; z-index: 2; width: 100%; height: 16px; margin: 0;
-  -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer;
-}
-.ac-jweek-range::-webkit-slider-runnable-track { height: 16px; background: transparent; }
-.ac-jweek-range::-webkit-slider-thumb {
-  -webkit-appearance: none; appearance: none;
-  width: 13px; height: 13px; border-radius: 50%; margin-top: 1.5px;
-  background: radial-gradient(circle at 35% 30%, #f0b49f, var(--alchemy-oxide-bright, #c1a872) 60%, #8a2a14);
-  border: 1px solid rgba(8, 6, 6, 0.5);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
-  cursor: grab;
-}
-.ac-jweek-range:active::-webkit-slider-thumb { cursor: grabbing; }
-.ac-jweek-range:focus-visible { outline: none; }
-.ac-jweek-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(193, 168, 114, 0.4), 0 1px 2px rgba(0, 0, 0, 0.45); }
-.ac-jweek-notch {
-  position: absolute; top: 50%; transform: translate(-50%, -50%); z-index: 1;
-  width: 5px; height: 5px; padding: 0; border-radius: 50%; cursor: pointer;
-  border: 1px solid rgba(var(--ink-rgb), 0.34); background: rgba(var(--ink-rgb), 0.10);
-  transition: background 150ms var(--ease), border-color 150ms var(--ease);
-}
-.ac-jweek-notch:hover { border-color: var(--alchemy-oxide-bright); }
-.ac-jweek-notch.is-active { background: var(--alchemy-oxide); border-color: var(--alchemy-oxide-bright); }
-.ac-jweek-notch:focus-visible { outline: 1px solid var(--alchemy-oxide-bright); outline-offset: 2px; }
-.ac-jweek-now {
-  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.04em;
-  color: var(--alchemy-paper-warm); min-width: 3.4ch; font-variant-numeric: tabular-nums;
-}
+/* legacy .ac-jweek snap-scrubber removed — superseded by the shared .cps period
+   scrubber below (cohort-period-scrubber.mjs). */
 
 /* ── Shared period scrubber (.cps) ───────────────────────────────────────────
    One "as of …" dot-rail reused across the constellation views (pmf, standing,
@@ -10862,6 +10805,16 @@ textarea.cb-intake-input {
 }
 .ac-sds-cell.is-observed > span { color: var(--alchemy-paper-warm); }
 .ac-sds-cell.is-declared > span { opacity: 0.7; }
+.ac-sds-evidence { display: block; margin-top: 3px; opacity: 0.72; font-size: 0.85em; }
+/* DID activity mix (change types · topics · author) — quiet mono metadata. */
+.ac-sds-mix {
+  display: block; margin-top: 3px;
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.01em;
+  color: var(--alchemy-ink-mute); opacity: 0.85;
+}
+/* Released names in the SHIPPED cell read as the positive signal, not muted. */
+.ac-sds-shipped-rel { opacity: 0.9; }
+.ac-sds-shipped-rel em { font-style: normal; color: var(--alchemy-ink-mute); margin-right: 4px; }
 .ac-sds-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
 .ac-sds-chip {
   display: inline-flex; align-items: center; gap: 3px;
@@ -10987,84 +10940,7 @@ html.jweek-vt .ac-cmp-grid { animation: none; }
 
 .cb-empty { color: var(--alchemy-ink-mute); font-size: 12px; }
 
-.cb-intro.is-selected {
-  border-color: rgba(210,168,79,0.62);
-  background: rgba(210,168,79,0.055);
-  box-shadow: inset 0 0 0 1px rgba(210,168,79,0.22);
-}
-
 /* matrix */
-.cb-legend { margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px 12px; min-width: min(100%, 520px); font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--alchemy-ink-mute); }
-
-.cb-legend :is(span, button) {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  cursor: help;
-}
-.cb-legend button {
-  appearance: none;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
-}
-.cb-legend button[data-collab-lens] { cursor: pointer; }
-.cb-legend button[aria-pressed="true"] {
-  color: var(--alchemy-paper-warm);
-  box-shadow: inset 0 -1.5px 0 var(--alchemy-oxide-bright);
-}
-.cb-legend button[aria-pressed="true"] .cb-legend-mark {
-  filter: drop-shadow(0 0 5px rgba(217, 83, 54, 0.28));
-}
-
-.cb-legend b { font: inherit; color: inherit; white-space: nowrap; }
-
-/* Instant, styled legend tooltip (no native title delay, no "?" glyph). The
-   whole legend item is the hover/focus target; description comes from data-desc. */
-.cb-legend :is(span, button)[data-desc]::after {
-  content: attr(data-desc);
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 30;
-  width: max-content;
-  max-width: 260px;
-  padding: 8px 10px;
-  border: 1px solid rgba(var(--ink-rgb), 0.16);
-  border-radius: 7px;
-  background: var(--cb-preview-panel-2, #1a1518);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
-  color: var(--alchemy-paper-warm);
-  font-family: var(--font-sans);
-  font-size: 11px;
-  font-weight: 450;
-  letter-spacing: 0;
-  line-height: 1.4;
-  text-transform: none;
-  text-align: left;
-  white-space: normal;
-  opacity: 0;
-  transform: translateY(-3px);
-  pointer-events: none;
-  transition: opacity 140ms ease, transform 140ms ease;
-}
-
-.cb-legend :is(span, button)[data-desc]:hover::after,
-.cb-legend :is(span, button)[data-desc]:focus-visible::after {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cb-legend :is(span, button)[data-desc]::after { transition: none; }
-}
-
 .cb-legend-mark { position: relative; display: inline-grid; place-items: center; width: 13px; height: 13px; flex: 0 0 13px; }
 
 /* Dependency = a clay dot (matches the matrix). Direction is positional, so the
@@ -11380,23 +11256,6 @@ button.cb-cell:disabled { cursor: default; }
   max-height: none;
 }
 
-/* The inspector rail floats as glass beside the matrix and carries the cursor
- * sheen (.lg-track). It's a grid column next to the matrix, not over it, so the
- * blur layer is bounded and never sits behind the scrolling cells. */
-.alch-collab .cb-matrix-side {
-  min-width: 0;
-  display: grid;
-  grid-template-rows: 128px auto;
-  border-left: 1px solid var(--lg-border);
-  background:
-    radial-gradient(240px 220px at var(--lg-mx, 30%) var(--lg-my, -6%),
-      rgba(255, 255, 255, calc(0.20 * var(--lg-sheen))), transparent 58%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.006)),
-    rgba(20, 16, 18, 0.56);
-  -webkit-backdrop-filter: var(--lg-blur-sm);
-  backdrop-filter: var(--lg-blur-sm);
-}
-
 /* Float the collab board to match the other cohort plots: drop the opaque
    matrix card (fill + border + radius + shadow + padding) so the grid sits on
    the page substrate and starts higher; the side column (legend + inspector)
@@ -11409,77 +11268,6 @@ button.cb-cell:disabled { cursor: default; }
   box-shadow: none;
   padding: 0;
 }
-.alch-collab .cb-matrix-section .cb-matrix-side {
-  background: transparent;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-}
-
-.alch-collab .cb-matrix-key {
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  min-width: 0;
-  padding: 14px 16px 13px;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.012), rgba(255,255,255,0)),
-    var(--cb-preview-panel-2);
-}
-
-.alch-collab .cb-matrix-key::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 1px;
-  background: linear-gradient(90deg,
-    rgba(var(--ink-rgb), 0.08) 0%,
-    rgba(210,168,79,0.24) 44%,
-    rgba(var(--ink-rgb), 0.12) 100%);
-}
-
-.alch-collab .cb-matrix-key .cb-legend {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px 13px;
-  width: 100%;
-  min-width: 0;
-  margin-left: 0;
-  justify-content: stretch;
-  font-size: 8px;
-  letter-spacing: 0.07em;
-}
-
-.alch-collab .cb-matrix-key .cb-legend :is(span, button) {
-  min-height: 19px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: color-mix(in srgb, var(--alchemy-ink-mute) 92%, var(--alchemy-paper-warm));
-}
-
-.alch-collab .cb-matrix-key .cb-legend :is(span, button):hover,
-.alch-collab .cb-matrix-key .cb-legend :is(span, button):focus-visible,
-.alch-collab .cb-matrix-key .cb-legend button[aria-pressed="true"] {
-  color: var(--alchemy-paper-warm);
-}
-
-.alch-collab .cb-matrix-key .cb-legend b {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.alch-collab .cb-matrix-key .cb-legend :is(span, button)[data-desc]::after {
-  top: calc(100% + 6px);
-  left: 0;
-  right: auto;
-  z-index: 40;
-  max-width: 250px;
-}
-
 .alch-collab .cb-inspector {
   min-width: 0;
   border-left: 0;
@@ -11961,47 +11749,6 @@ button.cb-cell:disabled { cursor: default; }
   text-transform: none;
 }
 
-/* Default-inspector trailer — names the board's below-fold sections and
-   scrolls to them; each row is a quiet full-width jump, not a pill. */
-.cb-board-trailer {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.cb-trailer-link {
-  appearance: none;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-  cursor: pointer;
-  border: 1px solid rgba(var(--ink-rgb), 0.08);
-  border-radius: 6px;
-  padding: 6px 9px;
-  background: rgba(var(--ink-rgb), 0.018);
-  color: var(--alchemy-ink-mute);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  text-align: left;
-  transition: color 160ms var(--ease), border-color 160ms var(--ease), background 160ms var(--ease);
-}
-.cb-trailer-link:hover {
-  color: var(--alchemy-paper-warm);
-  border-color: rgba(var(--ink-rgb), 0.22);
-  background: rgba(var(--ink-rgb), 0.045);
-}
-.cb-trailer-link:active { transform: scale(0.98); }
-.cb-trailer-link:focus-visible {
-  outline: 1px solid rgba(143,34,14,0.78);
-  outline-offset: 2px;
-}
-.cb-trailer-link i {
-  font-style: normal;
-  color: var(--alchemy-oxide-bright);
-}
 
 
 
@@ -12550,31 +12297,6 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
     max-height: none;
     width: 100%;
   }
-  .alch-collab .cb-matrix-side {
-    grid-template-rows: auto auto;
-    width: 100%;
-    border-left: 0;
-    border-top: 1px solid var(--cb-preview-grid);
-  }
-  .alch-collab .cb-matrix-key {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 10px 12px;
-  }
-  .alch-collab .cb-matrix-key .cb-legend {
-    display: flex;
-    flex-wrap: wrap;
-    width: 100%;
-  }
-  .alch-collab .cb-matrix-key .cb-legend :is(span, button) {
-    flex: 1 1 100%;
-    width: 100%;
-  }
-  .alch-collab .cb-matrix-key .cb-legend b {
-    white-space: normal;
-    overflow-wrap: anywhere;
-    text-overflow: clip;
-  }
   .alch-collab .cb-inspector {
     border-top: 1px solid var(--cb-preview-grid);
     padding-top: 16px;
@@ -12590,10 +12312,6 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 
 
 
-
-.alch-collab .cb-legend {
-  min-width: min(100%, 560px);
-}
 
 .alch-collab .cb-legend-mark.dep::before {
   content: "";
@@ -12661,7 +12379,6 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 .cb-controls-primary { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .cb-controls-primary .cb-control-actions { margin-left: auto; justify-self: auto; }
 .cb-controls-scope { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
-.cb-scope-sep { color: rgba(var(--ink-rgb), 0.22); }
 .cb-controls .cb-intake-open { box-shadow: var(--cb-raise-sm), var(--cb-edge-hi); }
 .cb-controls .cb-intake-open:active { transform: translateY(1px) scale(0.99); }
 
@@ -12675,29 +12392,12 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 .cb-lens-seg[aria-pressed="true"] .cb-lens-count { opacity: 1; }
 .cb-lens-seg:focus-visible { outline: 2px solid color-mix(in srgb, var(--alchemy-oxide-bright) 80%, transparent); outline-offset: -2px; }
 .cb-lens-seg .cb-legend-mark { position: relative; width: 12px; height: 12px; flex: 0 0 12px; }
-.cb-lens-key { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(var(--ink-rgb), 0.5); cursor: default; }
-.cb-lens-key .cb-legend-mark { position: relative; width: 12px; height: 12px; flex: 0 0 12px; }
-.cb-lens-key:first-of-type { border-left: 1px solid var(--alchemy-rule); margin-left: 2px; box-shadow: inset 6px 0 10px -8px rgba(0,0,0,0.5); }
-
-/* scope/sort tokens — quiet, faint lift */
-.cb-scope { display: inline-flex; gap: 8px; align-items: center; }
-.cb-scope-token { display: inline-flex; align-items: baseline; gap: 6px; padding: 6px 10px; border: 1px solid var(--alchemy-rule); border-radius: 8px; background-color: transparent; cursor: pointer; font-family: var(--font-mono); font-size: 10px; color: var(--alchemy-ink-mute); transition: border-color 180ms var(--ease), color 180ms var(--ease), box-shadow 180ms var(--ease); }
-.cb-scope-token:hover { border-color: rgba(var(--ink-rgb), 0.28); color: var(--alchemy-paper-warm); box-shadow: var(--cb-raise-sm), var(--cb-edge-hi); }
-.cb-scope-token:active { transform: translateY(1px); }
-.cb-scope-token:focus-visible { outline: 2px solid color-mix(in srgb, var(--alchemy-oxide-bright) 80%, transparent); outline-offset: 2px; }
-.cb-scope-token span { text-transform: uppercase; letter-spacing: 0.1em; font-size: 8.5px; opacity: 0.7; }
-.cb-scope-token b { font-weight: 600; color: var(--alchemy-paper-warm); }
-
 /* hover-preview: the filter now lives in the control band (a sibling of the
    matrix under .alch-cohort-page), so isolation is scoped from that ancestor. */
 .alch-cohort-page:has(.cb-lens-seg[data-legend-cell="dep"]:hover) .cb-cell.has-so:not(.has-dep),
 .alch-cohort-page:has(.cb-lens-seg[data-legend-cell="dep"]:focus-visible) .cb-cell.has-so:not(.has-dep) { opacity: 0.16; }
 .alch-cohort-page:has(.cb-lens-seg[data-legend-cell="so"]:hover) .cb-cell.has-dep:not(.has-so),
 .alch-cohort-page:has(.cb-lens-seg[data-legend-cell="so"]:focus-visible) .cb-cell.has-dep:not(.has-so) { opacity: 0.16; }
-.alch-cohort-page:has(.cb-lens-key[data-legend-cell="scale"]:hover) .cb-cell.has-so.s1,
-.alch-cohort-page:has(.cb-lens-key[data-legend-cell="scale"]:hover) .cb-cell.has-so.s2 { opacity: 0.22; }
-.alch-cohort-page:has(.cb-lens-key[data-legend-cell="key"]:hover) .cb-colhead:not(.is-key) { opacity: 0.3; }
-.alch-cohort-page:has(.cb-lens-key[data-legend-cell="key"]:hover) .cb-colhead.is-key { color: var(--alchemy-oxide-bright); opacity: 1; }
 
 /* matrix — flat grid resting in a soft POOL OF LIGHT (no box edge) */
 .alch-collab .cb-scroll { background: transparent; border: 0; border-radius: 0; }
@@ -12871,9 +12571,9 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 
 /* honor reduced-motion: keep the depth, drop the movement */
 @media (prefers-reduced-motion: reduce) {
-  .cb-peruse-row, .cb-route2-row, .cb-pair2-row, .cb-scope-token, .cb-intake-open, .cb-inspector-lead.is-team, .cb-jump, .cb-lens-seg, .alch-collab .cb-cell .cb-mark { transition: none; }
+  .cb-peruse-row, .cb-route2-row, .cb-pair2-row, .cb-intake-open, .cb-inspector-lead.is-team, .cb-jump, .cb-lens-seg, .alch-collab .cb-cell .cb-mark { transition: none; }
   .cb-peruse-row:hover, .cb-route2-row:hover, .cb-pair2-row:hover { transform: none; }
-  .cb-peruse-row:active, .cb-route2-row:active, .cb-pair2-row:active, .cb-scope-token:active, .cb-intake-open:active { transform: none; }
+  .cb-peruse-row:active, .cb-route2-row:active, .cb-pair2-row:active, .cb-intake-open:active { transform: none; }
 }
 
 /* intros */
@@ -12944,7 +12644,6 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 
 @media (max-width: 720px) {
   .alch-cb-sechead { flex-direction: column; align-items: flex-start; gap: 5px; }
-  .cb-legend { margin-left: 0; }
   .cb-grid { --cb-cell: 20px; --cb-rowhead: 108px; }
   .cb-colhead { height: 86px; font-size: 8px; }
 }
@@ -16112,8 +15811,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 /* Key entries are live: subtle lift on hover, designed focus ring */
 .acl-line-key-row[data-legend-link],
 .acl-line-key-row[data-legend-edge],
-.alch-constellation-legend .acl-item[data-legend-domain],
-.cb-legend :is(span, button)[data-legend-cell] {
+.alch-constellation-legend .acl-item[data-legend-domain] {
   border-radius: 6px;
   transition: color 140ms ease-out;
 }
@@ -16124,8 +15822,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 }
 .acl-line-key-row[data-legend-link]:focus-visible,
 .acl-line-key-row[data-legend-edge]:focus-visible,
-.alch-constellation-legend .acl-item[data-legend-domain]:focus-visible,
-.cb-legend :is(span, button)[data-legend-cell]:focus-visible {
+.alch-constellation-legend .acl-item[data-legend-domain]:focus-visible {
   outline: 1px solid var(--alchemy-oxide-bright);
   outline-offset: 2px;
 }
@@ -16209,8 +15906,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 }
 
 /* Collab matrix — the key teaches by demonstration: dependency / seek-offer
-   isolate their cells; match strength dims the weak tier so the ramp reads;
-   keystone surfaces the dense columns */
+   isolate their cells on hover. */
 .cb-matrix-section:has([data-legend-cell="dep"]:hover) .cb-cell.has-so:not(.has-dep),
 .cb-matrix-section:has([data-legend-cell="dep"]:focus-within) .cb-cell.has-so:not(.has-dep) {
   opacity: 0.14;
@@ -16218,20 +15914,6 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 .cb-matrix-section:has([data-legend-cell="so"]:hover) .cb-cell.has-dep:not(.has-so),
 .cb-matrix-section:has([data-legend-cell="so"]:focus-within) .cb-cell.has-dep:not(.has-so) {
   opacity: 0.14;
-}
-.cb-matrix-section:has([data-legend-cell="scale"]:hover) .cb-cell.has-so.s1,
-.cb-matrix-section:has([data-legend-cell="scale"]:hover) .cb-cell.has-so.s2,
-.cb-matrix-section:has([data-legend-cell="scale"]:focus-within) .cb-cell.has-so.s1,
-.cb-matrix-section:has([data-legend-cell="scale"]:focus-within) .cb-cell.has-so.s2 {
-  opacity: 0.22;
-}
-.cb-matrix-section:has([data-legend-cell="key"]:hover) .cb-colhead:not(.is-key),
-.cb-matrix-section:has([data-legend-cell="key"]:focus-within) .cb-colhead:not(.is-key) {
-  opacity: 0.30;
-}
-.cb-matrix-section:has([data-legend-cell="key"]:hover) .cb-colhead.is-key,
-.cb-matrix-section:has([data-legend-cell="key"]:focus-within) .cb-colhead.is-key {
-  color: var(--alchemy-paper-warm);
 }
 .cb-matrix-section .cb-cell,
 .cb-matrix-section .cb-colhead {
@@ -20260,6 +19942,75 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
 .alch-cv-empty-detail p {
   color: rgba(var(--ink-rgb), 0.58);
   font: 400 14px/1.5 var(--sans);
+}
+
+/* Inline cohort-key affordance in the distilled transcripts empty state. */
+.alch-cv-keyform {
+  display: grid;
+  gap: 8px;
+  max-width: 44ch;
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid rgba(var(--ink-rgb), 0.10);
+  border-radius: 12px;
+  background: rgba(var(--ink-rgb), 0.025);
+}
+.alch-cv-keyform-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(var(--ink-rgb), 0.7);
+  font: 500 12px/1.2 var(--sans);
+  text-transform: lowercase;
+  letter-spacing: 0.01em;
+}
+.alch-cv-keyform-tag {
+  color: rgba(var(--ink-rgb), 0.45);
+  font-family: var(--sr-font-mono, var(--mono, monospace));
+  font-size: 10px;
+  font-weight: 600;
+}
+.alch-cv-keyform-row {
+  display: flex;
+  gap: 6px;
+}
+.alch-cv-keyform-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid rgba(var(--ink-rgb), 0.14);
+  border-radius: 8px;
+  background: rgba(var(--ink-rgb), 0.03);
+  color: rgb(var(--ink-rgb));
+  font-family: var(--sr-font-mono, var(--mono, monospace));
+  font-size: 12px;
+  transition: border-color 200ms cubic-bezier(0.19, 1, 0.22, 1), background 200ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+.alch-cv-keyform-input:focus {
+  outline: none;
+  border-color: rgba(90, 213, 155, 0.5);
+  background: rgba(var(--ink-rgb), 0.05);
+}
+.alch-cv-keyform-input::placeholder { color: rgba(var(--ink-rgb), 0.3); }
+.alch-cv-keyform-save {
+  flex: 0 0 auto;
+  appearance: none;
+  padding: 7px 14px;
+  border: 1px solid rgba(90, 213, 155, 0.42);
+  border-radius: 8px;
+  background: rgba(90, 213, 155, 0.10);
+  color: rgb(var(--ink-rgb));
+  font: 600 11px/1.1 var(--sans);
+  text-transform: lowercase;
+  cursor: pointer;
+  transition: background 200ms cubic-bezier(0.19, 1, 0.22, 1), transform 100ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+.alch-cv-keyform-save:hover { background: rgba(90, 213, 155, 0.18); }
+.alch-cv-keyform-save:active { transform: scale(0.97); }
+.alch-cv-empty-detail .alch-cv-keyform-note {
+  margin: 0;
+  color: rgba(var(--ink-rgb), 0.45);
+  font: 400 11px/1.45 var(--sans);
 }
 
 .alch-cv-result {

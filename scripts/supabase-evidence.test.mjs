@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   readSupabaseConfig,
+  persistCohortKeyOverride,
   publicEvidenceCardsUrl,
   fetchPublicEvidenceCards,
   cohortEvidenceCardsUrl,
@@ -15,6 +16,16 @@ const CONFIG_KEY = "srfg:calendar_ingress_config";
 
 function fakeStorage(obj = {}) {
   return { getItem: (k) => (k in obj ? obj[k] : null) };
+}
+
+// A read/write localStorage mock for the persist path.
+function rwStorage(obj = {}) {
+  const store = { ...obj };
+  return {
+    getItem: (k) => (k in store ? store[k] : null),
+    setItem: (k, v) => { store[k] = String(v); },
+    _dump: () => store,
+  };
 }
 
 function okResponse(rows) {
@@ -146,6 +157,40 @@ test("the cohort key is NOT baked into the public source (empty by default)", ()
 test("readSupabaseConfig reads supabaseCohortKey from the calendar-ingress config", () => {
   const cfg = readSupabaseConfig(fakeStorage({ [CONFIG_KEY]: JSON.stringify({ supabaseCohortKey: "cohort-jwt" }) }));
   assert.equal(cfg.cohortKey, "cohort-jwt");
+});
+
+test("persistCohortKeyOverride writes a key readSupabaseConfig() then reads back (round-trip)", () => {
+  const storage = rwStorage();
+  assert.equal(persistCohortKeyOverride("  cohort-jwt  ", storage), true);
+  // Stored trimmed, under the canonical config key.
+  assert.equal(JSON.parse(storage._dump()[CONFIG_KEY]).supabaseCohortKey, "cohort-jwt");
+  assert.equal(readSupabaseConfig(storage).cohortKey, "cohort-jwt");
+});
+
+test("persistCohortKeyOverride merges into existing config (keeps url/anon settings)", () => {
+  const storage = rwStorage({ [CONFIG_KEY]: JSON.stringify({ supabaseUrl: "https://x.supabase.co", supabaseAnonKey: "anon-1" }) });
+  persistCohortKeyOverride("cohort-jwt", storage);
+  const cfg = JSON.parse(storage._dump()[CONFIG_KEY]);
+  assert.equal(cfg.supabaseUrl, "https://x.supabase.co", "existing settings survive the merge");
+  assert.equal(cfg.supabaseAnonKey, "anon-1");
+  assert.equal(cfg.supabaseCohortKey, "cohort-jwt");
+});
+
+test("persistCohortKeyOverride with an empty value clears the override (back to anon)", () => {
+  const storage = rwStorage({ [CONFIG_KEY]: JSON.stringify({ supabaseCohortKey: "old", supabaseAnonKey: "anon-1" }) });
+  persistCohortKeyOverride("   ", storage);
+  const cfg = JSON.parse(storage._dump()[CONFIG_KEY]);
+  assert.ok(!("supabaseCohortKey" in cfg), "blank input deletes the key rather than storing empty");
+  assert.equal(cfg.supabaseAnonKey, "anon-1", "clearing the cohort key leaves other settings intact");
+  assert.equal(readSupabaseConfig(storage).cohortKey, "", "reader falls back to the (empty) baked default");
+});
+
+test("persistCohortKeyOverride survives malformed stored JSON and a read-only storage", () => {
+  const malformed = rwStorage({ [CONFIG_KEY]: "{not json" });
+  assert.equal(persistCohortKeyOverride("cohort-jwt", malformed), true);
+  assert.equal(JSON.parse(malformed._dump()[CONFIG_KEY]).supabaseCohortKey, "cohort-jwt", "malformed config is replaced, not appended to");
+  // No setItem (read-only) => returns false, never throws.
+  assert.equal(persistCohortKeyOverride("k", fakeStorage()), false);
 });
 
 test("cohortEvidenceCardsUrl targets the role-gated cohort view incl. surface_tier", () => {

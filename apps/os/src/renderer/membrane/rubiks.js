@@ -12,6 +12,7 @@ import { UnrealBloomPass } from '../../vendor/three-jsm/postprocessing/UnrealBlo
 import { ShaderPass } from '../../vendor/three-jsm/postprocessing/ShaderPass.js';
 import { OutputPass } from '../../vendor/three-jsm/postprocessing/OutputPass.js';
 import Cube from './cube-solver.js';
+import { frameBudgetMs } from '../power.js';
 
 // ─── Flashbots Rubik's cube — membrane easter-egg module ────────────────────
 // A self-contained port of the standalone interactive cube (rubiks-cube-web),
@@ -868,6 +869,7 @@ export function createRubiksApp(canvas, { onCycleAway, onSequencing, matchSize }
   let enabled = false;
   let rafId = null;
   let lastFrame = 0;
+  let lastDraw = 0;
 
   function orbitCameraIdle(dt) {
     // Blend the spin axis from the tilted reveal tumble toward pure yaw as the
@@ -885,6 +887,11 @@ export function createRubiksApp(canvas, { onCycleAway, onSequencing, matchSize }
     if (!enabled) return;
     rafId = requestAnimationFrame(frame);
     const now = performance.now();
+    // Battery governor: pause when hidden and throttle when blurred (visible
+    // but unfocused). Renders at the full refresh rate while focused.
+    const budget = frameBudgetMs();
+    if (budget === Infinity || now - lastDraw < budget - 1) return;
+    lastDraw = now;
     const dt = Math.min(100, now - lastFrame); lastFrame = now;
     const dts = dt / 1000;
 

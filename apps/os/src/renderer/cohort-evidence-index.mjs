@@ -197,6 +197,10 @@ export function evidenceDependencyRecords(cards = [], existingDeps = []) {
 //   - provenance rides reason (the card claim) + evidence (repo · commits · contributors)
 //     + confidence (medium/low) + updated_at (latest backing week), so the inspector
 //     shows it as public-GitHub observed, review status visible.
+// MERGE-UNION NOTE: this directional builder (branch) and collaborationContribution-
+// DependencyRecords (main, clique-from-live-cards) BOTH ship — they feed two distinct
+// call sites in cohort-source.js (the committed-bundle path and the live-insight path).
+// Owner follow-up: dedupe the two sources downstream if both populate the same pair.
 function collaborationEdgeCards(cohortInsights) {
   const ci = cohortInsights && typeof cohortInsights === "object" ? cohortInsights : {};
   const fromReadModel = ci.read_models && Array.isArray(ci.read_models.collaboration_edges)
@@ -276,6 +280,63 @@ export function insightCollaborationDependencyRecords(cohortInsights, existingDe
     }
   }
   return [...byDir.values()].map(({ _commits, ...record }) => record);
+}
+
+// GitHub collaboration-contribution cards → dependency RECORDS the ecosystem /
+// relationship map renders natively (same contract as evidenceDependencyRecords).
+// The engine emits one card per (contributing team → repo); the map is TEAM↔TEAM, so
+// a person-owned target (e.g. dmarzzz/voxterm) is expressed as a CO-CONTRIBUTION
+// CLIQUE: teams that contributed to the SAME repo are linked to each other. Deduped
+// by pair, skipped where a declared dep already links the pair; provenance rides
+// status="insight_derived" + the repo so these stay distinct from declared/session edges.
+export function collaborationContributionDependencyRecords(cards = [], existingDeps = []) {
+  const declaredPairs = new Set();
+  for (const d of Array.isArray(existingDeps) ? existingDeps : []) {
+    const a = String((d && d.source) || "").trim();
+    const b = String((d && d.target) || "").trim();
+    if (a && b) declaredPairs.add(unorderedPair(a, b));
+  }
+  // repo -> Map(contributorTeam -> card) ; first card per team kept for provenance.
+  const byRepo = new Map();
+  for (const card of Array.isArray(cards) ? cards : []) {
+    if (!card || card.kind !== "collaboration_contribution") continue;
+    const subj = Array.isArray(card.subject_ids) ? card.subject_ids : [];
+    const contributor = String(subj[0] || "").trim();
+    if (!contributor || subj.length < 2) continue; // need a contributor + a target
+    const cj = card.content_json && typeof card.content_json === "object" ? card.content_json : {};
+    const repo = String(cj.repo || cj.target_repo || subj[1] || "").trim();
+    if (!repo) continue;
+    if (!byRepo.has(repo)) byRepo.set(repo, new Map());
+    const teams = byRepo.get(repo);
+    if (!teams.has(contributor)) teams.set(contributor, card);
+  }
+  const out = [];
+  const emitted = new Set();
+  for (const [repo, teams] of byRepo) {
+    const ids = [...teams.keys()];
+    if (ids.length < 2) continue; // a co-contribution clique needs ≥2 teams
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        const pair = unorderedPair(ids[i], ids[j]);
+        if (declaredPairs.has(pair) || emitted.has(pair)) continue;
+        emitted.add(pair);
+        const card = teams.get(ids[i]) || teams.get(ids[j]);
+        out.push({
+          record_type: "dependency",
+          record_id: `collab-edge:${pair}`,
+          source: ids[i],
+          target: ids[j],
+          relation: "contributed_to",
+          status: "insight_derived",
+          confidence: confidenceLabel(card && card.confidence),
+          reason: `both contributed to ${repo}`,
+          evidence: [`github-observed · ${repo}`],
+          updated_at: String((card && (card.generated_at || card.created_at)) || "").slice(0, 10),
+        });
+      }
+    }
+  }
+  return out;
 }
 
 export const __claimBuckets = { DID, PMF, ASK, RISK, EDGE };
