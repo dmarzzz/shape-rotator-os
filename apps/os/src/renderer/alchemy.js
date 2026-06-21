@@ -12584,11 +12584,20 @@ function collabTeamPickerHtml(m, focusRid) {
 function collabRouteSheetHtml(m, focusRid) {
   const maxScore = m.seekOffer.reduce((mx, s) => Math.max(mx, s.score || 0), 1);
   const bar = (score) => `<div class="cb-route-barwrap"><div class="cb-route-bar" style="width:${Math.round(Math.max(0.12, (score || 0) / maxScore) * 100)}%"></div></div>`;
-  const nameOf = (rid) => escHtml(m.byRecordId.get(rid)?.name || rid);
+  const rawName = (rid) => m.byRecordId.get(rid)?.name || rid;
+  const nameOf = (rid) => escHtml(rawName(rid));
   const tagOf = (s) => escHtml((s.shared || []).slice(0, 3).join(" · ") || s.offering || s.seeking || "match");
   const sec = (title, pipCls, inner) => `<div class="cb-route-sec"><div class="cb-route-sh"><i class="cb-route-pip ${pipCls}"></i>${escHtml(title)}</div>${inner}</div>`;
   const empty = (msg) => `<p class="cb-route-empty">${escHtml(msg)}</p>`;
-  const rowTo = (rid, s) => `<button type="button" class="cb-route-row${s.mutual ? " is-mut" : ""}" data-collab-cohort-open="${escAttr(rid)}" title="${escAttr("show " + (m.byRecordId.get(rid)?.name || rid) + " in directory")}"><span class="cb-route-nm">${nameOf(rid)}</span><span class="cb-route-tg">${tagOf(s)}</span>${s.mutual ? `<span class="cb-route-badge">mutual</span>` : ""}${bar(s.score)}</button>`;
+  // One unified gesture: clicking a row FOCUSES that team (the whole surface
+  // pivots to them, same as the picker and the map headers); the trailing ↗
+  // OPENS its directory profile. data-route-from/-to name the directed pair
+  // (needs → provides) so hovering the row lights its cell on the map below.
+  const row = ({ team, from, to, cls = "", body }) => `
+    <div class="cb-route-row${cls}" data-route-from="${escAttr(from)}" data-route-to="${escAttr(to)}">
+      <button type="button" class="cb-route-main" data-collab-focus-team="${escAttr(team)}" title="${escAttr("focus " + rawName(team))}">${body}</button>
+      <button type="button" class="cb-route-open" data-collab-cohort-open="${escAttr(team)}" title="${escAttr("open " + rawName(team) + " in the directory")}" aria-label="${escAttr("open " + rawName(team) + " in the directory")}">↗</button>
+    </div>`;
 
   if (!focusRid) {
     const seen = new Set();
@@ -12596,7 +12605,10 @@ function collabRouteSheetHtml(m, focusRid) {
       const k = s.seeker < s.offerer ? `${s.seeker}|${s.offerer}` : `${s.offerer}|${s.seeker}`;
       if (seen.has(k)) return false; seen.add(k); return true;
     }).slice(0, 6);
-    const rows = top.map(s => `<button type="button" class="cb-route-row${s.mutual ? " is-mut" : ""}" data-collab-cohort-open="${escAttr(s.offerer)}" title="${escAttr("show " + s.offererName + " in directory")}"><span class="cb-route-nm">${escHtml(s.seekerName)}</span><span class="cb-route-arrow" aria-hidden="true">⇄</span><span class="cb-route-nm">${escHtml(s.offererName)}</span><span class="cb-route-tg">${tagOf(s)}</span>${s.mutual ? `<span class="cb-route-badge">mutual</span>` : ""}${bar(s.score)}</button>`).join("");
+    const rows = top.map(s => row({
+      team: s.offerer, from: s.seeker, to: s.offerer, cls: s.mutual ? " is-mut" : "",
+      body: `<span class="cb-route-nm">${escHtml(s.seekerName)}</span><span class="cb-route-arrow" aria-hidden="true">⇄</span><span class="cb-route-nm">${escHtml(s.offererName)}</span><span class="cb-route-tg">${tagOf(s)}</span>${s.mutual ? `<span class="cb-route-badge">mutual</span>` : ""}${bar(s.score)}`,
+    })).join("");
     return `<div class="cb-route">${sec("strongest intros across the cohort", "is-match", rows || empty("no overlaps yet — teams declare seeks and offers in their profile"))}</div>`;
   }
 
@@ -12608,11 +12620,18 @@ function collabRouteSheetHtml(m, focusRid) {
     .filter(d => d.from === focusRid)
     .map(d => ({ to: d.to, conf: m.depByPair.get(`${d.from}>${d.to}`)?.confidence || "unknown" }));
 
+  const helpRow = (s) => row({ team: s.offerer, from: focusRid, to: s.offerer, cls: s.mutual ? " is-mut" : "",
+    body: `<span class="cb-route-nm">${nameOf(s.offerer)}</span><span class="cb-route-tg">${tagOf(s)}</span>${s.mutual ? `<span class="cb-route-badge">mutual</span>` : ""}${bar(s.score)}` });
+  const giveRow = (s) => row({ team: s.seeker, from: s.seeker, to: focusRid, cls: "",
+    body: `<span class="cb-route-nm">${nameOf(s.seeker)}</span><span class="cb-route-tg">${tagOf(s)}</span>${bar(s.score)}` });
+  const depRow = (d) => row({ team: d.to, from: focusRid, to: d.to, cls: " is-deprow",
+    body: `<span class="cb-route-nm is-dep">${nameOf(d.to)}</span><span class="cb-route-tg">you rely on them · ${escHtml(d.conf)} confidence</span>` });
+
   let html = "";
-  html += sec("who can help you", "is-match", help.length ? help.map(s => rowTo(s.offerer, s)).join("") : empty("no open needs matched yet"));
-  if (mutual.length) html += sec("make these intros (mutual)", "is-mut", mutual.map(s => rowTo(s.offerer, s)).join(""));
-  html += sec("who you can help", "is-give", give.length ? give.map(s => rowTo(s.seeker, s)).join("") : empty("nobody is seeking your offer yet"));
-  html += sec("you depend on", "is-dep", depRows.length ? depRows.map(d => `<button type="button" class="cb-route-row is-deprow" data-collab-cohort-open="${escAttr(d.to)}" title="${escAttr("show " + (m.byRecordId.get(d.to)?.name || d.to) + " in directory")}"><span class="cb-route-nm is-dep">${nameOf(d.to)}</span><span class="cb-route-tg">you rely on them · ${escHtml(d.conf)} confidence</span></button>`).join("") : empty("no declared dependencies"));
+  html += sec("who can help you", "is-match", help.length ? help.map(helpRow).join("") : empty("no open needs matched yet"));
+  if (mutual.length) html += sec("make these intros (mutual)", "is-mut", mutual.map(helpRow).join(""));
+  html += sec("who you can help", "is-give", give.length ? give.map(giveRow).join("") : empty("nobody is seeking your offer yet"));
+  html += sec("you depend on", "is-dep", depRows.length ? depRows.map(depRow).join("") : empty("no declared dependencies"));
   return `<div class="cb-route">${html}</div>`;
 }
 
@@ -12835,17 +12854,39 @@ function wireCollab() {
       else setCollabSelection(next);
     });
   }
-  // Click a map row/column header → focus that team: personalise the route sheet
-  // and light its row + column. Re-clicking the focused team clears it. This ties
-  // the cohort map back to the answer up top (and parallels the team picker).
+  // The ONE unified gesture: clicking a team anywhere — a route-sheet row or a map
+  // row/column header — focuses that team (the surface pivots, the picker follows,
+  // its row+column light up). Re-clicking the focused team clears it. Clicking from
+  // the map scrolls you up to that team's answer.
   for (const el of state.canvas.querySelectorAll("[data-collab-focus-team]")) {
+    const fromMap = el.classList.contains("cb-colhead") || el.classList.contains("cb-rowhead");
     el.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
       const rid = el.getAttribute("data-collab-focus-team") || "";
       state.collabFocus = (rid && rid === state.collabFocus) ? null : (rid || null);
       render({ instant: true });
+      if (fromMap) requestAnimationFrame(() => state.canvas.querySelector(".cb-lead")?.scrollIntoView({ behavior: "smooth", block: "start" }));
     });
+  }
+  // Hovering a route row lights its directed pair on the cohort map (the cell + the
+  // needs-row and provides-column headers) — the answer and the table stay tied.
+  const ridIdx = new Map();
+  for (const h of state.canvas.querySelectorAll(".cb-colhead[data-col][data-collab-focus-team]")) {
+    ridIdx.set(h.getAttribute("data-collab-focus-team"), h.getAttribute("data-col"));
+  }
+  const clearRouteHl = () => state.canvas.querySelectorAll(".is-route-hl, .is-route-hl-head").forEach(e => e.classList.remove("is-route-hl", "is-route-hl-head"));
+  for (const rowEl of state.canvas.querySelectorAll(".cb-route-row[data-route-from]")) {
+    rowEl.addEventListener("mouseenter", () => {
+      clearRouteHl();
+      const fr = ridIdx.get(rowEl.getAttribute("data-route-from"));
+      const tc = ridIdx.get(rowEl.getAttribute("data-route-to"));
+      if (fr == null || tc == null) return;
+      state.canvas.querySelector(`.cb-grid [data-row="${cssAttr(fr)}"][data-col="${cssAttr(tc)}"]`)?.classList.add("is-route-hl");
+      state.canvas.querySelector(`.cb-rowhead[data-row="${cssAttr(fr)}"]`)?.classList.add("is-route-hl-head");
+      state.canvas.querySelector(`.cb-colhead[data-col="${cssAttr(tc)}"]`)?.classList.add("is-route-hl-head");
+    });
+    rowEl.addEventListener("mouseleave", clearRouteHl);
   }
   const grid = state.canvas.querySelector(".cb-grid");
   if (!grid) return;
