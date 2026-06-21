@@ -236,9 +236,10 @@ function cohortRecordUrl(record_id) {
 }
 
 const state = {
-  collabLens: "all",               // "all" | "deps" | "needs" — matrix emphasis in the collab board
-  collabTeamFilter: "all",         // "all" | "needs" | "offers" — which teams are visible in the collab matrix
-  collabSort: "cluster",           // "cluster" | "intro" | "dependency" — ordering for the collab matrix
+  collabLens: "all",               // "all" | "deps" | "needs" — which signal the cohort map emphasises
+  collabTeamFilter: "all",         // (legacy) retained for normalizeCollabControls / older callers
+  collabSort: "cluster",           // (legacy) the map now always seriates ("related")
+  collabFocus: null,               // record_id of the team the route sheet is personalised to (null = cohort default)
   collabSelection: null,           // { type: "team"|"pair"|"cluster", ... } — pinned inspector state
   goalStandingFilter: "all",       // "all" | "behind" | "onplan" | "ahead" — standing legend/filter
   goalMomentumFilter: "all",       // "all" | "rising" | "slipping" | "flat" — momentum legend/filter on the goal views
@@ -11663,19 +11664,6 @@ function collabInspectorSection(title, body, className = "") {
 
 
 
-// Match-strength → matrix shade bucket (s1..s4). The tuned matcher produces a
-// wide, specificity-weighted score range, so bucket by RANK across the live
-// matches rather than absolute ceil — otherwise nearly every cell pins to s4.
-function collabStrengthThresholds(seekOffer = []) {
-  const scores = seekOffer.map(s => s.score).sort((a, b) => a - b);
-  const at = (p) => (scores.length ? scores[Math.min(scores.length - 1, Math.floor(p * scores.length))] : 0);
-  return [at(0.45), at(0.75), at(0.92)];
-}
-function collabStrengthBucket(score, thr) {
-  if (!thr) return Math.min(4, Math.max(1, Math.ceil(score)));
-  return score >= thr[2] ? 4 : score >= thr[1] ? 3 : score >= thr[0] ? 2 : 1;
-}
-
 // Merged legend + lens filter — one control (replaces the separate legend box
 // and the redundant lens dropdown). The two directed signals (dependency,
 // seek/offer) are clickable lens filters carrying the key mark + a live count;
@@ -12839,8 +12827,8 @@ function previewCollabInspector(selection) {
 
 
 
-function collabCell(R, C, ri, ci, m, lens = "all", detail = false, selected = null, thr = null) {
-  if (R.rid === C.rid) return `<div class="cb-cell cb-diag" data-row="${ri}" data-col="${ci}" aria-hidden="true"></div>`;
+function collabCell(R, C, ri, ci, m, lens = "all", detail = false, selected = null, extraCls = "") {
+  if (R.rid === C.rid) return `<div class="cb-cell cb-diag${extraCls}" data-row="${ri}" data-col="${ci}" aria-hidden="true"></div>`;
   // Shared-skills/affinity is intentionally NOT a matrix signal: in this
   // thematically homogeneous cohort it fires on ~58% of pairs and just redraws
   // the cluster bands (empirically a purple wall even at a ≥2 threshold). It
@@ -12848,24 +12836,21 @@ function collabCell(R, C, ri, ci, m, lens = "all", detail = false, selected = nu
   // the two directed, discriminating signals: dependency and seek/offer.
   const dep = m.deps.has(R.rid + ">" + C.rid);
   const so = m.soByPair.get(R.rid + ">" + C.rid);
-  if (!dep && !so) return `<div class="cb-cell" data-row="${ri}" data-col="${ci}"></div>`;
+  if (!dep && !so) return `<div class="cb-cell${extraCls}" data-row="${ri}" data-col="${ci}"></div>`;
 
-  let cls = "cb-cell";
-  if (so) cls += " has-so s" + collabStrengthBucket(so.score, thr) + (so.mutual ? " is-mutual" : "");
-  if (dep) {
-    // Every mark on the board is a circle and SIZE carries weight. A dependency's
-    // weight is its confidence (verified > source-backed > candidate), so
-    // higher-confidence links read as larger clay dots. dep-c1..c3 = low/unknown
-    // .. high.
-    const edge = m.depByPair.get(R.rid + ">" + C.rid);
-    const conf = edge?.confidence || "unknown";
-    cls += " has-dep dep-c" + (conf === "high" ? 3 : conf === "medium" ? 2 : 1);
-  }
+  // Stripped grammar: the CELL is the mark. A filled slate cell = a seek/offer
+  // match (brighter + edged = mutual), a clay cell = a declared dependency, a
+  // diagonal-split cell = both. No dot sizes — "how strong" lives in the route
+  // sheet up top, not stamped into 200 cells you'd have to size-compare.
+  let cls = "cb-cell" + extraCls;
+  if (so) cls += " has-so" + (so.mutual ? " is-mutual" : "");
+  if (dep) cls += " has-dep";
 
-  // Tooltip lists every signal on the cell (strongest first).
   const lines = [];
   if (dep) lines.push(`depends on ${C.team.name}`);
-  if (so) lines.push(`seeks what ${C.team.name} offers: ${so.shared.slice(0, 3).join(", ") || "match"}`);
+  if (so) lines.push(so.mutual
+    ? `mutual match with ${C.team.name}: ${so.shared.slice(0, 3).join(", ") || "fit"}`
+    : `seeks what ${C.team.name} offers: ${so.shared.slice(0, 3).join(", ") || "match"}`);
   const title = `${R.team.name} → ${C.team.name}\n${lines.join("\n")}`;
 
   const active = lens === "all" || (lens === "deps" && dep) || (lens === "needs" && so);
@@ -12875,10 +12860,7 @@ function collabCell(R, C, ri, ci, m, lens = "all", detail = false, selected = nu
   const actionAttr = detail
     ? (active ? `data-collab-pair-from="${escAttr(R.rid)}" data-collab-pair-to="${escAttr(C.rid)}"` : `disabled aria-disabled="true"`)
     : `data-collab-open="${escAttr(C.rid)}"`;
-  // Single circular mark: a soft neutral dot = seek/offer match (size = match
-  // strength), a ring = mutual fit, a clay dot = declared dependency (size =
-  // confidence). Direction is the cell's row/col position, so no arrow is drawn.
-  return `<button type="button" class="${cls}" data-row="${ri}" data-col="${ci}" ${actionAttr} aria-label="${escAttr(`${R.team.name} → ${C.team.name}: ${lines.join("; ")}`)}" title="${escAttr(title)}"><span class="cb-mark" aria-hidden="true"></span></button>`;
+  return `<button type="button" class="${cls}" data-row="${ri}" data-col="${ci}" ${actionAttr} aria-label="${escAttr(`${R.team.name} → ${C.team.name}: ${lines.join("; ")}`)}" title="${escAttr(title)}"></button>`;
 }
 
 function collabGroupBand(ordered, colN, selected = null) {
@@ -12897,21 +12879,68 @@ function collabGroupBand(ordered, colN, selected = null) {
 }
 
 
-// A self-teaching key built from the grid's OWN marks at their real sizes, placed
-// AT the matrix so the eye calibrates the size-ramp it then has to read in the
-// field. Kept separate from the lens FILTER so "what a mark means" and "click to
-// filter" stay distinct (a legend is not a control).
+// The map legend, built from the grid's OWN cell fills so the eye calibrates the
+// two colours it then reads in the field: cool slate = a match, brighter = mutual,
+// warm clay = a dependency, a diagonal split = both.
 function collabReadKeyHtml() {
   return `
     <div class="cb-readkey" aria-hidden="true">
-      <span class="cb-readkey-cap">every mark is a connection · bigger = stronger</span>
-      <span class="cb-readkey-items">
-        <span class="cb-rk"><i class="cb-rk-m cb-rk-so cb-rk-s2"></i><i class="cb-rk-m cb-rk-so cb-rk-s4"></i>seek / offer</span>
-        <span class="cb-rk"><i class="cb-rk-m cb-rk-ring"></i>mutual</span>
-        <span class="cb-rk"><i class="cb-rk-m cb-rk-dep cb-rk-s2"></i><i class="cb-rk-m cb-rk-dep cb-rk-s4"></i>dependency</span>
-        <span class="cb-rk cb-rk-target"><i class="cb-rk-m cb-rk-dep cb-rk-s2"></i>both</span>
-      </span>
+      <span class="cb-rk"><i class="cb-rk-sw cb-rk-match"></i>match</span>
+      <span class="cb-rk"><i class="cb-rk-sw cb-rk-mutual"></i>mutual</span>
+      <span class="cb-rk"><i class="cb-rk-sw cb-rk-dep"></i>dependency</span>
+      <span class="cb-rk"><i class="cb-rk-sw cb-rk-both"></i>both</span>
     </div>`;
+}
+
+// The single control that leads the surface: "i'm <team>". Choosing a team
+// personalises the route sheet and lights that team's row + column in the map.
+function collabTeamPickerHtml(m, focusRid) {
+  const opts = m.ordered
+    .map(o => ({ rid: o.rid, name: o.team?.name || o.rid }))
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const options = [`<option value="">— pick your team —</option>`]
+    .concat(opts.map(o => `<option value="${escAttr(o.rid)}"${o.rid === focusRid ? " selected" : ""}>${escHtml(o.name)}</option>`))
+    .join("");
+  return `<label class="cb-picker"><span>i'm</span><select data-collab-focus aria-label="your team">${options}</select></label>`;
+}
+
+// The answer, led by the list. Default (no team) = the cohort's strongest intros,
+// a calm no-decode start. With a team chosen: who can help you, the mutual intros
+// worth making, who you can help, and what you depend on. "How strong" is bar
+// LENGTH (an easy read), never dot size.
+function collabRouteSheetHtml(m, focusRid) {
+  const maxScore = m.seekOffer.reduce((mx, s) => Math.max(mx, s.score || 0), 1);
+  const bar = (score) => `<div class="cb-route-barwrap"><div class="cb-route-bar" style="width:${Math.round(Math.max(0.12, (score || 0) / maxScore) * 100)}%"></div></div>`;
+  const nameOf = (rid) => escHtml(m.byRecordId.get(rid)?.name || rid);
+  const tagOf = (s) => escHtml((s.shared || []).slice(0, 3).join(" · ") || s.offering || s.seeking || "match");
+  const sec = (title, pipCls, inner) => `<div class="cb-route-sec"><div class="cb-route-sh"><i class="cb-route-pip ${pipCls}"></i>${escHtml(title)}</div>${inner}</div>`;
+  const empty = (msg) => `<p class="cb-route-empty">${escHtml(msg)}</p>`;
+  const rowTo = (rid, s) => `<button type="button" class="cb-route-row${s.mutual ? " is-mut" : ""}" data-collab-cohort-open="${escAttr(rid)}" title="${escAttr("show " + (m.byRecordId.get(rid)?.name || rid) + " in directory")}"><span class="cb-route-nm">${nameOf(rid)}</span><span class="cb-route-tg">${tagOf(s)}</span>${s.mutual ? `<span class="cb-route-badge">mutual</span>` : ""}${bar(s.score)}</button>`;
+
+  if (!focusRid) {
+    const seen = new Set();
+    const top = m.seekOffer.filter(s => {
+      const k = s.seeker < s.offerer ? `${s.seeker}|${s.offerer}` : `${s.offerer}|${s.seeker}`;
+      if (seen.has(k)) return false; seen.add(k); return true;
+    }).slice(0, 6);
+    const rows = top.map(s => `<button type="button" class="cb-route-row${s.mutual ? " is-mut" : ""}" data-collab-cohort-open="${escAttr(s.offerer)}" title="${escAttr("show " + s.offererName + " in directory")}"><span class="cb-route-nm">${escHtml(s.seekerName)}</span><span class="cb-route-arrow" aria-hidden="true">⇄</span><span class="cb-route-nm">${escHtml(s.offererName)}</span><span class="cb-route-tg">${tagOf(s)}</span>${s.mutual ? `<span class="cb-route-badge">mutual</span>` : ""}${bar(s.score)}</button>`).join("");
+    return `<div class="cb-route">${sec("strongest intros across the cohort", "is-match", rows || empty("no overlaps yet — teams declare seeks and offers in their profile"))}</div>`;
+  }
+
+  const help = m.seekOffer.filter(s => s.seeker === focusRid).sort((a, b) => b.score - a.score);
+  const mutual = help.filter(s => s.mutual);
+  const give = m.seekOffer.filter(s => s.offerer === focusRid && !s.mutual).sort((a, b) => b.score - a.score);
+  const depRows = [...m.deps]
+    .map(k => { const gt = k.indexOf(">"); return { from: k.slice(0, gt), to: k.slice(gt + 1) }; })
+    .filter(d => d.from === focusRid)
+    .map(d => ({ to: d.to, conf: m.depByPair.get(`${d.from}>${d.to}`)?.confidence || "unknown" }));
+
+  let html = "";
+  html += sec("who can help you", "is-match", help.length ? help.map(s => rowTo(s.offerer, s)).join("") : empty("no open needs matched yet"));
+  if (mutual.length) html += sec("make these intros (mutual)", "is-mut", mutual.map(s => rowTo(s.offerer, s)).join(""));
+  html += sec("who you can help", "is-give", give.length ? give.map(s => rowTo(s.seeker, s)).join("") : empty("nobody is seeking your offer yet"));
+  html += sec("you depend on", "is-dep", depRows.length ? depRows.map(d => `<button type="button" class="cb-route-row is-deprow" data-collab-cohort-open="${escAttr(d.to)}" title="${escAttr("show " + (m.byRecordId.get(d.to)?.name || d.to) + " in directory")}"><span class="cb-route-nm is-dep">${nameOf(d.to)}</span><span class="cb-route-tg">you rely on them · ${escHtml(d.conf)} confidence</span></button>`).join("") : empty("no declared dependencies"));
+  return `<div class="cb-route">${html}</div>`;
 }
 
 function renderCollab() {
@@ -12923,153 +12952,54 @@ function renderCollab() {
   }
   const m = buildCollabModel(teams, clusters, state.cohort?.dependencies || [], state.cohort?.cohort_vocab?.skill_areas || []);
   normalizeCollabControls();
-  const teamFilter = state.collabTeamFilter || "all";
-  const sort = state.collabSort || "cluster";
-  const ordered = collabVisibleOrder(m, teamFilter, sort);
-  const N = ordered.length;
-  const totalN = m.ordered.length;
-  // The default board now hides teams with no matrix signal (see
-  // collabVisibleOrder). boardAllN = how many remain on the "all teams" board;
-  // hiddenN = how many were dropped, owned honestly in a note under the grid.
-  const boardAllN = collabVisibleOrder(m, "all", sort).length;
-  const hiddenN = Math.max(0, totalN - boardAllN);
+  // Option 3: the route sheet leads (who can help you); the table is the context
+  // map below. The map shows ALL signalled teams, seriated into help-blocks. The
+  // only top control is the team picker (focus); the map carries one lens.
+  const focusRid = state.collabFocus && m.byRecordId.has(state.collabFocus) ? state.collabFocus : null;
   const lens = state.collabLens || "all";
+  const sort = "related";
+  const ordered = collabVisibleOrder(m, "all", sort);
+  const N = ordered.length;
+  const hiddenN = Math.max(0, m.ordered.length - N);
   const selected = collabSelectionVisible(state.collabSelection, ordered, m);
   if (state.collabSelection && !selected) state.collabSelection = null;
   const colN = `--cb-cols:${N}`;
-  const byId = new Map(m.ordered.map(o => [o.rid, o.team]));
-  const openAttrs = (rid) => `data-collab-open="${escAttr(rid)}" role="button" tabindex="0"`;
-  // Sentence bar — "showing all signals 232 · among all teams · sorted by
-  // cluster". Lens, team-scope, and sort are stateful tokens whose menus carry
-  // each option's consequence + count. Lens and team-scope are mutually
-  // exclusive (normalizeCollabControls): picking a team scope clears the lens
-  // to "all signals", so "the team filter owns the board".
-  const sortMeta = [
-    { key: "cluster", label: "cluster", note: "rows grouped by ecosystem cluster" },
-    { key: "related", label: "group related", note: "reorder so connected teams sit together" },
-    { key: "intro", label: "best matches first", note: "strongest seek ↔ offer matches first" },
-    { key: "dependency", label: "dependency pressure", note: "most-depended-on teams first" },
-  ];
-  const activeSortMeta = sortMeta.find(s => s.key === sort) || sortMeta[0];
-  const sortUnit = constSentenceUnit({
-    menu: "cb-sort",
-    ariaMenu: "collab board row order",
-    token: constSentenceToken({ menu: "cb-sort", label: activeSortMeta.label, aria: `sorted by ${activeSortMeta.label} — change row order` }),
-    options: sortMeta.map(s => constSentenceOption({
-      attr: "data-collab-sort-option", value: s.key, selected: sort === s.key,
-      label: s.label, note: s.note,
-    })).join(""),
-  });
-  // Team scope — narrow the board to teams that have declared a seek / an offer
-  // (team-level dossier fields). A stateful token (sibling to lens / sort), so
-  // the scope is reachable and self-describing at rest, and clearable by
-  // re-picking "all teams".
-  const teamsSeeking = m.ordered.filter(o => collabHasText(o.team.seeking)).length;
-  const teamsOffering = m.ordered.filter(o => collabHasText(o.team.offering)).length;
-  const teamMeta = [
-    { key: "all",    label: "all teams",      note: "every team with a signal on the board", count: boardAllN },
-    { key: "needs",  label: "teams seeking",  note: "have a declared seek",     count: teamsSeeking },
-    { key: "offers", label: "teams offering", note: "have a declared offer",    count: teamsOffering },
-  ];
-  const activeTeamMeta = teamMeta.find(t => t.key === teamFilter) || teamMeta[0];
-  const teamUnit = constSentenceUnit({
-    menu: "cb-team",
-    ariaMenu: "collab board team scope",
-    token: constSentenceToken({ menu: "cb-team", label: activeTeamMeta.label, count: teamFilter === "all" ? null : activeTeamMeta.count, aria: `${activeTeamMeta.label} — filter which teams appear` }),
-    options: teamMeta.map(t => constSentenceOption({
-      attr: "data-collab-filter", value: t.key, selected: teamFilter === t.key,
-      label: t.label, note: t.note, count: t.count, empty: t.count === 0,
-    })).join(""),
-  });
-  // Deliberate two rows: primary (filter + action), then scope (as-of / among /
-  // sorted) — instead of one flex line that ragged-wrapped to three.
-  const controlBar = `
-    <div class="cb-controls">
-      <div class="cb-controls-primary">
-        ${collabLensFilterHtml(lens, m)}
-        <div class="cb-control-actions">
-          <button class="cb-intake-open" type="button" data-collab-intake-open>
-            <span class="cb-intake-open-mark" aria-hidden="true">+</span>
-            <span>add seek / offer</span>
-          </button>
-        </div>
-      </div>
-      <div class="cb-controls-scope">
-        <div class="ac-sentence" role="group" aria-label="collab board scope">
-          <span class="ac-sent-word">among</span>
-          ${teamUnit}
-          <span class="ac-sent-word">· sorted by</span>
-          ${sortUnit}
-        </div>
-        ${programScrubberHtml({ needsSnapshots: true })}
-      </div>
-    </div>`;
 
-  // The standalone keystones section was removed: it rendered as a lone
-  // left-aligned panel (empty right half) and duplicated the keystones already
-  // shown in the matrix's default "select a signal" inspector.
-
-  // Teams with no declared matrix signal (no dependency, no seek/offer) render
-  // as an all-empty row/column that reads as "broken". Dim those headers so the
-  // populated teams lead and the empty ones quietly recede (no reorder, so the
-  // cluster bands stay contiguous).
-  const matrixActive = new Set();
-  for (const e of m.deps) { const i = e.indexOf(">"); matrixActive.add(e.slice(0, i)); matrixActive.add(e.slice(i + 1)); }
-  for (const s of m.seekOffer) { matrixActive.add(s.seeker); matrixActive.add(s.offerer); }
-  const quietCls = (rid) => (!matrixActive.has(rid) ? " is-quiet" : "");
-  const soThr = collabStrengthThresholds(m.seekOffer);
-
-  // header row (offerers across the top)
+  // header row (offerers across the top). The picked team's row + column light up
+  // (is-focus / is-focus-band) so its line in the map ties back to the route sheet.
   let headCells = `<div class="cb-corner" aria-hidden="true">needs ↓ · provides →</div>`;
   ordered.forEach((o, ci) => {
     const deg = m.indegree.get(o.rid) || 0;
     const selectedCls = collabSameSelection(selected, { type: "team", rid: o.rid }) ? " is-selected" : "";
-    headCells += `<button type="button" class="cb-colhead${deg >= 5 ? " is-key" : ""}${selectedCls}${quietCls(o.rid)}" data-col="${ci}" data-collab-open="${escAttr(o.rid)}" title="${escAttr(o.team.name + " — " + deg + " teams depend on it")}"><span>${escHtml(o.team.name)}</span></button>`;
+    const focusCls = o.rid === focusRid ? " is-focus" : "";
+    headCells += `<button type="button" class="cb-colhead${deg >= 5 ? " is-key" : ""}${selectedCls}${focusCls}" data-col="${ci}" data-collab-open="${escAttr(o.rid)}" title="${escAttr(o.team.name + " — " + deg + " teams depend on it")}"><span>${escHtml(o.team.name)}</span></button>`;
   });
   let rows = `<div class="cb-row cb-headrow" style="${colN}">${headCells}</div>`;
-  if (sort === "cluster") rows += collabGroupBand(ordered, colN, selected);
   ordered.forEach((R, ri) => {
     const selectedCls = collabSameSelection(selected, { type: "team", rid: R.rid }) ? " is-selected" : "";
-    let line = `<button type="button" class="cb-rowhead${selectedCls}${quietCls(R.rid)}" data-row="${ri}" data-collab-open="${escAttr(R.rid)}" title="${escAttr(R.team.name + " · " + R.clusterLabel)}"><span class="cb-rowhead-name">${escHtml(R.team.name)}</span><span class="cb-rowhead-grp">${escHtml(R.clusterLabel)}</span></button>`;
-    ordered.forEach((C, ci) => { line += collabCell(R, C, ri, ci, m, lens, true, selected, soThr); });
+    const rowFocus = R.rid === focusRid;
+    let line = `<button type="button" class="cb-rowhead${selectedCls}${rowFocus ? " is-focus" : ""}" data-row="${ri}" data-collab-open="${escAttr(R.rid)}" title="${escAttr(R.team.name + " · " + R.clusterLabel)}"><span class="cb-rowhead-name">${escHtml(R.team.name)}</span><span class="cb-rowhead-grp">${escHtml(R.clusterLabel)}</span></button>`;
+    ordered.forEach((C, ci) => {
+      const band = (rowFocus || C.rid === focusRid) ? " is-focus-band" : "";
+      line += collabCell(R, C, ri, ci, m, lens, true, selected, band);
+    });
     rows += `<div class="cb-row" style="${colN}">${line}</div>`;
   });
-  const inspectorHtml = selected ? collabInspectorHtmlForSelection(selected, m) : collabInspectorDefaultHtml(m);
-  const inspector = `<aside class="cb-inspector" data-collab-inspector aria-live="polite">${inspectorHtml}</aside>`;
-  const matrixBody = `<div class="cb-grid-wrap" tabindex="0"><div class="cb-grid" data-lens="${escAttr(lens)}">${rows}</div></div>${inspector}`;
+  const matrixBody = `<div class="cb-grid-wrap" tabindex="0"><div class="cb-grid" data-lens="${escAttr(lens)}">${rows}</div></div>`;
   const matrixNote = hiddenN
     ? `<p class="cb-hint cb-grid-hidden">${hiddenN} team${hiddenN === 1 ? "" : "s"} with no declared signal yet — find them in the directory.</p>`
     : "";
-  // No section header: the corner cell already reads "needs ↓ · provides →" and
-  // the tab name already says collab board — the h3 + sub-label were redundant.
-  const matrix = `
-    <section class="alch-cb-section cb-matrix-section" data-cb-section="grid" aria-label="who needs whom — rows need, columns provide">
+  // The TABLE, kept as a context map: its single lens (all / dependencies /
+  // matches) and the legend live HERE, not up top, so the lead stays uncluttered.
+  const mapSection = `
+    <section class="alch-cb-section cb-matrix-section" data-cb-section="grid" aria-label="cohort map — rows need, columns provide">
+      <div class="cb-maphead">
+        <span class="cb-map-label">cohort map${focusRid ? ` · ${escHtml(m.byRecordId.get(focusRid)?.name || "")} lit` : ""}</span>
+        ${collabLensFilterHtml(lens, m)}
+      </div>
       ${collabReadKeyHtml()}
       <div class="cb-scroll">${matrixBody}</div>
       ${matrixNote}
-    </section>`;
-
-  // intros to make — strongest seek↔offer per unordered pair
-  const introByPair = new Map();
-  for (const s of m.seekOffer) {
-    const k = collabAffKey(s.seeker, s.offerer);
-    if (!introByPair.has(k) || s.score > introByPair.get(k).score) introByPair.set(k, s);
-  }
-  const intros = [...introByPair.values()].sort((a, b) => b.score - a.score).slice(0, 12);
-  const introCards = intros.map(s => {
-    const chips = s.shared.slice(0, 5).map(c => `<span class="cb-chip">${escHtml(c)}</span>`).join("");
-    return `<article class="cb-intro" data-collab-cohort-open="${escAttr(s.offerer)}" role="link" tabindex="0" title="${escAttr(`show ${s.offererName || s.offerer} in directory`)}">
-      <div class="cb-intro-flow">
-        <div class="cb-intro-side"><span class="cb-intro-role">needs</span><span class="cb-intro-team">${escHtml(s.seekerName)}</span>${s.seeking ? `<span class="cb-intro-text">${escHtml(s.seeking)}</span>` : ""}</div>
-        <div class="cb-intro-arrow" aria-hidden="true">→</div>
-        <div class="cb-intro-side"><span class="cb-intro-role">provides</span><span class="cb-intro-team">${escHtml(s.offererName)}</span>${s.offering ? `<span class="cb-intro-text">${escHtml(s.offering)}</span>` : ""}</div>
-      </div>${chips ? `<div class="cb-intro-chips">${chips}</div>` : ""}
-    </article>`;
-  }).join("");
-  const introSection = `
-    <section class="alch-cb-section" data-cb-section="intros">
-      <div class="alch-cb-sechead"><h3>Intros to make</h3><span class="cb-sub">seek ↔ offer overlaps</span></div>
-      <div class="cb-intro-grid">${introCards || '<p class="cb-empty">no overlaps found.</p>'}</div>
     </section>`;
   const latentSection = collabLatentOverlapSectionHtml();
 
@@ -13117,16 +13047,27 @@ function renderCollab() {
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="collab">
     ${cohortPageHead("collab")}
-    <div class="alch-view-controls" data-shape-occluder>${controlBar}</div>
+    <header class="cb-lead" data-shape-occluder>
+      <h2 class="cb-lead-title">Find who can help you</h2>
+      <p class="cb-lead-sub">Pick your team to see who can help you, who you can help, the intros worth making, and what you depend on — or start from the cohort's strongest below.</p>
+      <div class="cb-lead-controls">
+        ${collabTeamPickerHtml(m, focusRid)}
+        <button class="cb-intake-open" type="button" data-collab-intake-open>
+          <span class="cb-intake-open-mark" aria-hidden="true">+</span>
+          <span>add seek / offer</span>
+        </button>
+      </div>
+    </header>
     <div class="alch-collab">
-      ${matrix}
-      ${introSection}
+      ${collabRouteSheetHtml(m, focusRid)}
+      <div class="cb-rule" role="separator"></div>
+      ${mapSection}
       ${latentSection}
       <div class="cb-cohort-shape">
         ${convSection}
         ${underusedSection}
       </div>
-      <p class="alch-callout">Matrix, intros, and offers are self-declared by teams. Latent overlaps are public prompts to verify before routing; no private scoring is shown.</p>
+      <p class="alch-callout">Matches, intros, and offers are self-declared by teams. Latent overlaps are public prompts to verify before routing; no private scoring is shown.</p>
     </div>
     </div>`;
 }
@@ -13181,41 +13122,20 @@ function wireCollab() {
     });
   }
   wireConstSentenceTokens();
+  // Team picker — the one control that leads the surface. Choosing a team
+  // personalises the route sheet and lights its row + column in the map.
+  for (const sel of state.canvas.querySelectorAll("[data-collab-focus]")) {
+    sel.addEventListener("change", () => {
+      state.collabFocus = sel.value || null;
+      render({ instant: true });
+    });
+  }
+  // Map lens (all / dependencies / matches). Clicking the active non-"all" lens
+  // toggles back to showing both.
   for (const btn of state.canvas.querySelectorAll("[data-collab-lens]")) {
     btn.addEventListener("click", () => {
       const next = btn.getAttribute("data-collab-lens") || "all";
-      if (next === state.collabLens && state.collabTeamFilter === "all") {
-        if (btn.hasAttribute("data-collab-legend-lens") && next !== "all") {
-          state.collabLens = "all";
-          closeConstSentenceMenus();
-          render({ instant: true });
-          return;
-        }
-        closeConstSentenceMenus();
-        return;
-      }
-      state.collabLens = next;
-      state.collabTeamFilter = "all";
-      render({ instant: true });
-    });
-  }
-  for (const btn of state.canvas.querySelectorAll("[data-collab-filter]")) {
-    btn.addEventListener("click", () => {
-      const next = btn.getAttribute("data-collab-filter") || "all";
-      // Set semantics (the menu has an explicit "all teams" option) — re-picking
-      // the current scope is a no-op that just closes the menu. Picking a scope
-      // clears the lens so the two stay mutually exclusive.
-      if (next === state.collabTeamFilter) { closeConstSentenceMenus(); return; }
-      state.collabTeamFilter = next;
-      state.collabLens = "all";
-      render({ instant: true });
-    });
-  }
-  for (const btn of state.canvas.querySelectorAll("[data-collab-sort-option]")) {
-    btn.addEventListener("click", () => {
-      const next = btn.getAttribute("data-collab-sort-option") || "cluster";
-      if (next === state.collabSort) { closeConstSentenceMenus(); return; }
-      state.collabSort = next;
+      state.collabLens = (next === state.collabLens && next !== "all") ? "all" : next;
       render({ instant: true });
     });
   }

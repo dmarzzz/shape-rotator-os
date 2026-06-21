@@ -11195,62 +11195,12 @@ button.cb-cell:disabled { cursor: default; }
 
 .cb-cell.cb-diag { background: rgba(var(--ink-rgb), 0.06); }
 
-.cb-cell .cb-mark {
-  display: block;
-  width: 7px;
-  height: 7px;
-  pointer-events: none;
-}
-
-.cb-cell.has-aff .cb-mark {
-  width: 4px;
-  height: 4px;
-  border: 0;
-  border-radius: 50%;
-  background: rgba(var(--ink-rgb), 0.42);
-}
-
-/* Warm seek/offer fill — stepped by match strength. Pulled back from the old
-   0.10–0.40 ramp (which glowed neon-gold on the near-black board) to a calmer
-   ink-weight ramp that still reads its four strengths apart. */
-.cb-cell.has-so    { background: rgba(193,168,114,0.07); }
-
-.cb-cell.has-so.s2 { background: rgba(193,168,114,0.12); }
-
-.cb-cell.has-so.s3 { background: rgba(193,168,114,0.19); }
-
-.cb-cell.has-so.s4 { background: rgba(193,168,114,0.28); }
-
-.cb-cell.has-so .cb-mark {
-  width: 9px;
-  height: 3px;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(204,180,128,0.78);
-}
-
-.cb-cell.has-dep { background: rgba(143,34,14,0.18); }
-
-.cb-cell.has-dep .cb-mark {
-  /* Categorical mark (▲ = dependency). Direction is carried by the cell's
-     POSITION — row = needy team, column = provider — not by the glyph; an
-     arrow inside a matrix cell points at nothing meaningful. Calmer brick than
-     --alchemy-oxide-bright so it signals without the neon glow. */
-  width: 0;
-  height: 0;
-  border-top: 0;
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
-  border-bottom: 7px solid #A8472E;
-  border-radius: 0;
-  background: transparent;
-}
+/* (Removed: the pre-redesign dot marks + gold/brick cell fills. The collab board's
+   cell fills now live under .alch-collab in the stripped-grammar block.) */
 
 .cb-cell.is-hl-row, .cb-cell.is-hl-col { box-shadow: inset 0 0 0 999px rgba(143,34,14,0.07); }
 
 .cb-cell.is-muted { opacity: 0.16; }
-
-.cb-cell.is-muted .cb-mark { color: rgba(var(--ink-rgb), 0.35); }
 
 .cb-cell:focus-visible,
 .cb-rowhead:focus-visible,
@@ -11287,13 +11237,16 @@ button.cb-cell:disabled { cursor: default; }
   --cb-preview-seek: #3E9E54;  /* green now ONLY for the intake modal's seek section + the "submitted" success state — every resting board surface speaks clay + neutral */
   --cb-preview-aff: #8d749f;
   --cb-preview-gold: #d2a84f;
-  /* Unified matrix grammar: every cell mark is a circle and SIZE carries weight.
-     A soft neutral dot = seek/offer match, a ring = mutual fit, clay = a declared
-     dependency. No arrows — direction is the cell's row/col position. The match
-     ink is neutral so clay (structure) is the only colour competing for the eye. */
-  --cb-match-ink: rgba(var(--ink-rgb), 0.78);
-  --cb-match-ring: rgba(var(--ink-rgb), 0.9);
-  --cb-match-fill: rgba(var(--ink-rgb), 0.08);
+  /* Stripped two-colour grammar: the CELL is the mark, both kinds visible at once.
+     Cool slate = a seek/offer match (warm vs cool reads as "two kinds" instantly),
+     warm clay = a declared dependency, a diagonal split = both. No dot sizes — how
+     strong a match is lives in the route sheet, not stamped into the grid. */
+  --cb-match-rgb: 122, 150, 172;   /* cool slate — seek/offer match */
+  --cb-match-edge: 190, 210, 228;  /* bright slate rim — marks a mutual cell */
+  --cb-dep-rgb: 194, 96, 58;       /* warm clay (#C2603A) — declared dependency */
+  --cb-match-ink: rgb(var(--cb-match-rgb));
+  --cb-match-ring: rgb(var(--cb-match-edge));
+  --cb-match-fill: rgba(var(--cb-match-rgb), 0.30);
   gap: 20px;
 }
 
@@ -11304,38 +11257,48 @@ button.cb-cell:disabled { cursor: default; }
   padding: 18px;
   box-shadow: var(--lg-specular), var(--lg-shadow);
 }
-/* Non-matrix sections (intros, underused offers, convergence) lift to
- * translucent glass. The matrix section keeps its opaque card so the 200+ cell
- * scrolling grid never reveals a blur layer behind it (perf + legibility). */
+/* New look: the below-the-fold sections (shared focus, unmatched offers, latent
+   overlaps) drop the heavy glass card and flow flat like the route sheet, set
+   apart by a hairline rule + space rather than a box. The matrix/map section
+   keeps its own treatment. */
 .alch-collab .alch-cb-section:not(.cb-matrix-section) {
-  background:
-    radial-gradient(280px 200px at var(--lg-mx, 28%) var(--lg-my, -8%),
-      rgba(255, 255, 255, calc(0.16 * var(--lg-sheen))), transparent 60%),
-    linear-gradient(180deg, rgba(30, 25, 27, 0.58), rgba(24, 20, 22, 0.66));
-  -webkit-backdrop-filter: var(--lg-blur-sm);
-  backdrop-filter: var(--lg-blur-sm);
+  background: transparent;
+  border: 0;
+  border-top: 1px solid rgba(var(--ink-rgb), 0.07);
+  border-radius: 0;
+  padding: 22px 0 0;
+  margin-top: 22px;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
+/* the two side-by-side shape sections share one rule, not a broken pair */
+.alch-collab .cb-cohort-shape { border-top: 1px solid rgba(var(--ink-rgb), 0.07); margin-top: 22px; padding-top: 22px; }
+.alch-collab .cb-cohort-shape > .alch-cb-section:not(.cb-matrix-section) { border-top: 0; margin-top: 0; padding-top: 0; }
 
 .alch-collab .alch-cb-sechead {
   align-items: center;
   justify-content: space-between;
   border-bottom: 0;
   padding-bottom: 0;
+  margin-bottom: 11px;
 }
-
 .alch-collab .alch-cb-sechead h3 {
-  font-family: var(--font-sans);
+  font-family: var(--font-mono);
   font-style: normal;
-  font-size: 18px;
-  font-weight: 800;
-  color: var(--cb-preview-text);
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--alchemy-ink-mute);
 }
+.alch-collab .alch-cb-section:not(.cb-matrix-section) .cb-sub { color: rgba(var(--ink-rgb), 0.3); }
 
 .alch-collab .cb-intro,
 .alch-collab .cb-cv {
   background: rgba(255,255,255,0.018);
   border-color: var(--alchemy-rule);
-  border-radius: 8px;
+  border-radius: 11px;
   padding: 11px 13px;
 }
 /* ── Intros to make — polish ─────────────────────────────────────────────
@@ -11639,109 +11602,23 @@ button.cb-cell:disabled { cursor: default; }
 
 .alch-collab .cb-cell.has-aff { background: transparent; }
 
-/* Darker = more shared skills (≥2 lights, ≥3 / ≥4 intensify). */
-.alch-collab .cb-cell.has-aff.a2 { background: color-mix(in srgb, var(--cb-preview-aff) 12%, transparent); }
+/* Cell fills (slate match / clay dependency / diagonal-split both / bright-edged
+   mutual) live in the stripped-grammar block below — the dots and per-strength
+   shading were removed with the dot grammar. Only the lens-isolation rules need
+   to live here, above that block. */
 
-.alch-collab .cb-cell.has-aff.a3 { background: color-mix(in srgb, var(--cb-preview-aff) 22%, transparent); }
-
-.alch-collab .cb-cell.has-aff.a4 { background: color-mix(in srgb, var(--cb-preview-aff) 34%, transparent); }
-
-.alch-collab .cb-cell.has-aff .cb-mark {
-  width: 5px;
-  height: 5px;
-  border: 0;
-  background: var(--cb-preview-aff);
-  box-shadow: none;
-  opacity: 1;
-}
-
-/* Match cells carry ONE faint neutral wash regardless of strength — strength is
-   the dot's size, never the fill (see the redesign block below). */
-.alch-collab .cb-cell.has-so,
-.alch-collab .cb-cell.has-so.s2,
-.alch-collab .cb-cell.has-so.s3,
-.alch-collab .cb-cell.has-so.s4 { background: var(--cb-match-fill); }
-
-.alch-collab .cb-cell.has-so .cb-mark {
-  /* Match = a soft neutral node; SIZE carries match strength (set in the redesign
-     block below) and a ring marks a mutual fit. Neutral ink keeps clay as the one
-     colour competing for the eye. */
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--cb-match-ink);
-  box-shadow: none;
-  transform: none;
-  position: relative;
-}
-
-.alch-collab .cb-cell.has-dep { background: color-mix(in srgb, var(--cb-preview-dep) 30%, transparent); }
-
-.alch-collab .cb-cell.has-dep.has-so { background: color-mix(in srgb, var(--cb-preview-dep) 36%, transparent); }
-
-.alch-collab .cb-cell.has-dep .cb-mark {
-  /* Dependency = a clay dot; SIZE carries confidence (set in the redesign block
-     below). Direction is the cell's position, so there is no arrow. Reset any
-     seek/offer dot styling so a cell that carries BOTH reads as one clay dot. */
-  border: 0;
-  border-radius: 50%;
-  transform: none;
-  background: var(--cb-preview-dep);
-  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.28);
-  opacity: 1;
-}
-.alch-collab .cb-cell.has-dep .cb-mark::before { content: none; }
-.alch-collab .cb-cell.has-dep .cb-mark::after { content: none; }
-
-/* ── Lens isolation (option B) ──────────────────────────────────────────
-   When a lens is active, recolor EVERY matching cell to that one signal's
-   color regardless of its dominant fill — so all 130+ seek/offer matches (etc.)
-   read cleanly, not just the ones where seek/offer happens to win precedence.
-   Non-matching cells dim hard so the layer reads pure. */
+/* ── Lens isolation ──────────────────────────────────────────────────────
+   When a lens is active, the non-matching cells dim hard so the chosen layer
+   reads pure, and a both-cell (diagonal split) is forced to the lens's colour. */
 .alch-collab .cb-grid[data-lens="deps"] .cb-cell.is-muted,
-.alch-collab .cb-grid[data-lens="needs"] .cb-cell.is-muted,
-.alch-collab .cb-grid[data-lens="affinity"] .cb-cell.is-muted {
+.alch-collab .cb-grid[data-lens="needs"] .cb-cell.is-muted {
   opacity: 0.08;
 }
-
 .alch-collab .cb-grid[data-lens="deps"] .cb-cell.has-dep:not(.is-muted) {
-  background: color-mix(in srgb, var(--cb-preview-dep) 34%, transparent);
+  background: rgba(var(--cb-dep-rgb), 0.44);
 }
-
-.alch-collab .cb-grid[data-lens="needs"] .cb-cell.has-so:not(.is-muted) {
-  background: rgba(var(--ink-rgb), 0.14);
-}
-
-.alch-collab .cb-grid[data-lens="affinity"] .cb-cell.has-aff:not(.is-muted) {
-  background: color-mix(in srgb, var(--cb-preview-aff) 26%, transparent);
-}
-
-/* Under an active lens, force the matching layer's COLOUR (overriding signal
-   precedence) so a dep+seek cell reads in the lens's colour. The shape stays a
-   circle and the SIZE still comes from the strength / confidence rules — the
-   grammar is uniform, only the colour emphasis changes per lens. */
-/* seek/offer view → neutral dot everywhere */
-.alch-collab .cb-grid[data-lens="needs"] .cb-cell.has-so .cb-mark {
-  border: 0; border-radius: 50%;
-  background: var(--cb-match-ink); box-shadow: none;
-  transform: none;
-}
-.alch-collab .cb-grid[data-lens="needs"] .cb-cell.has-so.is-mutual .cb-mark {
-  background: transparent; border: 1.8px solid var(--cb-match-ring); box-shadow: none;
-}
-
-/* dependency view → clay dot everywhere */
-.alch-collab .cb-grid[data-lens="deps"] .cb-cell.has-dep .cb-mark {
-  border: 0; border-radius: 50%;
-  background: var(--cb-preview-dep); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.28);
-  transform: none;
-}
-
-/* shared-skills view → dot everywhere */
-.alch-collab .cb-grid[data-lens="affinity"] .cb-cell.has-aff .cb-mark {
-  width: 5px; height: 5px;
-  border: 0; border-radius: 50%;
-  background: var(--cb-preview-aff); box-shadow: none; opacity: 1;
+.alch-collab .cb-grid[data-lens="needs"] .cb-cell.has-so:not(.is-muted):not(.is-mutual) {
+  background: rgba(var(--cb-match-rgb), 0.34);
 }
 
 
@@ -12711,91 +12588,86 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 .alch-collab .cb-cell.cb-diag::after { content: ""; position: absolute; top: 50%; left: 50%; width: 2px; height: 2px; margin: -1px 0 0 -1px; border-radius: 50%; background: rgba(var(--ink-rgb), 0.16); }
 .alch-collab .cb-corner { color: rgba(var(--ink-rgb), 0.34); }
 .alch-collab .cb-headrow { background: transparent; }
-/* One circular grammar, quiet by default. Each signal cell carries a faint
-   constant wash so you can see WHERE it is; the dot inside carries the rest.
-   Strength shows up ONCE (dot size) — never doubled into the fill — so the grid
-   stops pulsing. Clay (structure) is the only colour; matches are neutral. */
+/* Stripped grammar — the CELL is the mark (no dots, no size-guessing). Both kinds
+   show at once: cool slate = a seek/offer match (brighter + edged = mutual), warm
+   clay = a declared dependency, a diagonal split = a cell that is both. "How
+   strong" lives in the route sheet up top, not stamped into the grid. */
 .alch-collab .cb-cell.has-so, .alch-collab .cb-cell.has-dep { box-shadow: none; }
-.alch-collab .cb-cell.has-so,
-.alch-collab .cb-cell.has-so.s2,
-.alch-collab .cb-cell.has-so.s3,
-.alch-collab .cb-cell.has-so.s4 { background: var(--cb-match-fill); }
-.alch-collab .cb-cell.has-dep   { background: color-mix(in srgb, var(--cb-preview-dep) 15%, transparent); }
-.alch-collab .cb-cell.has-dep.has-so { background: color-mix(in srgb, var(--cb-preview-dep) 19%, transparent); }
-.alch-collab .cb-cell.has-so.is-mutual { box-shadow: none; }
-/* Seek/offer match = a soft neutral dot; SIZE is the only strength channel
-   (s1..s4). Hovering a row/col lifts every mark in it (glance = strong only ·
-   hover = the whole line · click = inspect). */
-.alch-collab .cb-cell .cb-mark { transition: opacity 140ms var(--ease), transform 140ms var(--ease); }
-.alch-collab .cb-cell.has-so .cb-mark { opacity: 1; background: var(--cb-match-ink); box-shadow: none; }
-.alch-collab .cb-cell.has-so.s1:not(.has-dep) .cb-mark { width: 4px; height: 4px; }
-.alch-collab .cb-cell.has-so.s2:not(.has-dep) .cb-mark { width: 6px; height: 6px; }
-.alch-collab .cb-cell.has-so.s3:not(.has-dep) .cb-mark { width: 8px; height: 8px; }
-.alch-collab .cb-cell.has-so.s4:not(.has-dep) .cb-mark { width: 10px; height: 10px; }
-/* Mutual fit = a clean ring (a closed two-way loop), neutral so it reads as the
-   same opportunity layer — just reciprocated. Sized with its match strength. */
-.alch-collab .cb-cell.has-so.is-mutual:not(.has-dep) .cb-mark {
-  background: transparent; border: 1.8px solid var(--cb-match-ring); box-shadow: none;
+.alch-collab .cb-cell.has-so { background: rgba(var(--cb-match-rgb), 0.30); }
+.alch-collab .cb-cell.has-so.is-mutual {
+  background: rgba(var(--cb-match-rgb), 0.58);
+  box-shadow: inset 0 0 0 1px rgba(var(--cb-match-edge), 0.62);
 }
-.alch-collab .cb-cell.has-so.s1.is-mutual:not(.has-dep) .cb-mark { width: 8px; height: 8px; }
-.alch-collab .cb-cell.has-so.s2.is-mutual:not(.has-dep) .cb-mark { width: 9px; height: 9px; }
-.alch-collab .cb-cell.has-so.s3.is-mutual:not(.has-dep) .cb-mark { width: 10px; height: 10px; }
-.alch-collab .cb-cell.has-so.s4.is-mutual:not(.has-dep) .cb-mark { width: 12px; height: 12px; }
-.alch-collab .cb-cell.has-so.is-mutual:not(.has-dep) .cb-mark::after { content: none; }
-/* Declared dependency = a clay dot; SIZE carries confidence (candidate < source
-   < verified). A dependency that is ALSO a mutual fit becomes a clay ring. */
-.alch-collab .cb-cell.has-dep .cb-mark { opacity: 1; border-radius: 50%; background: var(--cb-preview-dep); }
-.alch-collab .cb-cell.has-dep.dep-c1 .cb-mark { width: 5px; height: 5px; }
-.alch-collab .cb-cell.has-dep.dep-c2 .cb-mark { width: 7px; height: 7px; }
-.alch-collab .cb-cell.has-dep.dep-c3 .cb-mark { width: 9px; height: 9px; }
-.alch-collab .cb-cell.has-dep.is-mutual .cb-mark {
-  width: 11px; height: 11px; background: transparent;
-  border: 1.8px solid var(--cb-preview-dep); box-shadow: none;
+.alch-collab .cb-cell.has-dep { background: rgba(var(--cb-dep-rgb), 0.42); }
+.alch-collab .cb-cell.has-dep.has-so {
+  background: linear-gradient(135deg,
+    rgba(var(--cb-dep-rgb), 0.50) 0 50%,
+    rgba(var(--cb-match-rgb), 0.40) 50% 100%);
+  box-shadow: none;
 }
-/* Both a dependency AND a one-way match in this cell = a concentric TARGET: the
-   clay disc (dependency, size = confidence) sits inside a neutral match RING whose
-   radius grows with match strength. One glyph carries two magnitudes, nothing is
-   hidden, and it stays inside "everything is a circle, size = weight". The ring is
-   always wider than the disc + a gap, so the core stays legible. */
-.alch-collab .cb-cell.has-dep.has-so:not(.is-mutual) .cb-mark::after {
-  content: ""; position: absolute; left: 50%; top: 50%;
-  transform: translate(-50%, -50%);
-  width: calc(100% + 9px); height: calc(100% + 9px);
-  border-radius: 50%;
-  border: 1.4px solid color-mix(in srgb, var(--cb-match-ring) 66%, transparent);
-}
-.alch-collab .cb-cell.has-dep.has-so.s1:not(.is-mutual) .cb-mark::after { width: calc(100% + 5px); height: calc(100% + 5px); }
-.alch-collab .cb-cell.has-dep.has-so.s2:not(.is-mutual) .cb-mark::after { width: calc(100% + 7px); height: calc(100% + 7px); }
-.alch-collab .cb-cell.has-dep.has-so.s3:not(.is-mutual) .cb-mark::after { width: calc(100% + 9px); height: calc(100% + 9px); }
-.alch-collab .cb-cell.has-dep.has-so.s4:not(.is-mutual) .cb-mark::after { width: calc(100% + 11px); height: calc(100% + 11px); }
-.alch-collab .cb-cell.is-hl-row .cb-mark, .alch-collab .cb-cell.is-hl-col .cb-mark { opacity: 1; transform: scale(1.12); }
+.alch-collab .cb-cell.has-dep.has-so.is-mutual { box-shadow: inset 0 0 0 1px rgba(var(--cb-match-edge), 0.5); }
 .alch-collab .cb-row.is-selected .cb-cell { background-image: linear-gradient(0deg, rgba(180,58,25,0.05), rgba(180,58,25,0.05)); }
 
-/* Self-teaching read-key: the grid's own marks at their real sizes, so the eye
-   calibrates the size-ramp once and reads the field for free. Sits at the grid,
-   not in the filter control — meaning and filtering stay distinct. */
+/* Map legend — the grid's own cell fills, so the eye calibrates the two colours
+   (slate match / clay dependency) before reading the field. */
 .alch-collab .cb-readkey {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 7px 18px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 7px 16px;
   margin: 0 0 12px; padding: 0 2px;
   font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em;
   color: var(--alchemy-ink-mute);
 }
-.alch-collab .cb-readkey-cap { color: rgba(var(--ink-rgb), 0.62); letter-spacing: 0.02em; }
-.alch-collab .cb-readkey-cap::after { content: ""; display: inline-block; width: 1px; height: 10px; margin-left: 14px; background: var(--alchemy-rule); vertical-align: -1px; }
-.alch-collab .cb-readkey-items { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
 .alch-collab .cb-rk { display: inline-flex; align-items: center; gap: 6px; }
-.alch-collab .cb-rk-m { display: inline-block; border-radius: 50%; position: relative; flex: 0 0 auto; }
-.alch-collab .cb-rk-so { background: var(--cb-match-ink); }
-.alch-collab .cb-rk-dep { background: var(--cb-preview-dep); }
-.alch-collab .cb-rk-s2 { width: 6px; height: 6px; }
-.alch-collab .cb-rk-s4 { width: 10px; height: 10px; }
-.alch-collab .cb-rk-ring { width: 11px; height: 11px; background: transparent; border: 1.8px solid var(--cb-match-ring); }
-.alch-collab .cb-rk-target .cb-rk-m { margin-right: 4px; }
-.alch-collab .cb-rk-target .cb-rk-m::after {
-  content: ""; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  width: calc(100% + 7px); height: calc(100% + 7px); border-radius: 50%;
-  border: 1.4px solid color-mix(in srgb, var(--cb-match-ring) 66%, transparent);
-}
+.alch-collab .cb-rk-sw { display: inline-block; width: 13px; height: 13px; border-radius: 3px; box-sizing: border-box; flex: 0 0 auto; }
+.alch-collab .cb-rk-match  { background: rgba(var(--cb-match-rgb), 0.34); }
+.alch-collab .cb-rk-mutual { background: rgba(var(--cb-match-rgb), 0.62); box-shadow: inset 0 0 0 1px rgba(var(--cb-match-edge), 0.7); }
+.alch-collab .cb-rk-dep    { background: rgba(var(--cb-dep-rgb), 0.5); }
+.alch-collab .cb-rk-both   { background: linear-gradient(135deg, rgba(var(--cb-dep-rgb), 0.55) 0 50%, rgba(var(--cb-match-rgb), 0.45) 50% 100%); }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Route-sheet lead (2026-06): the ANSWER leads (who can help you), the table is
+   the context map below. Polished, limited-options top; calm default before a
+   team is chosen. One accent (clay) + the slate match colour; gold marks mutual.
+   ════════════════════════════════════════════════════════════════════════════ */
+.cb-lead { margin: 0 0 2px; }
+.cb-lead-title { font-family: var(--font-sans); font-size: 23px; font-weight: 600; letter-spacing: -0.01em; color: var(--alchemy-paper-warm); margin: 0; }
+.cb-lead-sub { font-size: 13px; line-height: 1.5; color: var(--alchemy-ink-mute); margin: 6px 0 16px; max-width: 480px; }
+.cb-picker { display: inline-flex; align-items: center; gap: 9px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(var(--ink-rgb), 0.42); }
+.cb-picker select { background: rgba(var(--ink-rgb), 0.04); color: var(--alchemy-paper-warm); border: 1px solid var(--alchemy-rule); border-radius: 9px; padding: 8px 12px; font-family: var(--font-sans); font-size: 14px; cursor: pointer; transition: border-color 160ms var(--ease); }
+.cb-picker select:hover, .cb-picker select:focus-visible { border-color: color-mix(in srgb, var(--cb-preview-dep) 55%, var(--alchemy-rule)); outline: none; }
+.cb-lead-controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+
+.alch-collab .cb-route { margin-top: 18px; }
+.alch-collab .cb-route-sec { margin-bottom: 20px; }
+.alch-collab .cb-route-sh { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--alchemy-ink-mute); margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+.alch-collab .cb-route-pip { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
+.alch-collab .cb-route-pip.is-match { background: rgb(var(--cb-match-rgb)); }
+.alch-collab .cb-route-pip.is-mut { background: var(--cb-preview-gold); }
+.alch-collab .cb-route-pip.is-give { background: rgba(var(--ink-rgb), 0.4); }
+.alch-collab .cb-route-pip.is-dep { background: var(--cb-preview-dep); }
+.alch-collab .cb-route-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 11px 14px; border: 1px solid var(--alchemy-rule); border-radius: 11px; margin-bottom: 8px; background: rgba(var(--ink-rgb), 0.014); cursor: pointer; transition: border-color 150ms var(--ease), background 150ms var(--ease), transform 150ms var(--ease); }
+.alch-collab .cb-route-row:hover { border-color: rgba(var(--ink-rgb), 0.2); background: rgba(var(--ink-rgb), 0.03); transform: translateY(-1px); }
+.alch-collab .cb-route-row:active { transform: translateY(0) scale(0.997); }
+.alch-collab .cb-route-row:focus-visible { outline: 2px solid color-mix(in srgb, var(--alchemy-oxide-bright) 80%, transparent); outline-offset: 2px; }
+.alch-collab .cb-route-row.is-mut { border-color: color-mix(in srgb, var(--cb-preview-gold) 40%, var(--alchemy-rule)); background: color-mix(in srgb, var(--cb-preview-gold) 5%, transparent); }
+.alch-collab .cb-route-row.is-deprow { border-color: color-mix(in srgb, var(--cb-preview-dep) 32%, var(--alchemy-rule)); cursor: pointer; }
+.alch-collab .cb-route-nm { font-size: 13.5px; font-weight: 600; color: var(--alchemy-paper-warm); flex: 0 0 auto; }
+.alch-collab .cb-route-nm.is-dep { color: color-mix(in srgb, var(--cb-preview-dep) 72%, var(--alchemy-paper-warm)); }
+.alch-collab .cb-route-arrow { color: rgba(var(--ink-rgb), 0.35); flex: 0 0 auto; font-size: 12px; }
+.alch-collab .cb-route-tg { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.02em; color: var(--alchemy-ink-mute); flex: 1; min-width: 40px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alch-collab .cb-route-badge { font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--cb-preview-gold); border: 1px solid color-mix(in srgb, var(--cb-preview-gold) 40%, transparent); border-radius: 999px; padding: 2px 8px; flex: 0 0 auto; }
+.alch-collab .cb-route-barwrap { width: 50px; flex: 0 0 auto; }
+.alch-collab .cb-route-bar { height: 4px; border-radius: 2px; background: rgba(var(--cb-match-rgb), 0.85); }
+.alch-collab .cb-route-empty { font-family: var(--font-mono); font-size: 10px; color: rgba(var(--ink-rgb), 0.35); padding: 2px 2px 6px; margin: 0; }
+
+.alch-collab .cb-rule { height: 1px; background: rgba(var(--ink-rgb), 0.07); margin: 26px 0 18px; }
+.alch-collab .cb-maphead { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+.alch-collab .cb-map-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--alchemy-ink-mute); }
+
+/* persistent highlight of the picked team's row + column in the map */
+.alch-collab .cb-cell.is-focus-band { box-shadow: inset 0 0 0 999px rgba(var(--cb-dep-rgb), 0.10); }
+.alch-collab .cb-rowhead.is-focus { background: color-mix(in srgb, var(--alchemy-oxide-bright) 12%, var(--cb-preview-panel-2)); }
+.alch-collab .cb-rowhead.is-focus .cb-rowhead-name { color: var(--alchemy-oxide-bright); }
+.alch-collab .cb-colhead.is-focus { color: var(--alchemy-oxide-bright); opacity: 1; background: color-mix(in srgb, var(--alchemy-oxide-bright) 10%, var(--cb-preview-panel-2)); box-shadow: inset 0 -2px 0 var(--alchemy-oxide-bright); }
 
 /* sidebar — a panel FLOATING above the matrix plane (soft edge-shadow + top
    light), single hairline left-seam, no hard box. Inspector now owns the rail. */
