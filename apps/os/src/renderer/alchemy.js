@@ -251,6 +251,7 @@ const state = {
   rail: null,
   mode: "membrane",  // default rail landing — membrane is the 2026-05 redesign
   menuOpen: false,   // membrane-only rail overlay, toggled from the top OS tab
+  cohortSubOpen: false,  // cohort rail row's disclosure: the six cohort views nested under it (click "cohort" to reveal, click-off/Esc to collapse)
   membraneController: null,  // active membrane scene controller (mounted lazily on first membrane render)
   shapesKindFilter: "works",  // "works" (teams + projects) | "people"
   directoryView: "cards",     // directory layout: "cards" (grid) | "rows" (table); persisted to DIR_VIEW_LS_KEY
@@ -472,6 +473,7 @@ export function mount(container) {
     setTimeout(() => refreshFeed({ source: "mount" }), 1500);
   }
 
+  buildCohortSubnav();
   for (const btn of state.rail.querySelectorAll(".alchemy-rail-btn")) {
     btn.addEventListener("click", () => {
       const next = ALCHEMY_MODES.includes(btn.dataset.alchMode) ? btn.dataset.alchMode : null;
@@ -488,7 +490,7 @@ export function mount(container) {
       }
       try { localStorage.setItem(ALCHEMY_LS_KEY, next); } catch {}
       syncRailSelection();
-      render();
+      render();   // render() reconciles the cohort disclosure (open iff on cohort)
     });
   }
   document.addEventListener("click", (e) => {
@@ -518,6 +520,9 @@ export function mount(container) {
     // <button role="option"> (not caught by the tag check above), so without
     // this guard ←/→ would tear down the menu and cycle the view mid-select.
     if (t?.closest?.('[role="option"],[role="listbox"],[role="separator"],.ac-sent-menu,[aria-haspopup="listbox"]')) return;
+    // Focus inside the rail's cohort sub-nav: its own Up/Down rove focus and
+    // Enter switches the view; don't also cycle the in-page tab bar from here.
+    if (t?.closest?.(".alch-rail-sub")) return;
     if (document.querySelector(".ac-sent-menu:not([hidden])")) return;
     if (document.body.dataset.activeTab !== "alchemy") return;
     if (!state.canvas) return;
@@ -529,6 +534,17 @@ export function mount(container) {
       const navBtn = state.canvas.querySelector(`[data-c2-nav="${e.key === "ArrowRight" ? "next" : "prev"}"]`);
       e.preventDefault();
       if (navBtn && !navBtn.disabled) navBtn.click();
+      return;
+    }
+    // Cohort views no longer have an in-page strip — they live in the rail
+    // disclosure. Cycle them straight through CONST_VIEWS via the shared switch.
+    if (isCohortMode() && !state.detailRecordId) {
+      const cur = CONST_VIEWS.findIndex(v => v.mode === currentCohortView());
+      if (cur >= 0) {
+        const nextV = (cur + (e.key === "ArrowRight" ? 1 : -1) + CONST_VIEWS.length) % CONST_VIEWS.length;
+        e.preventDefault();
+        selectCohortView(CONST_VIEWS[nextV].mode);
+      }
       return;
     }
     const strip = state.canvas.querySelector(".alch-page-views, .alch-prog-tabs");
@@ -555,6 +571,7 @@ export function mount(container) {
   // Cmd/Ctrl +/-/0 keyboard zoom (document-level so it works wherever focus is).
   document.addEventListener("keydown", onZoomKeydown);
   syncRailSelection();
+  reconcileCohortSub();  // booting onto a cohort view shows the disclosure expanded right away
   startContextAutoRefresh();
   setTimeout(() => { warmMode(state.mode).catch(() => {}); }, 0);
   loadCohort().then(render).catch(err => {
@@ -635,7 +652,7 @@ export function applyLocation(loc = {}) {
   }
   if (state.mounted) {
     syncRailSelection();
-    render({ instant: !!loc.instant });
+    render({ instant: !!loc.instant });  // render() reconciles the cohort disclosure
   }
 }
 
@@ -862,6 +879,167 @@ function syncRailSelection() {
   for (const btn of state.rail.querySelectorAll(".alchemy-rail-btn")) {
     btn.setAttribute("aria-selected", btn.dataset.alchMode === activeMode ? "true" : "false");
   }
+  syncCohortSubnav();
+}
+
+// ─── cohort rail sub-nav ───────────────────────────────────────────────────
+// The "cohort" rail row reveals the cohort page's six views (CONST_VIEWS) as
+// an indented disclosure nested directly under it — the same six tabs the
+// page shows in-line, surfaced in the persistent left menu. One source of
+// truth for the switch (selectCohortView) keeps the rail submenu and the
+// in-page tab bar in lock-step. Open on clicking "cohort", collapse on
+// click-off / Escape; see the rail click handler + the document listeners.
+
+function isCohortMode() {
+  return state.mode === "shapes" || state.mode === "constellation";
+}
+
+// Which CONST_VIEWS entry is currently showing, or null when off the cohort
+// page. "directory" is the roster (shapes); the rest map onto constellation
+// sub-modes via the same normalizer the in-page nav uses.
+function currentCohortView() {
+  if (state.mode === "shapes") return "directory";
+  if (state.mode === "constellation") return constNormalizeConstellationMode(state.constellationMode);
+  return null;
+}
+
+// Clear an open record-detail page so a view switch lands on the view itself
+// (the in-page nav is never visible over a detail page, but the rail submenu
+// is — so this guard matters for it).
+function clearDetailIfOpen() {
+  if (!state.detailRecordId) return;
+  state.detailRecordId = null;
+  state.detailReturnMode = null;
+  try { localStorage.removeItem(DETAIL_LS_KEY); } catch {}
+}
+
+// Switch to one of the six cohort views. Shared by the rail submenu and the
+// in-page view tabs. Returns false when already on that exact view (no-op).
+function selectCohortView(constMode) {
+  if (constMode === "directory") {
+    if (state.mode === "shapes" && !state.detailRecordId) return false;
+    state.mode = "shapes";
+    clearDetailIfOpen();
+    try { localStorage.setItem(ALCHEMY_LS_KEY, "shapes"); } catch {}
+    syncRailSelection();
+    render();
+    return true;
+  }
+  const next = constNormalizeConstellationMode(constMode);
+  const current = constNormalizeConstellationMode(state.constellationMode);
+  if (state.mode === "constellation" && next === current && !state.detailRecordId) return false;
+  state.mode = "constellation";
+  state.constellationMode = next;
+  clearDetailIfOpen();
+  try {
+    localStorage.setItem(CONST_MODE_LS_KEY, next);
+    localStorage.setItem(ALCHEMY_LS_KEY, "constellation");
+  } catch {}
+  syncRailSelection();
+  render();
+  return true;
+}
+
+// Inject the disclosure submenu once, directly after the "cohort" rail row.
+// CONST_VIEWS is the single source of truth for the rows — this is now the
+// only cohort view switcher (the in-page tab strip was retired).
+function buildCohortSubnav() {
+  if (!state.rail) return;
+  const cohortBtn = state.rail.querySelector('.alchemy-rail-btn[data-alch-mode="shapes"]');
+  if (!cohortBtn || document.getElementById("cohort-subnav")) return;
+  cohortBtn.setAttribute("aria-expanded", "false");
+  cohortBtn.setAttribute("aria-controls", "cohort-subnav");
+  const wrap = document.createElement("div");
+  wrap.className = "alch-rail-sub";
+  wrap.id = "cohort-subnav";
+  wrap.dataset.open = "false";
+  wrap.inert = true;
+  wrap.setAttribute("role", "group");
+  wrap.setAttribute("aria-label", "cohort views");
+  wrap.innerHTML = `
+    <div class="alch-rail-sub-inner">
+      ${CONST_VIEWS.map((v, i) => `
+        <button class="alch-rail-sub-btn" type="button" data-const-mode="${escAttr(v.mode)}" style="--sub-i:${i}" aria-selected="false" tabindex="-1" aria-label="${escAttr(`${v.label}: ${v.hint}`)}" title="${escAttr(v.hint)}">
+          <span class="ars-mark" aria-hidden="true"></span>
+          <span class="ars-label">${escHtml(v.label)}</span>
+        </button>`).join("")}
+    </div>`;
+  cohortBtn.after(wrap);
+  const subBtns = [...wrap.querySelectorAll(".alch-rail-sub-btn")];
+  for (const btn of subBtns) {
+    btn.addEventListener("click", () => {
+      selectCohortView(btn.dataset.constMode);
+      setCohortSubOpen(true);
+    });
+    // Roving-tabindex keyboard contract for the disclosure list.
+    btn.addEventListener("keydown", (e) => {
+      const i = subBtns.indexOf(btn);
+      let j = -1;
+      if (e.key === "ArrowDown") j = (i + 1) % subBtns.length;
+      else if (e.key === "ArrowUp") j = (i - 1 + subBtns.length) % subBtns.length;
+      else if (e.key === "Home") j = 0;
+      else if (e.key === "End") j = subBtns.length - 1;
+      else if (e.key === "Escape") {
+        setCohortSubOpen(false);
+        cohortBtn.focus();
+        return;
+      } else return;
+      e.preventDefault();
+      for (const b of subBtns) b.tabIndex = -1;
+      subBtns[j].tabIndex = 0;
+      subBtns[j].focus();
+    });
+  }
+  syncCohortSubnav();
+}
+
+// The disclosure is open exactly while a cohort view is the active page (and
+// no record detail is covering it). Called from render() so every navigation
+// path — rail click, sub-view pick, tab manager, history — keeps it in sync.
+function reconcileCohortSub() {
+  setCohortSubOpen(isCohortMode() && !state.detailRecordId);
+}
+
+function setCohortSubOpen(open) {
+  open = !!open;
+  state.cohortSubOpen = open;
+  const wrap = document.getElementById("cohort-subnav");
+  const cohortBtn = state.rail?.querySelector('.alchemy-rail-btn[data-alch-mode="shapes"]');
+  if (wrap) {
+    // Measure the natural content height for the open tween (scrollHeight is
+    // valid while the wrap is clipped to height:0). Re-measured on each open so
+    // a theme/font change can't leave a stale clip. If the rail is currently
+    // off-screen (an ancestor display:none → scrollHeight 0), fall back to
+    // `auto` so the rows are never clipped to nothing.
+    if (open) {
+      const h = wrap.scrollHeight;
+      wrap.style.setProperty("--sub-h", h > 0 ? `${h}px` : "auto");
+    }
+    wrap.dataset.open = open ? "true" : "false";
+    wrap.inert = !open;  // keep collapsed rows out of tab order + the a11y tree
+  }
+  if (cohortBtn) cohortBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  if (open) syncCohortSubnav();
+}
+
+// Mirror the current cohort view onto the submenu rows + roving tabindex.
+function syncCohortSubnav() {
+  const wrap = document.getElementById("cohort-subnav");
+  if (!wrap) return;
+  const active = currentCohortView();
+  let matched = false;
+  for (const btn of wrap.querySelectorAll(".alch-rail-sub-btn[data-const-mode]")) {
+    const on = btn.dataset.constMode === active;
+    if (on) matched = true;
+    btn.setAttribute("aria-selected", on ? "true" : "false");
+    btn.tabIndex = on ? 0 : -1;
+  }
+  // Off the cohort page (no active row): keep the first row keyboard-reachable
+  // so opening the disclosure has a focus target.
+  if (!matched) {
+    const first = wrap.querySelector(".alch-rail-sub-btn");
+    if (first) first.tabIndex = 0;
+  }
 }
 
 function isMembraneHome() {
@@ -926,6 +1104,10 @@ function render(opts = {}) {
     if (!isMembraneHome()) state.menuOpen = false;
     syncMembraneMenuChrome();
   }
+  // The cohort disclosure is the page's view switcher now, so it stays
+  // expanded while on any cohort view and collapses when you leave (or open a
+  // record detail). Reconciled here so every navigation path keeps it in sync.
+  reconcileCohortSub();
   const canvas = state.canvas;
   // Tear down every active shape-shader controller before the innerHTML
   // rewrite — each one owns a WebGL2 context, and browsers cap us to
@@ -2770,18 +2952,12 @@ function constNormalizeConstellationMode(raw) {
   if (mode === "journey" || mode === "stack" || mode === "targets" || mode === "shipped" || mode === "collab") return mode;
   return "map";
 }
-function constellationNav(active) {
-  const activeTop = active === "directory"
-    ? "directory"
-    : (constNormalizeConstellationMode(active) === "ring" ? "map" : constNormalizeConstellationMode(active));
-  return `
-    <nav class="alch-page-views" role="tablist" aria-label="cohort view">
-      ${CONST_VIEWS.map(v => `
-        <button class="alch-page-view-btn" data-const-mode="${v.mode}" role="tab" aria-selected="${activeTop === v.mode}" tabindex="${activeTop === v.mode ? "0" : "-1"}" aria-label="${escAttr(`${v.label}: ${v.hint}`)}" title="${escAttr(v.hint)}" type="button">
-          <span class="apv-glyph" aria-hidden="true">${v.glyph}</span><span class="apv-label">${v.label}</span>
-        </button>`).join("")}
-    </nav>`;
-}
+// The cohort views used to render as an in-page tab strip here
+// (constellationNav). They were consolidated into the left rail's "cohort"
+// disclosure submenu (2026-06) — one switcher, not two. The submenu is the
+// single source of view navigation now; CONST_VIEWS still drives it (see
+// buildCohortSubnav). ←/→ cohort-view cycling is handled directly in the
+// rail-mount keydown handler.
 
 // Shared page header — same structure on the cohort and context pages so
 // the OS's two "understanding" surfaces read as one design. `side` is
@@ -2802,9 +2978,12 @@ function pageHeadHtml({ kicker, title, dek, side = "", nav = "" }) {
 }
 
 function cohortPageHead(view, { side = "" } = {}) {
-  // No dek/title: by house rule each view's description lives WITH its filter
-  // (the sentence bar IS the heading); pageHeadHtml renders only side + nav.
-  return pageHeadHtml({ side, nav: constellationNav(view) });
+  // The view switcher now lives in the rail's cohort disclosure (not in-page),
+  // so the head only carries per-view side meta. With no side there's nothing
+  // left to render — return "" so views don't get an empty header band where
+  // the old tab strip used to sit. `view` kept for call-site compatibility.
+  void view;
+  return side ? pageHeadHtml({ side }) : "";
 }
 
 // Cross-view selection cue. state.constSelection survives view switches by
@@ -3737,6 +3916,13 @@ function constRelationshipMeaning(edge) {
       note: "The teams share an underlying technical stack, market genre, or operating context. This is ecosystem context, not proof they rely on each other.",
     };
   }
+  if (edge.relation === "contributed_to") {
+    return {
+      key: "collaboration",
+      label: "contributed to",
+      note: "A cohort member from the source team has public GitHub commits on the target team's repo. Observed cross-team collaboration, not a declared dependency.",
+    };
+  }
   return {
     key: "unknown",
     label: "mapped source link",
@@ -3753,6 +3939,7 @@ function constRelationshipDirection(edge, fromName, toName) {
   if (edge.relation === "pairs_with") return `${a} is a pairing or collaboration candidate with ${b}.`;
   if (edge.relation === "complements") return `${a} complements ${b}.`;
   if (edge.relation === "shares_substrate") return `${a} and ${b} share substrate or ecosystem context.`;
+  if (edge.relation === "contributed_to") return `${a} has members contributing to ${b}'s public repo.`;
   return `${a} is linked to ${b} by a declared relationship record.`;
 }
 
@@ -3764,6 +3951,7 @@ function constRelationshipVerb(edge) {
     pairs_with: "could work with",
     complements: "complements",
     shares_substrate: "shares infrastructure with",
+    contributed_to: "contributes code to",
     declared: "is connected to",
   };
   return labels[edge.relation] || (edge.relation_label || "is connected to");
@@ -3782,6 +3970,8 @@ function constRelationshipStatus(edge) {
     blocked: "blocked",
     resolved: "already handled",
     declared: "declared",
+    session_observed: "session-observed",
+    github_observed: "GitHub-observed",
     unknown: "status unknown",
   };
   const notes = {
@@ -3790,6 +3980,8 @@ function constRelationshipStatus(edge) {
     blocked: "The record says progress is blocked on this relationship.",
     resolved: "The record says this relationship has already been resolved.",
     declared: "The record declares a connection but does not add operating status.",
+    session_observed: "Observed in a reviewed cohort session, not a declared dependency. Treat as a lead to confirm.",
+    github_observed: "Derived from public GitHub commits across the team boundary (review status visible). Confidence is medium/low — confirm before treating as a committed dependency.",
     unknown: "The record does not declare status.",
   };
   return {
@@ -9522,29 +9714,9 @@ function setConstellationEdgeHover(stage, from, to, on) {
 
 function wireConstellationModeNav() {
   for (const btn of state.canvas.querySelectorAll(".alch-page-view-btn[data-const-mode]")) {
-    btn.addEventListener("click", () => {
-      // "directory" is the roster grid — internally the shapes mode. The
-      // other views are constellation sub-views. Same page, one nav.
-      if (btn.dataset.constMode === "directory") {
-        if (state.mode === "shapes") return;
-        state.mode = "shapes";
-        try { localStorage.setItem(ALCHEMY_LS_KEY, "shapes"); } catch {}
-        syncRailSelection();
-        render();
-        return;
-      }
-      const next = constNormalizeConstellationMode(btn.dataset.constMode);
-      const current = constNormalizeConstellationMode(state.constellationMode);
-      if (state.mode === "constellation" && next === current) return;
-      state.mode = "constellation";
-      state.constellationMode = next;
-      try {
-        localStorage.setItem(CONST_MODE_LS_KEY, next);
-        localStorage.setItem(ALCHEMY_LS_KEY, "constellation");
-      } catch {}
-      syncRailSelection();
-      render();
-    });
+    // The switch logic is shared with the rail's cohort sub-nav so the two
+    // view-pickers stay in lock-step (see selectCohortView).
+    btn.addEventListener("click", () => { selectCohortView(btn.dataset.constMode); });
   }
   // Roving-tabindex tablist keyboard contract: arrows/Home/End move focus
   // between tabs (manual activation — Enter/Space fires the native click above
@@ -11273,7 +11445,7 @@ export function currentAskContext() {
 
 const COLLAB_LENSES = new Set(["all", "deps", "needs"]);
 const COLLAB_TEAM_FILTERS = new Set(["all", "needs", "offers"]);
-const COLLAB_SORTS = new Set(["cluster", "intro", "dependency"]);
+const COLLAB_SORTS = new Set(["cluster", "intro", "dependency", "related"]);
 
 function normalizeCollabControls() {
   if (!COLLAB_LENSES.has(state.collabLens)) state.collabLens = "all";
@@ -11373,7 +11545,56 @@ function collabVisibleOrder(m, filter = "all", sort = "cluster") {
       || (kMap.get(b.rid)?.inbound?.length || 0) - (kMap.get(a.rid)?.inbound?.length || 0)
       || clusterCmp(a, b));
   }
+  // "group related" — seriate so connected teams sit adjacent and the sparse fills
+  // pull into blocks. Starts from cluster order so it can only improve on it.
+  if (sort === "related") return collabSeriatedOrder(m, out.sort(clusterCmp));
   return out.sort(clusterCmp);
+}
+
+// Deterministic matrix seriation (the "group related" order). Reorders the SAME
+// teams so connected ones sit adjacent, pulling the sparse fills into blocks near
+// the diagonal. Pure barycenter sweeps over an undirected affinity graph (deps +
+// matches, either direction), keeping the lowest linear-arrangement-cost order
+// seen — so a bad sweep can never scatter worse than the cluster order it starts
+// from. No deps, no randomness; stable tie-breaks (by the cluster-order index)
+// keep it repeatable.
+function collabSeriatedOrder(m, baseOrder) {
+  const n = baseOrder.length;
+  if (n < 3) return baseOrder;
+  const idx = new Map(baseOrder.map((o, i) => [o.rid, i]));
+  const W = Array.from({ length: n }, () => new Float64Array(n));
+  const link = (a, b, w) => {
+    const i = idx.get(a), j = idx.get(b);
+    if (i == null || j == null || i === j) return;
+    W[i][j] += w; W[j][i] += w;
+  };
+  for (const key of m.deps) { const gt = key.indexOf(">"); link(key.slice(0, gt), key.slice(gt + 1), 1.5); }
+  for (const s of m.seekOffer) link(s.seeker, s.offerer, 0.5 + (s.score || 0) * 0.12);
+
+  const posOf = (order) => { const p = new Array(n); for (let r = 0; r < n; r++) p[order[r]] = r; return p; };
+  const cost = (order) => {
+    const p = posOf(order); let c = 0;
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) { const w = W[i][j]; if (w) c += w * Math.abs(p[i] - p[j]); }
+    return c;
+  };
+
+  let order = baseOrder.map((_, i) => i);  // order[rank] = team index; seeds with cluster order
+  let best = order.slice();
+  let bestCost = cost(order);
+  for (let sweep = 0; sweep < 12; sweep++) {
+    const p = posOf(order);
+    const bary = new Array(n);
+    for (let i = 0; i < n; i++) {
+      let num = 0, den = 0;
+      for (let j = 0; j < n; j++) { const w = W[i][j]; if (w) { num += w * p[j]; den += w; } }
+      bary[i] = den ? num / den : p[i];
+    }
+    const next = order.slice().sort((a, b) => (bary[a] - bary[b]) || (a - b));
+    const c = cost(next);
+    if (c < bestCost - 1e-9) { bestCost = c; best = next.slice(); }
+    order = next;
+  }
+  return best.map(i => baseOrder[i]);
 }
 
 
@@ -12631,12 +12852,20 @@ function collabCell(R, C, ri, ci, m, lens = "all", detail = false, selected = nu
 
   let cls = "cb-cell";
   if (so) cls += " has-so s" + collabStrengthBucket(so.score, thr) + (so.mutual ? " is-mutual" : "");
-  if (dep) cls += " has-dep";
+  if (dep) {
+    // Every mark on the board is a circle and SIZE carries weight. A dependency's
+    // weight is its confidence (verified > source-backed > candidate), so
+    // higher-confidence links read as larger clay dots. dep-c1..c3 = low/unknown
+    // .. high.
+    const edge = m.depByPair.get(R.rid + ">" + C.rid);
+    const conf = edge?.confidence || "unknown";
+    cls += " has-dep dep-c" + (conf === "high" ? 3 : conf === "medium" ? 2 : 1);
+  }
 
   // Tooltip lists every signal on the cell (strongest first).
   const lines = [];
-  if (dep) lines.push(`→ depends on ${C.team.name}`);
-  if (so) lines.push(`seeks → ${C.team.name} offers: ${so.shared.slice(0, 3).join(", ") || "match"}`);
+  if (dep) lines.push(`depends on ${C.team.name}`);
+  if (so) lines.push(`seeks what ${C.team.name} offers: ${so.shared.slice(0, 3).join(", ") || "match"}`);
   const title = `${R.team.name} → ${C.team.name}\n${lines.join("\n")}`;
 
   const active = lens === "all" || (lens === "deps" && dep) || (lens === "needs" && so);
@@ -12646,9 +12875,9 @@ function collabCell(R, C, ri, ci, m, lens = "all", detail = false, selected = nu
   const actionAttr = detail
     ? (active ? `data-collab-pair-from="${escAttr(R.rid)}" data-collab-pair-to="${escAttr(C.rid)}"` : `disabled aria-disabled="true"`)
     : `data-collab-open="${escAttr(C.rid)}"`;
-  // Single mark; the strongest signal's CSS styles its shape (triangle = dep,
-  // diamond = seek/offer). Under an active lens the shape is forced to that
-  // lens's signal so the filtered view is internally consistent.
+  // Single circular mark: a soft neutral dot = seek/offer match (size = match
+  // strength), a ring = mutual fit, a clay dot = declared dependency (size =
+  // confidence). Direction is the cell's row/col position, so no arrow is drawn.
   return `<button type="button" class="${cls}" data-row="${ri}" data-col="${ci}" ${actionAttr} aria-label="${escAttr(`${R.team.name} → ${C.team.name}: ${lines.join("; ")}`)}" title="${escAttr(title)}"><span class="cb-mark" aria-hidden="true"></span></button>`;
 }
 
@@ -12667,6 +12896,23 @@ function collabGroupBand(ordered, colN, selected = null) {
   return `<div class="cb-row cb-bandrow" style="${colN}"><div class="cb-band-corner" aria-hidden="true"></div>${cells}</div>`;
 }
 
+
+// A self-teaching key built from the grid's OWN marks at their real sizes, placed
+// AT the matrix so the eye calibrates the size-ramp it then has to read in the
+// field. Kept separate from the lens FILTER so "what a mark means" and "click to
+// filter" stay distinct (a legend is not a control).
+function collabReadKeyHtml() {
+  return `
+    <div class="cb-readkey" aria-hidden="true">
+      <span class="cb-readkey-cap">every mark is a connection · bigger = stronger</span>
+      <span class="cb-readkey-items">
+        <span class="cb-rk"><i class="cb-rk-m cb-rk-so cb-rk-s2"></i><i class="cb-rk-m cb-rk-so cb-rk-s4"></i>seek / offer</span>
+        <span class="cb-rk"><i class="cb-rk-m cb-rk-ring"></i>mutual</span>
+        <span class="cb-rk"><i class="cb-rk-m cb-rk-dep cb-rk-s2"></i><i class="cb-rk-m cb-rk-dep cb-rk-s4"></i>dependency</span>
+        <span class="cb-rk cb-rk-target"><i class="cb-rk-m cb-rk-dep cb-rk-s2"></i>both</span>
+      </span>
+    </div>`;
+}
 
 function renderCollab() {
   const teams = (state.cohort?.teams || []).filter(t => t && t.record_id);
@@ -12700,6 +12946,7 @@ function renderCollab() {
   // to "all signals", so "the team filter owns the board".
   const sortMeta = [
     { key: "cluster", label: "cluster", note: "rows grouped by ecosystem cluster" },
+    { key: "related", label: "group related", note: "reorder so connected teams sit together" },
     { key: "intro", label: "best matches first", note: "strongest seek ↔ offer matches first" },
     { key: "dependency", label: "dependency pressure", note: "most-depended-on teams first" },
   ];
@@ -12797,6 +13044,7 @@ function renderCollab() {
   // the tab name already says collab board — the h3 + sub-label were redundant.
   const matrix = `
     <section class="alch-cb-section cb-matrix-section" data-cb-section="grid" aria-label="who needs whom — rows need, columns provide">
+      ${collabReadKeyHtml()}
       <div class="cb-scroll">${matrixBody}</div>
       ${matrixNote}
     </section>`;
