@@ -34,16 +34,28 @@ import {
 export const DEFAULT_PUBLIC_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4am50endrc2lsdXZxY3BjY3BjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNzA1NzEsImV4cCI6MjA5Njk0NjU3MX0.XjXEUnw3jq1E7PwIOvhr7a3OpO2lyZv6S_Hn3JqogBA";
 
-// The COHORT key is a JWT bearing role=cohort_app (see the engine migration
-// 20260618000000_cohort_app_evidence_reader.sql). It reads the GATED T2 cohort
-// evidence view (cohort_app_transcript_evidence_cards) — content NOT exposed to
-// anon / the public web. Unlike the anon key, this is NOT baked into the public
-// source: it is empty here and supplied per-build (injected into the distributed
-// app) or via the calendar-ingress config (supabaseCohortKey). When empty — i.e.
-// the public web bundle or an un-provisioned build — the cohort reader no-ops and
-// the app falls back to the anon T3 read. SOFT gate: a key in a distributed binary
-// is extractable, so this is "off the public web", not a hard boundary; revoke by
-// dropping the cohort_app grant/role server-side.
+// ENABLED — the gated T2 cohort reader is live. Its backing migration is deployed
+// and the view (cohort_app_transcript_evidence_cards) exists (verified against the
+// cohort DB 2026-06-20: an unauthenticated read returns 401, not 404 — the view is
+// present, gated by the cohort_app role). With a cohort key present the app reads
+// named / cohort-internal T2 cards live; with NO key (the public web bundle or an
+// un-provisioned build) fetchCohortEvidenceCards no-ops and the app falls back to the
+// anon T3 read + committed bundle. Every failure path is graceful (try/catch, returns
+// source:"error"/"unconfigured"), so enabling this can only ADD the named tier when a
+// key is configured — it never breaks the public / un-provisioned path. (This reverses
+// the temporary 00a7a828 disable, whose "the migration does not exist yet" premise was
+// outdated — the migration had already shipped.)
+export const COHORT_APP_READER_ENABLED = true;
+
+// The COHORT key is a JWT bearing role=cohort_app. When the reader is enabled it
+// reads the GATED T2 cohort evidence view — content NOT exposed to anon / the
+// public web. Unlike the anon key, this is NOT baked into the public source: it is
+// empty here and supplied per-build (injected into the distributed app) or via the
+// calendar-ingress config (supabaseCohortKey). When empty — the public web bundle
+// or an un-provisioned build — the cohort reader no-ops and the app falls back to
+// the anon T3 read. SOFT gate: a key in a distributed binary is extractable, so
+// this is "off the public web", not a hard boundary; revoke by dropping the
+// cohort_app grant/role server-side.
 // Resolve the build-baked cohort key. In the packaged renderer it arrives over
 // the preload bridge (window.api.cohortKey, baked from SRFG_COHORT_KEY at build
 // time); in Node (build scripts / tests) it comes from the env. Empty => the

@@ -195,6 +195,55 @@ function makeInsightCard({
   };
 }
 
+// ---- Reasoning trace contract --------------------------------------------
+// Every card carries a uniform, recomputable reasoning record in content_json.trace
+// so a claim can EXPLAIN ITSELF and be re-derived from its source. `basis` names HOW
+// WE KNOW the claim (its mood); it is deliberately kept distinct from review_status
+// (whether a HUMAN confirmed it) so an inferred guess is never dressed as observed fact.
+const EVIDENCE_BASIS = Object.freeze({
+  OBSERVED: "observed",                                          // a public artifact / metadata fact
+  DECLARED: "declared",                                          // the team's own field, unverified
+  INFERRED: "inferred",                                          // an engine derivation over public text
+  OBSERVED_INFERRED_IDENTITY: "observed_with_inferred_identity", // commit observed, person->team heuristic
+});
+
+// Per-kind algorithm version. Bump when a kind's derivation logic changes so two cards
+// with the same score are distinguishable across engine revisions (the latent_overlap
+// IDF rewrite is v2). Travels on every trace as trace.version.
+const ALGORITHM_VERSIONS = Object.freeze({
+  say_did_shipped: 1,
+  latent_overlap: 3, // 2 = IDF token weighting; 3 = full-set weight sum (no top-8 truncation in score)
+  collaboration_edge: 1,
+  award: 1,
+});
+
+// One trace signal = one weighted reasoning step, optionally citing the source_refs it
+// was computed from, so "follow the trace" resolves per-step, not just per-card.
+function traceSignal({ name, value, detail, weight, contribution, of, sourceRefs } = {}) {
+  const out = { name: String(name || "") };
+  if (value !== undefined) out.value = value;
+  if (detail !== undefined && detail !== "") out.detail = detail;
+  if (Number.isFinite(weight)) out.weight = weight;
+  if (Number.isFinite(contribution)) out.contribution = contribution;
+  if (Number.isFinite(of)) out.of = of;
+  const refs = asArray(sourceRefs);
+  if (refs.length) out.source_refs = refs;
+  return out;
+}
+
+function makeTrace({ method, version, basis, confidence, confidenceBasis, signals = [], inputs = [], recompute = "" } = {}) {
+  return {
+    method: String(method || ""),
+    version: Number.isFinite(version) ? version : 1,
+    basis: basis || "",
+    confidence: confidence || "",
+    confidence_basis: compactText(confidenceBasis, 240),
+    signals: asArray(signals),
+    inputs: asArray(inputs),
+    recompute: compactText(recompute, 200),
+  };
+}
+
 function groupBy(items, keyFn) {
   const map = new Map();
   for (const item of asArray(items)) {
@@ -291,21 +340,47 @@ const ACTION_VERB_MAP = {
   productizes: "productizes", run: "runs", runs: "runs", turn: "turns", turns: "turns",
   power: "powers", powers: "powers", deliver: "delivers", delivers: "delivers",
 };
-function actionPredicate(rawDoes) {
+// Inverse of ACTION_VERB_MAP for the declared branch: a source field that already leads
+// with a conjugated verb ("Builds X", "Powers Y") must read "plans to build X", not the
+// ungrammatical "plans to builds X". Base-form leads fall through to themselves via `|| lead`.
+const BASE_VERB_MAP = {
+  builds: "build", makes: "make", creates: "create", enables: "enable",
+  offers: "offer", provides: "provide", explores: "explore", productizes: "productize",
+  runs: "run", turns: "turn", powers: "power", delivers: "deliver",
+};
+// mood "observed" -> present-tense operating claim ("builds X" / "provides X");
+// mood "declared" -> aspirational, so an unbuilt self-declared plan never reads as a
+// shipped capability ("plans to build X" / "aims to provide X"). The mood is chosen by
+// the caller from whether any PUBLIC artifact backs the team, never invented here. This
+// is the honesty guard: declared intent and observed delivery must not be linguistically
+// identical.
+function actionPredicate(rawDoes, { mood = EVIDENCE_BASIS.OBSERVED } = {}) {
   const text = compactText(rawDoes, 220);
   if (!text) return "";
+  const declared = mood === EVIDENCE_BASIS.DECLARED;
   const match = /^([a-z][a-z-]*)\b/.exec(text);
   const lead = match ? match[1].toLowerCase() : "";
   if (lead && ACTION_VERB_MAP[lead]) {
-    // Conjugate a second imperative joined by "and"/"&" too, so compound
-    // imperatives ("make X and explore Y") don't leave a bare verb dangling.
+    // Declared mood keeps the base imperative under "plans to ..." ("plans to make X and
+    // explore Y"); observed mood conjugates each verb to third person ("makes X and
+    // explores Y") — including a second imperative joined by "and"/"&".
+    if (declared) {
+      const base = BASE_VERB_MAP[lead] || lead;
+      // Base-form a second imperative joined by "and"/"&" too, so "Builds X and powers Y"
+      // reads "plans to build X and power Y", not "...and powers Y" (symmetric with observed).
+      const rest = text.slice(match[1].length).replace(
+        /\b(and|&)\s+([a-z][a-z-]*)\b/g,
+        (whole, conj, verb) => (BASE_VERB_MAP[verb.toLowerCase()] ? `${conj} ${BASE_VERB_MAP[verb.toLowerCase()]}` : whole),
+      );
+      return `plans to ${base}${rest}`.replace(/\s+/g, " ").trim();
+    }
     const rest = text.slice(match[1].length).replace(
       /\b(and|&)\s+([a-z][a-z-]*)\b/g,
       (whole, conj, verb) => (ACTION_VERB_MAP[verb.toLowerCase()] ? `${conj} ${ACTION_VERB_MAP[verb.toLowerCase()]}` : whole),
     );
     return `${ACTION_VERB_MAP[lead]} ${rest.trim()}`.trim();
   }
-  return `provides ${text}`;
+  return declared ? `aims to provide ${text}` : `provides ${text}`;
 }
 
 function teamKindLabel(team, { includeFocus = true } = {}) {
@@ -364,6 +439,40 @@ function teamActivity(team, progressByTeam, releasesByTeam) {
   return { progress, releaseArtifacts, releases, latest, observed, totalUsefulCommits, releaseNames, activityMix };
 }
 
+// Recover the matched_cohort_people signal the github-progress scanner attaches to each
+// weekly artifact (cohort members who authored this team's public commits) — previously
+// computed then dropped at the engine boundary (trace gap G2). Deduped per person (keep the
+// largest commit count) so a team's card can answer "who actually built this", with each
+// person carrying the heuristic strength of the author->person match.
+function aggregateMatchedContributors(progressArtifacts) {
+  const byPerson = new Map();
+  for (const artifact of asArray(progressArtifacts)) {
+    for (const person of asArray(artifact?.collaboration?.matched_cohort_people)) {
+      const id = String(person?.person_id || "").trim();
+      if (!id) continue;
+      // Only NAME a cohort member when the identity match is the reliable github-noreply
+      // email match. An exact-name match is a possible namesake (the engine cannot tell two
+      // people with the same name apart), so it must never attribute named authorship on a
+      // surfaced card — privacy + honesty (PRIV-3).
+      if (person?.reason !== "github_noreply_email") continue;
+      const commitCount = Number(person?.commit_count) || 0;
+      const existing = byPerson.get(id);
+      if (!existing || commitCount > existing.commit_count) {
+        byPerson.set(id, {
+          person_id: id,
+          person_name: compactText(person?.person_name || id, 80),
+          commit_count: commitCount,
+          confidence: String(person?.confidence || "low").toLowerCase(),
+          match_quality: person?.reason === "github_noreply_email"
+            ? "github-noreply email match"
+            : "exact-name match (possible namesake)",
+        });
+      }
+    }
+  }
+  return [...byPerson.values()].sort((a, b) => b.commit_count - a.commit_count || a.person_name.localeCompare(b.person_name));
+}
+
 // One per-team card carries BOTH a grammar-correct identity lead (what it is / does /
 // who it serves) and the say -> did -> shipped public-proof strip. This replaces the
 // former separate project_identity card: identity and proof are one read, derived once
@@ -379,14 +488,29 @@ function buildSayDidShippedCards({ teams = [], githubProgressArtifacts = [], git
       const act = teamActivity(team, progressByTeam, releasesByTeam);
       const journey = team.journey || {};
       const name = team.name || team.record_id;
+      // Who actually authored this team's public commits (recovered from the scanner's
+      // matched_cohort_people; commits observed, person identity heuristically matched).
+      const contributors = aggregateMatchedContributors(act.progress);
 
-      const whatItDoes = actionPredicate(firstText(journey.solution, team.now, team.weekly_goals, focusFirstClause(team.focus)));
-      // Avoid the "focused on X ... provides an X" stutter: drop the focus clause
-      // from the identity lead only when the predicate already LEADS with that exact
-      // focus phrase (e.g. "...focused on P2P LLM router; it provides a P2P LLM router").
+      // The card-level basis reflects the strongest PROOF line (the did/shipped GitHub trace).
+      const claimBasis = act.observed ? EVIDENCE_BASIS.OBSERVED : EVIDENCE_BASIS.DECLARED;
+      // The capability identity lead ("it ___") is ALWAYS a declared self-description from
+      // journey.solution/team.now. Observed repo activity does NOT attest the specific declared
+      // capability — a Stripe-billing commit is not proof of "confidential TEE inference" — so
+      // what_it_does keeps declared/aspirational mood regardless of activity; the observed proof
+      // lives in the did/shipped lines, which carry their own per-line basis.
+      const whatItDoes = actionPredicate(
+        firstText(journey.solution, team.now, team.weekly_goals, focusFirstClause(team.focus)),
+        { mood: EVIDENCE_BASIS.DECLARED },
+      );
+      // Avoid the "focused on X ... provides an X" stutter: drop the focus clause from the
+      // identity lead when the predicate names that focus right after an article. Matching
+      // "(a|an|the) <focus>" anywhere (not just at the lead) is mood-agnostic — it collapses
+      // "aims to provide a P2P router" just like "provides a P2P router" — while still
+      // requiring the article so a mere suffix ("episode-based context engine") never trips it.
       const focusClause = focusFirstClause(team.focus);
       const stutters = Boolean(focusClause)
-        && new RegExp(`^[a-z]+\\s+(a|an|the)\\s+${focusClause.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(whatItDoes);
+        && new RegExp(`\\b(a|an|the)\\s+${focusClause.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(whatItDoes);
       const whatItIs = teamKindLabel(team, { includeFocus: !stutters });
       const whoItServes = firstText(journey.icp);
 
@@ -397,7 +521,19 @@ function buildSayDidShippedCards({ teams = [], githubProgressArtifacts = [], git
       // "Declared" so it never reads as observed. Transcript-derived did/shipped is a
       // RUNTIME concern (gated Supabase view); it must NOT be baked into this committed
       // public bundle (source_boundary: public_bundle).
-      const declaredDid = firstText(team.traction, team.journey?.next_milestone);
+      // traction is free-text; for many teams it holds FOUNDER PEDIGREE (ex-employer,
+      // university, fellowship, citations) rather than project output. Don't promote a resume
+      // into the project's "did" slot: if traction reads as pedigree (and isn't also
+      // describing shipped project work), prefer the declared next step for "did" and route
+      // the background to its own field so a credential isn't mislabelled as an accomplishment.
+      const tractionText = firstText(team.traction);
+      const PEDIGREE_RX = /\b(ex-|alumn|fellow|phd|university|college|\d+\+?\s*(yrs?|years)\b|citations?|co-author)\b/i;
+      const PROJECT_RX = /\b(launched|live|users?|shipped|prototype|pilot|sessions?|sdk|demo|mainnet|testnet|beta|waitlist|signups?)\b/i;
+      const tractionIsPedigree = Boolean(tractionText) && PEDIGREE_RX.test(tractionText) && !PROJECT_RX.test(tractionText);
+      const teamBackground = tractionIsPedigree ? compactText(tractionText, 200) : "";
+      const declaredDid = tractionIsPedigree
+        ? firstText(team.journey?.next_milestone, tractionText)
+        : firstText(tractionText, team.journey?.next_milestone);
       const did = act.latest
         ? compactText(act.latest.summary || latestExamples.join("; "), 220)
         : declaredDid
@@ -414,6 +550,13 @@ function buildSayDidShippedCards({ teams = [], githubProgressArtifacts = [], git
       const didBasis = act.latest ? "github_progress" : declaredDid ? "declared" : "none";
       const shippedBasis = act.releases.length ? "github_release" : declaredShipped ? "declared" : "none";
       const say = compactText(team.now || team.weekly_goals || focusFirstClause(team.focus) || "", 220);
+      // The team's own self-assessment, carried verbatim so an early-stage declared plan
+      // cannot render as a shipped product. Purely declared, never inferred.
+      const stageQualifier = {
+        stage: Number.isFinite(Number(journey.stage)) ? Number(journey.stage) : null,
+        self_confidence: compactText(journey.confidence || "", 24),
+        note: compactText(journey.evidence_notes || team.evidence_notes || "", 160),
+      };
 
       const refs = [
         sourceRef("team_record", {
@@ -432,6 +575,30 @@ function buildSayDidShippedCards({ teams = [], githubProgressArtifacts = [], git
           source_repo: artifact.source_repo || "",
         })),
       ];
+      const teamRef = refs[0];
+      const progressRefs = refs.filter(ref => ref.kind === "github_progress_artifact");
+      const releaseRefs = refs.filter(ref => ref.kind === "github_release_artifact");
+      // Each of the three lines is traced to the exact basis + refs it was built from, so a
+      // mixed card (observed did, declared shipped) is auditable line by line.
+      const trace = makeTrace({
+        method: "say_did_shipped",
+        version: ALGORITHM_VERSIONS.say_did_shipped,
+        basis: claimBasis,
+        confidence: act.observed ? "medium" : "low",
+        confidenceBasis: act.observed
+          ? `did from ${act.progress.length} github-progress artifact(s) (${act.totalUsefulCommits} useful commits)${act.releases.length ? `, ${act.releases.length} release(s)` : "; shipped is declared"}`
+          : `no public artifact found; identity and proof are the team's own declared fields${stageQualifier.self_confidence ? ` (self-confidence ${stageQualifier.self_confidence}, stage ${stageQualifier.stage ?? "?"})` : ""}`,
+        signals: [
+          traceSignal({ name: "say", value: say, detail: "declared current intent", sourceRefs: [teamRef] }),
+          traceSignal({ name: "did", value: did, detail: `basis: ${didBasis}`, sourceRefs: didBasis === "github_progress" ? progressRefs : [teamRef] }),
+          traceSignal({ name: "shipped", value: shipped, detail: `basis: ${shippedBasis}`, sourceRefs: shippedBasis === "github_release" ? releaseRefs : [teamRef] }),
+          ...(contributors.length
+            ? [traceSignal({ name: "contributors", value: contributors, detail: "cohort authors of this team's public commits (identity heuristically matched)", sourceRefs: progressRefs })]
+            : []),
+        ],
+        inputs: refs,
+        recompute: "buildSayDidShippedCards over committed team record + github-progress/release artifacts",
+      });
 
       return makeInsightCard({
         id: `cohort-insight:say-did-shipped:${slugPart(team.record_id)}`,
@@ -456,6 +623,11 @@ function buildSayDidShippedCards({ teams = [], githubProgressArtifacts = [], git
           shipped,
           shipped_basis: shippedBasis,
           observed_status: act.observed ? "public_signal_observed" : "unobserved",
+          claim_basis: claimBasis,
+          what_it_does_basis: "declared",
+          stage_qualifier: stageQualifier,
+          team_background: teamBackground,
+          contributors,
           public_activity: {
             observed_status: act.observed ? "public_signal_observed" : "declared_only",
             latest_week_start: isoDate(act.latest?.week_start || act.latest?.date),
@@ -469,6 +641,7 @@ function buildSayDidShippedCards({ teams = [], githubProgressArtifacts = [], git
             topics: act.activityMix.topics,
             authors: act.activityMix.authors,
           },
+          trace,
         },
       });
     });
@@ -516,10 +689,14 @@ function existingDependencyPairs(teams = [], dependencies = []) {
   return pairs;
 }
 
-const OVERLAP_STOPWORDS = new Set([
-  "about", "across", "agent", "agents", "build", "building", "cohort", "current", "data",
-  "demo", "first", "help", "need", "needs", "project", "public", "ship", "team", "teams",
-  "that", "their", "this", "user", "users", "with", "working",
+// Grammatical glue only. DOMAIN ubiquity (agent / tee / data / build / ship ...) used to
+// be hand-listed here, which meant a maintainer had to remember to stopword every new
+// cohort-wide buzzword or it would pad overlap scores. That job now belongs to the
+// inverse-document-frequency weighting in buildLatentOverlapCards: a term that appears
+// across the whole cohort decays to ~0 on its own. This set keeps only function words
+// that carry no signal at any frequency.
+const GENERIC_STOPWORDS = new Set([
+  "about", "across", "that", "their", "this", "with",
 ]);
 
 function overlapTokens(team) {
@@ -540,18 +717,33 @@ function overlapTokens(team) {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, " ")
       .split(/\s+/)
-      .filter(token => token.length >= 4 && !OVERLAP_STOPWORDS.has(token))
+      .filter(token => token.length >= 4 && !GENERIC_STOPWORDS.has(token))
       .forEach(token => out.add(token));
   }
   return out;
 }
 
-function scoreLatentOverlap({ sharedSkills, domainMatch, commonDependencies, sharedTokens }) {
-  const score = (sharedSkills.length * 22)
-    + (domainMatch ? 18 : 0)
-    + (commonDependencies.length * 16)
-    + Math.min(24, sharedTokens.length * 3);
-  return Math.min(100, Math.round(score));
+// Returns the score AND its component breakdown so a latent_overlap card can explain
+// exactly how its 0-100 number was reached (and a reviewer can verify the IDF term
+// component never exceeds its 24-point ceiling). sharedTokenWeight is the summed inverse-
+// document-frequency weight of the pair's shared terms (rare-shared ~1, cohort-ubiquitous
+// ~0), so common vocabulary can no longer pad an overlap. Same ceilings as the former
+// count-based component, so existing thresholds and confidence bands still hold.
+function scoreLatentOverlap({ sharedSkills, domainMatch, commonDependencies, sharedTokenWeight = 0 }) {
+  const skillsSubtotal = sharedSkills.length * 22;
+  const domainSubtotal = domainMatch ? 18 : 0;
+  const depsSubtotal = commonDependencies.length * 16;
+  const termsSubtotal = Math.min(24, Math.round(sharedTokenWeight * 3));
+  const total = Math.min(100, Math.round(skillsSubtotal + domainSubtotal + depsSubtotal + termsSubtotal));
+  return {
+    total,
+    breakdown: {
+      shared_skills: { count: sharedSkills.length, weight_each: 22, subtotal: skillsSubtotal },
+      domain_match: { matched: Boolean(domainMatch), subtotal: domainSubtotal },
+      common_dependencies: { count: commonDependencies.length, weight_each: 16, subtotal: depsSubtotal },
+      shared_terms_idf: { raw_weight: Math.round(sharedTokenWeight * 1000) / 1000, weight_each: 3, capped_at: 24, subtotal: termsSubtotal },
+    },
+  };
 }
 
 function confidenceForLatentScore(score) {
@@ -576,6 +768,27 @@ function buildLatentOverlapCards({ teams = [], clusters = [], dependencies = [],
   const skillSets = new Map(teamList.map(team => [team.record_id, normalizedSet(team.skill_areas)]));
   const dependencySets = new Map(teamList.map(team => [team.record_id, normalizedSet(team.dependencies)]));
   const tokenSets = new Map(teamList.map(team => [team.record_id, overlapTokens(team)]));
+  // Inverse document frequency across the cohort. A term in N of N teams carries no
+  // signal (weight 0); a term shared by only one pair carries full weight. This is what
+  // replaces the old hardcoded domain stopword list — ubiquity decays automatically, so
+  // "agent"/"tee"/"data" stop padding scores the moment they go cohort-wide.
+  const teamCount = teamList.length;
+  const tokenDocFreq = new Map();
+  for (const set of tokenSets.values()) {
+    for (const token of set) tokenDocFreq.set(token, (tokenDocFreq.get(token) || 0) + 1);
+  }
+  // idfMax is the weight of the rarest possible SHARED token (df = 2, the pair itself),
+  // used to normalize every weight into [0, 1]. With < 2 teams idf is meaningless.
+  const idfMax = Math.log(Math.max(2, teamCount) / 2);
+  const idfWeight = (token) => {
+    if (idfMax <= 0) return 1;
+    const df = tokenDocFreq.get(token) || teamCount;
+    return Math.max(0, Math.min(1, Math.log(teamCount / df) / idfMax));
+  };
+  // Below this IDF weight a shared term is treated as filler and dropped from the
+  // DISPLAYED public-trace terms (the score already discounts it to ~0); the full
+  // weighted list still rides the card's trace so nothing is silently lost.
+  const LATENT_TERM_DISPLAY_FLOOR = 0.15;
   const cards = [];
 
   for (let i = 0; i < teamList.length; i += 1) {
@@ -593,10 +806,32 @@ function buildLatentOverlapCards({ teams = [], clusters = [], dependencies = [],
       const domainMatch = Boolean(a.domain && b.domain && String(a.domain).toLowerCase() === String(b.domain).toLowerCase());
       const commonDependencies = intersection(dependencySets.get(a.record_id), dependencySets.get(b.record_id))
         .filter(id => id !== a.record_id && id !== b.record_id);
-      const sharedTokens = intersection(tokenSets.get(a.record_id), tokenSets.get(b.record_id))
+      const sharedTokensFull = intersection(tokenSets.get(a.record_id), tokenSets.get(b.record_id))
         .filter(token => !sharedSkills.includes(token))
-        .slice(0, 8);
-      const score = scoreLatentOverlap({ sharedSkills, domainMatch, commonDependencies, sharedTokens });
+        // Order shared terms by how distinctive they are so the displayed signal leads
+        // with the rare, meaningful overlap rather than whatever sorts first alphabetically.
+        .sort((x, y) => idfWeight(y) - idfWeight(x) || x.localeCompare(y));
+      // Sum the IDF weight over EVERY shared term (cohort-ubiquitous filler is ~0, so it
+      // cannot pad the score) — the score must reflect the FULL overlap, not just the top 8
+      // that get displayed. Summing the post-slice top-8 silently understated wide overlaps.
+      const sharedTokenWeight = sharedTokensFull.reduce((sum, token) => sum + idfWeight(token), 0);
+      // The trace/display keep only the most distinctive terms; the breakdown records the
+      // pre-slice total + a truncation flag so a recomputer holding the card knows the shown
+      // list is a top-N subset of a larger set (closes trace gap G1; each term carries its
+      // cohort document frequency + normalized IDF weight).
+      const sharedTokensTop = sharedTokensFull.slice(0, 8);
+      const sharedTermsWeighted = sharedTokensTop.map(term => ({
+        term,
+        doc_freq: tokenDocFreq.get(term) || teamCount,
+        idf_weight: Math.round(idfWeight(term) * 100) / 100,
+      }));
+      // Displayed terms also drop near-zero-weight filler ("around"/"where"/"data") so the
+      // public-trace chips reflect real signal (honesty fix H-O4).
+      const sharedTokens = sharedTermsWeighted.filter(t => t.idf_weight >= LATENT_TERM_DISPLAY_FLOOR).map(t => t.term);
+      const { total: score, breakdown: scoreBreakdown } = scoreLatentOverlap({ sharedSkills, domainMatch, commonDependencies, sharedTokenWeight });
+      scoreBreakdown.shared_terms_idf.shared_terms_total = sharedTokensFull.length;
+      scoreBreakdown.shared_terms_idf.shared_terms_shown = sharedTokensTop.length;
+      scoreBreakdown.shared_terms_idf.truncated = sharedTokensFull.length > sharedTokensTop.length;
       if (score < 35) continue;
 
       const reasons = latentReasonList({ sharedSkills, domainMatch, commonDependencies, sharedTokens, a, b });
@@ -613,6 +848,29 @@ function buildLatentOverlapCards({ teams = [], clusters = [], dependencies = [],
           ...sharedTokens,
         ].filter(Boolean).map((token) => [String(token).toLowerCase(), token]),
       ).values()].slice(0, 4).join(", ");
+      const teamRefA = sourceRef("team_record", { record_id: a.record_id, path: `cohort-data/teams/${a.record_id}.md` });
+      const teamRefB = sourceRef("team_record", { record_id: b.record_id, path: `cohort-data/teams/${b.record_id}.md` });
+      // A team with no primary cluster gets a distinct "cluster_unassigned" ref (label only,
+      // no record_id) so every cluster_record ref still resolves to a real on-disk cluster file.
+      const clusterRef = (cluster) => cluster.id === "_unclustered"
+        ? sourceRef("cluster_unassigned", { label: cluster.label })
+        : sourceRef("cluster_record", { record_id: cluster.id, label: cluster.label });
+      const refs = [teamRefA, teamRefB, clusterRef(aCluster), clusterRef(bCluster)];
+      const trace = makeTrace({
+        method: "latent_overlap_idf",
+        version: ALGORITHM_VERSIONS.latent_overlap,
+        basis: EVIDENCE_BASIS.INFERRED,
+        confidence: confidenceForLatentScore(score),
+        confidenceBasis: `inferred structural similarity, score ${score}/100 — neither team declared this link and no human confirmed it; a hint to verify, not an established relationship`,
+        signals: [
+          traceSignal({ name: "shared_skill_areas", value: sharedSkills, contribution: scoreBreakdown.shared_skills.subtotal, of: 100, sourceRefs: [teamRefA, teamRefB] }),
+          traceSignal({ name: "shared_domain", value: domainMatch ? a.domain : "", contribution: scoreBreakdown.domain_match.subtotal, of: 100, sourceRefs: [teamRefA, teamRefB] }),
+          traceSignal({ name: "shared_dependency_targets", value: commonDependencies, contribution: scoreBreakdown.common_dependencies.subtotal, of: 100, sourceRefs: [teamRefA, teamRefB] }),
+          traceSignal({ name: "shared_terms_idf", value: sharedTermsWeighted, detail: `idf-weighted across ${teamCount} cohort teams`, contribution: scoreBreakdown.shared_terms_idf.subtotal, of: 100, sourceRefs: [teamRefA, teamRefB] }),
+        ],
+        inputs: refs,
+        recompute: "buildLatentOverlapCards over committed cohort-data teams/clusters/dependencies",
+      });
       cards.push(makeInsightCard({
         id: `cohort-insight:latent-overlap:${slugPart(a.record_id)}:${slugPart(b.record_id)}`,
         kind: "latent_overlap",
@@ -623,14 +881,11 @@ function buildLatentOverlapCards({ teams = [], clusters = [], dependencies = [],
         summary: `No direct dependency record exists; the engine found ${reasons.slice(0, 2).join("; ")}.`,
         evidenceLevel: "inferred_public_metadata",
         confidence: confidenceForLatentScore(score),
-        sourceRefs: [
-          sourceRef("team_record", { record_id: a.record_id, path: `cohort-data/teams/${a.record_id}.md` }),
-          sourceRef("team_record", { record_id: b.record_id, path: `cohort-data/teams/${b.record_id}.md` }),
-          sourceRef("cluster_record", { record_id: aCluster.id, label: aCluster.label }),
-          sourceRef("cluster_record", { record_id: bCluster.id, label: bCluster.label }),
-        ],
+        sourceRefs: refs,
         contentJson: {
           score,
+          score_breakdown: scoreBreakdown,
+          idf_basis: { cohort_team_count: teamCount, idf_max: Math.round(idfMax * 1000) / 1000 },
           clusters: {
             [a.record_id]: aCluster,
             [b.record_id]: bCluster,
@@ -639,6 +894,7 @@ function buildLatentOverlapCards({ teams = [], clusters = [], dependencies = [],
           shared_domain: domainMatch ? a.domain : "",
           shared_dependency_targets: commonDependencies,
           shared_public_terms: sharedTokens,
+          shared_terms_weighted: sharedTermsWeighted,
           reasons,
           existing_dependency: false,
           suggested_actions: [
@@ -647,6 +903,7 @@ function buildLatentOverlapCards({ teams = [], clusters = [], dependencies = [],
             "create a dependency record if the overlap is real",
             "dismiss as false positive",
           ],
+          trace,
         },
       }));
     }
@@ -657,6 +914,210 @@ function buildLatentOverlapCards({ teams = [], clusters = [], dependencies = [],
     if (scoreCompare) return scoreCompare;
     return a.title.localeCompare(b.title);
   }).slice(0, limit);
+}
+
+// GitHub-attested cross-team collaboration edges. The github-progress audit attaches
+// a repo-level `collaboration.possible_cross_team_contributions` snapshot to each weekly
+// summary artifact: cohort members whose commits land on a repo linked to a DIFFERENT
+// team than their own. That snapshot is replicated across every weekly artifact for the
+// repo, so we dedupe on (repo, person, direction) before aggregating per unordered team
+// pair. Unlike latent_overlap (an INFERRED structural similarity), these edges are
+// OBSERVED public-commit authorship — but still confidence medium/low because the
+// author→person match is itself heuristic (github-noreply email = medium, exact name = low).
+// The author->person match quality is the CEILING (never "high": email/name matching is
+// itself heuristic). Volume lifts WITHIN that ceiling — a single one-commit attribution is
+// the weakest possible signal; sustained, multi-person contribution is stronger. A "medium"
+// per-contribution confidence is a github-noreply email match; "low" is an exact-name match
+// (a possible namesake), so a low-only edge can rise to low-medium on volume but no further.
+function collaborationEdgeConfidence(contributions) {
+  const hasStrongMatch = contributions.some(contrib => contrib.confidence === "medium");
+  const totalCommits = contributions.reduce((sum, contrib) => sum + (Number(contrib.commit_count) || 0), 0);
+  const contributorCount = new Set(contributions.map(contrib => contrib.person_id)).size;
+  if (hasStrongMatch) return (totalCommits >= 3 || contributorCount >= 2) ? "medium" : "low-medium";
+  return (totalCommits >= 5 && contributorCount >= 2) ? "low-medium" : "low";
+}
+
+// How the commit author was linked to a cohort person — the heuristic the whole "observed"
+// claim rests on, surfaced so a reader can judge an edge instead of trusting a bare word.
+function matchQualityLabel(confidence) {
+  return confidence === "medium"
+    ? "github-noreply email match"
+    : "exact-name match (possible namesake)";
+}
+
+function buildCollaborationEdgeCards({ teams = [], githubProgressArtifacts = [], limit = 40 } = {}) {
+  const teamById = new Map(
+    asArray(teams).filter(team => team?.record_id).map(team => [String(team.record_id).toLowerCase(), team]),
+  );
+  // pairKey -> Map(fingerprint -> contribution); the inner map dedupes the repo-level
+  // snapshot that the audit replicates into each weekly artifact for the same repo.
+  const edges = new Map();
+
+  for (const artifact of asArray(githubProgressArtifacts)) {
+    if (artifact?.artifact_kind && artifact.artifact_kind !== "github_progress_weekly_summary") continue;
+    const collaboration = artifact?.collaboration || {};
+    const repo = String(artifact?.source_repo || "").trim().toLowerCase();
+    const artifactId = artifact?.artifact_id || "";
+    const weekStart = isoDate(artifact?.week_start || artifact?.date);
+    for (const contrib of asArray(collaboration.possible_cross_team_contributions)) {
+      const personId = String(contrib?.person_id || "").trim();
+      if (!personId) continue;
+      const personName = compactText(contrib?.person_name || personId, 80);
+      const personTeams = [...new Set(asArray(contrib?.person_team_ids).map(id => String(id).toLowerCase()).filter(Boolean))];
+      const repoTeams = [...new Set(asArray(contrib?.repo_team_ids).map(id => String(id).toLowerCase()).filter(Boolean))];
+      const commitCount = Number(contrib?.commit_count) || 0;
+      const confidence = String(contrib?.confidence || "low").toLowerCase();
+      const examples = asArray(contrib?.examples)
+        .map(example => compactText(example?.subject || example, 120))
+        .filter(Boolean)
+        .slice(0, 2);
+      for (const fromTeam of personTeams) {
+        for (const toTeam of repoTeams) {
+          // Only real, distinct cohort teams form an edge. fromTeam = the contributor's
+          // own team; toTeam = the team whose public repo received the commits.
+          if (fromTeam === toTeam) continue;
+          if (!teamById.has(fromTeam) || !teamById.has(toTeam)) continue;
+          const pairKey = unorderedPairKey(fromTeam, toTeam);
+          if (!edges.has(pairKey)) edges.set(pairKey, new Map());
+          const contributions = edges.get(pairKey);
+          const fingerprint = `${repo}|${personId}|${fromTeam}|${toTeam}`;
+          const existing = contributions.get(fingerprint);
+          // A contributor committing across N weeks appears in N replicated snapshots,
+          // each carrying the same repo-level total; keep the largest, never sum.
+          if (!existing || commitCount > existing.commit_count) {
+            contributions.set(fingerprint, {
+              person_id: personId,
+              person_name: personName,
+              from_team: fromTeam,
+              to_team: toTeam,
+              repo,
+              commit_count: commitCount,
+              confidence,
+              reason: String(contrib?.reason || ""),
+              examples,
+              artifact_id: artifactId,
+              week_start: weekStart,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  const cards = [];
+  for (const [pairKey, contributionMap] of edges) {
+    const contributions = [...contributionMap.values()];
+    if (!contributions.length) continue;
+    const [teamAId, teamBId] = pairKey.split("|");
+    const aName = teamById.get(teamAId)?.name || teamAId;
+    const bName = teamById.get(teamBId)?.name || teamBId;
+    const totalCommits = contributions.reduce((sum, contrib) => sum + contrib.commit_count, 0);
+    const contributors = [...new Set(contributions.map(contrib => contrib.person_name))];
+    const repos = [...new Set(contributions.map(contrib => contrib.repo).filter(Boolean))];
+    const confidence = collaborationEdgeConfidence(contributions);
+
+    // Roll the deduped contributions up by direction (who committed to whose repo) so a
+    // bidirectional pair reads as two clear arrows instead of a flattened blob.
+    const directions = [...groupBy(contributions, contrib => `${contrib.from_team}->${contrib.to_team}`).entries()]
+      .map(([dirKey, list]) => {
+        const [fromTeam, toTeam] = dirKey.split("->");
+        return {
+          from_team: fromTeam,
+          to_team: toTeam,
+          from_team_name: teamById.get(fromTeam)?.name || fromTeam,
+          to_team_name: teamById.get(toTeam)?.name || toTeam,
+          contributors: [...new Set(list.map(contrib => contrib.person_name))],
+          repos: [...new Set(list.map(contrib => contrib.repo).filter(Boolean))],
+          commit_count: list.reduce((sum, contrib) => sum + contrib.commit_count, 0),
+          confidence: collaborationEdgeConfidence(list),
+          // Per-author basis so the edge's confidence is auditable: who, how many commits,
+          // and how strong the author->person identity match was (the whole claim's footing).
+          contributions: list
+            .map(contrib => ({
+              person_name: contrib.person_name,
+              commit_count: contrib.commit_count,
+              confidence: contrib.confidence,
+              match_quality: matchQualityLabel(contrib.confidence),
+              repo: contrib.repo,
+              week_start: contrib.week_start,
+            }))
+            .sort((x, y) => y.commit_count - x.commit_count || x.person_name.localeCompare(y.person_name)),
+        };
+      })
+      .sort((a, b) => b.commit_count - a.commit_count
+        || `${a.from_team}->${a.to_team}`.localeCompare(`${b.from_team}->${b.to_team}`));
+
+    const claimText = directions.length === 1
+      ? `${directions[0].contributors.join(", ")} (${directions[0].from_team_name}) committed to ${directions[0].to_team_name}'s public repo (${totalCommits} commit${totalCommits === 1 ? "" : "s"}).`
+      : `${contributors.length} cohort contributor${contributors.length === 1 ? "" : "s"} link ${aName} and ${bName} through ${repos.length} shared public repo${repos.length === 1 ? "" : "s"} (${totalCommits} commit${totalCommits === 1 ? "" : "s"}).`;
+
+      // The commits are observed, but if every author->person link is an exact-name match
+      // the IDENTITY is inferred — so the trace basis is honest about which it is, even
+      // though the public-metadata evidence_level (the commits) is unchanged.
+      const identityInferred = !contributions.some(contrib => contrib.confidence === "medium");
+      const refs = [
+        sourceRef("team_record", { record_id: teamAId, path: `cohort-data/teams/${teamAId}.md` }),
+        sourceRef("team_record", { record_id: teamBId, path: `cohort-data/teams/${teamBId}.md` }),
+        ...contributions
+          .filter(contrib => contrib.artifact_id)
+          .slice(0, 6)
+          .map(contrib => sourceRef("github_progress_artifact", {
+            artifact_id: contrib.artifact_id,
+            source_repo: contrib.repo,
+            week_start: contrib.week_start,
+          })),
+      ];
+      const trace = makeTrace({
+        method: "collaboration_edge_github",
+        version: ALGORITHM_VERSIONS.collaboration_edge,
+        basis: identityInferred ? EVIDENCE_BASIS.OBSERVED_INFERRED_IDENTITY : EVIDENCE_BASIS.OBSERVED,
+        confidence,
+        confidenceBasis: identityInferred
+          ? `commits are observed, but every author->person link is an exact-name match (possible namesake); ${totalCommits} commit(s), ${contributors.length} contributor(s)`
+          : `observed public commits with a github-noreply email author match; ${totalCommits} commit(s), ${contributors.length} contributor(s) across ${repos.length} repo(s)`,
+        signals: directions.map(dir => traceSignal({
+          name: `${dir.from_team}->${dir.to_team}`,
+          value: dir.contributions,
+          detail: `${dir.commit_count} commit(s), ${dir.confidence} confidence`,
+          sourceRefs: refs.filter(ref => ref.kind === "github_progress_artifact"),
+        })),
+        inputs: refs,
+        recompute: "buildCollaborationEdgeCards over committed github-progress collaboration snapshots",
+      });
+      cards.push(makeInsightCard({
+        id: `cohort-insight:collaboration-edge:${slugPart(teamAId)}:${slugPart(teamBId)}`,
+        kind: "collaboration_edge",
+        subjectType: "team_pair",
+        subjectIds: [teamAId, teamBId],
+        title: `${aName} / ${bName}: GitHub collaboration`,
+        claimText,
+        summary: `Observed public-GitHub cross-team contribution: ${directions.map(dir => `${dir.contributors.join(", ")} (${dir.from_team_name}) → ${dir.to_team_name}`).join("; ")}.`,
+        evidenceLevel: "observed_public_metadata",
+        confidence,
+        sourceRefs: refs,
+        contentJson: {
+          team_pair: [teamAId, teamBId],
+          total_commit_count: totalCommits,
+          contributor_count: contributors.length,
+          contributors,
+          repos,
+          directions,
+          identity_inferred: identityInferred,
+          evidence_basis: "public_github_commit_authorship",
+          suggested_actions: [
+            "confirm the cross-team contribution with both teams",
+            "record a dependency or collaboration if the work is ongoing",
+            "dismiss as a false positive if the commit-author match is wrong",
+          ],
+          trace,
+        },
+      }));
+  }
+
+  return cards
+    .sort((a, b) => (b.content_json?.total_commit_count || 0) - (a.content_json?.total_commit_count || 0)
+      || a.title.localeCompare(b.title))
+    .slice(0, limit);
 }
 
 function buildRotationReadModel() {
@@ -686,7 +1147,7 @@ function indexByKind(cards) {
 
 // Helpers injected into the award scaffold module (keeps awards in their own file
 // without duplicating the canonical card factory or risking a circular require).
-const AWARD_HELPERS = { asArray, compactText, sourceRef, groupBy, usefulCommitCount, releaseRows };
+const AWARD_HELPERS = { asArray, compactText, sourceRef, groupBy, usefulCommitCount, releaseRows, makeTrace, traceSignal, EVIDENCE_BASIS, ALGORITHM_VERSIONS };
 
 function buildAwardCards({
   teams = [],
@@ -717,9 +1178,10 @@ function buildCohortInsightBundle({
 } = {}) {
   const sayDidShipped = buildSayDidShippedCards({ teams, githubProgressArtifacts, githubReleaseArtifacts });
   const latentOverlaps = buildLatentOverlapCards({ teams, clusters, dependencies });
+  const collaborationEdges = buildCollaborationEdgeCards({ teams, githubProgressArtifacts });
   const awards = buildAwardCards({ teams, dependencies, githubProgressArtifacts, githubReleaseArtifacts, editorialCategories });
   const rotation = buildRotationReadModel();
-  const cards = [...sayDidShipped, ...latentOverlaps, ...awards];
+  const cards = [...sayDidShipped, ...latentOverlaps, ...collaborationEdges, ...awards];
   return {
     schema_version: INSIGHT_SCHEMA_VERSION,
     artifact_kind: "cohort_insight_bundle",
@@ -744,6 +1206,7 @@ function buildCohortInsightBundle({
     read_models: {
       say_did_shipped: sayDidShipped,
       latent_overlaps: latentOverlaps,
+      collaboration_edges: collaborationEdges,
       awards,
       rotation,
     },
@@ -752,6 +1215,7 @@ function buildCohortInsightBundle({
       kind_counts: {
         say_did_shipped: sayDidShipped.length,
         latent_overlap: latentOverlaps.length,
+        collaboration_edge: collaborationEdges.length,
         award: awards.length,
         rotation: 0,
       },
@@ -762,6 +1226,7 @@ function buildCohortInsightBundle({
       public_release_artifact_count: asArray(githubReleaseArtifacts).length,
       say_did_shipped_card_count: sayDidShipped.length,
       latent_overlap_candidate_count: latentOverlaps.length,
+      collaboration_edge_candidate_count: collaborationEdges.length,
       unobserved_say_did_shipped_count: sayDidShipped.filter(card => card.content_json?.observed_status === "unobserved").length,
     },
     policy: {
@@ -792,6 +1257,7 @@ function publicCohortInsights(source) {
     read_models: {
       say_did_shipped: [],
       latent_overlaps: [],
+      collaboration_edges: [],
       awards: [],
       rotation: buildRotationReadModel(),
     },
@@ -800,6 +1266,7 @@ function publicCohortInsights(source) {
       kind_counts: {
         say_did_shipped: 0,
         latent_overlap: 0,
+        collaboration_edge: 0,
         award: 0,
         rotation: 0,
       },
@@ -813,6 +1280,7 @@ module.exports = {
   buildAwardCards,
   loadEditorialAwardCategories: awardScaffold.loadEditorialAwardCategories,
   buildCohortInsightBundle,
+  buildCollaborationEdgeCards,
   buildLatentOverlapCards,
   buildRotationReadModel,
   buildSayDidShippedCards,

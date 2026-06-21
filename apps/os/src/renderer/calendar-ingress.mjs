@@ -1,4 +1,5 @@
 import {
+  DEFAULT_CALENDAR_CONFIG_KEY,
   DEFAULT_CALENDAR_ID,
   DEFAULT_CALENDAR_TIMEZONE,
   DEFAULT_CAPTURE_BOT_EMAIL,
@@ -28,6 +29,7 @@ import {
 } from "../vendor/calendar-ingress-client.mjs";
 
 export {
+  DEFAULT_CALENDAR_CONFIG_KEY,
   DEFAULT_CALENDAR_TIMEZONE,
   DEFAULT_CAPTURE_BOT_EMAIL,
   DEFAULT_ROUTING_POLICY,
@@ -51,7 +53,6 @@ export {
 };
 
 export const DEFAULT_GOOGLE_CALENDAR_ID = DEFAULT_CALENDAR_ID;
-export const DEFAULT_CALENDAR_CONFIG_KEY = "srwk:calendar_ingress_config";
 
 function esc(value) {
   return String(value ?? "").replace(/[&<>"']/g, (ch) => ({

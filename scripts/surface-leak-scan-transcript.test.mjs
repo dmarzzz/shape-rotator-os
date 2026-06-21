@@ -5,9 +5,9 @@ import os from "node:os";
 import path from "node:path";
 
 import {
-  scanPublicSurfaces,
-  scanText,
-} from "./transcript-surface-leak-scan.mjs";
+  scanTranscriptSurfaces as scanPublicSurfaces,
+  scanTranscriptText as scanText,
+} from "./surface-leak-scan.mjs";
 
 test("transcript surface leak scanner detects private transcript markers", () => {
   const findings = scanText(JSON.stringify({

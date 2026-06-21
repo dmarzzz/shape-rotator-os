@@ -25,8 +25,8 @@
 
 import yaml from "js-yaml";
 import { getManifest, getRecord } from "./sync-client.js";
-import { fetchPublicEvidenceCards, fetchCohortEvidenceCards, fetchCohortInsightCards } from "./supabase-evidence.mjs";
-import { evidenceDependencyRecords, collaborationContributionDependencyRecords } from "./cohort-evidence-index.mjs";
+import { fetchPublicEvidenceCards, fetchCohortEvidenceCards, COHORT_APP_READER_ENABLED, fetchCohortInsightCards } from "./supabase-evidence.mjs";
+import { evidenceDependencyRecords, insightCollaborationDependencyRecords, collaborationContributionDependencyRecords } from "./cohort-evidence-index.mjs";
 import { fetchCohortArticles } from "./supabase-articles.mjs";
 import { fetchCohortDistillations } from "./supabase-distillations.mjs";
 import { fetchAllSpheres } from "./supabase-sphere.mjs";
@@ -265,6 +265,23 @@ function normalize(data) {
     calendar:     (data?.calendar && typeof data.calendar === "object") ? data.calendar : null,
     calendar_google_events: objectMap(data?.calendar_google_events),
   };
+  // Derive GitHub-attested cross-team collaboration edges from the committed
+  // cohort_insights bundle into dependency records so the relationship / ecosystem
+  // map + collab model render them natively (no view code). Bundle-sourced, so this
+  // runs on EVERY surface (fixture / ls-cache / github) and the edges show on first
+  // paint — unlike the transcript session-observed edges, which only land after the
+  // async Supabase overlay. Idempotent: prior-derived records are stripped and
+  // re-derived from current insights, so an LS snapshot never compounds them.
+  // Precedence is declared > github-observed > transcript-observed: declared deps are
+  // never restated, and the github edges sit ahead of the transcript edges so
+  // constellationDependencyEdges' per-pair dedupe keeps the harder commit evidence.
+  const declaredDeps = out.dependencies.filter((d) => {
+    const id = String((d && d.record_id) || "");
+    return !id.startsWith("gh-collab-edge:") && !id.startsWith("evidence-edge:");
+  });
+  const transcriptEdges = out.dependencies.filter((d) => String((d && d.record_id) || "").startsWith("evidence-edge:"));
+  const githubEdges = insightCollaborationDependencyRecords(out.cohort_insights, declaredDeps);
+  out.dependencies = [...declaredDeps, ...githubEdges, ...transcriptEdges];
   if (typeof data?._generated_at === "string") out._generated_at = data._generated_at;
   return out;
 }
@@ -732,8 +749,15 @@ async function mergeSyncOverBaseline(baseline, overlay) {
 // surface keeps whatever cards it already carries, so the app degrades gracefully.
 async function applyEvidenceOverlay(surface) {
   try {
+    // The gated T2 cohort read is ENABLED (see COHORT_APP_READER_ENABLED): when a
+    // cohort key is configured the named/cohort-internal T2 cards load live; with no
+    // key it no-ops gracefully and we serve T2 from the committed bundle + the anon T3
+    // read. The 3rd read pulls gated cohort-insight cards (collaboration_contribution)
+    // for the live clique-edge path. All reads run in parallel and never throw.
     const [cohort, pub, insight] = await Promise.all([
-      fetchCohortEvidenceCards(), fetchPublicEvidenceCards(), fetchCohortInsightCards(),
+      COHORT_APP_READER_ENABLED ? fetchCohortEvidenceCards() : Promise.resolve({ cards: [], source: "disabled" }),
+      fetchPublicEvidenceCards(),
+      fetchCohortInsightCards(),
     ]);
     const gotCohort = cohort.source === "supabase-cohort";
     const gotPublic = pub.source === "supabase";
@@ -809,6 +833,10 @@ async function applyArticleOverlay(surface) {
 // the bundle ships only distillation counts (artifacts stripped), so the tab stays
 // raw-only until a cohort key is provisioned.
 async function applyDistillationOverlay(surface) {
+  // The cohort_app distillation view is live (see COHORT_APP_READER_ENABLED). With a
+  // cohort key the distilled readouts load into the transcripts tab; with no key the
+  // fetch no-ops and the tab serves the local raw vault only. Never throws.
+  if (!COHORT_APP_READER_ENABLED) return surface;
   try {
     const { artifacts, source } = await fetchCohortDistillations();
     if (source === "supabase-cohort") {

@@ -2,8 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   indexCohortEvidence, teamEvidence, recentClaims, edgePairs, weekHistogram,
-  evidenceDependencyRecords, teamTimeline, claimLane,
-  collaborationContributionDependencyRecords,
+  evidenceDependencyRecords, insightCollaborationDependencyRecords, collaborationContributionDependencyRecords, teamTimeline, claimLane,
 } from "../apps/os/src/renderer/cohort-evidence-index.mjs";
 
 const card = (claim_type, teams, week, claim_text = "x", extra = {}) => ({
@@ -76,6 +75,69 @@ test("evidenceDependencyRecords shape collaboration edges into renderable depend
 test("evidenceDependencyRecords does NOT restate an already-declared dependency", () => {
   const declared = [{ record_type: "dependency", source: "bitrouter", target: "teleport-router", relation: "depends_on" }];
   assert.deepEqual(evidenceDependencyRecords(cards, declared), [], "declared pair is skipped — no duplicate edge");
+});
+
+// ── GitHub-attested collaboration edges (insight-card kind → dependency records) ──
+const collabEdgeCard = (directions, extra = {}) => ({
+  id: "cohort-insight:collaboration-edge:alpha:delta",
+  kind: "collaboration_edge",
+  subject_type: "team_pair",
+  subject_ids: ["alpha", "delta"],
+  confidence: "medium",
+  claim_text: "Ada Stone (Delta Systems) committed to Alpha Lab's public repo (4 commits).",
+  source_refs: [
+    { kind: "github_progress_artifact", week_start: "2026-06-01", source_repo: "alpha/demo" },
+    { kind: "github_progress_artifact", week_start: "2026-06-08", source_repo: "alpha/demo" },
+  ],
+  content_json: { team_pair: ["alpha", "delta"], total_commit_count: 4, contributor_count: 1,
+    contributors: ["Ada Stone"], repos: ["alpha/demo"], directions, ...extra },
+});
+const oneWay = [{ from_team: "delta", to_team: "alpha", from_team_name: "Delta Systems",
+  to_team_name: "Alpha Lab", contributors: ["Ada Stone"], repos: ["alpha/demo"], commit_count: 4 }];
+const bundle = (cards) => ({ cards, read_models: { collaboration_edges: cards } });
+
+test("insightCollaborationDependencyRecords shapes a github collaboration_edge card into a directional dependency record", () => {
+  const recs = insightCollaborationDependencyRecords(bundle([collabEdgeCard(oneWay)]), []);
+  assert.equal(recs.length, 1);
+  const r = recs[0];
+  assert.equal(r.record_type, "dependency", "renders natively as a dependency record");
+  assert.equal(r.relation, "contributed_to");
+  assert.equal(r.status, "github_observed", "distinguishable from declared + session-observed edges");
+  // direction is the TRUE arrow (contributor team → repo-owner team), not the sorted pair
+  assert.equal(r.source, "delta");
+  assert.equal(r.target, "alpha");
+  assert.equal(r.record_id, "gh-collab-edge:delta>alpha");
+  assert.equal(r.confidence, "medium", "medium/low confidence rides through to the inspector");
+  assert.equal(r.updated_at, "2026-06-08", "latest backing week from source_refs");
+  assert.match(r.reason, /committed to Alpha Lab/, "the card claim rides as the edge reason");
+  assert.match(r.evidence[0], /alpha\/demo · 4 commits/, "repo + commit count as evidence");
+  assert.match(r.evidence[1], /Ada Stone/, "contributors as evidence");
+  // _commits scratch field is stripped from the emitted record
+  assert.equal("_commits" in r, false);
+});
+
+test("insightCollaborationDependencyRecords skips a pair that already has a declared dependency", () => {
+  const declared = [{ record_type: "dependency", source: "alpha", target: "delta", relation: "depends_on" }];
+  assert.deepEqual(insightCollaborationDependencyRecords(bundle([collabEdgeCard(oneWay)]), declared), []);
+});
+
+test("insightCollaborationDependencyRecords emits one record per direction (bidirectional → two, map collapses)", () => {
+  const twoWay = [
+    oneWay[0],
+    { from_team: "alpha", to_team: "delta", from_team_name: "Alpha Lab", to_team_name: "Delta Systems",
+      contributors: ["Bo"], repos: ["delta/repo"], commit_count: 2 },
+  ];
+  const recs = insightCollaborationDependencyRecords(bundle([collabEdgeCard(twoWay)]), []);
+  assert.equal(recs.length, 2);
+  assert.deepEqual(recs.map((r) => `${r.source}>${r.target}`).sort(), ["alpha>delta", "delta>alpha"]);
+});
+
+test("insightCollaborationDependencyRecords reads cards[] without a read_model, and is empty/safe on malformed input", () => {
+  // No read_models key — fall back to filtering cards[] by kind.
+  assert.equal(insightCollaborationDependencyRecords({ cards: [collabEdgeCard(oneWay)] }, []).length, 1);
+  for (const input of [null, undefined, {}, { cards: [] }, { cards: [{ kind: "say_did_shipped" }] }]) {
+    assert.deepEqual(insightCollaborationDependencyRecords(input, []), []);
+  }
 });
 
 test("claimLane maps claim_type to the timeline's lane (color/group key)", () => {

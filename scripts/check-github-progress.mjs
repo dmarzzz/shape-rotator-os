@@ -823,6 +823,14 @@ function buildArtifactObjects(report) {
         authors: event.evidence?.authors || [],
         examples: event.evidence?.examples || [],
       },
+      // Public-GitHub cross-team collaboration evidence, kept as a sibling of
+      // `evidence` (not inside it) so the evidence shape stays byte-stable. Both
+      // arrays are repo-level and confidence medium/low; the cohort-insight engine
+      // turns possible_cross_team_contributions into team-pair collaboration edges.
+      collaboration: {
+        matched_cohort_people: event.collaboration?.matched_cohort_people || [],
+        possible_cross_team_contributions: event.collaboration?.possible_cross_team_contributions || [],
+      },
     });
   }
 
@@ -898,6 +906,19 @@ function writeArtifacts(dir, artifacts, generatedAt) {
   writeJson(path.join(dir, "manifest.json"), manifest);
 }
 
+// Repo-level cohort attribution: which cohort members authored commits, and which
+// of those commits land on a repo linked to a DIFFERENT team than the author's own.
+// inspectRepo derives these once per repo; thread the snapshot onto every weekly event
+// for the repo so it survives into the committed weekly-summary artifact as a top-level
+// `collaboration` field. It is kept OUT of `evidence` so the evidence shape stays
+// byte-stable; downstream the cohort-insight engine dedupes the replicated snapshot.
+function repoCollaborationSnapshot(repo) {
+  return {
+    matched_cohort_people: asArray(repo?.matched_cohort_people),
+    possible_cross_team_contributions: asArray(repo?.possible_cross_team_contributions),
+  };
+}
+
 function buildTimelineEvents(repos) {
   const events = [];
   for (const repo of repos) {
@@ -905,6 +926,7 @@ function buildTimelineEvents(repos) {
     const linkedTeams = repo.linked_team_ids?.length
       ? repo.linked_team_ids
       : repo.sources.filter((source) => source.record_type === "team").map((source) => source.record_id);
+    const collaboration = repoCollaborationSnapshot(repo);
     for (const recordId of linkedTeams) {
       for (const week of repo.distilled.weekly) {
         const categories = week.categories.map((item) => item.key).join(", ") || "mixed";
@@ -934,6 +956,7 @@ function buildTimelineEvents(repos) {
             authors: week.authors,
             examples,
           },
+          collaboration,
         });
       }
     }

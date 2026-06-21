@@ -58,7 +58,8 @@
     "transcripts:distillations:review": "node scripts/review-transcript-distillation.mjs",
     "transcripts:public-articles": "node scripts/build-public-transcript-articles.mjs",
     "transcripts:app:update": "node scripts/update-transcript-app-surfaces.mjs",
-    "transcripts:surface:scan": "node scripts/transcript-surface-leak-scan.mjs",
+    "surface:scan": "node scripts/surface-leak-scan.mjs --all",
+    "transcripts:surface:scan": "node scripts/surface-leak-scan.mjs --transcripts",
     "transcripts:evidence:audit": "node scripts/audit-supabase-evidence-cards.mjs",
     "artifacts:otter": "node scripts/prepare-otter-artifacts.js",
     "artifacts:otter:manifest": "node scripts/prepare-otter-slides-manifest.js",
@@ -71,6 +72,7 @@
     "transcripts:evidence": "node scripts/build-transcript-evidence.js",
     "build:web-journal": "node scripts/build-web-journal.js",
     "test": "node --test \"scripts/**/*.test.js\" \"scripts/**/*.test.mjs\" \"apps/os/**/*.test.mjs\"",
+    "test:tiers": "node --test scripts/tiers.test.js",
     "test:calendar-integration": "node --test scripts/calendar-integration.test.js",
     "test:calendar-sync": "node --test scripts/google-calendar-sync.test.js",
     "test:calendar-mirror": "node --test scripts/google-calendar-mirror.test.js",
@@ -117,7 +119,7 @@
     "test:web-context-surface": "node --test scripts/web-context-surface.test.mjs",
     "test:public-article-policy": "node --test scripts/public-article-policy.test.mjs",
     "test:public-transcript-articles": "node --test scripts/public-transcript-articles.test.mjs",
-    "test:transcript-surface-leak-scan": "node --test scripts/transcript-surface-leak-scan.test.mjs",
+    "test:surface-leak-scan": "node --test scripts/surface-leak-scan.test.mjs scripts/surface-leak-scan-transcript.test.mjs scripts/surface-leak-scan-web.test.mjs",
     "test:supabase-evidence-audit": "node --test scripts/supabase-evidence-card-audit.test.mjs",
     "test:vendor-web": "node --test scripts/vendor-web.test.mjs",
     "test:transcript-app-update": "node --test scripts/transcript-app-update.test.mjs",
@@ -129,8 +131,7 @@
     "vendor:web": "node scripts/vendor-web.mjs",
     "deploy:web": "npm run vendor:web && node scripts/write-web-runtime-config.mjs && cd apps/web && npx --yes vercel deploy --prod --yes",
     "audit:github-releases": "node scripts/check-github-releases.mjs",
-    "web:surface:scan": "node scripts/web-public-surface-leak-scan.mjs",
-    "test:web-surface-leak-scan": "node --test scripts/web-public-surface-leak-scan.test.mjs"
+    "web:surface:scan": "node scripts/surface-leak-scan.mjs --web"
   },
   "devDependencies": {
     "js-yaml": "^4.1.1",

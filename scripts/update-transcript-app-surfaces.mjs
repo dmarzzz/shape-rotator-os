@@ -75,7 +75,7 @@ function main(argv = process.argv.slice(2)) {
   const exportArgs = envFile ? ["--env-file", envFile] : [];
   runNode(path.join("scripts", "export-transcript-distillations.mjs"), exportArgs);
   runNode(path.join("scripts", "build-public-transcript-articles.mjs"));
-  runNode(path.join("scripts", "transcript-surface-leak-scan.mjs"));
+  runNode(path.join("scripts", "surface-leak-scan.mjs"), ["--transcripts"]);
   runNode(path.join("scripts", "vendor-web.mjs"));
   runNode(path.join("scripts", "build-cohort-insights.mjs"), ["--check"]);
   runNode(path.join("scripts", "build-bundles.js"), ["--check"]);

@@ -184,6 +184,104 @@ export function evidenceDependencyRecords(cards = [], existingDeps = []) {
   }));
 }
 
+// GitHub-attested cross-team collaboration → dependency RECORDS the relationship /
+// ecosystem map renders natively (same contract as evidenceDependencyRecords, but
+// sourced from the COMMITTED cohort_insights bundle rather than live transcript cards).
+// The cohort-insight engine emits `collaboration_edge` cards (kind), one per unordered
+// team pair, whose content_json.directions hold the real arrows (contributor team →
+// repo-owner team). We emit ONE directional record per direction so the map draws the
+// true arrow; bidirectional pairs collapse to a `mutual` edge downstream.
+//   - relation "contributed_to" (meaning key → collaboration in the edge grammar);
+//   - status "github_observed" so it stays distinguishable from declared + session edges;
+//   - SKIPPED where a declared dependency already links the pair (never restate);
+//   - provenance rides reason (the card claim) + evidence (repo · commits · contributors)
+//     + confidence (medium/low) + updated_at (latest backing week), so the inspector
+//     shows it as public-GitHub observed, review status visible.
+// MERGE-UNION NOTE: this directional builder (branch) and collaborationContribution-
+// DependencyRecords (main, clique-from-live-cards) BOTH ship — they feed two distinct
+// call sites in cohort-source.js (the committed-bundle path and the live-insight path).
+// Owner follow-up: dedupe the two sources downstream if both populate the same pair.
+function collaborationEdgeCards(cohortInsights) {
+  const ci = cohortInsights && typeof cohortInsights === "object" ? cohortInsights : {};
+  const fromReadModel = ci.read_models && Array.isArray(ci.read_models.collaboration_edges)
+    ? ci.read_models.collaboration_edges
+    : null;
+  const list = fromReadModel || (Array.isArray(ci.cards) ? ci.cards : []);
+  return list.filter((card) => card && card.kind === "collaboration_edge");
+}
+
+function latestWeekFromRefs(refs) {
+  let latest = "";
+  for (const ref of Array.isArray(refs) ? refs : []) {
+    const week = String((ref && ref.week_start) || "").slice(0, 10);
+    if (week && week > latest) latest = week;
+  }
+  return latest;
+}
+
+function cardDirections(card) {
+  const cj = card && card.content_json && typeof card.content_json === "object" ? card.content_json : {};
+  if (Array.isArray(cj.directions) && cj.directions.length) return cj.directions;
+  // Fallback: no direction detail — use the unordered pair as a single best-effort arrow.
+  const pair = Array.isArray(cj.team_pair) && cj.team_pair.length >= 2
+    ? cj.team_pair
+    : (Array.isArray(card && card.subject_ids) ? card.subject_ids : []);
+  if (pair.length < 2) return [];
+  return [{ from_team: pair[0], to_team: pair[1], contributors: cj.contributors, repos: cj.repos }];
+}
+
+export function insightCollaborationDependencyRecords(cohortInsights, existingDeps = []) {
+  const cards = collaborationEdgeCards(cohortInsights);
+  if (!cards.length) return [];
+  const declaredPairs = new Set();
+  for (const d of Array.isArray(existingDeps) ? existingDeps : []) {
+    const a = String((d && d.source) || "").trim();
+    const b = String((d && d.target) || "").trim();
+    if (a && b) declaredPairs.add(unorderedPair(a, b));
+  }
+  const byDir = new Map();
+  for (const card of cards) {
+    const confidence = String(card.confidence || "low");
+    const reason = String(card.claim_text || "").slice(0, 200);
+    const week = latestWeekFromRefs(card.source_refs);
+    for (const dir of cardDirections(card)) {
+      const from = String((dir && dir.from_team) || "").trim();
+      const to = String((dir && dir.to_team) || "").trim();
+      if (!from || !to || from === to) continue;
+      if (declaredPairs.has(unorderedPair(from, to))) continue;
+      const commits = Number(dir.commit_count) || 0;
+      const repos = (Array.isArray(dir.repos) ? dir.repos : []).filter(Boolean);
+      const contributors = (Array.isArray(dir.contributors) ? dir.contributors : []).filter(Boolean);
+      const evidence = [
+        repos.length
+          ? `github · ${repos.slice(0, 3).join(", ")}${commits ? ` · ${commits} commit${commits === 1 ? "" : "s"}` : ""}`
+          : "github-observed contribution",
+        contributors.length ? `contributors: ${contributors.slice(0, 4).join(", ")}` : "",
+      ].filter(Boolean);
+      const key = `${from}>${to}`;
+      const prev = byDir.get(key);
+      // One card per pair, but the same direction can appear across multiple cards if
+      // the bundle ever splits them — keep the richer (more commits) observation.
+      if (!prev || commits > prev._commits) {
+        byDir.set(key, {
+          record_type: "dependency",
+          record_id: `gh-collab-edge:${key}`,
+          source: from,
+          target: to,
+          relation: "contributed_to",
+          status: "github_observed",
+          confidence,
+          reason,
+          evidence,
+          updated_at: week,
+          _commits: commits,
+        });
+      }
+    }
+  }
+  return [...byDir.values()].map(({ _commits, ...record }) => record);
+}
+
 // GitHub collaboration-contribution cards → dependency RECORDS the ecosystem /
 // relationship map renders natively (same contract as evidenceDependencyRecords).
 // The engine emits one card per (contributing team → repo); the map is TEAM↔TEAM, so
