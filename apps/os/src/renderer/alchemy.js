@@ -12972,13 +12972,13 @@ function renderCollab() {
     const deg = m.indegree.get(o.rid) || 0;
     const selectedCls = collabSameSelection(selected, { type: "team", rid: o.rid }) ? " is-selected" : "";
     const focusCls = o.rid === focusRid ? " is-focus" : "";
-    headCells += `<button type="button" class="cb-colhead${deg >= 5 ? " is-key" : ""}${selectedCls}${focusCls}" data-col="${ci}" data-collab-open="${escAttr(o.rid)}" title="${escAttr(o.team.name + " — " + deg + " teams depend on it")}"><span>${escHtml(o.team.name)}</span></button>`;
+    headCells += `<button type="button" class="cb-colhead${deg >= 5 ? " is-key" : ""}${selectedCls}${focusCls}" data-col="${ci}" data-collab-focus-team="${escAttr(o.rid)}" title="${escAttr(o.team.name + " — " + deg + " teams depend on it · click to focus")}"><span>${escHtml(o.team.name)}</span></button>`;
   });
   let rows = `<div class="cb-row cb-headrow" style="${colN}">${headCells}</div>`;
   ordered.forEach((R, ri) => {
     const selectedCls = collabSameSelection(selected, { type: "team", rid: R.rid }) ? " is-selected" : "";
     const rowFocus = R.rid === focusRid;
-    let line = `<button type="button" class="cb-rowhead${selectedCls}${rowFocus ? " is-focus" : ""}" data-row="${ri}" data-collab-open="${escAttr(R.rid)}" title="${escAttr(R.team.name + " · " + R.clusterLabel)}"><span class="cb-rowhead-name">${escHtml(R.team.name)}</span><span class="cb-rowhead-grp">${escHtml(R.clusterLabel)}</span></button>`;
+    let line = `<button type="button" class="cb-rowhead${selectedCls}${rowFocus ? " is-focus" : ""}" data-row="${ri}" data-collab-focus-team="${escAttr(R.rid)}" title="${escAttr(R.team.name + " · " + R.clusterLabel + " · click to focus")}"><span class="cb-rowhead-name">${escHtml(R.team.name)}</span><span class="cb-rowhead-grp">${escHtml(R.clusterLabel)}</span></button>`;
     ordered.forEach((C, ci) => {
       const band = (rowFocus || C.rid === focusRid) ? " is-focus-band" : "";
       line += collabCell(R, C, ri, ci, m, lens, true, selected, band);
@@ -13162,20 +13162,18 @@ function wireCollab() {
       else setCollabSelection(next);
     });
   }
-  // Hover a row/column header → preview that team's full (curated) inspector in
-  // the side panel, so company details are readable without clicking in. Reuses
-  // the team inspector; reverts to default on leave when nothing is pinned.
-  for (const el of state.canvas.querySelectorAll(".cb-colhead, .cb-rowhead")) {
-    const rid = el.getAttribute("data-collab-open");
-    if (!rid) continue;
-    el.addEventListener("mouseenter", () => previewCollabInspector({ type: "team", rid }));
-    el.addEventListener("mouseleave", () => {
-      if (!state.collabSelection) setCollabInspectorHtml(collabInspectorDefaultHtml(collabCurrentModel()));
+  // Click a map row/column header → focus that team: personalise the route sheet
+  // and light its row + column. Re-clicking the focused team clears it. This ties
+  // the cohort map back to the answer up top (and parallels the team picker).
+  for (const el of state.canvas.querySelectorAll("[data-collab-focus-team]")) {
+    el.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const rid = el.getAttribute("data-collab-focus-team") || "";
+      state.collabFocus = (rid && rid === state.collabFocus) ? null : (rid || null);
+      render({ instant: true });
     });
   }
-  // [data-collab-open] keystone/header activation is bound by
-  // wireCollabInspectorActions(state.canvas) above (shared with the per-swap
-  // re-bind), so no separate loop here.
   const grid = state.canvas.querySelector(".cb-grid");
   if (!grid) return;
   let activeRow = null;

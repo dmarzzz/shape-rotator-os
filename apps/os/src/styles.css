@@ -12544,37 +12544,28 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 
 /* merged legend + filter: a raised physical switch. Each segment is a key AND a
    filter (hover previews via :has below; click commits the lens). */
-.cb-lensfilter { display: inline-flex; align-items: stretch; border: 1px solid var(--alchemy-rule); border-radius: 10px; background-image: var(--cb-toplight); background-color: rgba(var(--ink-rgb), 0.025); box-shadow: var(--cb-raise-sm), var(--cb-edge-hi); overflow: hidden; }
-.cb-lens-seg { display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; background: transparent; border: 0; border-right: 1px solid var(--alchemy-rule); cursor: pointer; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--alchemy-ink-mute); transition: color 180ms var(--ease), background 180ms var(--ease); }
-.cb-lens-seg:hover { color: var(--alchemy-paper-warm); background: rgba(var(--ink-rgb), 0.04); }
-.cb-lens-seg[aria-pressed="true"] { color: var(--alchemy-paper-warm); background-image: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.012)); box-shadow: var(--cb-edge-hi), 0 2px 6px -3px rgba(0,0,0,0.5), inset 0 -2px 0 var(--alchemy-oxide-bright); }
-.cb-lens-seg .cb-lens-count { font-style: normal; color: var(--alchemy-paper-warm); font-variant-numeric: tabular-nums; opacity: 0.7; }
-.cb-lens-seg[aria-pressed="true"] .cb-lens-count { opacity: 1; }
-.cb-lens-seg:focus-visible { outline: 2px solid color-mix(in srgb, var(--alchemy-oxide-bright) 80%, transparent); outline-offset: -2px; }
+/* Lens filter = the house segmented pill (same family as the standing
+   trajectory ⇄ gap toggle, .ac-proj-toggle): pill shape, mono-lowercase
+   segments, aria-pressed brightens, oxide count, scale on press. */
+.cb-lensfilter { display: inline-flex; flex: 0 0 auto; border: 1px solid rgba(var(--ink-rgb), 0.13); border-radius: 999px; overflow: hidden; }
+.cb-lens-seg { appearance: none; display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; background: transparent; border: 0; cursor: pointer; white-space: nowrap; font-family: var(--ed-mono, var(--font-mono)); font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: lowercase; line-height: 1; color: rgba(var(--ink-rgb), 0.55); transition: color 150ms var(--ease), background 150ms var(--ease); }
+.cb-lens-seg + .cb-lens-seg { border-left: 1px solid rgba(var(--ink-rgb), 0.10); }
+.cb-lens-seg:hover { color: var(--alchemy-paper-warm); }
+.cb-lens-seg[aria-pressed="true"] { color: var(--alchemy-paper-warm); background: linear-gradient(180deg, rgba(var(--ink-rgb), 0.13), rgba(var(--ink-rgb), 0.065)); }
+.cb-lens-seg:active { transform: scale(0.97); }
+.cb-lens-seg:focus-visible { outline: 1px solid var(--alchemy-oxide-bright); outline-offset: 1px; }
+.cb-lens-seg .cb-lens-count { font-style: normal; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--alchemy-oxide-bright); }
 .cb-lens-seg .cb-legend-mark { position: relative; width: 12px; height: 12px; flex: 0 0 12px; }
-.cb-lens-key { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(var(--ink-rgb), 0.5); cursor: default; }
-.cb-lens-key .cb-legend-mark { position: relative; width: 12px; height: 12px; flex: 0 0 12px; }
-.cb-lens-key:first-of-type { border-left: 1px solid var(--alchemy-rule); margin-left: 2px; box-shadow: inset 6px 0 10px -8px rgba(0,0,0,0.5); }
+/* (Removed dead .cb-lens-key + .cb-scope-token CSS — the rebuilt board has no
+   scope/sort tokens and the legend is .cb-readkey, not .cb-lens-key.) */
 
-/* scope/sort tokens — quiet, faint lift */
-.cb-scope { display: inline-flex; gap: 8px; align-items: center; }
-.cb-scope-token { display: inline-flex; align-items: baseline; gap: 6px; padding: 6px 10px; border: 1px solid var(--alchemy-rule); border-radius: 8px; background-color: transparent; cursor: pointer; font-family: var(--font-mono); font-size: 10px; color: var(--alchemy-ink-mute); transition: border-color 180ms var(--ease), color 180ms var(--ease), box-shadow 180ms var(--ease); }
-.cb-scope-token:hover { border-color: rgba(var(--ink-rgb), 0.28); color: var(--alchemy-paper-warm); box-shadow: var(--cb-raise-sm), var(--cb-edge-hi); }
-.cb-scope-token:active { transform: translateY(1px); }
-.cb-scope-token:focus-visible { outline: 2px solid color-mix(in srgb, var(--alchemy-oxide-bright) 80%, transparent); outline-offset: 2px; }
-.cb-scope-token span { text-transform: uppercase; letter-spacing: 0.1em; font-size: 8.5px; opacity: 0.7; }
-.cb-scope-token b { font-weight: 600; color: var(--alchemy-paper-warm); }
-
-/* hover-preview: the filter now lives in the control band (a sibling of the
-   matrix under .alch-cohort-page), so isolation is scoped from that ancestor. */
+/* Legend-is-the-filter: hovering / focusing a lens segment dims the cells it does
+   NOT describe (pure-CSS linked brushing) — the house "legend as control" pattern,
+   the natural faceting now that the sort/scope tokens are gone. */
 .alch-cohort-page:has(.cb-lens-seg[data-legend-cell="dep"]:hover) .cb-cell.has-so:not(.has-dep),
 .alch-cohort-page:has(.cb-lens-seg[data-legend-cell="dep"]:focus-visible) .cb-cell.has-so:not(.has-dep) { opacity: 0.16; }
 .alch-cohort-page:has(.cb-lens-seg[data-legend-cell="so"]:hover) .cb-cell.has-dep:not(.has-so),
 .alch-cohort-page:has(.cb-lens-seg[data-legend-cell="so"]:focus-visible) .cb-cell.has-dep:not(.has-so) { opacity: 0.16; }
-.alch-cohort-page:has(.cb-lens-key[data-legend-cell="scale"]:hover) .cb-cell.has-so.s1,
-.alch-cohort-page:has(.cb-lens-key[data-legend-cell="scale"]:hover) .cb-cell.has-so.s2 { opacity: 0.22; }
-.alch-cohort-page:has(.cb-lens-key[data-legend-cell="key"]:hover) .cb-colhead:not(.is-key) { opacity: 0.3; }
-.alch-cohort-page:has(.cb-lens-key[data-legend-cell="key"]:hover) .cb-colhead.is-key { color: var(--alchemy-oxide-bright); opacity: 1; }
 
 /* matrix — flat grid resting in a soft POOL OF LIGHT (no box edge) */
 .alch-collab .cb-scroll { background: transparent; border: 0; border-radius: 0; }
@@ -12631,9 +12622,27 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 .cb-lead { margin: 0 0 2px; }
 .cb-lead-title { font-family: var(--font-sans); font-size: 23px; font-weight: 600; letter-spacing: -0.01em; color: var(--alchemy-paper-warm); margin: 0; }
 .cb-lead-sub { font-size: 13px; line-height: 1.5; color: var(--alchemy-ink-mute); margin: 6px 0 16px; max-width: 480px; }
-.cb-picker { display: inline-flex; align-items: center; gap: 9px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(var(--ink-rgb), 0.42); }
-.cb-picker select { background: rgba(var(--ink-rgb), 0.04); color: var(--alchemy-paper-warm); border: 1px solid var(--alchemy-rule); border-radius: 9px; padding: 8px 12px; font-family: var(--font-sans); font-size: 14px; cursor: pointer; transition: border-color 160ms var(--ease); }
-.cb-picker select:hover, .cb-picker select:focus-visible { border-color: color-mix(in srgb, var(--cb-preview-dep) 55%, var(--alchemy-rule)); outline: none; }
+/* Team picker = the house pill chrome (.ac-sent-tok family): pill shape,
+   ink-gradient fill, a caret like .ac-sent-chev, oxide focus. Kept a native
+   <select> (its type-to-search beats a 26-item token menu), just dressed to
+   match. */
+.cb-picker { display: inline-flex; align-items: center; gap: 8px; font-family: var(--ed-mono, var(--font-mono)); font-size: 10px; letter-spacing: 0.05em; text-transform: lowercase; color: rgba(var(--ink-rgb), 0.45); }
+.cb-picker select {
+  appearance: none; -webkit-appearance: none;
+  color: var(--alchemy-paper-warm);
+  border: 1px solid rgba(var(--ink-rgb), 0.13);
+  border-radius: 999px;
+  padding: 5px 30px 5px 13px;
+  font-family: var(--ed-mono, var(--font-mono)); font-size: 12.5px; font-weight: 600;
+  letter-spacing: 0.02em; text-transform: none; line-height: 1.15; cursor: pointer;
+  background:
+    linear-gradient(45deg, transparent 50%, rgba(var(--ink-rgb), 0.5) 50%) calc(100% - 16px) center / 4px 4px no-repeat,
+    linear-gradient(135deg, rgba(var(--ink-rgb), 0.5) 50%, transparent 50%) calc(100% - 12px) center / 4px 4px no-repeat,
+    linear-gradient(180deg, rgba(var(--ink-rgb), 0.05), rgba(var(--ink-rgb), 0.02));
+  transition: border-color 150ms var(--ease), background-color 150ms var(--ease);
+}
+.cb-picker select:hover { border-color: rgba(var(--ink-rgb), 0.26); }
+.cb-picker select:focus-visible { outline: 1px solid var(--alchemy-oxide-bright); outline-offset: 1px; }
 .cb-lead-controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 
 .alch-collab .cb-route { margin-top: 18px; }
@@ -12646,8 +12655,10 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 .alch-collab .cb-route-pip.is-dep { background: var(--cb-preview-dep); }
 .alch-collab .cb-route-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 11px 14px; border: 1px solid var(--alchemy-rule); border-radius: 11px; margin-bottom: 8px; background: rgba(var(--ink-rgb), 0.014); cursor: pointer; transition: border-color 150ms var(--ease), background 150ms var(--ease), transform 150ms var(--ease); }
 .alch-collab .cb-route-row:hover { border-color: rgba(var(--ink-rgb), 0.2); background: rgba(var(--ink-rgb), 0.03); transform: translateY(-1px); }
-.alch-collab .cb-route-row:active { transform: translateY(0) scale(0.997); }
-.alch-collab .cb-route-row:focus-visible { outline: 2px solid color-mix(in srgb, var(--alchemy-oxide-bright) 80%, transparent); outline-offset: 2px; }
+.alch-collab .cb-route-row:active { transform: translateY(0) scale(0.994); transition-duration: 90ms; }
+/* data rows take the house gold INSET focus ring (the say/did/shipped row
+   pattern), not the oxide outline used by the controls — controls vs data. */
+.alch-collab .cb-route-row:focus-visible { outline: none; box-shadow: inset 0 0 0 1px rgba(214,189,134,0.5); }
 .alch-collab .cb-route-row.is-mut { border-color: color-mix(in srgb, var(--cb-preview-gold) 40%, var(--alchemy-rule)); background: color-mix(in srgb, var(--cb-preview-gold) 5%, transparent); }
 .alch-collab .cb-route-row.is-deprow { border-color: color-mix(in srgb, var(--cb-preview-dep) 32%, var(--alchemy-rule)); cursor: pointer; }
 .alch-collab .cb-route-nm { font-size: 13.5px; font-weight: 600; color: var(--alchemy-paper-warm); flex: 0 0 auto; }
@@ -12743,9 +12754,9 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 
 /* honor reduced-motion: keep the depth, drop the movement */
 @media (prefers-reduced-motion: reduce) {
-  .cb-peruse-row, .cb-route2-row, .cb-pair2-row, .cb-scope-token, .cb-intake-open, .cb-inspector-lead.is-team, .cb-jump, .cb-lens-seg, .alch-collab .cb-cell .cb-mark { transition: none; }
-  .cb-peruse-row:hover, .cb-route2-row:hover, .cb-pair2-row:hover { transform: none; }
-  .cb-peruse-row:active, .cb-route2-row:active, .cb-pair2-row:active, .cb-scope-token:active, .cb-intake-open:active { transform: none; }
+  .cb-peruse-row, .cb-route2-row, .cb-pair2-row, .cb-route-row, .cb-intake-open, .cb-inspector-lead.is-team, .cb-jump, .cb-lens-seg, .alch-collab .cb-cell, .cb-picker select { transition: none; }
+  .cb-peruse-row:hover, .cb-route2-row:hover, .cb-pair2-row:hover, .cb-route-row:hover { transform: none; }
+  .cb-peruse-row:active, .cb-route2-row:active, .cb-pair2-row:active, .cb-route-row:active, .cb-intake-open:active, .cb-lens-seg:active { transform: none; }
 }
 
 /* intros */
