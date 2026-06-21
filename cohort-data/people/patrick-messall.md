@@ -8,7 +8,6 @@ role: "Head of Strategy"
 role_class: cohort-member
 geo: "Nomad / NYC"
 domain: tee
-email: "pmessall@gmail.com"
 dates_start: 2026-05-18
 dates_end: 2026-07-25
 links:
@@ -19,7 +18,6 @@ comm_style: |
   lets chat in person
 weekly_intention: "personal - agent setup; team - vision map"
 now: "Helping TinyCloud sharpen strategy, vision mapping, and product narrative around user-owned cloud."
-dietary_restrictions:
 skill_areas:
   - strategy
   - crypto-product

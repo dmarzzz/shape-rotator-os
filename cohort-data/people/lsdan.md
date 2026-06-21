@@ -8,7 +8,6 @@ role: "Tech, Architecture, TEE Stuff"
 role_class: cohort-member
 geo: "NYC, nomadic"
 domain: tee
-email: null
 dates_start: 2026-05-18T00:00:00.000Z
 dates_end: 2026-07-25T00:00:00.000Z
 links:
@@ -20,7 +19,6 @@ comm_style: "Sync with recording preferred. Contact me in the house or DM me on 
 contribute_interests: "Happy to work on anything TEE related, SQL/DB related, whatever. I like working on different things and will be happy to contribute."
 availability_pref: "Never available Sundays."
 weekly_intention: "I want a functioning production ready cluster online this week."
-dietary_restrictions: "low salt, low fat, heart healthy"
 now: "Generalizing TeeSQL into an attestation-gated mesh for any open-source workload — hunting a European confidential-computing enterprise ICP."
 skill_areas:
   - tee

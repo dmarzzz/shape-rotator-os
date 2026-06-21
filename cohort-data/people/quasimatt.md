@@ -13,7 +13,6 @@ links:
   x: "quasimatt"
   website: "https://quasimatt.com"
   linkedin: "mattvanommeren"
-dietary_restrictions:
 now: "Building Shake Social, an iOS relationship-tracking app meant to feel lightweight and fun."
 skill_areas:
   - consumer-apps

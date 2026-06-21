@@ -81,8 +81,9 @@ function fingerprintRecord(listKey, r) {
 }
 
 // Current fingerprint set for a mode, or null when the mode is unmapped
-// or the surface has no records for it (offline / partial load — never
-// compare against, never overwrite a stored baseline with, emptiness).
+// or the surface is unavailable. Mapped empty modes return [] so the
+// first later record is counted as unread instead of silently becoming
+// the new baseline.
 function setForMode(mode, surface) {
   const lists = MODE_SOURCES[mode];
   if (!lists || !surface) return null;
@@ -92,7 +93,7 @@ function setForMode(mode, surface) {
       if (r && r.record_id) out.push(fingerprintRecord(key, r));
     }
   }
-  return out.length ? out.sort() : null;
+  return out.sort();
 }
 
 function loadSeen() {

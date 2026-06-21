@@ -8,7 +8,6 @@ role: lead
 role_class: cohort-member
 geo: NYC
 domain: ai
-email: null
 dates_start: 2026-05-17
 dates_end: 2026-07-25
 links:
@@ -20,7 +19,6 @@ comm_style: Sync
 contribute_interests: "Mostly backend and brainstorming if possible :)"
 availability_pref: "Flexible / async"
 weekly_intention: "Ship one backend feature"
-dietary_restrictions: vegetarian
 now: "Shipping Conclave backend work and translating NDAI Agreements into a usable skills/runtime surface."
 skill_areas:
   - tee

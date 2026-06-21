@@ -8,7 +8,6 @@ role: "engineer"
 role_class: visiting-scholar
 geo: "UK (GMT+1)"
 domain: tee
-email: kristian.koci@feeltech.co.uk
 dates_start: 2026-05-18
 dates_end: 2026-07-25
 links:
@@ -28,7 +27,6 @@ skill_areas:
   - attestation
   - agentic
   - post-quantum
-dietary_restrictions:
 go_to_them_for:
   - dual-agent attestation
   - DCAP verification

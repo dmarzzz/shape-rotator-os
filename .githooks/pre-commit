@@ -1,0 +1,9 @@
+#!/bin/sh
+# Privacy boundary (layer 3 of 5): block any commit that would leak private
+# engine-layer data — transcript vault, selection/applicant archive, organizer
+# notes, raw transcripts, or secrets — into this PUBLIC repo.
+#
+# Single source of truth: scripts/check-commit-privacy-boundary.mjs
+# To intentionally allow a true false positive, add the path to
+# .privacy-guard-allowlist. Do NOT bypass with --no-verify.
+node scripts/check-commit-privacy-boundary.mjs --staged

@@ -8,7 +8,6 @@ role: lead
 role_class: cohort-member
 geo: distributed (NYC / SF / Asia)
 domain: crypto
-email: null
 dates_start: 2026-05-18
 dates_end: 2026-07-25
 links:
@@ -16,7 +15,6 @@ links:
   x: null
   website: daedalus-research.com
   linkedin: null
-dietary_restrictions:
 now: "Leading Daedalus on prediction-market liquidity intelligence and protected order-flow infrastructure."
 skill_areas:
   - prediction-markets

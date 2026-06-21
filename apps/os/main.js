@@ -1,6 +1,7 @@
 const { app, BrowserWindow, Menu, clipboard, dialog, ipcMain, nativeTheme, safeStorage, screen, shell } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
+const os = require("node:os");
 const crypto = require("node:crypto");
 const swfNode = require("./swf-node");
 const swarm = require("./swarm-node");
@@ -18,6 +19,13 @@ require("./daybook-main");
 // renderer module that throws at import time — which static asar analysis
 // can't see and which dev mode (runs from source) can't reproduce.
 const SMOKE_TEST = process.argv.includes("--smoke-test") || process.env.SROS_SMOKE_TEST === "1";
+
+function configureSmokeUserData() {
+  if (!SMOKE_TEST) return;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shape-rotator-os-smoke-"));
+  app.setPath("userData", dir);
+  process.stderr.write(`[smoke] userData=${dir}\n`);
+}
 
 // Custom URL scheme for shareable deep-links (sros://xxxxx). See the deep-link
 // block just above app.whenReady() and apps/os/src/renderer/share-link.js.
@@ -123,6 +131,7 @@ function migrateLegacyUserData() {
   }
 }
 
+configureSmokeUserData();
 migrateLegacyUserData();
 
 const STATE_DIR = app.getPath("userData");

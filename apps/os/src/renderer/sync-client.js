@@ -36,11 +36,25 @@ let _tokenCache = null;
 let _tokenFetchedAt = 0;
 const TOKEN_TTL_MS = 60 * 1000;  // re-ask main every minute in case the daemon was restarted
 
+function normalizeBaseUrl(url) {
+  if (typeof url !== "string" || !/^https?:\/\//i.test(url)) return null;
+  try {
+    const parsed = new URL(url);
+    parsed.search = "";
+    parsed.hash = "";
+    parsed.pathname = parsed.pathname.replace(/\/+$/g, "") || "/";
+    return parsed.toString().replace(/\/$/g, "");
+  } catch {
+    return null;
+  }
+}
+
 // Allow boot.js / dev tools to point this at a non-default daemon. We
 // don't auto-resolve via env:get here because that would force every
 // callsite to await the env handshake.
 export function setBaseUrl(url) {
-  if (typeof url === "string" && /^https?:\/\//i.test(url)) _baseUrl = url;
+  const normalized = normalizeBaseUrl(url);
+  if (normalized) _baseUrl = normalized;
 }
 export function getBaseUrl() { return _baseUrl; }
 

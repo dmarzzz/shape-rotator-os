@@ -8,7 +8,6 @@ role: lead
 role_class: cohort-member
 geo: NYC
 domain: ai
-email: hello@albiona.dev
 dates_start: 2026-05-18
 dates_end: 2026-07-25
 absences:
@@ -20,7 +19,6 @@ links:
   x: albicodes
   website: albiona.dev
   linkedin: AlbionaHoti
-dietary_restrictions:
 now: compressing a flood of user conversations into one executable Elocute product plan — three research cycles before the ETH Global NY hackathon
 skill_areas:
   - agentic

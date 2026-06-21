@@ -10,7 +10,6 @@ role: steward
 role_class: coordinator
 geo: NYC
 domain: crypto
-email: socrates1024@gmail.com
 dates_start: 2026-05-18
 dates_end: 2026-07-25
 absences:
@@ -32,7 +31,6 @@ skill_areas:
   - agent-runtime
   - agentic
 now: daybook + "day" local session log · teleport-router merged into shape rotator os · feedling AI-companion exploration
-dietary_restrictions:
 go_to_them_for:
   - TEE / dstack / attestation infrastructure
   - cohort matrix and onboarding issues

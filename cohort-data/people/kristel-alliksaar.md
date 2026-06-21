@@ -23,7 +23,6 @@ contribute_interests: |
   Currently sharpening my business and strategy skills.
 availability_pref: just ask
 weekly_intention: TeeSQL TAM
-dietary_restrictions: none
 go_to_them_for:
   - TEE Postgres
   - database trust boundaries

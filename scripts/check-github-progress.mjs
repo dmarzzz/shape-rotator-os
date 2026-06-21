@@ -676,17 +676,11 @@ function inspectRepo(cacheRoot, target, since, depth, noFetch, cohortIndex) {
 }
 
 function compactCommit(commit) {
-  return {
-    sha: commit.sha,
-    date: commit.date,
-    author: commit.author,
-    author_email: commit.author_email,
-    refs: commit.refs,
-    subject: commit.subject,
-    category: commit.category,
-    topic_tags: commit.topic_tags,
-    matched_person: commit.matched_person,
-  };
+  const out = {};
+  for (const key of ["name", "sha", "tip_date", "date", "author", "refs", "subject", "category", "topic_tags", "matched_person"]) {
+    if (commit[key] !== undefined) out[key] = commit[key];
+  }
+  return out;
 }
 
 function repoInsight({ commits, distilled, latest }) {
@@ -1112,9 +1106,13 @@ function main() {
   console.log(`[github-progress] wrote ${rel(args.output)} and ${rel(args.markdown)}`);
 }
 
-try {
-  main();
-} catch (err) {
-  console.error(`[github-progress] ${err.message}`);
-  process.exit(1);
+export { compactCommit };
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try {
+    main();
+  } catch (err) {
+    console.error(`[github-progress] ${err.message}`);
+    process.exit(1);
+  }
 }

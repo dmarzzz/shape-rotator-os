@@ -250,9 +250,13 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           npm run build:cohort
+          npm run vendor:web
           # Stage only our two known paths — never `git add -A` — so no stray
           # file can ride along in the commit.
           git add "cohort-data/asks/${SLUG}.md" "apps/os/src/cohort-surface.json"
+          node scripts/check-commit-privacy-boundary.mjs --staged
+          npm run surface:scan
+          npm test
           git commit \
             -m "feat(asks): add ${SLUG} via issue #${ISSUE} [skip ci]" \
             -m "Auto-ingested from the new-ask issue form (author: ${AUTHOR}). Source: .github/workflows/ask-ingest.yml."
@@ -272,7 +276,11 @@ jobs:
             git fetch origin main
             git rebase -X theirs origin/main
             npm run build:cohort
+            npm run vendor:web
             git add "apps/os/src/cohort-surface.json"
+            node scripts/check-commit-privacy-boundary.mjs --staged
+            npm run surface:scan
+            npm test
             git diff --cached --quiet || git commit --amend --no-edit
           done
 

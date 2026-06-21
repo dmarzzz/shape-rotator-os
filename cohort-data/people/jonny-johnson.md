@@ -8,14 +8,12 @@ role: engineer
 role_class: cohort-member
 geo: Bay / TX
 domain: crypto
-email: jonny@dialogues.ai
 dates_start: 2026-05-18
 dates_end: 2026-07-25
 links:
   github: draftin1
   x: JonathanJohnson
   website: https://jonnyjohnson.com
-dietary_restrictions:
 go_to_them_for:
   - AI/VR research perspectives
   - personal-data futures

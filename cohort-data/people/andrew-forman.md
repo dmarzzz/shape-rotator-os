@@ -8,7 +8,6 @@ role: lead
 role_class: cohort-member
 geo: NYC
 domain: tee
-email: null
 dates_start: 2026-05-18
 dates_end: 2026-07-25
 absences:
@@ -20,7 +19,6 @@ links:
   x: null
   website: null
   linkedin: null
-dietary_restrictions:
 now: writing Abra's formal-verification registry spec for TEE-backed compliance proofs
 skill_areas:
   - formal-verification

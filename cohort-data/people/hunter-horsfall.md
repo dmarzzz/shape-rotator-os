@@ -8,7 +8,6 @@ role: Co-Founder
 role_class: cohort-member
 geo: "NYC (from mid-May)"
 domain: tee
-email: Hunter@tinycloud.xyz
 dates_start: 2026-05-18
 dates_end: 2026-07-31
 links:
@@ -27,7 +26,6 @@ contribute_interests: |
 availability_pref: |
   Currently open. Prefer async by default, with calls for high-context collaboration or anything that benefits from rapid back-and-forth.
 weekly_intention: "Improve my personal feed and build a better system prompt for filtering information."
-dietary_restrictions: none
 now: "Improving an agentic personal feed and fundraising engine while co-building TinyCloud's user-owned cloud surface."
 skill_areas:
   - tee

@@ -8,7 +8,6 @@ role: null
 role_class: visiting-scholar
 geo: nyc
 domain: crypto
-email: null
 dates_start: 2026-05-18
 dates_end: 2026-07-25
 links:
@@ -16,7 +15,6 @@ links:
   x: https://x.com/colludingnode
   website: https://cnode.phd
   linkedin: null
-dietary_restrictions:
 now: hacking on DCNets with Shape Rotator while tracking Zcash Project Tachyon-style anonymity work
 skill_areas:
   - p2p

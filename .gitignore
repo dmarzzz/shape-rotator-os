@@ -29,6 +29,7 @@ tmp/github-progress-cache/
 .DS_Store
 .vscode/
 .idea/
+.claude/
 .context-vault/
 
 # env / secrets

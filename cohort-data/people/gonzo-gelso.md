@@ -8,7 +8,6 @@ role: null
 role_class: cohort-member
 geo: null
 domain: null
-email: null
 dates_start: 2026-05-18
 dates_end: 2026-07-25
 links:
@@ -16,7 +15,6 @@ links:
   x: null
   website: null
   linkedin: null
-dietary_restrictions:
 now: "Carrying Etherea's product, community, and developer-relations voice around live generative performance systems."
 skill_areas:
   - generative-media

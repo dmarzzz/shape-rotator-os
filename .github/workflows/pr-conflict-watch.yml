@@ -108,6 +108,8 @@ jobs:
                 `git rebase origin/${detail.base.ref}`,
                 "npm run build:cohort",
                 "git add apps/os/src/cohort-surface.json",
+                "node scripts/check-commit-privacy-boundary.mjs --staged",
+                "npm run surface:scan",
                 "git rebase --continue",
                 "git push --force-with-lease",
                 "```",

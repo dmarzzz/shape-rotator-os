@@ -8,7 +8,6 @@ role: null
 role_class: cohort-member
 geo: Ohio (PT)
 domain: crypto
-email: null
 dates_start: 2026-06-01
 dates_end: 2026-07-25
 links:
@@ -16,7 +15,6 @@ links:
   x: null
   website: null
   linkedin: null
-dietary_restrictions:
 now: "Leading WikiGen's healthcare-data marketplace narrative, data-provider relationships, and pilot surface."
 skill_areas:
   - healthcare-data
