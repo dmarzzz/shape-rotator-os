@@ -12653,14 +12653,26 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 .alch-collab .cb-route-pip.is-mut { background: var(--cb-preview-gold); }
 .alch-collab .cb-route-pip.is-give { background: rgba(var(--ink-rgb), 0.4); }
 .alch-collab .cb-route-pip.is-dep { background: var(--cb-preview-dep); }
-.alch-collab .cb-route-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 11px 14px; border: 1px solid var(--alchemy-rule); border-radius: 11px; margin-bottom: 8px; background: rgba(var(--ink-rgb), 0.014); cursor: pointer; transition: border-color 150ms var(--ease), background 150ms var(--ease), transform 150ms var(--ease); }
+/* Row = a flex shell (border/fill) holding the focus MAIN + the open ↗. The
+   shell is the hover/entrance surface; the two buttons are the gestures. */
+.alch-collab .cb-route-row { display: flex; align-items: stretch; margin-bottom: 8px; border: 1px solid var(--alchemy-rule); border-radius: 11px; background: rgba(var(--ink-rgb), 0.014); overflow: hidden; transition: border-color 150ms var(--ease), background 150ms var(--ease), transform 150ms var(--ease); animation: cb-route-in 240ms var(--ease) both; }
 .alch-collab .cb-route-row:hover { border-color: rgba(var(--ink-rgb), 0.2); background: rgba(var(--ink-rgb), 0.03); transform: translateY(-1px); }
-.alch-collab .cb-route-row:active { transform: translateY(0) scale(0.994); transition-duration: 90ms; }
-/* data rows take the house gold INSET focus ring (the say/did/shipped row
-   pattern), not the oxide outline used by the controls — controls vs data. */
-.alch-collab .cb-route-row:focus-visible { outline: none; box-shadow: inset 0 0 0 1px rgba(214,189,134,0.5); }
 .alch-collab .cb-route-row.is-mut { border-color: color-mix(in srgb, var(--cb-preview-gold) 40%, var(--alchemy-rule)); background: color-mix(in srgb, var(--cb-preview-gold) 5%, transparent); }
-.alch-collab .cb-route-row.is-deprow { border-color: color-mix(in srgb, var(--cb-preview-dep) 32%, var(--alchemy-rule)); cursor: pointer; }
+.alch-collab .cb-route-row.is-deprow { border-color: color-mix(in srgb, var(--cb-preview-dep) 32%, var(--alchemy-rule)); }
+@keyframes cb-route-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+/* main = the focus/pivot click target; gold INSET focus ring (the data-row
+   pattern), distinct from the oxide outline the controls use. */
+.alch-collab .cb-route-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; text-align: left; padding: 11px 14px; background: transparent; border: 0; cursor: pointer; color: inherit; transition: transform 90ms var(--ease); }
+.alch-collab .cb-route-main:active { transform: scale(0.994); }
+.alch-collab .cb-route-main:focus-visible { outline: none; box-shadow: inset 0 0 0 1px rgba(214,189,134,0.5); }
+/* open ↗ = directory profile; a quiet trailing affordance that warms on hover. */
+.alch-collab .cb-route-open { flex: 0 0 auto; display: grid; place-items: center; width: 34px; border: 0; border-left: 1px solid var(--alchemy-rule); background: transparent; color: rgba(var(--ink-rgb), 0.38); font-size: 13px; line-height: 1; cursor: pointer; transition: color 150ms var(--ease), background 150ms var(--ease); }
+.alch-collab .cb-route-open:hover { color: var(--alchemy-oxide-bright); background: rgba(var(--ink-rgb), 0.05); }
+.alch-collab .cb-route-open:focus-visible { outline: 1px solid var(--alchemy-oxide-bright); outline-offset: -3px; }
+/* hovering a row lights its directed pair on the cohort map (cell + headers). */
+.alch-collab .cb-cell.is-route-hl { box-shadow: inset 0 0 0 999px rgba(214,189,134,0.16), inset 0 0 0 1.5px rgba(214,189,134,0.72); }
+.alch-collab .cb-rowhead.is-route-hl-head .cb-rowhead-name { color: var(--cb-preview-gold); }
+.alch-collab .cb-colhead.is-route-hl-head { color: var(--cb-preview-gold); opacity: 1; }
 .alch-collab .cb-route-nm { font-size: 13.5px; font-weight: 600; color: var(--alchemy-paper-warm); flex: 0 0 auto; }
 .alch-collab .cb-route-nm.is-dep { color: color-mix(in srgb, var(--cb-preview-dep) 72%, var(--alchemy-paper-warm)); }
 .alch-collab .cb-route-arrow { color: rgba(var(--ink-rgb), 0.35); flex: 0 0 auto; font-size: 12px; }
@@ -12754,9 +12766,10 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 
 /* honor reduced-motion: keep the depth, drop the movement */
 @media (prefers-reduced-motion: reduce) {
-  .cb-peruse-row, .cb-route2-row, .cb-pair2-row, .cb-route-row, .cb-intake-open, .cb-inspector-lead.is-team, .cb-jump, .cb-lens-seg, .alch-collab .cb-cell, .cb-picker select { transition: none; }
+  .cb-peruse-row, .cb-route2-row, .cb-pair2-row, .cb-route-row, .cb-route-main, .cb-route-open, .cb-intake-open, .cb-inspector-lead.is-team, .cb-jump, .cb-lens-seg, .alch-collab .cb-cell, .cb-picker select { transition: none; }
+  .cb-route-row { animation: none; }
   .cb-peruse-row:hover, .cb-route2-row:hover, .cb-pair2-row:hover, .cb-route-row:hover { transform: none; }
-  .cb-peruse-row:active, .cb-route2-row:active, .cb-pair2-row:active, .cb-route-row:active, .cb-intake-open:active, .cb-lens-seg:active { transform: none; }
+  .cb-peruse-row:active, .cb-route2-row:active, .cb-pair2-row:active, .cb-route-main:active, .cb-intake-open:active, .cb-lens-seg:active { transform: none; }
 }
 
 /* intros */
