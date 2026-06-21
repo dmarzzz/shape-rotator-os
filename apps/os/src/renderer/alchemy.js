@@ -123,7 +123,7 @@ const DIR_COL_DEFS = {
   focus:  { label: "what",   w: 248 },
   domain: { label: "domain", w: 118 },
   stage:  { label: "stage",  w: 168 },
-  team:   { label: "team",   w: 58, num: true }, // team SIZE (members_count)
+  team:   { label: "size",   w: 58, num: true }, // team SIZE (members_count)
   geo:    { label: "geo",    w: 120 },
   tags:   { label: "tags",   w: 220 },
   role:   { label: "role",   w: 140 },
@@ -2470,7 +2470,7 @@ function renderShapes() {
   for (const p of (cohort.people || [])) {
     if (p?.team && peopleByTeam.has(p.team)) peopleByTeam.get(p.team).push(p);
   }
-  const cardCtx = { people: cohort.people || [], teams: cohort.teams || [], peopleByTeam, spheres: cohort.person_spheres || {} };
+  const cardCtx = { people: cohort.people || [], teams: cohort.teams || [], teamById: new Map((cohort.teams || []).filter(t => t?.record_id).map(t => [t.record_id, t])), peopleByTeam, spheres: cohort.person_spheres || {} };
   const emptyMsg = `no ${escHtml(activeChip.label)} yet.`;
   // The cards/rows toggle (not zoom) chooses the layout. Rows = the compact,
   // resizable, reorderable table; cards = the full card grid.
@@ -2591,7 +2591,12 @@ function directoryRowCellHtml(r, key, cardCtx, isP) {
       return tags.length ? tags.map(t => `<span class="alch-dir-tag">${escHtml(t)}</span>`).join("") : `<span class="alch-dir-mut">—</span>`;
     }
     case "role":   return escHtml(constText(r.role) || "—");
-    case "teamOf": return escHtml(constText(r.team) || "—");
+    case "teamOf": {
+      // r.team is a slug (e.g. "elocute"); show the team's display name to match
+      // the card view ("Elocute"), falling back to the raw value if unresolved.
+      const t = cardCtx?.teamById?.get(r.team);
+      return escHtml((t && constText(t.name)) || constText(r.team) || "—");
+    }
     default:       return "";
   }
 }
@@ -12528,12 +12533,19 @@ function collabCell(R, C, ri, ci, m, lens = "all", detail = false, selected = nu
 
   const active = lens === "all" || (lens === "deps" && dep) || (lens === "needs" && so);
   if (!active) cls += " is-muted";
-  if (detail && collabSameSelection(selected, { type: "pair", fromRid: R.rid, toRid: C.rid })) cls += " is-selected";
 
+  // Lit cells join the ONE unified gesture: clicking a lit pair focuses the
+  // NEEDING team (the row) so the route sheet pivots to "who can help them" and
+  // scrolls up — same outcome as clicking that team's route row or map header.
+  // The map is a context surface; every action on it resolves to a team focus.
+  // Muted (filtered-out) cells stay inert.
   const actionAttr = detail
-    ? (active ? `data-collab-pair-from="${escAttr(R.rid)}" data-collab-pair-to="${escAttr(C.rid)}"` : `disabled aria-disabled="true"`)
+    ? (active ? `data-collab-focus-team="${escAttr(R.rid)}"` : `disabled aria-disabled="true"`)
     : `data-collab-open="${escAttr(C.rid)}"`;
-  return `<button type="button" class="${cls}" data-row="${ri}" data-col="${ci}" ${actionAttr} aria-label="${escAttr(`${R.team.name} → ${C.team.name}: ${lines.join("; ")}`)}" title="${escAttr(title)}"></button>`;
+  const cellLabel = active && detail
+    ? `${R.team.name} → ${C.team.name}: ${lines.join("; ")} · focus ${R.team.name}`
+    : `${R.team.name} → ${C.team.name}: ${lines.join("; ")}`;
+  return `<button type="button" class="${cls}" data-row="${ri}" data-col="${ci}" ${actionAttr} aria-label="${escAttr(cellLabel)}" title="${escAttr(title)}"></button>`;
 }
 
 function collabGroupBand(ordered, colN, selected = null) {
@@ -12801,15 +12813,6 @@ function wireCollab() {
         openCollabIntakeModal();
       } catch (error) {
         console.error("[collab-intake] failed to open:", error);
-        setCollabInspectorHtml(`
-          <div class="cb-inspector-hero">
-            <div class="cb-inspector-identity">
-              <div class="cb-inspector-kicker">collab intake</div>
-              <h4 class="cb-inspector-title">intake failed</h4>
-              <p class="cb-inspector-copy">${escHtml(error?.message || String(error))}</p>
-            </div>
-          </div>
-        `);
       }
     });
   }
@@ -12831,35 +12834,16 @@ function wireCollab() {
       render({ instant: true });
     });
   }
-  // Pair ("best intros") + keystone ("most depended-on") inspector rows: bound
-  // via the shared guarded helper so they survive setCollabInspectorHtml swaps.
-  wireCollabInspectorActions(state.canvas);
-  for (const el of state.canvas.querySelectorAll("[data-collab-cluster]")) {
-    el.addEventListener("mouseenter", () => {
-      previewCollabInspector({ type: "cluster", id: el.getAttribute("data-collab-cluster") || "" });
-    });
-    el.addEventListener("mouseleave", () => {
-      if (!state.collabSelection) setCollabInspectorHtml(collabInspectorDefaultHtml(collabCurrentModel()));
-    });
-    el.addEventListener("focus", () => {
-      previewCollabInspector({ type: "cluster", id: el.getAttribute("data-collab-cluster") || "" });
-    });
-    el.addEventListener("blur", () => {
-      if (!state.collabSelection) setCollabInspectorHtml(collabInspectorDefaultHtml(collabCurrentModel()));
-    });
-    el.addEventListener("click", (event) => {
-      event.stopPropagation();
-      const next = { type: "cluster", id: el.getAttribute("data-collab-cluster") || "" };
-      if (collabSameSelection(state.collabSelection, next)) clearCollabSelection();
-      else setCollabSelection(next);
-    });
-  }
+  // (The floating pair/team/cluster inspector + cluster band were retired when the
+  // route sheet became the lead surface — the route sheet now answers "who can
+  // help you" directly, and every map gesture resolves to a team focus below.
+  // The inspector builders + selection mutators are now orphaned, pending removal.)
   // The ONE unified gesture: clicking a team anywhere — a route-sheet row or a map
   // row/column header — focuses that team (the surface pivots, the picker follows,
   // its row+column light up). Re-clicking the focused team clears it. Clicking from
   // the map scrolls you up to that team's answer.
   for (const el of state.canvas.querySelectorAll("[data-collab-focus-team]")) {
-    const fromMap = el.classList.contains("cb-colhead") || el.classList.contains("cb-rowhead");
+    const fromMap = el.classList.contains("cb-colhead") || el.classList.contains("cb-rowhead") || el.classList.contains("cb-cell");
     el.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -12930,10 +12914,13 @@ function wireCollab() {
     if (!grid.contains(document.activeElement)) clearHL();
   });
   if (grid.contains(document.activeElement)) highlightFromTarget(document.activeElement);
+  // Escape clears the focused team — the surface returns to the cohort-wide view
+  // (strongest intros), the universal "get me out" affordance for the one gesture.
   collabRoot?.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape" || !state.collabSelection) return;
+    if (event.key !== "Escape" || !state.collabFocus) return;
     event.preventDefault();
-    clearCollabSelection();
+    state.collabFocus = null;
+    render({ instant: true });
   });
 }
 

@@ -12409,6 +12409,14 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 .alch-collab .cb-rowhead.is-focus .cb-rowhead-name { color: var(--alchemy-oxide-bright); }
 .alch-collab .cb-colhead.is-focus { color: var(--alchemy-oxide-bright); opacity: 1; background: color-mix(in srgb, var(--alchemy-oxide-bright) 10%, var(--cb-preview-panel-2)); box-shadow: inset 0 -2px 0 var(--alchemy-oxide-bright); }
 
+/* transient: hovering a route-sheet row lights its directed pair on the map
+   below (the list ↔ table tie). A pointed accent outline reads as "this exact
+   cell" over any fill — slate match or clay dependency — without recolouring it.
+   Uses the box-shadow/color transitions already on .cb-cell/.cb-*head. */
+.alch-collab .cb-cell.is-route-hl { box-shadow: inset 0 0 0 2px var(--alchemy-oxide-bright); z-index: 12; opacity: 1; }
+.alch-collab .cb-rowhead.is-route-hl-head .cb-rowhead-name,
+.alch-collab .cb-colhead.is-route-hl-head { color: var(--alchemy-oxide-bright); opacity: 1; }
+
 /* sidebar — a panel FLOATING above the matrix plane (soft edge-shadow + top
    light), single hairline left-seam, no hard box. Inspector now owns the rail. */
 .alch-collab .cb-inspector { border-left: 1px solid var(--alchemy-rule); border-top: 0; padding: 8px 6px 8px 22px; background-image: var(--cb-toplight); background-color: transparent; box-shadow: -22px 0 38px -30px rgba(0,0,0,0.7); }
