@@ -36,7 +36,28 @@ an empty file, so the cohort read no-ops and the app falls back to the anon T3 r
 
 1. Deploy migration `20260618000000_cohort_app_evidence_reader.sql` (creates the
    `cohort_app` role + the gated view). Needs the cohort-Supabase login.
-2. Mint a JWT with `role: cohort_app` (signed with the project JWT secret), long-lived.
+   *(As of 2026-06-21 this is already live: the `cohort_app` role + the gated views
+   `cohort_app_transcript_evidence_cards` (203 rows), `cohort_app_transcript_distillations`
+   (5), and `cohort_app_cohort_insight_cards` (4 collaboration_contribution) exist and grant
+   SELECT to `cohort_app`.)*
+2. Mint a JWT with `role: cohort_app`, signed with the project JWT secret, long-lived.
+
+## Mint + verify the key (reproducible)
+
+Put the project's **JWT secret** (Supabase dashboard → Settings → API → JWT Secret) in
+your gitignored env (e.g. `.env.calendar.local`, beside the `SUPABASE_*` values already
+there) as `SUPABASE_JWT_SECRET`, then:
+
+```sh
+npm run keys:cohort:mint   -- --env-file .env.calendar.local   # writes the gitignored baked key
+npm run keys:cohort:verify -- --env-file .env.calendar.local   # proves it reads all 3 gated views
+```
+
+`mint` writes `apps/os/build-resources/cohort-app-key.json` (gitignored; the signing secret
+is never written or printed). `verify` hits the gated views with the key exactly as the app
+does (`apikey: anon`, `Authorization: Bearer <cohortKey>`) and reports row counts — a PASS
+means T2 is reachable. The pure signing/inspection logic lives in
+`scripts/lib/cohort-key.mjs` (unit-tested: `npm run test:cohort-key`).
 
 ## Cut a provisioned release
 
