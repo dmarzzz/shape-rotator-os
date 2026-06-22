@@ -241,6 +241,7 @@ const state = {
   collabTeamFilter: "all",         // (legacy) retained for normalizeCollabControls / older callers
   collabSort: "cluster",           // (legacy) the map now always seriates ("related")
   collabFocus: null,               // record_id of the team the route sheet is personalised to (null = cohort default)
+  collabFocusTouched: false,        // true once we auto-detected the user's team OR they picked/cleared focus by hand (stops auto-detect fighting the user)
   collabSelection: null,           // { type: "team"|"pair"|"cluster", ... } — pinned inspector state
   goalStandingFilter: "all",       // "all" | "behind" | "onplan" | "ahead" — standing legend/filter
   goalMomentumFilter: "all",       // "all" | "rising" | "slipping" | "flat" — momentum legend/filter on the goal views
@@ -12120,27 +12121,146 @@ function collabRouteSheetHtml(m, focusRid) {
     return `<div class="cb-route">${sec("strongest intros across the cohort", "is-match", rows || empty("no overlaps yet — teams declare seeks and offers in their profile"))}</div>`;
   }
 
-  const help = m.seekOffer.filter(s => s.seeker === focusRid).sort((a, b) => b.score - a.score);
-  const mutual = help.filter(s => s.mutual);
+  // Mutual matches sort to the TOP of "who can help you" (they're the intro-worthy
+  // both-sides matches) and carry a badge — so the old duplicate "make these
+  // intros (mutual)" section is folded in here rather than repeated below.
+  const help = m.seekOffer.filter(s => s.seeker === focusRid)
+    .sort((a, b) => (Number(b.mutual) - Number(a.mutual)) || (b.score - a.score));
   const give = m.seekOffer.filter(s => s.offerer === focusRid && !s.mutual).sort((a, b) => b.score - a.score);
-  const depRows = [...m.deps]
+  const depList = [...m.deps]
     .map(k => { const gt = k.indexOf(">"); return { from: k.slice(0, gt), to: k.slice(gt + 1) }; })
     .filter(d => d.from === focusRid)
-    .map(d => ({ to: d.to, conf: m.depByPair.get(`${d.from}>${d.to}`)?.confidence || "unknown" }));
+    .map(d => ({ to: d.to, edge: m.depByPair.get(`${d.from}>${d.to}`) || null }));
 
-  const helpRow = (s) => row({ team: s.offerer, from: focusRid, to: s.offerer, cls: s.mutual ? " is-mut" : "",
-    body: `<span class="cb-route-nm">${nameOf(s.offerer)}</span><span class="cb-route-tg">${tagOf(s)}</span>${s.mutual ? `<span class="cb-route-badge">mutual</span>` : ""}${bar(s.score)}` });
-  const giveRow = (s) => row({ team: s.seeker, from: s.seeker, to: focusRid, cls: "",
-    body: `<span class="cb-route-nm">${nameOf(s.seeker)}</span><span class="cb-route-tg">${tagOf(s)}</span>${bar(s.score)}` });
-  const depRow = (d) => row({ team: d.to, from: focusRid, to: d.to, cls: " is-deprow",
-    body: `<span class="cb-route-nm is-dep">${nameOf(d.to)}</span><span class="cb-route-tg">you rely on them · ${escHtml(d.conf)} confidence</span>` });
+  // Shared-skill chips — the FULL "why", revealed on expand (the glance tag shows
+  // only the first few terms).
+  const chips = (arr) => (arr || []).slice(0, 8).map(c => `<span class="cb-route-chip">${escHtml(c)}</span>`).join("");
+
+  // The ACTION layer: who to actually message on the other team. Roster lead-first
+  // (cohortRosterForTeam), each with a one-tap DM link (telegram›x›github›…); a
+  // quiet "open profile" reaches the full record. This answers "who do I talk
+  // to?" — the row's reason to exist beyond "a match exists".
+  const contactBlock = (rid) => {
+    const roster = cohortRosterForTeam(state.cohort?.people || [], rid);
+    const shown = roster.slice(0, 3);
+    const people = shown.map(p => {
+      const dm = dmLinkForPerson(p);
+      const who = escHtml(p.name || p.record_id);
+      const role = p.role ? `<span class="cb-contact-role">${escHtml(p.role)}</span>` : "";
+      const act = dm
+        ? `<a class="cb-contact-dm" data-collab-ext href="${escAttr(dm.url)}" title="${escAttr("message " + (p.name || p.record_id) + " · " + dm.label)}">${escHtml(dm.label)}<span aria-hidden="true"> ↗</span></a>`
+        : `<span class="cb-contact-nolink">no link</span>`;
+      return `<div class="cb-contact-person"><span class="cb-contact-id"><span class="cb-contact-name">${who}</span>${role}</span>${act}</div>`;
+    }).join("");
+    const overflow = roster.length > shown.length ? `<span class="cb-contact-overflow">+${roster.length - shown.length} more</span>` : "";
+    return `<div class="cb-route-contact">
+      <div class="cb-contact-h">who to reach</div>
+      ${people || `<p class="cb-contact-empty">no listed members yet.</p>`}
+      <div class="cb-contact-foot">${overflow}<button type="button" class="cb-contact-open" data-collab-cohort-open="${escAttr(rid)}">open ${nameOf(rid)} profile<span aria-hidden="true"> ↗</span></button></div>
+    </div>`;
+  };
+
+  // A disclosure row: a compact head (name · why-tag · strength) that toggles an
+  // in-place panel (full why + contacts). It carries NO data-collab-focus-team —
+  // clicking EXPANDS, it never pivots the whole surface (the old broken behavior).
+  const discRow = ({ rid, from, to, section, cls = "", tag = "", badge = "", barHtml = "", why }) => {
+    const pid = `cbr-${section}-${escAttr(String(rid))}`;
+    return `<div class="cb-route-row cb-route-disc${cls}" data-route-from="${escAttr(from)}" data-route-to="${escAttr(to)}">
+      <button type="button" class="cb-route-dh" aria-expanded="false" aria-controls="${pid}" data-route-toggle>
+        <span class="cb-route-nm">${nameOf(rid)}</span>
+        ${tag ? `<span class="cb-route-tg">${tag}</span>` : ""}
+        ${badge}${barHtml}
+        <span class="cb-route-chev" aria-hidden="true"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></span>
+      </button>
+      <div class="cb-route-panel" id="${pid}"><div class="cb-route-panel-in">${why}${contactBlock(rid)}</div></div>
+    </div>`;
+  };
+
+  const whyMatch = (lead, s) => `<div class="cb-route-why"><p class="cb-route-whyline">${lead}</p>${(s.shared && s.shared.length) ? `<div class="cb-route-chips">${chips(s.shared)}</div>` : ""}</div>`;
+  const helpRows = help.map(s => discRow({
+    rid: s.offerer, from: focusRid, to: s.offerer, section: "help", cls: s.mutual ? " is-mut" : "",
+    tag: tagOf(s), badge: s.mutual ? `<span class="cb-route-badge">mutual</span>` : "", barHtml: bar(s.score),
+    why: whyMatch(`they offer <b>${escHtml(s.offering || "—")}</b> · you seek <b>${escHtml(s.seeking || "—")}</b>`, s),
+  }));
+  const giveRows = give.map(s => discRow({
+    rid: s.seeker, from: s.seeker, to: focusRid, section: "give", tag: tagOf(s), barHtml: bar(s.score),
+    why: whyMatch(`you offer <b>${escHtml(s.offering || "—")}</b> · they seek <b>${escHtml(s.seeking || "—")}</b>`, s),
+  }));
+  const depRowsHtml = depList.map(d => {
+    const e = d.edge || {};
+    const head = escHtml(e.relation_label || "you rely on them");
+    const conf = e.confidence_label ? ` · <span class="cb-route-conf">${escHtml(e.confidence_label)}</span>` : "";
+    const reason = e.reason ? `<p class="cb-route-reason">${escHtml(e.reason)}</p>` : "";
+    return discRow({ rid: d.to, from: focusRid, to: d.to, section: "dep", cls: " is-deprow",
+      tag: "you depend on them",
+      why: `<div class="cb-route-why"><p class="cb-route-whyline">${head}${conf}</p>${reason}</div>` });
+  });
+
+  // Cap each list at 5 visible; the rest hide behind a "show N more" toggle so the
+  // section stays small at rest even when the match list is long.
+  const CAP = 5;
+  const capSec = (title, pip, rowsArr, emptyMsg) => {
+    if (!rowsArr.length) return sec(title, pip, empty(emptyMsg));
+    const headHtml = rowsArr.slice(0, CAP).join("");
+    const rest = rowsArr.slice(CAP);
+    const restHtml = rest.length
+      ? `<div class="cb-route-extra" hidden>${rest.join("")}</div><button type="button" class="cb-route-more" data-route-more aria-expanded="false">show ${rest.length} more</button>`
+      : "";
+    return sec(title, pip, headHtml + restHtml);
+  };
 
   let html = "";
-  html += sec("who can help you", "is-match", help.length ? help.map(helpRow).join("") : empty("no open needs matched yet"));
-  if (mutual.length) html += sec("make these intros (mutual)", "is-mut", mutual.map(helpRow).join(""));
-  html += sec("who you can help", "is-give", give.length ? give.map(giveRow).join("") : empty("nobody is seeking your offer yet"));
-  html += sec("you depend on", "is-dep", depRows.length ? depRows.map(depRow).join("") : empty("no declared dependencies"));
+  html += capSec("who can help you", "is-match", helpRows, "no matches yet — add what you're seeking with “add seek / offer” above.");
+  html += capSec("who you can help", "is-give", giveRows, "nobody's seeking your offer yet — add what you offer above.");
+  html += capSec("you depend on", "is-dep", depRowsHtml, "no declared dependencies yet.");
   return `<div class="cb-route">${html}</div>`;
+}
+
+// Resolve "my team" for the collab board from the LOCAL identity — the same
+// source of truth the top-right pill reads (identity.js → editor handle), so the
+// board agrees with the rest of the app about who you are. Resolution ladder:
+//   1. an explicit claim: a team/project claim IS a board node; a person claim
+//      resolves through their primary team, then any secondary team that has a
+//      signal on the board.
+//   2. fallback: the editor's github handle (set before a formal claim), matched
+//      to a person the same way.
+// Returns a record_id that is actually on the board, or null (board stays
+// cohort-wide) when nothing resolves — an unclaimed user, or a claimed team with
+// no declared seek/offer/dependency signal yet.
+function detectMyCollabTeam(m) {
+  if (!m || !m.byRecordId) return null;
+  const onBoard = (rid) => (rid && m.byRecordId.has(rid)) ? rid : null;
+  const people = state.cohort?.people || [];
+  // person record → board team: primary team first, then a signalled secondary.
+  const teamForPerson = (person) => {
+    if (!person) return null;
+    const primary = onBoard(person.team);
+    if (primary) return primary;
+    for (const sid of (person.secondary_teams || [])) {
+      const s = onBoard(sid);
+      if (s) return s;
+    }
+    return null;
+  };
+  // 1) explicit claim from identity.js — authoritative. A team/project claim IS
+  //    a board node; a person claim resolves through their team. Either way the
+  //    claim decides the answer (null = nothing to focus → cohort-wide); we do
+  //    NOT second-guess a claim via the handle fallback below.
+  const id = getIdentity();
+  if (id?.record_id) {
+    if (id.kind === "team" || id.kind === "project") return onBoard(id.record_id);
+    return teamForPerson(people.find((p) => p.record_id === id.record_id));
+  }
+  // 2) no claim yet → fall back to the editor's github handle, matched to a
+  //    cohort person (the same handle the dossier/asks surfaces use).
+  const me = state.profile?.user || null;
+  const handle = me?.github || me?.gh_handle || me?.handle || me?.links?.github || null;
+  if (handle) {
+    const lc = normalizeAskIdentity(handle);
+    return teamForPerson(people.find((p) =>
+      normalizeAskIdentity(p.links?.github || p.gh_handle || p.handle || "") === lc));
+  }
+  return null;
 }
 
 function renderCollab() {
@@ -12155,6 +12275,16 @@ function renderCollab() {
   // Option 3: the route sheet leads (who can help you); the table is the context
   // map below. The map shows ALL signalled teams, seriated into help-blocks. The
   // only top control is the team picker (focus); the map carries one lens.
+  // Auto-detect the viewer's team the first time the board renders (or once they
+  // claim an identity later) so it opens already answering "who can help YOU" —
+  // no manual pick. Runs at most once: the moment the user picks/clears focus by
+  // hand, collabFocusTouched latches and we never override their choice. A miss
+  // (unclaimed, or claimed team with no signal yet) leaves the flag unset so a
+  // later claim can still light the board.
+  if (!state.collabFocusTouched && state.collabFocus == null) {
+    const auto = detectMyCollabTeam(m);
+    if (auto) { state.collabFocus = auto; state.collabFocusTouched = true; }
+  }
   const focusRid = state.collabFocus && m.byRecordId.has(state.collabFocus) ? state.collabFocus : null;
   const lens = state.collabLens || "all";
   const sort = "related";
@@ -12240,12 +12370,19 @@ function renderCollab() {
       <div class="cb-cv-list">${convRows || '<p class="cb-empty">no shared areas.</p>'}</div>
     </section>`;
 
+  // Lead copy adapts to the auto-detected focus: once we know your team it names
+  // it and teaches the new expand-for-contact gesture; unfocused, it prompts the
+  // pick. Keeps the header honest about the state the surface is actually in.
+  const focusName = focusRid ? escHtml(m.byRecordId.get(focusRid)?.name || "your team") : "";
+  const leadSub = focusRid
+    ? `Matches for <b>${focusName}</b> — expand any row for the shared work and who to message. Switch teams above, or clear to browse the whole cohort.`
+    : `Pick your team above to see who can help you — or browse the cohort's strongest intros below.`;
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="collab">
     ${cohortPageHead("collab")}
     <header class="cb-lead" data-shape-occluder>
       <h2 class="cb-lead-title">Find who can help you</h2>
-      <p class="cb-lead-sub">Pick your team to see who can help you, who you can help, the intros worth making, and what you depend on — or start from the cohort's strongest below.</p>
+      <p class="cb-lead-sub">${leadSub}</p>
       <div class="cb-lead-controls">
         ${collabTeamPickerHtml(m, focusRid)}
         <button class="cb-intake-open" type="button" data-collab-intake-open>
@@ -12314,6 +12451,7 @@ function wireCollab() {
   for (const sel of state.canvas.querySelectorAll("[data-collab-focus]")) {
     sel.addEventListener("change", () => {
       state.collabFocus = sel.value || null;
+      state.collabFocusTouched = true;   // hand pick wins over auto-detect
       render({ instant: true });
     });
   }
@@ -12341,6 +12479,7 @@ function wireCollab() {
       event.stopPropagation();
       const rid = el.getAttribute("data-collab-focus-team") || "";
       state.collabFocus = (rid && rid === state.collabFocus) ? null : (rid || null);
+      state.collabFocusTouched = true;   // explicit focus/clear wins over auto-detect
       render({ instant: true });
       if (fromMap) requestAnimationFrame(() => state.canvas.querySelector(".cb-lead")?.scrollIntoView({ behavior: "smooth", block: "start" }));
     });
@@ -12363,6 +12502,40 @@ function wireCollab() {
       state.canvas.querySelector(`.cb-colhead[data-col="${cssAttr(tc)}"]`)?.classList.add("is-route-hl-head");
     });
     rowEl.addEventListener("mouseleave", clearRouteHl);
+  }
+  // Disclosure rows: clicking a head toggles its panel IN PLACE (context +
+  // contacts) — it does NOT pivot the surface. Accordion: opening one closes the
+  // others so the section stays compact. aria-expanded mirrors the visible state.
+  const routeRoot = state.canvas.querySelector(".cb-route");
+  for (const head of state.canvas.querySelectorAll("[data-route-toggle]")) {
+    head.addEventListener("click", () => {
+      const rowEl = head.closest(".cb-route-row");
+      if (!rowEl) return;
+      const willOpen = !rowEl.classList.contains("is-open");
+      routeRoot?.querySelectorAll(".cb-route-row.is-open").forEach(other => {
+        if (other === rowEl) return;
+        other.classList.remove("is-open");
+        other.querySelector("[data-route-toggle]")?.setAttribute("aria-expanded", "false");
+      });
+      rowEl.classList.toggle("is-open", willOpen);
+      head.setAttribute("aria-expanded", String(willOpen));
+    });
+  }
+  // "show N more" — reveal the capped overflow rows, then retire the button.
+  for (const moreBtn of state.canvas.querySelectorAll("[data-route-more]")) {
+    moreBtn.addEventListener("click", () => {
+      const extra = moreBtn.previousElementSibling;
+      if (extra && extra.classList.contains("cb-route-extra")) extra.hidden = false;
+      moreBtn.remove();
+    });
+  }
+  // Contact DM links open in the system browser — never navigate the renderer.
+  for (const link of state.canvas.querySelectorAll("[data-collab-ext]")) {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      const url = link.getAttribute("href");
+      if (url) { try { window.api?.openExternal?.(url); } catch {} }
+    });
   }
   const grid = state.canvas.querySelector(".cb-grid");
   if (!grid) return;
@@ -12412,6 +12585,7 @@ function wireCollab() {
     if (event.key !== "Escape" || !state.collabFocus) return;
     event.preventDefault();
     state.collabFocus = null;
+    state.collabFocusTouched = true;   // a deliberate clear stays cleared
     render({ instant: true });
   });
 }
