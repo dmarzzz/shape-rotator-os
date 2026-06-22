@@ -7272,8 +7272,9 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   font-size: 10px;
   opacity: 0.84;
 }
-/* The "_other" catch-all ring: dashed + recessive so it reads as "teams still
-   finding a space", not a peer theme/ecosystem (it's also out of the counts). */
+/* The "_other" catch-all ring: dashed + recessive so it reads as teams shown
+   apart (still finding a space, or singletons seated apart from their ecosystem),
+   not a peer theme/ecosystem (it's also out of the counts). */
 .alch-constellation-stage svg .ac-bubble-container.is-others .ac-bubble-container-shape {
   opacity: 0.38;
   stroke-dasharray: 3 5;

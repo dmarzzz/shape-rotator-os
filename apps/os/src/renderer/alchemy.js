@@ -5565,14 +5565,18 @@ function constEgoBucketHtml(team, ctx) {
   // inspector never claims a named neighbourhood home the map denies.
   const foldedApart = !!(ctx?.distributionWells || []).find(w => w.id === "_other")?.members?.includes(team?.record_id);
   if (!N || foldedApart) {
+    // Honest reason it's drawn apart: NOT that its declared space is empty (it
+    // isn't — the map seats every team in ONE primary ecosystem, first-cluster-
+    // wins, so a team's declared peers are each anchored in their own primary
+    // space and none is co-seated with it here).
     const declared = N
-      ? `Its declared space${N === 1 ? "" : "s"} (${spaces.map(s => `<b>${escHtml(constShortText(s.label, 24))}</b>`).join(", ")}) ${N === 1 ? "has" : "have"} no other team on the map yet, so it sits on its own`
+      ? `Its declared space${N === 1 ? "" : "s"} (${spaces.map(s => `<b>${escHtml(constShortText(s.label, 24))}</b>`).join(", ")}) ${N === 1 ? "is" : "are"} anchored elsewhere on the map — each team sits in just one primary ecosystem, so none of its declared peers is seated with it here`
       : "It isn't grouped into a shared space yet";
     return `
       <section class="ac-inspector-section ac-ego-bucket">
         <h4 class="ac-overlap-title">Why it's here</h4>
         <p class="ac-ego-bucket-line">Shown apart in the <b>unclustered</b> ring. ${declared} — placed by its <b>${escHtml(domLabel)}</b> domain.</p>
-        <p class="ac-ego-bucket-basis">basis · declared domain${N ? " · its declared space has no second team on the map yet" : " · no shared space on file yet"}</p>
+        <p class="ac-ego-bucket-basis">basis · declared domain${N ? " · declared peers anchored in their own ecosystems" : " · no shared space on file yet"}</p>
       </section>`;
   }
   const primary = spaces[0];
@@ -7311,7 +7315,7 @@ function constBubbleMapDefaultHtml(ctx) {
         const folded = s.foldedSingletons || 0;
         const foot = [];
         if (noSpace) foot.push(`${pl(noSpace, "team")} still finding a space`);
-        if (folded) foot.push(`${pl(folded, "team")} alone in ${folded === 1 ? "its" : "their"} ecosystem so far`);
+        if (folded) foot.push(`${pl(folded, "team")} seated apart from ${folded === 1 ? "its" : "their"} ecosystem so far`);
         return foot.length ? `<p class="ac-orientation-foot">${escHtml(foot.join(" · "))} — shown apart in the unclustered ring.</p>` : "";
       })()}
       <p class="ac-orientation-cta">Hover a bubble to read it · click to pin · click a second to compare.</p>
