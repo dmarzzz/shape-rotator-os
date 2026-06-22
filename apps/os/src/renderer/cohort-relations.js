@@ -237,7 +237,26 @@ export function constellationIndegree(teams = [], dependencyRecords = []) {
   return ind;
 }
 
+let _constellationModelMemo = null;
 export function constellationModel(teams = [], clusters = [], dependencyRecords = []) {
+  // Single-entry memo keyed by argument identity. The bubble map builds this in
+  // renderConstellation and AGAIN in wireConstellationHover within the same render
+  // — both pass the same stable cohort arrays (activeConstellationCohort returns
+  // state.cohort), so the second call is a cache hit instead of a full rebuild
+  // (clusters/wells/edges/indegree). Fresh arrays (tests, a new cohort/snapshot)
+  // miss and recompute — the function is pure, so a reference match guarantees an
+  // identical result.
+  if (_constellationModelMemo
+      && _constellationModelMemo.teams === teams
+      && _constellationModelMemo.clusters === clusters
+      && _constellationModelMemo.deps === dependencyRecords) {
+    return _constellationModelMemo.result;
+  }
+  const result = constellationModelCompute(teams, clusters, dependencyRecords);
+  _constellationModelMemo = { teams, clusters, deps: dependencyRecords, result };
+  return result;
+}
+function constellationModelCompute(teams = [], clusters = [], dependencyRecords = []) {
   const list = Array.isArray(teams) ? teams : [];
   const byRecordId = new Map(list.map(team => [team.record_id, team]));
   const edges = constellationDependencyEdges(list, byRecordId, dependencyRecords);
