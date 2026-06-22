@@ -3155,8 +3155,11 @@ function constNormalizeNetworkScope(raw) {
 // Bubble-map grain: fewer↔more circles. Replaces the old map/ring layout
 // toggle in the sentence bar — same control slot, different question.
 const CONST_GRANULARITIES = [
+  // Label the mid grain "ecosystems" to match the rest of the surface (the
+  // headline, the grain notes, the ring legend all say "ecosystem"); the internal
+  // key stays "clusters" so no state/logic changes.
   { key: "themes", label: "themes", hint: "a few big spaces (high level)" },
-  { key: "clusters", label: "clusters", hint: "ecosystem groupings (default)" },
+  { key: "clusters", label: "ecosystems", hint: "ecosystem groupings (default)" },
   { key: "skills", label: "skills", hint: "many fine spaces (low level)" },
 ];
 function constNormalizeGranularity(raw) {
@@ -3168,7 +3171,7 @@ function constNormalizeGranularity(raw) {
 // different question of the same map without changing layout or colour.
 const CONST_SIZE_BYS = [
   { key: "maturity", label: "maturity", hint: "journey stage — how far along (default)" },
-  { key: "headcount", label: "headcount", hint: "people on the team" },
+  { key: "headcount", label: "headcount", hint: "people listing it as a primary or secondary team" },
   // "depended-on" was retired as a SIZE channel: the rim already encodes it (the
   // permanent "rim = depended-on" legend), so picking it double-encoded indegree
   // on two channels and flattened every bubble to the floor when no dependency
@@ -3180,21 +3183,21 @@ function constNormalizeSizeBy(raw) {
   const s = String(raw || "").toLowerCase();
   return CONST_SIZE_BYS.some(o => o.key === s) ? s : "maturity";
 }
-// Leaf radius for a given size channel. Ranges are tuned to land in ≈9–26px so
-// every metric reads at the same visual weight as the maturity baseline
-// (bmLeafRadius). headcount/depended-on are sub-linear so one giant team can't
-// swamp the map; "even" is a flat mid radius.
+// Leaf radius for a given size channel. Ranges land in ≈13–33px so every metric
+// reads at the same visual weight as the maturity baseline (bmLeafRadius, which
+// was enlarged with the packer); headcount/depended-on are sub-linear so one
+// giant team can't swamp the map; "even" is a flat mid radius.
 function constLeafRadius(sizeBy, { stage, headcount = 0, indeg = 0, maxIndeg = 0 } = {}) {
   if (sizeBy === "headcount") {
-    return Math.max(9, Math.sqrt(Math.max(1, headcount)) * 9); // 1→9 … 8→~25
+    return Math.max(13, Math.sqrt(Math.max(1, headcount)) * 11); // 1→13 … 8→~31
   }
   if (sizeBy === "depended-on") {
     const frac = maxIndeg > 0 ? indeg / maxIndeg : 0;
-    return Math.max(9, 9 + frac * 17); // floor 9 (nobody) … 26 (most-relied-on)
+    return Math.max(13, 13 + frac * 20); // floor 13 (nobody) … 33 (most-relied-on)
   }
-  if (sizeBy === "even") return 15;
-  const s = Math.max(1, Number(stage) || 1); // maturity (default) — mirrors bmLeafRadius
-  return Math.max(9, Math.sqrt(s) * 10);
+  if (sizeBy === "even") return 19;
+  const s = Math.max(1, Number(stage) || 1); // maturity (default) — mirrors bmLeafRadius exactly
+  return Math.max(13, Math.sqrt(s) * 12.5);
 }
 // ── Zoom → grain ("more accurate the more you zoom") ──────────────────
 // The relationship map reveals more DETAIL as you zoom in: themes when pulled
@@ -5556,12 +5559,20 @@ function constEgocentricOverlapSvg(team, ctx) {
 function constEgoBucketHtml(team, ctx) {
   const { N, spaces } = egoSpaceFits(team, ctx);
   const domLabel = CONST_DOMAIN_LABEL[constDomainClass(team?.domain)] || "other";
-  if (!N) {
+  // The MAP folds any ecosystem with <2 plotted teams into the grey "unclustered"
+  // ring, so a team can DECLARE a space (N>0) yet be drawn apart. Read the SAME
+  // folded wells the packer draws (ctx.distributionWells = model.wellsDef) so the
+  // inspector never claims a named neighbourhood home the map denies.
+  const foldedApart = !!(ctx?.distributionWells || []).find(w => w.id === "_other")?.members?.includes(team?.record_id);
+  if (!N || foldedApart) {
+    const declared = N
+      ? `Its declared space${N === 1 ? "" : "s"} (${spaces.map(s => `<b>${escHtml(constShortText(s.label, 24))}</b>`).join(", ")}) ${N === 1 ? "has" : "have"} no other team on the map yet, so it sits on its own`
+      : "It isn't grouped into a shared space yet";
     return `
       <section class="ac-inspector-section ac-ego-bucket">
         <h4 class="ac-overlap-title">Why it's here</h4>
-        <p class="ac-ego-bucket-line">It isn't grouped into a shared space yet, so it sits in the <b>unclustered</b> ring — placed by its <b>${escHtml(domLabel)}</b> domain alone. It joins a neighbourhood the moment it shares a space with another team.</p>
-        <p class="ac-ego-bucket-basis">basis · declared domain · no shared space on file yet</p>
+        <p class="ac-ego-bucket-line">Shown apart in the <b>unclustered</b> ring. ${declared} — placed by its <b>${escHtml(domLabel)}</b> domain.</p>
+        <p class="ac-ego-bucket-basis">basis · declared domain${N ? " · its declared space has no second team on the map yet" : " · no shared space on file yet"}</p>
       </section>`;
   }
   const primary = spaces[0];
@@ -5636,6 +5647,9 @@ function constTeamPreviewHtml(team, ctx) {
   const rid = team.record_id;
   const clusters = Array.isArray(ctx?.clusters) ? ctx.clusters : [];
   const spaces = clusters.filter(c => Array.isArray(c.teams) && c.teams.includes(rid)).map(c => c.label || c.name || c.record_id);
+  // Folded into the unclustered ring on the map? Then say "declares" — not "in" —
+  // so the glance matches where the dot is actually drawn.
+  const foldedApart = !!(ctx?.distributionWells || []).find(w => w.id === "_other")?.members?.includes(rid);
   const dependedOn = (ctx?.inBy?.get(rid) || []).length;
   const stage = team?.journey?.stage;
   const sector = CONST_DOMAIN_LABEL[constDomainClass(team.domain)] || "other";
@@ -5654,7 +5668,7 @@ function constTeamPreviewHtml(team, ctx) {
       ${tail ? `<p class="ac-preview-tail">${escHtml(tail)}</p>` : ""}
     </div>
     <div class="ac-preview-spaces">
-      <span class="ac-preview-k">in ${spaces.length} space${spaces.length === 1 ? "" : "s"}</span>
+      <span class="ac-preview-k">${foldedApart ? `declares ${spaces.length} space${spaces.length === 1 ? "" : "s"} · shown apart` : `in ${spaces.length} space${spaces.length === 1 ? "" : "s"}`}</span>
       ${spaces.map(s => `<span class="ac-preview-space">${escHtml(constShortText(s, 30))}</span>`).join("")}
     </div>`;
 }
@@ -7169,9 +7183,10 @@ function renderProductStack() {
 // ─── constellation ───────────────────────────────────────────────────
 // ─── cohort map · cluster-well constellation ─────────────────────────
 // Ported (watered-down, PUBLIC-data-only) from the cohort dossier's Map
-// view. Teams sit inside their primary cluster's "well"; node size = how
-// many teams declare a dependency on them (keystones grow); domain → a
-// warm tonal color. Detail-on-click reuses the existing record drawer.
+// view. Teams sit inside their primary cluster's "well"; node size = maturity
+// (default; headcount / even are alternates), shade + rim weight = how many
+// teams depend on them, domain → a warm tonal color. Detail-on-click reuses the
+// existing record drawer.
 // Nothing here reads coordinator judgement or any private dossier input —
 // every field used is self-asserted in the cohort surface.
 const CONST_DOMAIN_LABEL = {
@@ -7251,15 +7266,21 @@ function constBubbleMapSummary(model, grain) {
   // report its size separately so the orientation reads honestly.
   const otherWell = wells.find(w => w.id === "_other");
   const unclustered = otherWell ? ((otherWell.members && otherWell.members.length) || 0) : 0;
+  // Of the "_other" ring, how many are genuinely clusterless vs folded singletons
+  // (declared a space, but it has no second team on the map) — reported apart so
+  // the foot copy stops calling a folded singleton "still finding a space".
+  const noSpace = (model && Number.isFinite(model.trulyUnclustered)) ? Math.min(unclustered, model.trulyUnclustered) : unclustered;
+  const foldedSingletons = Math.max(0, unclustered - noSpace);
   return {
     themes: [...themeSet].filter(t => t !== "_other").length,
     clusters: wells.filter(w => w.id !== "_other").length,
-    teams, unclustered,
+    teams, unclustered, noSpace, foldedSingletons,
     grain: constNormalizeGranularity(grain), domains,
+    sizeBy: constNormalizeSizeBy(state.constellationSizeBy),
   };
 }
 function constBubbleMapDefaultHtml(ctx) {
-  const s = ctx && ctx.bubbleMap ? ctx.bubbleMap : { themes: 0, clusters: 0, teams: 0, grain: constNormalizeGranularity(state.constellationGranularity), domains: [] };
+  const s = ctx && ctx.bubbleMap ? ctx.bubbleMap : { themes: 0, clusters: 0, teams: 0, grain: constNormalizeGranularity(state.constellationGranularity), domains: [], sizeBy: "maturity" };
   const grain = s.grain;
   const grainNote = grain === "themes"
     ? "Zoom in to break each theme into its ecosystems, then into individual teams."
@@ -7282,13 +7303,27 @@ function constBubbleMapDefaultHtml(ctx) {
       <div class="ac-inspector-kicker">where everyone sits</div>
       <h3 class="ac-orientation-counts">${countLine}</h3>
       <p>Every team sits by what it works on, so neighbours share a space. ${escHtml(grainNote)}</p>
-      ${s.unclustered ? `<p class="ac-orientation-foot">${escHtml(pl(s.unclustered, "team"))} still finding a space — shown apart.</p>` : ""}
+      ${(() => {
+        // Honest two-cause foot: genuinely-clusterless teams vs folded singletons
+        // (declared a space, but no second team plots it yet) — so the unclustered
+        // ring isn't read as "5 teams with no space" when 4 of them DO declare one.
+        const noSpace = s.noSpace != null ? s.noSpace : s.unclustered;
+        const folded = s.foldedSingletons || 0;
+        const foot = [];
+        if (noSpace) foot.push(`${pl(noSpace, "team")} still finding a space`);
+        if (folded) foot.push(`${pl(folded, "team")} alone in ${folded === 1 ? "its" : "their"} ecosystem so far`);
+        return foot.length ? `<p class="ac-orientation-foot">${escHtml(foot.join(" · "))} — shown apart in the unclustered ring.</p>` : "";
+      })()}
       <p class="ac-orientation-cta">Hover a bubble to read it · click to pin · click a second to compare.</p>
     </div>
     <section class="ac-inspector-section is-orientation-legend">
       <h4>how to read it</h4>
       <ul class="ac-encoding-list">
-        <li><span class="ac-enc-mark is-size"></span><strong>Bigger bubble</strong> — further along, more built.</li>
+        ${s.sizeBy === "headcount"
+          ? `<li><span class="ac-enc-mark is-size"></span><strong>Bigger bubble</strong> — more people on the team.</li>`
+          : s.sizeBy === "even"
+          ? `<li><strong>All bubbles the same size</strong> — read the groupings, not the sizes.</li>`
+          : `<li><span class="ac-enc-mark is-size"></span><strong>Bigger bubble</strong> — further along, more built.</li>`}
         <li><span class="ac-enc-mark is-rim"></span><strong>Brighter rim</strong> — more teams lean on it.</li>
         <li><span class="ac-enc-mark is-ring"></span><strong>Shared circle</strong> — same ecosystem.</li>
       </ul>
@@ -7712,7 +7747,7 @@ function wireConstellationTimelineControls(root = state.canvas) {
 // map. Reuses the well accent tokens so it flips for light mode. A redundant
 // single-member container is skipped — its team bubble already reads as the
 // space, so an extra ring around one node is just noise.
-function constBubbleContainerSvg(c, accentStyle) {
+function constBubbleContainerSvg(c, accentStyle, dim = false) {
   if (!c || c.redundant) return "";
   // Level-aware label gate: theme rings are large; cluster/skill rings smaller.
   // A 9px label only earns its place when the ring can hold it without crowding
@@ -7750,7 +7785,7 @@ function constBubbleContainerSvg(c, accentStyle) {
   // "others" ring (de-emphasized) so it doesn't read as a peer space.
   const otherClass = (c.id === "_other" || String(c.id).endsWith(":_other")) ? " is-others" : "";
   return `
-    <g class="ac-bubble-container${otherClass}" data-level="${escAttr(c.level)}" data-container="${escAttr(c.id)}" data-members="${escAttr((c.members || []).join(" "))}" role="button" tabindex="0" aria-label="${escAttr(aria)}" style="${escAttr(accentStyle + ";view-transition-name:ac-vtc-" + dependencySafeToken(c.id))}">
+    <g class="ac-bubble-container${otherClass}${dim ? " is-domain-dim" : ""}" data-level="${escAttr(c.level)}" data-container="${escAttr(c.id)}" data-members="${escAttr((c.members || []).join(" "))}" role="button" tabindex="0" aria-label="${escAttr(aria)}" style="${escAttr(accentStyle + ";view-transition-name:ac-vtc-" + dependencySafeToken(c.id))}">
       <circle class="ac-bubble-container-shape" cx="${c.cx.toFixed(1)}" cy="${c.cy.toFixed(1)}" r="${c.r.toFixed(1)}"/>
       ${labelMarkup}
     </g>`;
@@ -7812,8 +7847,10 @@ function renderConstellation() {
   const activeLens = "all";
   const stageOf = (team) => team?.journey?.stage;
   // Size channel: maturity (default) keeps the area-∝-stage baseline; the others
-  // re-ask the size question against real data (people headcount, dependency
-  // indegree) without touching layout or colour. Built once per render.
+  // re-ask the size question against real data (people headcount, or a flat
+  // "even"). Switching the channel RE-PACKS the map — radius feeds the packer, so
+  // positions, container radii and the viewBox all shift; only colour is held
+  // fixed (always domain). Built once per render.
   const sizeBy = constNormalizeSizeBy(state.constellationSizeBy);
   const domainFilter = constNormalizeDomainFilter(state.constDomainFilter);
   const headcountByTeam = new Map();
@@ -7925,12 +7962,20 @@ function renderConstellation() {
   const nodeMarkup = [...pos.values()].sort((p, q) => p.r - q.r).map(({ team, x, y, r, angle, wellId, wellSize, rank, shade }) => {
     const isBubble = viewMode === "bubble";
     // Shade = how many teams depend on this one. Opacity alone reads poorly on
-    // black, so influence drives a bright domain-coloured RIM (stroke weight)
-    // as well — keystones like TeeSQL/Contexto pop as the load-bearing teams
-    // they are. fill-opacity, never element opacity (that would fade the rim +
+    // black, so influence drives a bright domain-coloured RIM (stroke weight) as
+    // well — the teams others depend on most carry the heaviest rim. (Separate
+    // channel from the single resting NAME per space, which is just the largest
+    // bubble.) fill-opacity, never element opacity (that would fade the rim +
     // label and fight the hover/selection rules).
     const shadeV = Number.isFinite(shade) ? shade : 0.4;
-    const shadeStyle = isBubble ? `fill-opacity:${(0.58 + 0.42 * shadeV).toFixed(2)};stroke-width:${(0.8 + 2.4 * shadeV).toFixed(2)}` : "";
+    // The inline depended-on shade (fill-opacity + rim weight) is gated OFF for
+    // mentors (so the .ac-node-mentor hollow ring isn't overridden by the inline
+    // stroke-width) and for journey-unassessed teams (so the .is-journey-missing
+    // "unknown maturity" hollow/dashed style can show — otherwise an unassessed
+    // team is drawn identically to a confirmed stage-1 team).
+    const shadeStyle = (isBubble && !team.is_mentor && journeyAssessed(team))
+      ? `fill-opacity:${(0.58 + 0.42 * shadeV).toFixed(2)};stroke-width:${(0.8 + 2.4 * shadeV).toFixed(2)}`
+      : "";
     // View-transition name so each team bubble morphs to its new home when the
     // granularity changes (same team persists across grains by record_id).
     const vtName = isBubble ? `;view-transition-name:ac-vt-${dependencySafeToken(team.record_id)}` : "";
@@ -7939,7 +7984,11 @@ function renderConstellation() {
       ? (interestCtx.coreIds.has(team.record_id) ? " is-interest-core" : (interestCtx.neighborIds.has(team.record_id) ? " is-interest-neighbor" : " is-interest-outside"))
       : "";
     const densityClass = viewMode === "map" && wellSize > 1 ? " is-dense-well" : "";
-    const keystoneClass = ((viewMode === "map" || viewMode === "bubble") && rank === 0) ? " is-keystone-label" : "";
+    // The resting "anchor" label is the largest bubble in a space (rank 0). In
+    // "even" size mode every bubble is the same size, so rank 0 is arbitrary —
+    // don't crown one team then, or the lone resting name reads as a standout it
+    // isn't (off-themes every team is named anyway, so nothing is lost).
+    const keystoneClass = ((viewMode === "map" || viewMode === "bubble") && rank === 0 && sizeBy !== "even") ? " is-keystone-label" : "";
     const secondaryClass = viewMode === "map" && wellSize > 1 && rank > 0 ? " is-secondary-label" : "";
     const sourceClass = `${typedConnected.has(team.record_id) ? " is-source-backed" : ""}${profileLinkConnected.has(team.record_id) ? " is-profile-link" : ""}${unclusteredIds.has(team.record_id) ? " is-unclustered" : ""}${journeyAssessed(team) ? "" : " is-journey-missing"}`;
     const gapCount = profileLinkDegree.get(team.record_id) || 0;
@@ -8001,7 +8050,14 @@ function renderConstellation() {
   // cluster rings return when you zoom into the clusters grain.
   const containerMarkup = containers
     .filter(c => granularity !== "themes" || c.level === "theme")
-    .map((c) => constBubbleContainerSvg(c, constWellAccentStyle(constContainerAccentTokens(c, model.byRecordId))))
+    .map((c) => {
+      // The "coloured by domain" filter now dims the RINGS too, not just the team
+      // nodes — both encode domain since the colour fix, so they must answer to
+      // the same control (a TEE filter shouldn't leave a non-TEE ring fully lit).
+      const isOther = c.id === "_other" || String(c.id).endsWith(":_other");
+      const dim = domainFilter !== "all" && !isOther && constContainerDomain(c.members, model.byRecordId) !== domainFilter;
+      return constBubbleContainerSvg(c, constWellAccentStyle(constContainerAccentTokens(c, model.byRecordId)), dim);
+    })
     .join("");
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="${escAttr(viewMode)}">

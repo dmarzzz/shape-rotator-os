@@ -278,13 +278,18 @@ function constellationModelCompute(teams = [], clusters = [], dependencyRecords 
   // single node). Anything that ends up alone joins the shared well so the map
   // shows ecosystems, not scattered orphans each in their own circle.
   const orphans = list.filter(team => !primary.has(team.record_id)).map(team => team.record_id);
+  // Split the two populations that end up in "_other": teams genuinely in NO
+  // cluster (counted now, before the fold) vs teams whose declared cluster simply
+  // had <2 plotted members and got folded. The orientation foot reports them
+  // separately so a folded singleton isn't mislabelled as "still finding a space".
+  const trulyUnclustered = orphans.length;
   const grouped = [];
   for (const well of wellsDef) {
     if (well.members.length < 2) orphans.push(...well.members);
     else grouped.push(well);
   }
   if (orphans.length) grouped.push({ id: "_other", label: "unclustered", members: orphans });
-  return { byRecordId, wellsDef: grouped, edges, indegree: constellationIndegree(list, dependencyRecords) };
+  return { byRecordId, wellsDef: grouped, edges, indegree: constellationIndegree(list, dependencyRecords), trulyUnclustered };
 }
 
 const COLLAB_STOP = new Set(("a an and the to of for with in on at or be is are am was were we our us you your yours i me my mine they them their it its this that these those as by from into about over under more most less few many much can could should would will may might want wants wanted need needs needed looking look able build building built make making made get gets help helps using use used via across other others team teams project projects cohort people person folks who whom what when where why how do does done also like just very real new use").split(/\s+/));
