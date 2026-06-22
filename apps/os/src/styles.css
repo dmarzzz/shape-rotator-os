@@ -5970,10 +5970,15 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   pointer-events: all;
 }
 .alch-constellation-stage svg .ac-node-group .ac-node-shape {
-  transition: transform 220ms var(--ease), filter 280ms var(--ease);
+  /* base = the EXIT (shrink-back) timing, deliberately faster than the enter. */
+  transition: transform 160ms var(--ease), filter 200ms var(--ease);
   transform-origin: center;
   transform-box: fill-box;
 }
+/* Enter slower than exit (house rule): the grow-in on hover/focus eases over
+   240/300ms; the shrink-back keeps the faster base 160/200ms. */
+.alch-constellation-stage svg .ac-node-group:hover .ac-node-shape,
+.alch-constellation-stage svg .ac-node-group:focus-visible .ac-node-shape { transition-duration: 240ms, 300ms; }
 .alch-constellation-stage svg .ac-node-group:hover .ac-node-shape { transform: scale(1.45); filter: drop-shadow(0 0 10px rgba(143,34,14,0.6)); }
 /* Keyboard focus: these nodes are role=button tabindex=0, but the global cyan
    :focus-visible ring draws around the inflated hit-bbox and clashes with the
@@ -7944,26 +7949,29 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
 .ac-stack-view.is-trajectory .ac-traj-hit { fill: none; stroke: transparent; stroke-width: 12; }
 .ac-stack-view.is-trajectory .ac-traj-line {
   fill: none; stroke: var(--team-color); stroke-width: 1.7; stroke-linejoin: round; stroke-linecap: round;
-  opacity: 0.55; transition: opacity 160ms ease-out, stroke-width 160ms ease-out;
+  /* base = exit (fade-back) timing; the hover reveal below eases in slower. */
+  opacity: 0.55; transition: opacity 120ms ease-out, stroke-width 120ms ease-out;
 }
 /* Momentum marker is monochrome ink, NOT --mom-color: line colour already
    encodes standing, and standing/momentum share the same red/green hues — a
    coloured marker would put two variables on one colour channel. The ▲▼→ glyph
    shape carries direction; colour stays free to mean standing alone. */
 .ac-stack-view.is-trajectory .ac-traj-mom {
-  fill: rgba(var(--ink-rgb), 0.62); font-family: var(--font-mono); font-size: 9px; opacity: 0.85; transition: opacity 140ms ease-out;
+  fill: rgba(var(--ink-rgb), 0.62); font-family: var(--font-mono); font-size: 9px; opacity: 0.85; transition: opacity 110ms ease-out;
 }
 .ac-stack-view.is-trajectory .ac-traj-endlab {
-  font-family: var(--font-mono); font-size: 9px; fill: var(--team-color); opacity: 0; transition: opacity 140ms ease-out;
+  font-family: var(--font-mono); font-size: 9px; fill: var(--team-color); opacity: 0; transition: opacity 110ms ease-out;
 }
+/* Enter slower than exit: the line/label/marker reveal eases in over 200ms;
+   the base rules above carry the faster fade-back. */
 .ac-stack-view.is-trajectory .ac-traj-team:hover .ac-traj-line,
 .ac-stack-view.is-trajectory .ac-traj-team:focus-visible .ac-traj-line {
-  opacity: 1; stroke-width: 2.6;
+  opacity: 1; stroke-width: 2.6; transition-duration: 200ms;
 }
 .ac-stack-view.is-trajectory .ac-traj-team:hover .ac-traj-endlab,
 .ac-stack-view.is-trajectory .ac-traj-team:focus-visible .ac-traj-endlab,
 .ac-stack-view.is-trajectory .ac-traj-team:hover .ac-traj-mom,
-.ac-stack-view.is-trajectory .ac-traj-team:focus-visible .ac-traj-mom { opacity: 1; }
+.ac-stack-view.is-trajectory .ac-traj-team:focus-visible .ac-traj-mom { opacity: 1; transition-duration: 200ms; }
 /* The fastest mover + steepest slip lead at rest so the eye lands on them. */
 .ac-stack-view.is-trajectory .ac-traj-team.is-mover .ac-traj-line,
 .ac-stack-view.is-trajectory .ac-traj-team.is-slip .ac-traj-line { opacity: 0.95; stroke-width: 2.5; }
