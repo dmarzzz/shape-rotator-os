@@ -11076,8 +11076,13 @@ button.cb-cell:disabled { cursor: default; }
   --cb-preview-panel: rgba(35, 29, 31, 0.92);
   --cb-preview-panel-2: rgba(28, 23, 25, 0.96);
   --cb-preview-grid: rgba(255,255,255,0.075);
-  --cb-preview-text: var(--alchemy-paper-warm);
-  --cb-preview-muted: var(--alchemy-ink-mute);
+  /* The matrix panel (substrate + rowheads + header band) is dark in BOTH
+     themes, so its text must NOT follow the theme — these used to resolve to
+     var(--alchemy-paper-warm)/--alchemy-ink-mute, which flip to dark ink in
+     light mode and rendered the rowhead names dark-on-dark (invisible). Pin
+     them to the light values (identical to the dark-theme result). */
+  --cb-preview-text: #F1ECE7;
+  --cb-preview-muted: rgba(245, 243, 238, 0.55);
   --cb-preview-dep: #C2603A;   /* clay / terracotta — dependency (rich, not alarm) */
   --cb-preview-seek: #3E9E54;  /* green now ONLY for the intake modal's seek section + the "submitted" success state — every resting board surface speaks clay + neutral */
   --cb-preview-aff: #8d749f;
@@ -11204,7 +11209,7 @@ button.cb-cell:disabled { cursor: default; }
   min-width: 0;
   min-height: 0;
   overflow: auto;
-  scroll-padding-inline-end: 28px;
+  scroll-padding-inline-end: 96px;
   scrollbar-width: thin;
   scrollbar-color: rgba(var(--ink-rgb), 0.32) transparent;
 }
@@ -11229,7 +11234,9 @@ button.cb-cell:disabled { cursor: default; }
   --cb-cell: clamp(24px, 2vw, 28px);
   --cb-rowhead: clamp(120px, 12vw, 156px);
   min-width: max-content;
-  padding-right: 28px;
+  /* Reserve the triangular gutter the rightmost diagonal labels rise into, so
+     the last few team names aren't clipped by the horizontal scroll edge. */
+  padding-right: 96px;
   padding-bottom: 0;
   font-family: var(--font-mono);
 }
@@ -11255,10 +11262,17 @@ button.cb-cell:disabled { cursor: default; }
 .alch-collab .cb-colhead {
   position: relative;
   z-index: 13;
-  height: 128px;
+  height: 118px;
+  /* Diagonal labels (see .cb-colhead span below). Undo the base rule's
+     vertical-rl stack + its 180° flip — we tilt the label itself instead. The
+     band is carried by .cb-headrow behind; a TRANSPARENT colhead lets each
+     tilted name cross its neighbours rather than being clipped to ~5 chars by
+     their (later-painted) opaque fills. Only focus/hover tints repaint a box. */
+  writing-mode: horizontal-tb;
+  transform: none;
   border-left: 1px solid var(--cb-preview-grid);
   border-bottom: 1px solid var(--cb-preview-grid);
-  background: var(--cb-preview-panel-2);
+  background: transparent;
   color: var(--cb-preview-gold);
   font-size: 10px;
   font-weight: 700;
@@ -11267,11 +11281,22 @@ button.cb-cell:disabled { cursor: default; }
   overflow: visible;
 }
 
+/* The tilted name: foot pinned over its column, rising up-and-right at -45° so
+   it reads with a slight left head-tilt (far easier than the old fully-vertical
+   text). pointer-events:none so the overflowing tail never steals hover/click
+   from the columns it crosses — the button box stays the hit target. */
 .alch-collab .cb-colhead span {
-  display: block;
-  max-height: 112px;
+  position: absolute;
+  left: 50%;
+  bottom: 7px;
+  transform-origin: left bottom;
+  transform: rotate(-45deg);
+  white-space: nowrap;
+  max-width: 132px;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1;
+  pointer-events: none;
 }
 
 .alch-collab .cb-colhead.is-key {
@@ -11363,7 +11388,9 @@ button.cb-cell:disabled { cursor: default; }
 .alch-collab .cb-colhead.is-hl-col {
   color: var(--alchemy-oxide-bright);
   opacity: 1;
-  background: color-mix(in srgb, var(--alchemy-oxide-bright) 10%, var(--cb-preview-panel-2));
+  /* No full-height fill: it would paint a tall bar over the diagonal labels of
+     the columns to its left. The oxide text + bottom underline mark the column;
+     the crosshair band in the cells below carries the rest. */
   box-shadow: inset 0 -2px 0 var(--alchemy-oxide-bright);
 }
 
@@ -11784,6 +11811,7 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 .cb-lead { margin: 0 0 2px; }
 .cb-lead-title { font-family: var(--font-sans); font-size: 23px; font-weight: 600; letter-spacing: -0.01em; color: var(--alchemy-paper-warm); margin: 0; }
 .cb-lead-sub { font-size: 13px; line-height: 1.5; color: var(--alchemy-ink-mute); margin: 6px 0 16px; max-width: 480px; }
+.cb-lead-sub b { color: var(--alchemy-oxide-bright); font-weight: 600; }
 /* Team picker = the house pill chrome (.ac-sent-tok family): pill shape,
    ink-gradient fill, a caret like .ac-sent-chev, oxide focus. Kept a native
    <select> (its type-to-search beats a 26-item token menu), just dressed to
@@ -11843,6 +11871,72 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 .alch-collab .cb-route-bar { height: 4px; border-radius: 2px; background: rgba(var(--cb-match-rgb), 0.85); }
 .alch-collab .cb-route-empty { font-family: var(--font-mono); font-size: 10px; color: rgba(var(--ink-rgb), 0.35); padding: 2px 2px 6px; margin: 0; }
 
+/* ── route-sheet disclosure rows ──────────────────────────────────────────
+   Each match is a compact head (name · why · strength) that expands IN PLACE to
+   a panel: the full why (offer↔seek + shared chips / dependency reason) + who to
+   contact. The head carries NO focus-team hook — clicking expands, it never
+   pivots the whole surface. One open at a time keeps the section small. */
+.alch-collab .cb-route-disc { flex-direction: column; align-items: stretch; }
+.alch-collab .cb-route-disc:hover { transform: none; }
+.alch-collab .cb-route-dh {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  text-align: left; padding: 9px 14px; background: transparent; border: 0;
+  color: inherit; font: inherit; cursor: pointer;
+  transition: background 150ms cubic-bezier(0.22,1,0.36,1);
+}
+.alch-collab .cb-route-dh:hover { background: rgba(var(--ink-rgb), 0.03); }
+.alch-collab .cb-route-dh:hover .cb-route-chev { color: rgba(var(--ink-rgb), 0.72); }
+.alch-collab .cb-route-dh:active { transform: scale(0.994); }
+.alch-collab .cb-route-dh:focus-visible { outline: none; box-shadow: inset 0 0 0 1px rgba(214,189,134,0.5); }
+.alch-collab .cb-route-chev {
+  margin-left: 2px; flex: 0 0 auto; display: grid; place-items: center;
+  color: rgba(var(--ink-rgb), 0.4);
+  transition: transform 240ms cubic-bezier(0.19,1,0.22,1), color 150ms ease;
+}
+.alch-collab .cb-route-row.is-open .cb-route-chev { transform: rotate(180deg); color: var(--alchemy-oxide-bright); }
+
+/* Reveal: grid-template-rows 0fr→1fr collapses to the panel's real height with no
+   magic number; the visibility flip drops the panel's links from the tab order
+   while closed. Enter (240ms expo) slower than exit (180ms smooth). */
+.alch-collab .cb-route-panel {
+  display: grid; grid-template-rows: 0fr; visibility: hidden;
+  transition: grid-template-rows 180ms cubic-bezier(0.22,1,0.36,1), visibility 0s linear 180ms;
+}
+.alch-collab .cb-route-row.is-open .cb-route-panel {
+  grid-template-rows: 1fr; visibility: visible;
+  transition: grid-template-rows 240ms cubic-bezier(0.19,1,0.22,1), visibility 0s;
+}
+.alch-collab .cb-route-panel-in { overflow: hidden; min-height: 0; padding: 2px 14px 13px; }
+
+.alch-collab .cb-route-why { margin: 0 0 11px; }
+.alch-collab .cb-route-whyline { font-size: 12px; line-height: 1.45; color: var(--alchemy-paper-warm); margin: 0 0 8px; }
+.alch-collab .cb-route-whyline b { color: var(--cb-preview-gold); font-weight: 600; }
+.alch-collab .cb-route-reason { font-size: 11.5px; line-height: 1.45; color: var(--alchemy-ink-mute); margin: 0 0 8px; }
+.alch-collab .cb-route-conf { color: var(--cb-preview-gold); }
+.alch-collab .cb-route-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.alch-collab .cb-route-chip { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.02em; color: var(--alchemy-paper-warm); background: rgba(var(--ink-rgb), 0.05); border: 1px solid var(--alchemy-rule); border-radius: 6px; padding: 2px 7px; }
+
+.alch-collab .cb-route-contact { border-top: 1px solid var(--alchemy-rule); padding-top: 11px; }
+.alch-collab .cb-contact-h { font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--alchemy-ink-mute); margin-bottom: 8px; }
+.alch-collab .cb-contact-person { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 0; }
+.alch-collab .cb-contact-id { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
+.alch-collab .cb-contact-name { font-size: 12.5px; font-weight: 600; color: var(--alchemy-paper-warm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.alch-collab .cb-contact-role { font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--alchemy-ink-mute); flex: 0 0 auto; }
+.alch-collab .cb-contact-dm { font-family: var(--font-mono); font-size: 10px; color: var(--cb-preview-gold); text-decoration: none; flex: 0 0 auto; border: 1px solid color-mix(in srgb, var(--cb-preview-gold) 34%, transparent); border-radius: 7px; padding: 3px 9px; transition: background 150ms ease, border-color 150ms ease; }
+.alch-collab .cb-contact-dm:hover { background: color-mix(in srgb, var(--cb-preview-gold) 12%, transparent); border-color: color-mix(in srgb, var(--cb-preview-gold) 60%, transparent); }
+.alch-collab .cb-contact-dm:focus-visible { outline: 1px solid var(--cb-preview-gold); outline-offset: 1px; }
+.alch-collab .cb-contact-nolink { font-family: var(--font-mono); font-size: 9px; color: rgba(var(--ink-rgb), 0.3); flex: 0 0 auto; }
+.alch-collab .cb-contact-empty { font-size: 11px; color: rgba(var(--ink-rgb), 0.4); margin: 0 0 4px; }
+.alch-collab .cb-contact-foot { display: flex; align-items: center; gap: 10px; margin-top: 9px; }
+.alch-collab .cb-contact-overflow { font-family: var(--font-mono); font-size: 9px; color: rgba(var(--ink-rgb), 0.34); }
+.alch-collab .cb-contact-open { margin-left: auto; font-family: var(--font-mono); font-size: 10px; color: var(--alchemy-ink-mute); background: transparent; border: 0; padding: 2px 0; cursor: pointer; transition: color 150ms ease; }
+.alch-collab .cb-contact-open:hover { color: var(--alchemy-oxide-bright); }
+.alch-collab .cb-contact-open:focus-visible { outline: 1px solid var(--alchemy-oxide-bright); outline-offset: 2px; border-radius: 3px; }
+
+.alch-collab .cb-route-more { width: 100%; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em; color: var(--alchemy-ink-mute); background: transparent; border: 1px dashed var(--alchemy-rule); border-radius: 9px; padding: 8px 12px; margin-top: 2px; cursor: pointer; transition: color 150ms ease, border-color 150ms ease; }
+.alch-collab .cb-route-more:hover { color: var(--alchemy-paper-warm); border-color: rgba(var(--ink-rgb), 0.24); }
+.alch-collab .cb-route-more:focus-visible { outline: 1px solid var(--alchemy-oxide-bright); outline-offset: 1px; }
+
 .alch-collab .cb-rule { height: 1px; background: rgba(var(--ink-rgb), 0.07); margin: 26px 0 18px; }
 .alch-collab .cb-maphead { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
 .alch-collab .cb-map-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--alchemy-ink-mute); }
@@ -11851,7 +11945,10 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 .alch-collab .cb-cell.is-focus-band { box-shadow: inset 0 0 0 999px rgba(var(--cb-dep-rgb), 0.10); }
 .alch-collab .cb-rowhead.is-focus { background: color-mix(in srgb, var(--alchemy-oxide-bright) 12%, var(--cb-preview-panel-2)); }
 .alch-collab .cb-rowhead.is-focus .cb-rowhead-name { color: var(--alchemy-oxide-bright); }
-.alch-collab .cb-colhead.is-focus { color: var(--alchemy-oxide-bright); opacity: 1; background: color-mix(in srgb, var(--alchemy-oxide-bright) 10%, var(--cb-preview-panel-2)); box-shadow: inset 0 -2px 0 var(--alchemy-oxide-bright); }
+/* Persistent focus (your team, or a picked one) — oxide text + a slightly
+   stronger bottom underline. No full-height fill: it would clip the diagonal
+   labels to its left (and auto-detect makes a focused column the default). */
+.alch-collab .cb-colhead.is-focus { color: var(--alchemy-oxide-bright); opacity: 1; box-shadow: inset 0 -3px 0 var(--alchemy-oxide-bright); }
 
 /* transient: hovering a route-sheet row lights its directed pair on the map
    below (the list ↔ table tie). A pointed accent outline reads as "this exact
@@ -11870,6 +11967,9 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 /* honor reduced-motion: keep the depth, drop the movement */
 @media (prefers-reduced-motion: reduce) {
   .cb-route-row, .cb-route-main, .cb-route-open, .cb-intake-open, .cb-lens-seg, .alch-collab .cb-cell, .cb-picker select { transition: none; }
+  /* disclosure: snap open/closed (visibility 0s either way), no chevron spin */
+  .alch-collab .cb-route-dh, .alch-collab .cb-route-chev,
+  .alch-collab .cb-route-panel, .alch-collab .cb-route-row.is-open .cb-route-panel { transition: none; }
   .cb-route-row { animation: none; }
   .cb-route-row:hover { transform: none; }
   .cb-route-main:active, .cb-intake-open:active, .cb-lens-seg:active { transform: none; }
@@ -18789,12 +18889,14 @@ html[data-theme="light"] .alch-card-peek {
   border-color: rgba(var(--ink-rgb), 0.14);
 }
 
-/* Collab board adjacency matrix — the sticky column-header row hardcodes a
- * charcoal fallback (var(--alchemy-bg) is undefined), so it stays dark while
- * its label text flips to dark ink: an unreadable dark-on-dark band. Flip the
- * header to paper in light mode (dark mode keeps the #231F20 fallback). */
+/* Collab board adjacency matrix — the matrix substrate (.cb-scroll), corner, and
+ * rowheads are the dark "preview panel" in BOTH themes, and the column names now
+ * tilt diagonally over a TRANSPARENT colhead (see .alch-collab .cb-colhead). So
+ * the sticky header band must stay dark in light mode too — a paper strip would
+ * cap an otherwise-dark panel and drop the gold labels onto low-contrast paper.
+ * Keep the band on the dark panel in both themes. */
 html[data-theme="light"] .cb-headrow {
-  background: var(--ed-bg-1);
+  background: var(--cb-preview-panel-2);
 }
 
 /* Smooth transition so the flip is satisfying instead of jarring. */
