@@ -8037,9 +8037,13 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
 .ac-stack-view.is-targets .ac-tgt-rows { display: flex; flex-direction: column; gap: 4px; }
 .ac-stack-view.is-targets .ac-tgt-row {
   width: 100%; text-align: left; padding: 6px 8px; border: 0; border-radius: 8px; background: transparent;
-  cursor: pointer; transition: background 140ms ease-out, opacity 160ms ease-out;
+  cursor: pointer; transition: background 140ms ease-out, opacity 160ms ease-out, transform 100ms ease-out;
 }
 .ac-stack-view.is-targets .ac-tgt-row:hover { background: rgba(var(--ink-rgb), 0.04); }
+/* Press feedback (house rule): clickable rows/chips open a team dossier or toggle
+   a filter, so they get the subtle :active scale they were missing. */
+.ac-stack-view.is-targets .ac-tgt-row:active { transform: scale(0.985); }
+.ac-gi-chip:active { transform: scale(0.97); }
 /* Focus parity with the trajectory's lines: the row is a border:0 button, which
    nullifies the global focus-ring, so give it its own inset ring on focus. */
 .ac-stack-view.is-targets .ac-tgt-row:focus-visible {

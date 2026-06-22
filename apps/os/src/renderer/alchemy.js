@@ -3134,7 +3134,11 @@ function constNormalizeGranularity(raw) {
 const CONST_SIZE_BYS = [
   { key: "maturity", label: "maturity", hint: "journey stage — how far along (default)" },
   { key: "headcount", label: "headcount", hint: "people on the team" },
-  { key: "depended-on", label: "depended-on", hint: "how many teams rely on it" },
+  // "depended-on" was retired as a SIZE channel: the rim already encodes it (the
+  // permanent "rim = depended-on" legend), so picking it double-encoded indegree
+  // on two channels and flattened every bubble to the floor when no dependency
+  // data exists. Size/rim/colour stay orthogonal (maturity·headcount / depended-on
+  // / domain). Old saved "depended-on" resolves to maturity via constNormalizeSizeBy.
   { key: "even", label: "even", hint: "all the same — read groupings only" },
 ];
 function constNormalizeSizeBy(raw) {
@@ -6164,6 +6168,7 @@ function renderJourney() {
       <strong class="ac-sent-fact">${assessedCount}/${teams.length}</strong>
       <span class="ac-sent-word">read</span>
       ${unreadNote}
+      ${standingWeeklyIsSeed() ? `<span class="ac-sent-faint">· week-to-week movement is illustrative until live reads land</span>` : ""}
     </div>`;
 
   state.canvas.innerHTML = `
@@ -6687,6 +6692,9 @@ function constGoalTargetsHtml(model, standingFilter = "all", momentumFilter = "a
       .sort((a, b) =>
         (MOM_RANK[a.r.momentumKind] - MOM_RANK[b.r.momentumKind])
         || ((a.r.momentum ?? 0) - (b.r.momentum ?? 0))
+        // Declared targets lead estimated ones at the same momentum tier, so the
+        // ordering is never driven by a guessed gap ranking above a real one.
+        || (Number(b.declared) - Number(a.declared))
         || (b.gap - a.gap));
     if (!band.length) return "";
     const meta = CONST_GOAL_STANDING[key];
@@ -6783,12 +6791,12 @@ function sdsActivity(card) {
 }
 
 function sdsEvidenceParts(card) {
-  // The row foot shows only observed-state + review; the per-row release/commit
-  // chips compute their own counts (sdsNumber), so the old build-trace rollup
-  // (primary/detail) was dead. Keep this to the two facts the foot actually reads.
+  // The row foot shows only the one fact it earns: whether there is observed public
+  // signal, or the card is declared-only. Confidence/approval moved to the dossier
+  // (on open) — at <9px on the foot it was near-invisible and, for the declared
+  // majority, an identical "low confidence · needs review" stamped on every row.
   return {
     status: sdsObserved(card) ? "public signal" : "declared only",
-    review: `${insightConfidenceLabel(card)} · ${insightReviewLabel(card)}`,
   };
 }
 
@@ -6897,7 +6905,7 @@ function renderSayDidShipped() {
       <span class="ac-sent-word">· from public profiles + repo activity</span>
       <span class="ac-sent-word">·</span>
       <strong class="ac-sent-fact">${escHtml(`${observed}/${rows.length || teams.length}`)}</strong>
-      <span class="ac-sent-word">show shipping signal · ${escHtml(buildSummary)}</span>
+      <span class="ac-sent-word">show public signal · ${escHtml(buildSummary)}</span>
     </div>`;
   // One card per team: a scannable identity lead (what it is / who it serves, with a
   // domain-colored accent) over the say -> did -> shipped proof strip. Observed build
@@ -6952,7 +6960,6 @@ function renderSayDidShipped() {
         </span>
         <span class="ac-sds-foot">
           <span class="ac-sds-state">${escHtml(proof.status)}</span>
-          <span class="ac-sds-review">${escHtml(proof.review)}</span>
         </span>
       </button>`;
   }).join("");
@@ -7007,10 +7014,13 @@ function renderProductStack() {
   // (current stage → target). A segmented toggle switches between them so the
   // gap framing keeps its home without a redundant top-level tab.
   const projection = state.standingProjection === "targets" ? "targets" : "trajectory";
+  // "gap to target" leads because it's the default projection (the needs-attention
+  // board) — the active segment should sit first so reading order matches the
+  // resting state rather than contradicting it.
   const projToggle = `
     <div class="ac-proj-toggle" role="group" aria-label="standing projection">
-      <button type="button" class="ac-proj-btn" data-standing-projection="trajectory" aria-pressed="${projection === "trajectory" ? "true" : "false"}">trajectory</button>
       <button type="button" class="ac-proj-btn" data-standing-projection="targets" aria-pressed="${projection === "targets" ? "true" : "false"}">gap to target</button>
+      <button type="button" class="ac-proj-btn" data-standing-projection="trajectory" aria-pressed="${projection === "trajectory" ? "true" : "false"}">trajectory</button>
     </div>`;
   const bodyHtml = projection === "targets"
     ? constGoalTargetsHtml(goalModel, standingFilter, momentumFilter)
@@ -8430,10 +8440,21 @@ function wireConstellationHover() {
   if (!state.constellationEscapeBound) {
     state.constellationEscapeBound = true;
     document.addEventListener("keydown", (e) => {
-      if (e.key !== "Escape" || !state.constSelection || state.mode !== "constellation") return;
+      if (e.key !== "Escape" || state.mode !== "constellation") return;
       const editing = e.target?.closest?.("input, textarea, select, [contenteditable='true']");
       if (editing) return;
       if (!state.canvas?.querySelector(".alch-constellation")) return;
+      // Escape peels the bubble map's focused container/space FIRST — it's a
+      // DOM-only state (data-container-focus) the selection clear never reached,
+      // so without this the universal "get me out" key left the map stuck dimmed.
+      const focused = state.canvas.querySelector("[data-container-focus]");
+      if (focused) {
+        e.preventDefault();
+        focused.removeAttribute("data-container-focus");
+        focused.querySelectorAll(".ac-node-group.is-container-core").forEach(n => n.classList.remove("is-container-core"));
+        return;
+      }
+      if (!state.constSelection) return;
       e.preventDefault();
       // journey/stack drive their selected-readout from the markup, not a live
       // .ac-inspector panel — setConstellationInspector can't reach it, so clear
