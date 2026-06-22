@@ -5933,6 +5933,11 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
    height:100% the shared stage uses for the other (full-bleed) cohort views. */
 .alch-const-main .alch-constellation-stage[data-view="bubble"] {
   flex: 0 0 auto;
+  /* CONSTANT box ratio (the 620×600 layout box) so the map area does NOT change
+     height when the grain switches — the SVG viewBox is fit-to-content per grain
+     and letterboxes cleanly inside via preserveAspectRatio="xMidYMid meet", so
+     content never distorts and the workbench below never reflows/jumps. */
+  aspect-ratio: 620 / 600;
   height: auto;
   min-height: 0;
   width: 100%;
@@ -7502,6 +7507,55 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
   margin: 0 0 6px; font-family: var(--font-mono); font-size: 9.5px;
   letter-spacing: 0.16em; text-transform: uppercase; color: var(--alchemy-oxide-bright);
 }
+/* "Why it's here" — the bucket explanation that precedes the Venn on click. */
+.ac-ego-bucket { margin-top: 2px; }
+.ac-ego-bucket-line {
+  margin: 0; font-size: 12.5px; line-height: 1.5;
+  color: var(--alchemy-ink, rgba(var(--ink-rgb), 0.86)); text-wrap: pretty;
+}
+.ac-ego-bucket-line b { color: #E4B66A; font-weight: 600; }
+.ac-ego-bucket-spaces { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 0; }
+.ac-ego-bucket-space {
+  font-size: 11px; padding: 2px 9px; border-radius: 999px;
+  background: var(--well-accent-faint, rgba(193,168,114,0.08));
+  border: 0.5px solid var(--well-accent-soft, rgba(193,168,114,0.3));
+  color: var(--alchemy-ink, rgba(var(--ink-rgb), 0.82));
+}
+.ac-ego-bucket-basis {
+  margin: 8px 0 0; font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 0.02em; color: var(--alchemy-ink-mute, rgba(var(--ink-rgb), 0.5));
+}
+/* Per-circle "why it sits there at ~%" breakdown, beneath the Venn. One block per
+   space: name + ~% at a glance, then three lines (what / signal / read). */
+.ac-egf { margin: 12px 2px 0; animation: ac-preview-in 200ms var(--ease); }
+.ac-egf-cap {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--alchemy-ink-mute, rgba(var(--ink-rgb), 0.5));
+  margin-bottom: 7px;
+}
+.ac-egf-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ac-egf-row {
+  padding: 8px 10px 9px; border-radius: var(--radius-md, 8px);
+  border: 0.5px solid var(--well-accent-soft, rgba(193,168,114,0.22));
+  border-left: 2px solid var(--well-accent, rgba(193,168,114,0.55));
+  background: var(--well-accent-faint, rgba(193,168,114,0.05));
+}
+.ac-egf-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.ac-egf-space {
+  font-size: 12px; font-weight: 700; color: var(--alchemy-paper-warm);
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ac-egf-pct {
+  flex: none; font-family: var(--font-mono); font-size: 12px; font-weight: 700;
+  font-variant-numeric: tabular-nums; color: #E4B66A;
+}
+.ac-egf-line {
+  margin: 2px 0 0; font-size: 11.5px; line-height: 1.45;
+  color: var(--alchemy-ink, rgba(var(--ink-rgb), 0.8)); text-wrap: pretty;
+}
+.ac-egf-line b { color: var(--alchemy-ink, rgba(var(--ink-rgb), 0.95)); font-weight: 600; }
+.ac-egf-read { color: var(--alchemy-ink-mute, rgba(var(--ink-rgb), 0.6)); }
+@media (prefers-reduced-motion: reduce) { .ac-egf { animation: none; } }
 /* Positional facts as quiet tags (maturity, depended-on) in the hero pill row —
    plain values, not a "data dictionary". Distinct from the is-warning pill. */
 .ac-inspector-pills span.ac-pill-pos {
@@ -14856,6 +14910,9 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 @media (prefers-reduced-motion: reduce) {
   .ac-sent-menu { animation: none; }
 }
+/* Right-align when a left-anchored panel would overflow the viewport edge
+   (set by the open handler measuring getBoundingClientRect). */
+.ac-sent-menu.is-flip-right { left: auto; right: 0; }
 .ac-sent-opt {
   appearance: none;
   display: flex;
