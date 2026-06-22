@@ -7195,6 +7195,36 @@ function constDomainClass(d) {
   if (k === "bd-gtm") return "app-ux";
   return CONST_DOMAIN_KEYS.includes(k) ? k : "other";
 }
+// Domain → accent tokens (same {strong,soft,faint} shape as CONST_WELL_ACCENTS).
+// A container (theme / ecosystem ring) is coloured by the DOMAIN it mostly holds,
+// using the SAME coding the team nodes use — so a TEE space and the TEE teams
+// inside it read as one colour, instead of the old hash-assigned ring colour that
+// contradicted its own contents. The faint stop also tints the ring's region
+// (the CSS resting fill = --well-accent-faint), giving the empty space meaning.
+const CONST_DOMAIN_ACCENTS = {
+  tee:      { strong: "#C0492E", soft: "rgba(192,73,46,0.13)",   faint: "rgba(192,73,46,0.05)" },
+  ai:       { strong: "#D9913D", soft: "rgba(217,145,61,0.13)",  faint: "rgba(217,145,61,0.05)" },
+  crypto:   { strong: "#9A5BA6", soft: "rgba(154,91,166,0.13)",  faint: "rgba(154,91,166,0.05)" },
+  "app-ux": { strong: "#3F9B8E", soft: "rgba(63,155,142,0.13)",  faint: "rgba(63,155,142,0.05)" },
+  other:    { strong: "#8a7d75", soft: "rgba(138,125,117,0.13)", faint: "rgba(138,125,117,0.05)" },
+};
+function constContainerDomain(members, teamById) {
+  const count = new Map();
+  for (const rid of (members || [])) {
+    const k = constDomainClass(teamById?.get?.(rid)?.domain);
+    count.set(k, (count.get(k) || 0) + 1);
+  }
+  let best = "other", bestN = -1;
+  for (const k of [...CONST_DOMAIN_KEYS, "other"]) {
+    const n = count.get(k) || 0;
+    if (n > bestN) { bestN = n; best = k; } // ties resolve by domain-key order (deterministic)
+  }
+  return best;
+}
+function constContainerAccentTokens(c, teamById) {
+  if (!c || c.id === "_other" || String(c.id).endsWith(":_other")) return CONST_DOMAIN_ACCENTS.other;
+  return CONST_DOMAIN_ACCENTS[constContainerDomain(c.members, teamById)] || CONST_DOMAIN_ACCENTS.other;
+}
 // ── Relationship-map orientation (the default, no-selection sidebar) ──
 // The page is about WHERE projects sit in relation to each other, so the resting
 // inspector orients you: how many themes/ecosystems/teams you're looking at, how
@@ -7774,7 +7804,11 @@ function renderConstellation() {
   const granularity = constNormalizeGranularity(state.constellationGranularity);
   state.constellationGranularity = granularity;
   // Deepest zoom band: reveal every team label at rest (clusters grain only).
-  const grainDeep = granularity === "clusters" && !!state.constGrainDeep;
+  // Name every team at rest OFF the themes overview — the clusters grain (mid +
+  // deep) and skills grain show all company names; only the themes overview stays
+  // minimal (its big named theme rings carry the read). Reuses the data-grain-deep
+  // "all labels, quiet" CSS so no new style is needed.
+  const labelAll = granularity !== "themes";
   const activeLens = "all";
   const stageOf = (team) => team?.journey?.stage;
   // Size channel: maturity (default) keeps the area-∝-stage baseline; the others
@@ -7946,7 +7980,7 @@ function renderConstellation() {
     const labelLines = constNodeLabelLines(team, viewMode);
     // Anchor (rank 0) always rests a label; other teams rest one only if their
     // bubble is large enough to carry it (BUBBLE_LABEL_R_MIN). Deepest zoom rests all.
-    const smallBubble = isBubble && rank !== 0 && r < BUBBLE_LABEL_R_MIN && !grainDeep;
+    const smallBubble = isBubble && rank !== 0 && r < BUBBLE_LABEL_R_MIN && !labelAll;
     const fullLabel = constText(team.name || team.record_id);
     return `
     <g class="ac-node-group ac-node-domain-${constDomainClass(team.domain)}${orphan}${sourceClass}${interestClass}${densityClass}${keystoneClass}${secondaryClass}${bridgeRank ? " is-bridge-ranked" : ""}${domainFilter !== "all" && constDomainClass(team.domain) !== domainFilter ? " is-domain-dim" : ""}"${smallBubble ? ' data-small-bubble="true"' : ""} data-record-id="${escHtml(team.record_id)}" data-profile-link-count="${gapCount}" style="${escAttr(nodeAccentStyle + vtName)}" role="button" tabindex="0" aria-label="${escAttr(`inspect ${team.name || team.record_id}`)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
@@ -7967,7 +8001,7 @@ function renderConstellation() {
   // cluster rings return when you zoom into the clusters grain.
   const containerMarkup = containers
     .filter(c => granularity !== "themes" || c.level === "theme")
-    .map((c, idx) => constBubbleContainerSvg(c, constWellAccentStyle(constWellAccentTokens(c.id, idx))))
+    .map((c) => constBubbleContainerSvg(c, constWellAccentStyle(constContainerAccentTokens(c, model.byRecordId))))
     .join("");
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="${escAttr(viewMode)}">
@@ -7980,7 +8014,7 @@ function renderConstellation() {
     <div class="alch-constellation" data-constellation-view="${escAttr(viewMode)}">
       <div class="alch-const-workbench"${constRailStyleAttr()}>
         <div class="alch-const-main">
-          <div class="alch-constellation-stage" data-view="${escAttr(viewMode)}" data-grain-deep="${grainDeep ? "true" : "false"}" data-lens="${activeLens}" data-edge-tier="${escAttr(edgeTier)}" data-interest="${escAttr(interestCtx.id)}" data-interest-active="${interestCtx.active ? "true" : "false"}" tabindex="0" aria-label="${escAttr(viewMode === "ring" ? "constellation bridge ring graph" : "cohort ecosystem map — teams grouped by what they build")}">
+          <div class="alch-constellation-stage" data-view="${escAttr(viewMode)}" data-grain-deep="${labelAll ? "true" : "false"}" data-lens="${activeLens}" data-edge-tier="${escAttr(edgeTier)}" data-interest="${escAttr(interestCtx.id)}" data-interest-active="${interestCtx.active ? "true" : "false"}" tabindex="0" aria-label="${escAttr(viewMode === "ring" ? "constellation bridge ring graph" : "cohort ecosystem map — teams grouped by what they build")}">
             <svg viewBox="${escAttr(viewBox)}" preserveAspectRatio="xMidYMid meet">
               <defs>
                 <marker id="ac-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">

@@ -844,7 +844,10 @@ export function enclose(circles) { return bmEnclose(circles); }
 // --- Hierarchy + recursive layout -------------------------------------------
 function bmLeafRadius(stage) {
   const s = Math.max(1, Number(stage) || 1);
-  return Math.max(9, Math.sqrt(s) * 10); // area ∝ maturity; ~14 (s2) … ~26 (s7)
+  // Bigger bubble-to-gap ratio (paired with the tighter BM_GAP below): rings fill
+  // instead of floating tiny dots in mostly-empty space, and every team bubble is
+  // large enough to carry a resting name at the clusters grain.
+  return Math.max(13, Math.sqrt(s) * 12.5); // area ∝ maturity; ~18 (s2) … ~33 (s7)
 }
 
 function bmSkillFreq(teams) {
@@ -920,12 +923,13 @@ export function bubbleHierarchy(model, granularity, stageOf) {
   return { id: "_root", label: "cohort", level: "root", children: clusterNodes };
 }
 
-// Inter-ring separation. root/theme gaps are generous so adjacent ecosystem
-// rings (and their titles) don't crowd each other — the map reads as distinct
-// spaces with air between them rather than one dense pile. cluster gap stays
-// tight so teams inside a space still cohere.
-const BM_GAP = { root: 14, theme: 12, cluster: 5 };
-const BM_PAD = { root: 4, theme: 9, cluster: 6 };
+// Inter-ring separation. root/theme gaps keep adjacent ecosystem rings (and their
+// titles) from crowding — the map reads as distinct spaces with air between them —
+// but are kept tight enough (paired with the larger bubbles above) that the rings
+// fill rather than float small dots in dead space. cluster gap stays tightest so
+// teams inside a space cohere.
+const BM_GAP = { root: 9, theme: 7, cluster: 4 };
+const BM_PAD = { root: 3, theme: 6, cluster: 5 };
 
 function bmLayout(node) {
   if (node.leaf) { node.r = node._leafR != null ? node._leafR : bmLeafRadius(node.stage); return node.r; }
