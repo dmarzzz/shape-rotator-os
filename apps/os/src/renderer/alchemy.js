@@ -6521,7 +6521,7 @@ function constGoalInsightHtml(summary, momentumFilter = "all") {
     <div class="ac-gi" role="group" aria-label="cohort momentum summary">
       ${chip("rising", summary.mom.rising)}${chip("slipping", summary.mom.slipping)}${chip("flat", summary.mom.flat)}
       ${median}${mover}${attention}
-      <span class="ac-gi-src" title="per-week PMF reads, sourced from Supabase team_standing_weekly">via Supabase · ${escHtml(summary.weekLabel)}</span>
+      <span class="ac-gi-src" title="standing bands (behind / on plan / ahead) are derived from each team's self-reported confidence at this week — not a measured plan-adherence delta">standing from self-reported confidence · ${escHtml(summary.weekLabel)}</span>
     </div>`;
 }
 
