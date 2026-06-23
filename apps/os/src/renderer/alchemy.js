@@ -10277,7 +10277,7 @@ function wireCalendar() {
       });
     }
     const addBtn = state.canvas.querySelector("[data-c2-subrow-add]");
-    const addMenu = state.canvas.querySelector(".rr-addrow-menu");
+    const addMenu = state.canvas.querySelector(".c2-rowsctl-menu");
     if (addBtn && addMenu) {
       const opts = [...addMenu.querySelectorAll("[data-c2-subrow-kind]")];
       const setAddOpen = (open) => {
@@ -10291,10 +10291,11 @@ function wireCalendar() {
       });
       for (const opt of opts) {
         opt.addEventListener("click", () => {
-          cal.subscriptions = addSubscription({
-            kind: opt.getAttribute("data-c2-subrow-kind"),
-            subjectId: opt.getAttribute("data-c2-subrow-subject") || null,
-          });
+          const kind = opt.getAttribute("data-c2-subrow-kind");
+          const subjectId = opt.getAttribute("data-c2-subrow-subject") || null;
+          // checklist toggle: subscribed → remove that row; not subscribed → add it.
+          const existing = (cal.subscriptions || []).find(r => r.kind === kind && (r.subjectId || null) === subjectId);
+          cal.subscriptions = existing ? removeSubscription(existing.id) : addSubscription({ kind, subjectId });
           refreshCalendarView();
         });
       }
@@ -10310,7 +10311,7 @@ function wireCalendar() {
         state.c2SubrowOutsideBound = true;
         document.addEventListener("click", (e) => {
           if (state.mode !== "calendar") return;
-          const mn = state.canvas?.querySelector(".rr-addrow-menu");
+          const mn = state.canvas?.querySelector(".c2-rowsctl-menu");
           if (mn && !mn.hasAttribute("hidden") && !e.target.closest("[data-c2-subrow-ctl]")) {
             mn.setAttribute("hidden", "");
             state.canvas.querySelector("[data-c2-subrow-add]")?.setAttribute("aria-expanded", "false");

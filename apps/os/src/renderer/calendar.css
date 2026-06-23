@@ -1419,30 +1419,19 @@
 .rr-now { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid var(--rr-ox); box-shadow: 0 0 10px -1px color-mix(in srgb, var(--rr-ox) 35%, transparent); z-index: 4; pointer-events: none; }
 .rr-now-dot { position: absolute; left: -3px; width: 7px; height: 7px; border-radius: 1px; background: var(--rr-ox); transform: translateY(-50%) rotate(45deg); z-index: 5; pointer-events: none; animation: c2-now-pulse 2.8s cubic-bezier(0.22,1,0.36,1) infinite; }
 
-/* ── ribbon (in town) + ship rows — aligned to the same 7-col grid ───── */
+/* ── feed-row lanes — aligned to the same 7-col grid as the week above ───
+   (The old presence-ribbon + shipped strips were retired in #488 / the rows
+   refactor; their .rr-ribbon/.rr-pcell/.rr-ship rules are gone. Presence + ship
+   are now ordinary rows in .rr-rows below, rendered with .rr-fcell / .rr-rel.) */
 .rr-row { display: grid; grid-template-columns: 48px repeat(7, minmax(0, 1fr)); }
 .rr-rowlab { display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; }
-.rr-rowlab span { font-size: 8px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--rr-faint); }
-.rr-ribbon { grid-column: 2 / span 7; position: relative; height: 54px; border-top: 1px solid var(--ed-rule); }
-.rr-ribbon svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.rr-pcells { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(7, 1fr); }
-.rr-pcell { border-left: 1px solid var(--ed-rule); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 6px; cursor: pointer; transition: background 140ms ease; }
-.rr-pcell:first-child { border-left: 0; }
-.rr-pcell:hover { background: color-mix(in oklch, var(--rr-pres) 9%, transparent); }
-.rr-pcell.today { border-left: 1px solid color-mix(in oklch, var(--rr-ox) 38%, transparent); }
-.rr-pcell span { font-family: var(--ed-mono); font-variant-numeric: tabular-nums; font-size: 10px; color: #aebfa6; }
-.rr-pcell.hi span { color: #cdddc6; }
-.rr-pcell.today span { font-size: 11px; font-weight: 500; color: var(--ed-ink-1); }
-.rr-pcell:focus-visible { outline: none; box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--rr-pres) 60%, transparent); }
-.rr-ship { border-left: 1px solid var(--ed-rule); border-top: 1px solid var(--ed-rule); min-height: 64px; }
-.rr-ship.has { padding: 9px 8px; }
-.rr-ship.today { border-left: 1px solid color-mix(in oklch, var(--rr-ox) 30%, transparent); }
+.rr-rowlab span { font-size: var(--ds-text-2xs); letter-spacing: var(--ds-track-caps); text-transform: uppercase; color: var(--rr-faint); }
 .rr-pulses { display: flex; align-items: center; gap: 5px; margin-bottom: 5px; }
 .rr-pulse { width: 6px; height: 6px; border-radius: 1px; background: var(--rr-ship); transform: rotate(45deg); box-shadow: 0 0 7px color-mix(in oklch, var(--rr-ship) 38%, transparent); }
 .rr-rels { display: flex; flex-direction: column; gap: 2px; }
-.rr-rel { appearance: none; background: transparent; border: 0; padding: 0; text-align: left; cursor: pointer; font-family: var(--ed-mono); font-size: 9.5px; line-height: 1.45; letter-spacing: -0.005em; color: #b6cdb9; transition: color 140ms ease; }
-.rr-rel-team { color: #cfe1d0; }
-.rr-rel:hover, .rr-rel:focus-visible { outline: none; color: var(--ed-ink-1); }
+.rr-rel { appearance: none; background: transparent; border: 0; padding: 0; text-align: left; cursor: pointer; font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); line-height: var(--ds-lh-2xs); letter-spacing: -0.005em; color: var(--ds-ink-2); transition: color 140ms ease; }
+.rr-rel-team { color: var(--ds-ink-1); }
+.rr-rel:hover, .rr-rel:focus-visible { outline: none; color: var(--ds-ink-1); }
 
 /* ── subscribable feed rows — the configurable lane stack ───────────────── */
 .rr-rows { display: flex; flex-direction: column; }
@@ -1451,7 +1440,7 @@
 .rr-frowlab { gap: 6px; justify-content: flex-start; padding: 0 5px 0 3px; min-width: 0; overflow: hidden; }
 .rr-rowlab-ico { display: inline-flex; flex: 0 0 auto; color: var(--rr-faint); }
 .rr-rowlab-ico svg { width: 13px; height: 13px; }
-.rr-rowlab-tx { font-size: 8px; letter-spacing: 0.13em; text-transform: uppercase; color: var(--rr-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rr-rowlab-tx { font-size: var(--ds-text-2xs); letter-spacing: var(--ds-track-caps); text-transform: uppercase; color: var(--rr-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rr-rowlab-x { margin-left: auto; flex: 0 0 auto; appearance: none; background: transparent; border: 0; cursor: pointer; color: var(--rr-faint-2); font-size: 13px; line-height: 1; padding: 1px 3px; border-radius: 3px; opacity: 0; transition: opacity 120ms ease, color 120ms ease, background 120ms ease; }
 .rr-frow:hover .rr-rowlab-x, .rr-rowlab-x:focus-visible { opacity: 1; }
 .rr-rowlab-x:hover, .rr-rowlab-x:focus-visible { outline: none; color: var(--rr-ox); background: color-mix(in oklch, var(--rr-ox) 16%, transparent); }
@@ -1465,22 +1454,18 @@
 .rr-fcell-pres:hover { background: color-mix(in oklch, var(--rr-pres) 9%, transparent); }
 .rr-fcell-pres:focus-visible { outline: none; box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--rr-pres) 60%, transparent); }
 .rr-presbar { width: 56%; max-width: 30px; min-height: 2px; border-radius: 1px 1px 0 0; background: linear-gradient(180deg, color-mix(in oklch, var(--rr-pres) 58%, transparent), color-mix(in oklch, var(--rr-pres) 14%, transparent)); }
-.rr-fcell-n { font-family: var(--ed-mono); font-variant-numeric: tabular-nums; font-size: 10px; color: #aebfa6; }
-.rr-fcell-pres.hi .rr-fcell-n { color: #cdddc6; }
-.rr-fcell-pres.today .rr-fcell-n { color: var(--ed-ink-1); font-weight: 500; }
+.rr-fcell-n { font-family: var(--ds-font-mono); font-variant-numeric: tabular-nums; font-size: var(--ds-text-2xs); color: var(--ds-ink-2); }
+.rr-fcell-pres.hi .rr-fcell-n { color: var(--ds-ink-1); }
+.rr-fcell-pres.today .rr-fcell-n { color: var(--ds-ink-1); font-weight: 500; }
 
-/* add-row control */
-.rr-addrow { position: relative; border-top: 1px solid var(--ed-rule); }
-.rr-addrow-btn { display: inline-flex; align-items: center; gap: 7px; appearance: none; background: transparent; border: 0; cursor: pointer; padding: 8px 11px; font-family: var(--ed-mono); font-size: 9.5px; letter-spacing: 0.05em; color: var(--rr-faint); transition: color 140ms ease; }
-.rr-addrow-btn:hover, .rr-addrow-btn:focus-visible { outline: none; color: var(--ed-ink-1); }
-.rr-addrow-plus { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border: 1px solid currentColor; border-radius: 4px; font-size: 12px; line-height: 1; }
-.rr-addrow-menu { position: absolute; left: 8px; bottom: calc(100% + 5px); z-index: 40; min-width: 236px; max-height: 320px; overflow-y: auto; padding: 5px; background: var(--ed-bg-2); border: 1px solid var(--ed-rule-3); border-radius: 10px; box-shadow: 0 14px 38px rgba(0, 0, 0, 0.5); }
-.rr-addrow-menu[hidden] { display: none; }
-.rr-addrow-grp { padding: 7px 9px 4px; font-family: var(--ed-mono); font-size: 8px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--rr-faint-2); }
-.rr-addrow-opt { display: flex; align-items: center; gap: 9px; width: 100%; appearance: none; background: transparent; border: 0; cursor: pointer; text-align: left; padding: 7px 9px; border-radius: 6px; font-family: var(--ed-display); font-size: 13px; color: var(--ed-ink-2); transition: background 120ms ease, color 120ms ease; }
-.rr-addrow-opt:hover, .rr-addrow-opt:focus-visible { outline: none; background: color-mix(in oklch, var(--rr-ox) 13%, transparent); color: var(--ed-ink-1); }
-.rr-addrow-ico { display: inline-flex; flex: 0 0 auto; color: var(--rr-faint); }
-.rr-addrow-ico svg { width: 15px; height: 15px; }
+/* rows control — reuses the design-system dropdown family (.c2-rowsctl-btn/-menu/
+   -opt/-check), so it inherits the unified panel + option + selected wash. Only the
+   bottom placement, the upward-opening menu, and the group header are local here. */
+.rr-addrow { position: relative; padding: 8px 0 2px; }
+.rr-addrow .c2-rowsctl-menu { top: auto; bottom: calc(100% + 6px); left: 8px; min-width: 224px; max-height: 320px; overflow-y: auto; }
+.c2-rowsctl-grp { padding: 7px 9px 4px; font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); letter-spacing: 0.14em; text-transform: uppercase; color: var(--rr-faint-2); }
+.c2-rowsctl-opt .rr-rowlab-ico { display: inline-flex; flex: 0 0 auto; color: var(--rr-faint); }
+.c2-rowsctl-opt .rr-rowlab-ico svg { width: 14px; height: 14px; }
 
 /* ── week nav (prev / phrase / next) + provenance foot ──────────────── */
 .rr-nav { display: flex; align-items: center; justify-content: space-between; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--ed-rule-2); }

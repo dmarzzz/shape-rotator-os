@@ -809,8 +809,19 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       </div>`;
   }).join("");
 
-  // add-row control — one menu to subscribe a new lane (cohort feeds + per-team).
-  // Same listbox a11y pattern as the scope chip; wiring lives in wireCalendar().
+  // rows control — the "rows ⌄" checklist that adds/removes feed lanes. Reuses the
+  // design-system dropdown family (.c2-rowsctl-*) the calendar already ships (and ds.css
+  // styles), so it inherits the unified panel / option / selected-wash look; each
+  // option is a checkbox reflecting whether that lane is subscribed. Toggle + menu
+  // wiring live in wireCalendar().
+  const subOn = (kind, subjectId = null) => subList.some(s => s.kind === kind && (s.subjectId || null) === (subjectId || null));
+  const rowOpt = (kind, label, subjectId = null) => `
+    <button class="c2-rowsctl-opt" role="option" aria-checked="${subOn(kind, subjectId) ? "true" : "false"}"
+            data-c2-subrow-toggle data-c2-subrow-kind="${escAttr(kind)}"${subjectId ? ` data-c2-subrow-subject="${escAttr(subjectId)}"` : ""} type="button">
+      <i class="c2-rowsctl-check" aria-hidden="true">✓</i>
+      <span class="rr-rowlab-ico" aria-hidden="true">${rowIcon(kind)}</span>
+      <span>${escHtml(label)}</span>
+    </button>`;
   const addKinds = [
     { kind: "commits", label: "github pushes" },
     { kind: "releases", label: "products / releases" },
@@ -820,13 +831,13 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
   ];
   const addRowControl = `
     <div class="rr-addrow" data-c2-subrow-ctl>
-      <button class="rr-addrow-btn" data-c2-subrow-add type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="subscribe a new calendar row">
-        <span class="rr-addrow-plus" aria-hidden="true">+</span><span>subscribe a row</span>
+      <button class="c2-rowsctl-btn" data-c2-subrow-add type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="add or remove calendar rows">
+        rows<i class="c2-chev" aria-hidden="true"></i>
       </button>
-      <div class="rr-addrow-menu" role="listbox" aria-label="subscribe a row" hidden>
-        <div class="rr-addrow-grp">cohort feeds</div>
-        ${addKinds.map(k => `<button class="rr-addrow-opt" role="option" data-c2-subrow-kind="${escAttr(k.kind)}" type="button"><span class="rr-addrow-ico" aria-hidden="true">${rowIcon(k.kind)}</span><span>${escHtml(k.label)}</span></button>`).join("")}
-        ${scopeTeams.length ? `<div class="rr-addrow-grp">a team — commits · releases · meetings</div>${scopeTeams.map(t => `<button class="rr-addrow-opt" role="option" data-c2-subrow-kind="team" data-c2-subrow-subject="${escAttr(t.id)}" type="button"><span class="rr-addrow-ico" aria-hidden="true">${rowIcon("team")}</span><span>${escHtml(t.name)}</span></button>`).join("")}` : ""}
+      <div class="c2-rowsctl-menu" role="listbox" aria-label="calendar rows" hidden>
+        <div class="c2-rowsctl-grp">cohort feeds</div>
+        ${addKinds.map(k => rowOpt(k.kind, k.label)).join("")}
+        ${scopeTeams.length ? `<div class="c2-rowsctl-grp">teams — commits · releases · meetings</div>${scopeTeams.map(t => rowOpt("team", t.name, t.id)).join("")}` : ""}
       </div>
     </div>`;
 
