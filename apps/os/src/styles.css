@@ -5691,7 +5691,10 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
    It just brightens a touch on hover/focus; the value doubles as reset. */
 .alch-zoom-ctl {
   position: absolute;
-  right: 18px;
+  /* Shifted left to clear the copy-link FAB (.fg-share-fab — fixed at
+     right:16px, 32px wide → left edge at 48px). 52px keeps a small gap so the
+     two never overlap; the FAB stays put. */
+  right: 52px;
   bottom: 16px;
   z-index: 6;
   display: inline-flex;

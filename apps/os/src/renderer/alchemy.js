@@ -109,7 +109,6 @@ const COHORT_ZOOM_MIN = 0.7;
 const COHORT_ZOOM_MAX = 1.5;
 const COHORT_ZOOM_DEFAULT = 1;
 const COHORT_ZOOM_KEY_STEP = 0.1;     // discrete step for keyboard + corner buttons
-const COHORT_ZOOM_WHEEL_K = 0.0015;   // wheel sensitivity (exponential, magnitude-aware)
 // ─── directory cards/rows toggle + table columns ──────────────────────────
 const DIR_VIEW_LS_KEY = "srwk:dir_view_v1";
 const DIR_COLS_TEAMS_LS_KEY = "srwk:dir_cols_teams_v1";
@@ -570,10 +569,9 @@ export function mount(container) {
       scrollActivePageViewIntoView();
     });
   });
-  // Ctrl/Cmd + scroll over the cohort canvas resizes the active cohort view.
-  // One persistent listener (gated on cohortZoomActive) — not re-bound per
-  // render. Non-passive so we can preventDefault the browser's own zoom.
-  state.canvas.addEventListener("wheel", onCohortWheel, { passive: false });
+  // Scroll never zooms the cohort views — it scrolls their content, like any
+  // normal page. Zoom is driven only by the corner control (+/−) and the
+  // Cmd/Ctrl +/-/0 keyboard shortcuts below.
   // Cmd/Ctrl +/-/0 keyboard zoom (document-level so it works wherever focus is).
   document.addEventListener("keydown", onZoomKeydown);
   syncRailSelection();
@@ -1331,66 +1329,10 @@ function maybeSyncGrainToZoom() {
 function zoomCohortBy(dir) {
   zoomCohortTo(clampCohortZoom(state.cohortZoom) + dir * COHORT_ZOOM_KEY_STEP, { animate: true });
 }
-// Wheel zoom over the ECOSYSTEM/BUBBLE MAP. The map is a bounded canvas (Figma/
-// Miro-style), so a plain wheel OVER THE BUBBLE MAP zooms it — that is the
-// gesture that also drives the theme → cluster → team grain reveal. A plain wheel
-// over any OTHER cohort stage (standing / say·did·shipped / people / journey — all
-// native scroll containers) scrolls it; Ctrl/Cmd + wheel zooms from anywhere. The
-// step is exponential in the wheel delta so it's magnitude-aware: one mouse notch
-// is a clear step, while a trackpad's many small momentum events accumulate.
-//
-// On the bubble map the wheel is held inside the GRAIN range (themes → clusters-
-// deep) so you can't over-scale past the deepest grain into a blur; once at that
-// bound a further notch falls through to native page scroll (the escape hatch
-// when the map fills the viewport).
-//
-// A trackpad fires wheel events faster than the screen refreshes; applying a
-// zoom (which forces a layout to re-anchor scroll) on every one would jank. So
-// we accumulate the events and apply ONCE per frame via rAF — cursor-anchored,
-// instant (no tween), so it tracks the gesture without a layout storm. The grain
-// re-render is DEFERRED to the gesture's trailing edge (grainSyncTimer) so a
-// mid-scroll band crossing never fires a View Transition under the moving cursor.
-let wheelPending = null;
-let wheelRAF = 0;
+// Deferred-grain timer. maybeSyncGrainToZoom() and stepBubbleGrain() coalesce
+// the discrete grain swap (themes → ecosystems → skills) onto a gesture's
+// trailing edge, so a band crossing never fires a View Transition mid-change.
 let grainSyncTimer = 0;
-// The wheel's reachable zoom range: the grain band on the bubble map (no blur
-// tail past the deepest grain), the full continuous scale on every other view.
-function cohortWheelBounds() {
-  return bubbleMapShowing()
-    ? { lo: GRAIN_ZOOM.themes, hi: GRAIN_ZOOM["clusters-deep"] }
-    : { lo: COHORT_ZOOM_MIN, hi: COHORT_ZOOM_MAX };
-}
-function onCohortWheel(e) {
-  if (!cohortZoomActive()) return;
-  const modifier = e.ctrlKey || e.metaKey;
-  // Plain wheel only captures over the bubble map; the other cohort stages are
-  // native scroll containers, so a plain wheel there scrolls their content.
-  const overMap = !!(e.target?.closest?.('.alch-constellation-stage[data-view="bubble"]'));
-  if (!modifier && !overMap) return;
-  const px = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY; // normalize line→pixel
-  const factor = Math.exp(-px * COHORT_ZOOM_WHEEL_K);
-  const { lo, hi } = cohortWheelBounds();
-  const cur = clampCohortZoom(state.cohortZoom);
-  // At the zoom bound, a further notch in that direction is a no-op — don't
-  // swallow it; let it scroll the page (escape hatch when the map fills the view).
-  if (Math.min(hi, Math.max(lo, cur * factor)) === cur) return;
-  e.preventDefault();
-  if (wheelPending) { wheelPending.factor *= factor; wheelPending.anchorY = e.clientY; }
-  else wheelPending = { factor, anchorY: e.clientY };
-  if (!wheelRAF) wheelRAF = requestAnimationFrame(flushWheelZoom);
-}
-function flushWheelZoom() {
-  wheelRAF = 0;
-  const p = wheelPending;
-  wheelPending = null;
-  if (!p) return;
-  const { lo, hi } = cohortWheelBounds();
-  const target = Math.min(hi, Math.max(lo, clampCohortZoom(state.cohortZoom) * p.factor));
-  // Track the scale 1:1 now; defer the discrete grain swap to the trailing edge.
-  zoomCohortTo(target, { anchorY: p.anchorY, animate: false, deferGrain: true });
-  clearTimeout(grainSyncTimer);
-  grainSyncTimer = setTimeout(maybeSyncGrainToZoom, 140);
-}
 // Cmd/Ctrl +/-/0 (mac + win/linux). The native View-menu accelerators are
 // display-only (registerAccelerator:false in main), so these keys reach the
 // renderer: on a cohort view they zoom that view; anywhere else they fall back
@@ -1465,9 +1407,9 @@ function syncCohortZoomControl() {
     el.setAttribute("aria-label", "cohort view zoom");
     el.innerHTML = `
       <span class="azc-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
-      <button type="button" class="azc-btn" data-zoom="out" aria-label="zoom out" title="zoom out — scroll over the map">&#8722;</button>
+      <button type="button" class="azc-btn" data-zoom="out" aria-label="zoom out" title="zoom out">&#8722;</button>
       <button type="button" class="azc-val" data-zoom="reset" aria-label="reset zoom to 100%" title="reset zoom to 100%">100%</button>
-      <button type="button" class="azc-btn" data-zoom="in" aria-label="zoom in" title="zoom in — scroll over the map">+</button>`;
+      <button type="button" class="azc-btn" data-zoom="in" aria-label="zoom in" title="zoom in">+</button>`;
     el.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-zoom]");
       if (!btn) return;
