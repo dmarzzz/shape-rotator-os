@@ -9,7 +9,7 @@
 
 import { getCohortSurface, subscribeToCohortChanges, refreshCohortFromGithub } from "./cohort-source.js";
 import { mountShape, hashColors, sphereAttrs } from "@shape-rotator/shape-ui";
-import { SPHERE_DEFAULTS, SPHERE_BG_DEFAULT, SPHERE_BG_MIX_DEFAULT, normalizeHex } from "./supabase-sphere.mjs";
+import { SPHERE_DEFAULTS, SPHERE_BG_DEFAULT, SPHERE_BG_MIX_DEFAULT, SPHERE_TIME_DEFAULT, normalizeHex } from "./supabase-sphere.mjs";
 import { compileUserExpr } from "./shader-dsl.mjs";
 
 // Resolve a person's sphere into mountShape opts (saved Supabase override →
@@ -29,6 +29,7 @@ function personSphereMountOpts(recordId, cohort, scale = 1.0) {
     sharp: num(saved?.intensity, SPHERE_DEFAULTS.intensity), // Filament
     bg: normalizeHex(saved?.bg) || SPHERE_BG_DEFAULT,        // Orb Core colour
     bgMix: num(saved?.bg_mix, SPHERE_BG_MIX_DEFAULT),        // Orb Core amount
+    timeScale: num(saved?.time_scale, SPHERE_TIME_DEFAULT),  // Time dial (moot while the pill is static, kept for parity)
     // Custom shader: validate the UNTRUSTED stored text → safe GLSL (null if
     // empty/invalid; mountShape falls back to the standard shader either way).
     shaderExpr: compileUserExpr(saved?.shader_src || "").glsl || null,

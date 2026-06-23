@@ -3837,7 +3837,9 @@ html[data-reduce-motion="1"] .rotor .rotor-shape > path:last-child { animation: 
 }
 .sig-launch-svg {
   display: block;
-  color: var(--neon-cyan);
+  /* Boot logo is pinned to the original oxide red even though the app
+   * accent is now yellow — keep the launch mark on-brand-as-before. */
+  color: #8F220E;
   filter: drop-shadow(0 0 14px rgba(90, 240, 255, 0.55));
 }
 
@@ -3889,7 +3891,7 @@ html[data-reduce-motion="1"] .rotor .rotor-shape > path:last-child { animation: 
 }
 
 .sig-launch-rotor {
-  color: var(--neon-cyan);
+  color: #8F220E; /* pinned oxide red — see .sig-launch-svg */
   transform-origin: 0 0;
   animation: sig-rotor-resolve 1900ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
@@ -3979,7 +3981,7 @@ html[data-reduce-motion="1"] .rotor .rotor-shape > path:last-child { animation: 
   position: absolute;
   inset: 0 auto 0 0;
   width: 0%;
-  background: var(--sr-red, #8f220e);
+  background: var(--sr-red, #EAB308);
   transition: width 360ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 .sig-launch.sig-launch-quick .sig-launch-progress {
@@ -5394,13 +5396,13 @@ html[data-reduce-motion="1"] .tab-indicator { transition: none; }
  * accent, slow tilt/breathe motion (no WebGL). Cyan from atlas is kept
  * for "now/live" markers as the integrating thread. */
 :root {
-  --alchemy-oxide:        #8F220E;  /* SR signature red */
-  --alchemy-oxide-bright: #B43A19;
+  --alchemy-oxide:        #EAB308;  /* SR signature red */
+  --alchemy-oxide-bright: #FACC15;
   --alchemy-paper-warm:   #F1ECE7;  /* SR paper, used at low alpha */
   --alchemy-charcoal:     #1D191A;  /* SR card dark, warmer than atlas */
   --alchemy-charcoal-2:   #2C2728;
   --alchemy-rule:         rgba(var(--ink-rgb), 0.10);
-  --alchemy-rule-warm:    rgba(143, 34, 14, 0.45);
+  --alchemy-rule-warm:    rgba(234, 179, 8, 0.45);
   --alchemy-ink-mute:     rgba(var(--ink-rgb), 0.55);
 
   /* Calendar gantt palette — also consumed by canvas-drawn renderer
@@ -5414,7 +5416,7 @@ html[data-reduce-motion="1"] .tab-indicator { transition: none; }
   --cal-ink-2:     #b8b4ab;
   --cal-ink-3:     #7a7368;
   --cal-ink-4:     #3a3833;
-  --cal-oxide:     #8F220E;
+  --cal-oxide:     #EAB308;
   /* Today-column wash + glow — keyed off --ink-rgb so they invert with the
      theme (light mode overrides --ink-rgb to dark ink) instead of staying
      near-white and disappearing on paper. */
@@ -5435,7 +5437,7 @@ html[data-reduce-motion="1"] .tab-indicator { transition: none; }
   --alchemy-charcoal:     #F5F0EA;  /* now the surface paper */
   --alchemy-charcoal-2:   #EAE3DA;
   --alchemy-rule:         rgba(var(--ink-rgb), 0.14);
-  --alchemy-rule-warm:    rgba(143, 34, 14, 0.55);
+  --alchemy-rule-warm:    rgba(234, 179, 8, 0.55);
   --alchemy-ink-mute:     rgba(var(--ink-rgb), 0.62);
 
   /* Calendar gantt — paper surface, dark ink, same oxide for today. */
@@ -5448,7 +5450,7 @@ html[data-reduce-motion="1"] .tab-indicator { transition: none; }
   --cal-ink-2:     #3B3631;
   --cal-ink-3:     #6E695E;
   --cal-ink-4:     #A39E94;
-  --cal-oxide:     #8F220E;
+  --cal-oxide:     #EAB308;
 }
 .alchemy-view, #alchemy-view {
   grid-area: main;
@@ -5456,7 +5458,7 @@ html[data-reduce-motion="1"] .tab-indicator { transition: none; }
   z-index: 3;
   display: flex; flex-direction: column;
   background:
-    radial-gradient(ellipse at 70% 0%, rgba(143, 34, 14, 0.06), transparent 55%),
+    radial-gradient(ellipse at 70% 0%, rgba(234, 179, 8, 0.06), transparent 55%),
     var(--alchemy-charcoal);
   color: var(--alchemy-paper-warm);
   overflow: hidden;
@@ -5518,8 +5520,11 @@ html[data-reduce-motion="1"] .tab-indicator { transition: none; }
   background: transparent; border: 0; cursor: pointer;
   color: var(--alchemy-ink-mute);
   border-bottom: 1px solid transparent;
-  transition: color 200ms var(--ease), border-color 200ms var(--ease);
+  transition: color 200ms var(--ease), border-color 200ms var(--ease), padding-bottom 220ms var(--ease);
 }
+/* When a row's sub-nav tree is open, tuck the row's bottom padding in so the
+   first child sits close beneath the title. */
+.alchemy-rail-btn[aria-expanded="true"] { padding-bottom: 4px; }
 .alchemy-rail-btn:hover { color: var(--alchemy-paper-warm); }
 .alchemy-rail-btn[aria-selected="true"] {
   color: var(--alchemy-paper-warm);
@@ -5593,8 +5598,8 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   100% { transform: rotate(-2.5deg) translate(0%, 0%); }
 }
 @keyframes alchBreathe {
-  0%, 100% { filter: drop-shadow(0 0 0 rgba(143,34,14,0)); }
-  50%      { filter: drop-shadow(0 6px 20px rgba(143,34,14,0.30)); }
+  0%, 100% { filter: drop-shadow(0 0 0 rgba(234, 179, 8,0)); }
+  50%      { filter: drop-shadow(0 6px 20px rgba(234, 179, 8,0.30)); }
 }
 
 /* ─── pulse (activity over time) ─────────────────────────────────────── */
@@ -5691,17 +5696,17 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
    It just brightens a touch on hover/focus; the value doubles as reset. */
 .alch-zoom-ctl {
   position: absolute;
-  /* Shifted left to clear the copy-link FAB (.fg-share-fab — fixed at
-     right:16px, 32px wide → left edge at 48px). 52px keeps a small gap so the
-     two never overlap; the FAB stays put. */
-  right: 52px;
+  /* Bottom-left, in the map (circles) area — clear of the right-side panel and
+     the copy-link FAB (which stays fixed at right:16px). */
+  left: 24px;
+  right: auto;
   bottom: 16px;
   z-index: 6;
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 4px;
-  border-radius: 13px;
+  padding: 2px;
+  border-radius: 11px;
   background: color-mix(in srgb, var(--alchemy-charcoal) 88%, transparent);
   border: 1px solid var(--alchemy-rule);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.26);
@@ -5722,13 +5727,13 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 32px;
+  width: 22px;
+  height: 24px;
   color: rgba(var(--ink-rgb), 0.5);
   pointer-events: none;
   flex: none;
 }
-.azc-glyph svg { width: 16px; height: 16px; display: block; }
+.azc-glyph svg { width: 15px; height: 15px; display: block; }
 .azc-btn,
 .azc-val {
   appearance: none;
@@ -5737,10 +5742,14 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   color: rgba(var(--ink-rgb), 0.85);
   font-family: "SF Mono", "JetBrains Mono", Menlo, ui-monospace, monospace;
   cursor: pointer;
-  border-radius: 9px;
-  height: 32px;
+  border-radius: 8px;
+  height: 24px;
   transition: background 150ms var(--ease, ease), color 150ms var(--ease, ease), transform 100ms var(--ease, ease);
 }
+/* The design system forces .azc-btn to the 30px control height (height +
+   min-height); in this compact zoom pill we want it shorter, so override both
+   within the control. */
+html[data-ds] .alch-zoom-ctl .azc-btn { height: 24px !important; min-height: 24px !important; }
 .azc-btn {
   width: 32px;
   font-size: 18px;
@@ -5913,7 +5922,7 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   border: 0;
   border-radius: 0;
   background:
-    radial-gradient(ellipse at center, rgba(143,34,14,0.04), transparent 70%),
+    radial-gradient(ellipse at center, rgba(234, 179, 8,0.04), transparent 70%),
     transparent;
   overflow: hidden;
 }
@@ -5987,7 +5996,7 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
    240/300ms; the shrink-back keeps the faster base 160/200ms. */
 .alch-constellation-stage svg .ac-node-group:hover .ac-node-shape,
 .alch-constellation-stage svg .ac-node-group:focus-visible .ac-node-shape { transition-duration: 240ms, 300ms; }
-.alch-constellation-stage svg .ac-node-group:hover .ac-node-shape { transform: scale(1.45); filter: drop-shadow(0 0 10px rgba(143,34,14,0.6)); }
+.alch-constellation-stage svg .ac-node-group:hover .ac-node-shape { transform: scale(1.45); filter: drop-shadow(0 0 10px rgba(234, 179, 8,0.6)); }
 /* Keyboard focus: these nodes are role=button tabindex=0, but the global cyan
    :focus-visible ring draws around the inflated hit-bbox and clashes with the
    warm palette. Suppress it and give an SVG-native warm focus instead. */
@@ -6204,7 +6213,7 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   bottom: 1px;
   border: 1px solid rgba(226,207,162,0.72);
   border-radius: 999px;
-  background: rgba(143,34,14,0.55);
+  background: rgba(234, 179, 8,0.55);
 }
 .alch-constellation-legend .acl-size-key i {
   left: 0;
@@ -6394,10 +6403,10 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   display: inline-flex;
   align-items: center;
   cursor: pointer;
-  border: 1px solid rgba(143,34,14,0.46);
+  border: 1px solid rgba(234, 179, 8,0.46);
   border-radius: 999px;
   padding: 4px 10px;
-  background: rgba(143,34,14,0.10);
+  background: rgba(234, 179, 8,0.10);
   color: var(--alchemy-paper-warm);
   font-family: var(--font-mono);
   font-size: 10px;
@@ -6406,12 +6415,12 @@ html[data-theme="light"] .alchemy-view[data-alch-mode-current="membrane"] .alche
   transition: border-color 160ms var(--ease), background 160ms var(--ease);
 }
 .ac-hero-corridor:hover {
-  border-color: rgba(143,34,14,0.78);
-  background: rgba(143,34,14,0.20);
+  border-color: rgba(234, 179, 8,0.78);
+  background: rgba(234, 179, 8,0.20);
 }
 .ac-hero-corridor:active { transform: scale(0.97); }
 .ac-hero-corridor:focus-visible {
-  outline: 1px solid rgba(143,34,14,0.78);
+  outline: 1px solid rgba(234, 179, 8,0.78);
   outline-offset: 2px;
 }
 .ac-inspector-actions {
@@ -8726,7 +8735,7 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
 .ac-timeline-tick.is-active .act-dot {
   border-color: var(--alchemy-oxide-bright);
   background: var(--alchemy-oxide);
-  box-shadow: 0 0 0 3px rgba(143,34,14,0.13);
+  box-shadow: 0 0 0 3px rgba(234, 179, 8,0.13);
 }
 .act-label {
   max-width: 100%;
@@ -8924,7 +8933,7 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
 }
 .alch-journey-stage svg .ac-jnode:hover .ac-jdot {
   transform: scale(1.25); stroke-width: 1.4;
-  filter: drop-shadow(0 0 8px rgba(143,34,14,0.55));
+  filter: drop-shadow(0 0 8px rgba(234, 179, 8,0.55));
 }
 /* Keyboard focus (jnodes are role=button tabindex=0): warm SVG-native focus
    instead of the global cyan ring, which mis-renders on the <g>. */
@@ -8964,7 +8973,7 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
    when touched. Re-declare here composing float + glow — both drop-shadow()s, so
    the transition also interpolates smoothly instead of jumping. */
 .alch-journey-stage svg .ac-jnode:hover .ac-jsphere {
-  filter: drop-shadow(0 1.4px 1.5px var(--journey-dot-shadow)) drop-shadow(0 0 8px rgba(143, 34, 14, 0.55));
+  filter: drop-shadow(0 1.4px 1.5px var(--journey-dot-shadow)) drop-shadow(0 0 8px rgba(234, 179, 8, 0.55));
 }
 .alch-journey-stage svg .ac-jnode:focus-visible .ac-jsphere {
   filter: drop-shadow(0 1.4px 1.5px var(--journey-dot-shadow)) drop-shadow(0 0 9px rgba(214, 189, 134, 0.85));
@@ -9062,8 +9071,8 @@ html.jweek-vt::view-transition-new(root) {
 }
 .ajf-toggle.is-on {
   color: var(--journey-ink);
-  border-color: rgba(143,34,14,0.72);
-  background: rgba(143,34,14,0.18);
+  border-color: rgba(234, 179, 8,0.72);
+  background: rgba(234, 179, 8,0.18);
 }
 .ajf-toggle:hover {
   color: var(--journey-ink);
@@ -9071,7 +9080,7 @@ html.jweek-vt::view-transition-new(root) {
   background: var(--journey-control-bg-hover);
 }
 .ajf-toggle:focus-visible {
-  outline: 1px solid rgba(143,34,14,0.78);
+  outline: 1px solid rgba(234, 179, 8,0.78);
   outline-offset: 2px;
 }
 .ajf-toggle:not(.is-on) { opacity: 0.62; text-decoration: line-through; }
@@ -9143,7 +9152,7 @@ html.jweek-vt::view-transition-new(root) {
 .cps-fill {
   position: absolute; top: 50%; left: var(--cps-pad); height: 2px; border-radius: 2px;
   width: calc(var(--cps-f, 0) * (100% - 2 * var(--cps-pad))); transform: translateY(-50%);
-  background: color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 68%, transparent);
+  background: color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 68%, transparent);
   view-transition-name: cps-fill; pointer-events: none; z-index: 1;
 }
 .cps-stop {
@@ -9157,9 +9166,9 @@ html.jweek-vt::view-transition-new(root) {
 /* the single clear indicator that sweeps */
 .cps-glide {
   width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #f0b49f, var(--alchemy-oxide-bright, #B43A19) 58%, #8a2a14);
+  background: radial-gradient(circle at 35% 30%, #f0b49f, var(--alchemy-oxide-bright, #FACC15) 58%, #8a2a14);
   border: 1px solid rgba(8, 6, 6, 0.5);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 4px color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 13%, transparent);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 4px color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 13%, transparent);
   view-transition-name: cps-glide; pointer-events: none; z-index: 4;
 }
 /* native range = the whole interaction surface; thumb invisible */
@@ -9174,11 +9183,11 @@ html.jweek-vt::view-transition-new(root) {
 .cps-range:active::-webkit-slider-thumb { cursor: grabbing; }
 .cps-range:focus-visible { outline: none; }
 .cps-rail:has(.cps-range:focus-visible) .cps-glide {
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 3px color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 48%, transparent);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 3px color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 48%, transparent);
 }
 .cps-now {
   font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.04em;
-  color: var(--alchemy-paper-warm, var(--alchemy-oxide-bright, #B43A19));
+  color: var(--alchemy-paper-warm, var(--alchemy-oxide-bright, #FACC15));
   min-width: 3.4ch; font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 /* Hover/focus readout — names the full week under the pointer/thumb (the middle
@@ -9191,8 +9200,8 @@ html.jweek-vt::view-transition-new(root) {
   padding: 2px 7px; border-radius: 5px; white-space: nowrap;
   font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.03em;
   color: var(--alchemy-paper-warm, #e9ded2);
-  background: color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 24%, rgba(8, 6, 5, 0.94));
-  border: 1px solid color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 42%, transparent);
+  background: color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 24%, rgba(8, 6, 5, 0.94));
+  border: 1px solid color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 42%, transparent);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
   opacity: 0; pointer-events: none; z-index: 6;
   transition: opacity 150ms ease, transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -9201,7 +9210,7 @@ html.jweek-vt::view-transition-new(root) {
 .cps-tip::after {
   content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
   border: 4px solid transparent;
-  border-top-color: color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 42%, transparent);
+  border-top-color: color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 42%, transparent);
 }
 /* A little life on the bead — the sweep itself still rides the View Transition,
    this is just hover grow + press, so the control feels physical to the touch. */
@@ -9585,7 +9594,6 @@ html.jweek-vt::view-transition-new(root) {
    bulleted help panel of the available inputs/functions. */
 .alch-sphere-code {
   padding-top: 10px; margin-top: 2px;
-  border-top: 1px solid var(--alchemy-rule);
 }
 .alch-sphere-code-summary {
   cursor: pointer; list-style: none; user-select: none;
@@ -9702,7 +9710,7 @@ html.jweek-vt::view-transition-new(root) {
 .identity-pill .ip-avatar-sphere { width: 100%; height: 100%; display: block; }
 .identity-pill[data-kind="person"] .ip-avatar {
   background: transparent; overflow: visible;
-  width: 26px; height: 26px;
+  width: 39px; height: 39px;
 }
 .alch-seal-avatar-canvas { width: 100%; height: 100%; display: block; }
 .alch-seal-avatar.alch-seal-avatar-sphere {
@@ -9763,7 +9771,7 @@ html.jweek-vt::view-transition-new(root) {
 .alch-shapes-chip[aria-selected="true"] {
   color: var(--alchemy-paper-warm);
   border-color: var(--alchemy-rule-warm);
-  background: rgba(143,34,14,0.10);
+  background: rgba(234, 179, 8,0.10);
 }
 .alch-shapes-chip[aria-selected="true"] .ascn { opacity: 1; }
 
@@ -9791,7 +9799,7 @@ html.jweek-vt::view-transition-new(root) {
 .alch-detail-back:hover {
   color: var(--alchemy-oxide-bright);
   border-color: var(--alchemy-oxide-bright);
-  background: rgba(143,34,14,0.10);
+  background: rgba(234, 179, 8,0.10);
 }
 .alch-detail-bar-tag {
   display: inline-flex; align-items: baseline; gap: 7px;
@@ -10081,7 +10089,7 @@ html.jweek-vt::view-transition-new(root) {
   padding: 3px 8px;
   border-radius: 5px;
   color: var(--alchemy-paper-warm);
-  background: rgba(143,34,14,0.08);
+  background: rgba(234, 179, 8,0.08);
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.08em;
@@ -10355,7 +10363,7 @@ html.jweek-vt::view-transition-new(root) {
 
 .cb-intake-intent-option input:checked + span {
   border-color: var(--alchemy-oxide);
-  background: rgba(143,34,14,0.16);
+  background: rgba(234, 179, 8,0.16);
   color: var(--alchemy-oxide-bright);
   box-shadow: 0 0 0 1px rgba(217,83,54,0.08) inset;
 }
@@ -10406,7 +10414,7 @@ html.jweek-vt::view-transition-new(root) {
 }
 
 .cb-intake-input option:checked {
-  background: #8f220e;
+  background: #EAB308;
   color: #fff7f2;
 }
 
@@ -10618,7 +10626,7 @@ textarea.cb-intake-input {
   outline: none;
   transform: translateY(-1px);
   border-color: var(--alchemy-oxide-bright);
-  background: rgba(143,34,14,0.16);
+  background: rgba(234, 179, 8,0.16);
   color: #fff7f2;
 }
 
@@ -11130,7 +11138,7 @@ button.cb-cell:disabled { cursor: default; }
 /* (Removed: the pre-redesign dot marks + gold/brick cell fills. The collab board's
    cell fills now live under .alch-collab in the stripped-grammar block.) */
 
-.cb-cell.is-hl-row, .cb-cell.is-hl-col { box-shadow: inset 0 0 0 999px rgba(143,34,14,0.07); }
+.cb-cell.is-hl-row, .cb-cell.is-hl-col { box-shadow: inset 0 0 0 999px rgba(234, 179, 8,0.07); }
 
 .cb-cell.is-muted { opacity: 0.16; }
 
@@ -11913,14 +11921,11 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 .cb-picker select:focus-visible { outline: 1px solid var(--alchemy-oxide-bright); outline-offset: 1px; }
 .cb-lead-controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 
-.alch-collab .cb-route { margin-top: 18px; }
-.alch-collab .cb-route-sec { margin-bottom: 20px; }
-.alch-collab .cb-route-sh { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--alchemy-ink-mute); margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
-.alch-collab .cb-route-pip { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
-.alch-collab .cb-route-pip.is-match { background: rgb(var(--cb-match-rgb)); }
-.alch-collab .cb-route-pip.is-mut { background: var(--cb-preview-gold); }
-.alch-collab .cb-route-pip.is-give { background: rgba(var(--ink-rgb), 0.4); }
-.alch-collab .cb-route-pip.is-dep { background: var(--cb-preview-dep); }
+.alch-collab .cb-route { margin-top: 18px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; align-items: start; }
+.alch-collab .cb-route-sec { margin-bottom: 0; min-width: 0; }
+/* narrow windows: drop the 3-up grid back to a single column */
+@media (max-width: 820px) { .alch-collab .cb-route { grid-template-columns: minmax(0, 1fr); gap: 20px; } }
+.alch-collab .cb-route-sh { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--alchemy-paper-warm); margin: 0 0 10px; }
 /* Row = a flex shell (border/fill) holding the focus MAIN + the open ↗. The
    shell is the hover/entrance surface; the two buttons are the gestures. */
 .alch-collab .cb-route-row { display: flex; align-items: stretch; margin-bottom: 8px; border: 1px solid var(--alchemy-rule); border-radius: 11px; background: rgba(var(--ink-rgb), 0.014); overflow: hidden; transition: border-color 150ms var(--ease), background 150ms var(--ease), transform 150ms var(--ease); animation: cb-route-in 240ms var(--ease) both; }
@@ -11945,8 +11950,6 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 .alch-collab .cb-route-arrow { color: rgba(var(--ink-rgb), 0.35); flex: 0 0 auto; font-size: 12px; }
 .alch-collab .cb-route-tg { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.02em; color: var(--alchemy-ink-mute); flex: 1; min-width: 40px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .alch-collab .cb-route-badge { font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--cb-preview-gold); border: 1px solid color-mix(in srgb, var(--cb-preview-gold) 40%, transparent); border-radius: 999px; padding: 2px 8px; flex: 0 0 auto; }
-.alch-collab .cb-route-barwrap { width: 50px; flex: 0 0 auto; }
-.alch-collab .cb-route-bar { height: 4px; border-radius: 2px; background: rgba(var(--cb-match-rgb), 0.85); }
 .alch-collab .cb-route-empty { font-family: var(--font-mono); font-size: 10px; color: rgba(var(--ink-rgb), 0.35); padding: 2px 2px 6px; margin: 0; }
 
 /* ── route-sheet disclosure rows ──────────────────────────────────────────
@@ -12760,7 +12763,7 @@ body[data-active-tab="alchemy"] #alchemy-view[data-alch-mode-current="membrane"]
 .alch-seal-btn-danger:hover {
   color: var(--alchemy-oxide-bright);
   border-color: var(--alchemy-oxide-bright);
-  background: rgba(180, 58, 25, 0.08);
+  background: rgba(250, 204, 21, 0.08);
 }
 /* "break the seal" mid-confirm + resync busy states */
 .alch-seal-btn[data-confirming="1"] { color: var(--alchemy-oxide-bright); border-color: currentColor; }
@@ -12790,7 +12793,7 @@ body[data-active-tab="alchemy"] #alchemy-view[data-alch-mode-current="membrane"]
  * in the editor. Oxide accent: it changes who you ARE, not the record. */
 .alch-pf-claim {
   color: var(--alchemy-oxide-bright);
-  border-color: rgba(180, 58, 25, 0.45);
+  border-color: rgba(250, 204, 21, 0.45);
   white-space: nowrap;
 }
 .alch-pf-claim:hover {
@@ -12857,13 +12860,13 @@ body[data-active-tab="alchemy"] #alchemy-view[data-alch-mode-current="membrane"]
 }
 .alch-feed-btn:hover {
   transform: translateY(-1px);
-  border-color: rgba(143, 34, 14, 0.58);
-  background: rgba(143, 34, 14, 0.05);
+  border-color: rgba(234, 179, 8, 0.58);
+  background: rgba(234, 179, 8, 0.05);
   color: var(--ed-ink-1, var(--alchemy-paper-warm));
 }
 .alch-feed-btn:active { transform: translateY(0) scale(0.985); }
 .alch-feed-btn:focus-visible {
-  outline: 2px solid rgba(143, 34, 14, 0.72);
+  outline: 2px solid rgba(234, 179, 8, 0.72);
   outline-offset: 3px;
 }
 .alch-feed-btn:disabled,
@@ -13786,11 +13789,11 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 
 
 /* ── onboarding ──────────────────────────────────────────────────── */
-.alch-onb-head { margin: 0 auto 24px; max-width: 70ch; }
+.alch-onb-head { margin: 0 0 24px; max-width: 70ch; }
 .alch-onb-title {
   font-family: var(--ed-display);
   font-style: italic;
-  font-size: 32px;
+  font-size: 28px;
   letter-spacing: -0.02em;
   color: var(--ed-ink-1);
   line-height: 1.0;
@@ -13894,8 +13897,8 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 }
 .alch-onb-action:hover {
   transform: translateY(-1px);
-  border-color: rgba(143, 34, 14, 0.58);
-  background: rgba(143, 34, 14, 0.035);
+  border-color: rgba(234, 179, 8, 0.58);
+  background: rgba(234, 179, 8, 0.035);
   color: var(--ed-ink-1, #f5f3ee);
 }
 .alch-onb-action:active { transform: translateY(0) scale(0.985); }
@@ -13904,7 +13907,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 .alch-onb-action:focus-visible,
 .alch-onb-secondary:focus-visible,
 .alch-onb-complete:focus-visible {
-  outline: 2px solid rgba(143, 34, 14, 0.72);
+  outline: 2px solid rgba(234, 179, 8, 0.72);
   outline-offset: 3px;
   box-shadow: none;
 }
@@ -13930,7 +13933,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 }
 .alch-onb-secondary:hover {
   color: var(--ed-ink-1, #f5f3ee);
-  text-decoration-color: var(--sr-red, #8f220e);
+  text-decoration-color: var(--sr-red, #EAB308);
 }
 /* Completion control — ONE per row, pinned right so "do it" (left) and
    "mark done" (right) read as opposite outcomes, never peers. States:
@@ -15055,7 +15058,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 .ac-sent-opt + .ac-sent-opt { margin-top: 1px; }
 .ac-sent-opt:hover { background: rgba(var(--ink-rgb), 0.06); }
 .ac-sent-opt:focus-visible {
-  outline: 1px solid var(--alchemy-oxide-bright);
+  outline: 1px solid rgba(var(--ink-rgb), 0.4);
   outline-offset: -1px;
 }
 .ac-sent-opt-main {
@@ -15089,7 +15092,6 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 }
 .ac-sent-opt[aria-selected="true"] {
   background: rgba(var(--ink-rgb), 0.07);
-  box-shadow: inset 2px 0 0 var(--alchemy-oxide-bright);
 }
 .ac-sent-opt[aria-selected="true"] b { color: var(--alchemy-paper-warm); }
 .ac-sent-opt.is-empty b { color: rgba(var(--ink-rgb), 0.36); }
@@ -15704,8 +15706,8 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 .alch-asks-status      { font-size: 10px; padding: 2px 9px; letter-spacing: 0.20em; }
 
 /* ── onboarding ───────────────────────────────────────────────────── */
-.alch-onb-head         { margin: 0 auto 32px; max-width: 88ch; padding-top: 12px; }
-.alch-onb-title        { font-size: 44px; line-height: 1.0; letter-spacing: -0.02em; margin: 0 0 14px 0; }
+.alch-onb-head         { margin: 0 0 32px; max-width: 88ch; padding-top: 12px; }
+.alch-onb-title        { font-size: 28px; line-height: 1.0; letter-spacing: -0.02em; margin: 0 0 14px 0; }
 .alch-onb-sub          { font-size: 13px; letter-spacing: 0.18em; line-height: 1.55; max-width: 70ch; opacity: 0.62; }
 .alch-onb-progress     { max-width: 88ch; }
 
@@ -16245,7 +16247,7 @@ textarea.alch-cv-compose-body-input { min-height: 150px; line-height: 1.6; }
    to shaperotator.xyz without flipping the dark stage to warm-paper.
    What changes:
      · Adopt the canonical sr-* color tokens (oxide red shifts #c44025 →
-       #8f220e; warm-grays warmed up).
+       #EAB308; warm-grays warmed up).
      · Adopt the canonical font pair: Space Grotesk + JetBrains Mono
        (replaces Iowan Old Style + Geist Mono everywhere meaningful).
      · Push the alchemy rail prominence — wider, larger numerals, more
@@ -16266,7 +16268,7 @@ textarea.alch-cv-compose-body-input { min-height: 150px; line-height: 1.6; }
   --sr-gray-light:   #655c59;
   --sr-ink:          #231f20;
   --sr-charcoal:     #211d1f;
-  --sr-red:          #8f220e;
+  --sr-red:          #EAB308;
 
   /* Font stacks — Space Grotesk does service for display + body so the
      italic variant carries the "specimen card" tone without dragging
@@ -16287,16 +16289,16 @@ textarea.alch-cv-compose-body-input { min-height: 150px; line-height: 1.6; }
 }
 
 /* Oxide-red — shift every prior reference to the canonical brand red.
-   #c44025 was a slightly orange variant; #8f220e is the deeper archival
+   #c44025 was a slightly orange variant; #EAB308 is the deeper archival
    shade that matches the .xyz site exactly. */
 .alch-feed-loading-bar-fill { background: var(--sr-red); }
 .is-onb-next-pulse           { /* unchanged but tinted at the use site below */ }
 
 /* Re-define the keyframe so the pulse uses sr-red rather than #c44025. */
 @keyframes alch-onb-pulse {
-  0%   { box-shadow: inset 4px 0 0 0 var(--sr-red); background: rgba(143, 34, 14, 0.10); }
-  60%  { box-shadow: inset 4px 0 0 0 rgba(143, 34, 14, 0.0); background: rgba(143, 34, 14, 0.04); }
-  100% { box-shadow: inset 4px 0 0 0 rgba(143, 34, 14, 0.0); background: transparent; }
+  0%   { box-shadow: inset 4px 0 0 0 var(--sr-red); background: rgba(234, 179, 8, 0.10); }
+  60%  { box-shadow: inset 4px 0 0 0 rgba(234, 179, 8, 0.0); background: rgba(234, 179, 8, 0.04); }
+  100% { box-shadow: inset 4px 0 0 0 rgba(234, 179, 8, 0.0); background: transparent; }
 }
 
 /* Element-level overrides where the old #c44025 was hard-coded. Keep
@@ -16304,15 +16306,15 @@ textarea.alch-cv-compose-body-input { min-height: 150px; line-height: 1.6; }
 
 
 .cal-event[data-kind="demo"]              { border-left-color: var(--sr-red); }
-.cal-event[data-state="now"]              { background: rgba(143, 34, 14, 0.07); }
+.cal-event[data-state="now"]              { background: rgba(234, 179, 8, 0.07); }
 .alch-onb-step[data-state="missing"]      { border-left-color: var(--sr-red); }
 .alch-prog-tab[aria-selected="true"]      { border-bottom-color: var(--sr-red); }
 .cal-subtab[aria-selected="true"]         { border-bottom-color: var(--sr-red); }
 .alch-page-view-btn[aria-selected="true"] { border-bottom-color: var(--sr-red); }
 .alch-prog-body a,
 .alch-asks-action,
-.alch-onb-inline-link                     { color: var(--sr-red); border-bottom-color: rgba(143, 34, 14, 0.45); }
-.alch-asks-card                           { border-left-color: rgba(143, 34, 14, 0.45); }
+.alch-onb-inline-link                     { color: var(--sr-red); border-bottom-color: rgba(234, 179, 8, 0.45); }
+.alch-asks-card                           { border-left-color: rgba(234, 179, 8, 0.45); }
 .alch-feed-loading-spin                   { border-top-color: var(--sr-red); }
 
 /* ── alchemy rail — bigger, more substantial ───────────────────────
@@ -16661,18 +16663,21 @@ body[data-active-tab="links"]   .primary-nav .nav-cat--dest[data-tab="links"]   
   opacity: 1 !important;
 }
 
-/* ── cohort rail sub-nav — disclosure of the cohort page's six views, nested
-   under the "cohort" row (2026-06). Click "cohort" to reveal; click-off / Esc
-   to collapse. Height is tweened to a JS-measured px value (--sub-h, set in
-   setCohortSubOpen) — the grid-rows 0fr→1fr trick collapses inside a flex-column
-   item, so we measure scrollHeight instead: context-independent and exactly
-   content-tall. Rows fade + slide in on a short stagger. Motion is asymmetric:
-   enter slower (expo-out) than exit (smooth-out), per house rule. A quiet
-   vertical spine + the Shape-Rotator rotated-square marker tie the children to
-   their parent row. */
+/* ── rail sub-navs — per-page disclosures of a page's views (cohort, context,
+   calendar, program), nested under each rail row. The page's row expands while
+   that page is active and collapses when you leave (Esc collapses too). Height
+   is tweened to a JS-measured px value (--sub-h, set in setRailSubOpen) — the
+   grid-rows 0fr→1fr trick collapses inside a flex-column item, so we measure
+   scrollHeight instead: context-independent and exactly content-tall. Rows fade
+   + slide in on a short stagger. Motion is asymmetric: enter slower (expo-out)
+   than exit (smooth-out), per house rule. ASCII ├─ / └─ connectors tie the
+   children to their parent row, like a terminal folder tree. */
 .alch-rail-sub {
   height: 0;                              /* collapsed */
   overflow: hidden;
+  /* Cancel the rail's 6px inter-row gap above the wrap so the tree sits right
+     under its parent row (and collapsed rows stay evenly spaced). */
+  margin-top: -6px;
   transition: height 180ms cubic-bezier(0.22, 1, 0.36, 1);             /* exit (faster) */
 }
 .alch-rail-sub[data-open="true"] {
@@ -16682,26 +16687,32 @@ body[data-active-tab="links"]   .primary-nav .nav-cat--dest[data-tab="links"]   
 .alch-rail-sub-inner {
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  /* Vertical breathing room is padding (not margin) so it's counted in the
-     measured scrollHeight; the spine indent stays a left margin. The spine
-     sits ~under the parent row's icon (rail pads 40px; +9 ≈ 49px). */
-  margin-left: 9px;
-  padding: 2px 0 5px 0;
-  border-left: 1px solid rgba(var(--ink-rgb), 0.13);
+  gap: 2px;            /* vertical breathing room between sub-page rows */
+  /* Indent so the ASCII connectors sit just under the parent row's label. No
+     border spine — the ├─ / └─ glyphs draw the tree themselves. Padding (not
+     margin) so it's counted in the measured scrollHeight. */
+  margin-left: 11px;
+  padding: 0 0 3px 0;
 }
 .alch-rail-sub-btn {
   appearance: none;
   background: transparent;
   border: 0;
   cursor: pointer;
+  position: relative;          /* containing block for the ::before spine line */
   display: grid;
-  grid-template-columns: 12px 1fr;
+  /* Fixed connector column (not max-content) so the label lands on the SAME
+     pixel as the parent title. The parent label starts at 35px from the rail
+     edge (19px icon col + 16px gap). Here: 11px inner margin + 2px pad + 17px
+     col + 5px gap = 35px → child text aligns exactly under the parent text.
+     The connector glyph still starts at the column's left edge; its translateX
+     (see .ars-mark) only moves the glyph, not this column, so the label holds. */
+  grid-template-columns: 17px 1fr;
   align-items: center;
-  gap: 11px;
+  gap: 5px;
   width: 100%;
-  padding: 5px 10px 5px 13px;
-  border-radius: 0 7px 7px 0;
+  padding: 3px 8px 3px 2px;
+  border-radius: 0 6px 6px 0;
   /* Children read a touch quieter than the parent rail rows (0.80) but stay
      AA-legible on the light nav surface (0.55 fell to ~3.7:1). */
   color: rgba(var(--ink-rgb), 0.70);
@@ -16730,44 +16741,74 @@ body[data-active-tab="links"]   .primary-nav .nav-cat--dest[data-tab="links"]   
     opacity 260ms cubic-bezier(0.19, 1, 0.22, 1) calc(var(--sub-i, 0) * 26ms + 30ms),
     color 160ms ease;
 }
-/* Hover/press echo the rail's grammar exactly — a small glide + brighten, no
-   highlight box (the rail rows don't use one). */
-.alch-rail-sub-btn:hover { color: rgba(var(--ink-rgb), 0.96); transform: translateX(2px); }
-.alch-rail-sub-btn:active { transform: translateX(1px) scale(0.97); }
+/* Hover brightens only — no horizontal glide (the children sit in a fixed
+   tree). Press gives a subtle scale anchored left so nothing shifts rightward. */
+.alch-rail-sub-btn:hover { color: rgba(var(--ink-rgb), 0.96); }
+.alch-rail-sub-btn:active { transform: scale(0.97); transform-origin: left center; }
 .alch-rail-sub-btn:focus-visible {
   outline: 1px solid rgba(var(--ink-rgb), 0.34);
   outline-offset: -2px;
 }
-/* rotated-square motif marker — the project's signature shape */
+/* ASCII-style tree connector — a terminal folder-structure look that ties each
+   child to its parent row. Drawn entirely as CSS lines (see .alch-rail-sub-btn
+   ::before / ::after) rather than box-drawing glyphs, so the vertical spine,
+   horizontal tick and └ corner share ONE renderer and one exact colour. (A
+   crisp CSS spine mixed with the anti-aliased ├ / └ glyph banded the line — the
+   overlap composited brighter.) */
 .ars-mark {
-  justify-self: center;
-  width: 5px;
-  height: 5px;
-  transform: rotate(45deg);
-  border: 1px solid currentColor;
-  opacity: 0.55;
-  transition: background-color 160ms ease, border-color 160ms ease, opacity 160ms ease, transform 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* The ├ / └ glyph is hidden; this span only reserves the 17px column so the
+     label keeps its alignment under the parent title. */
+  justify-self: start;
+  font-size: 0;
 }
 .ars-label {
   font-family: var(--sr-font-mono);
-  font-size: 12.5px;
-  letter-spacing: 0.06em;
+  font-size: 12px;
+  letter-spacing: 0.03em;
   text-transform: lowercase;
   line-height: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Vertical spine (::before) — one continuous 1px line, centred under the parent
+   icon (≈8px from the rail edge). It runs the full row height plus the 2px
+   inter-row gap so the rows read as one connected line. */
+.alch-rail-sub-btn::before {
+  content: "";
+  position: absolute;
+  left: -3px;                 /* spine x — centred under the parent row's icon */
+  top: 0;
+  bottom: -2px;               /* bridge the 2px row gap down to the next row */
+  width: 1px;
+  background: rgba(var(--ink-rgb), 0.34);
+  pointer-events: none;
+}
+/* The last row carries the └ corner: stop the spine at the row's centre, where
+   it turns right into the tick, so the line doesn't overshoot below the corner. */
+.alch-rail-sub-btn:last-child::before { bottom: auto; height: 50%; }
+/* Horizontal tick (::after) — a short arm from the spine toward the label,
+   centred on the row. Same width/colour as the spine so they read as one line;
+   meeting the half-height spine on the last row forms the └ corner. */
+.alch-rail-sub-btn::after {
+  content: "";
+  position: absolute;
+  left: -3px;                 /* starts on the spine */
+  top: 50%;
+  width: 13px;                /* short arm toward the label (matches the old ├─ reach) */
+  height: 1px;
+  background: rgba(var(--ink-rgb), 0.34);
+  transform: translateY(-0.5px);
+  pointer-events: none;
+}
 .alch-rail-sub-btn[aria-selected="true"] { color: var(--ink-hi); }
-.alch-rail-sub-btn[aria-selected="true"] .ars-mark {
-  background: var(--sr-red);
-  border-color: var(--sr-red);
-  opacity: 1;
-  transform: rotate(45deg) scale(1.08);   /* tiny overshoot punctuation on select */
+.alch-rail-sub-btn[aria-selected="true"]::before,
+.alch-rail-sub-btn[aria-selected="true"]::after {
+  background: rgba(var(--ink-rgb), 0.6);   /* connector brightens a touch on the active row */
 }
 /* While the disclosure is open, drop the cohort row's hint (if it shows) so
    the submenu is the single list of views — no duplicated vocabulary. */
-.alchemy-rail-btn[data-alch-mode="shapes"][aria-expanded="true"] .ar-hint { display: none; }
+.alchemy-rail-btn[aria-expanded="true"] .ar-hint { display: none; }
 
 /* Reduced motion: substitute the final informative state — collapse/expand
    still works (instant), but no slide, stagger, or height tween. */
@@ -17035,15 +17076,15 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
   border-color: rgba(193, 168, 114, 0.85) !important;
 }
 .im-current-unclaim {
-  border-color: rgba(143, 34, 14, 0.55) !important;
+  border-color: rgba(234, 179, 8, 0.55) !important;
   color: var(--sr-red) !important;
 }
 .im-current-unclaim:hover {
-  background: rgba(143, 34, 14, 0.10) !important;
+  background: rgba(234, 179, 8, 0.10) !important;
   border-color: var(--sr-red) !important;
 }
 .im-current-unclaim[data-confirming="1"] {
-  background: rgba(143, 34, 14, 0.15) !important;
+  background: rgba(234, 179, 8, 0.15) !important;
   border-color: var(--sr-red) !important;
   color: var(--sr-red) !important;
 }
@@ -17159,12 +17200,12 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
 }
 .fp-btn:hover { border-color: rgba(var(--ink-rgb), 0.55); }
 .fp-btn-primary {
-  background: rgba(143, 34, 14, 0.12);
+  background: rgba(234, 179, 8, 0.12);
   border-color: var(--sr-red);
   color: var(--sr-red);
 }
 .fp-btn-primary:hover {
-  background: rgba(143, 34, 14, 0.22);
+  background: rgba(234, 179, 8, 0.22);
   border-color: var(--sr-red);
 }
 .fp-btn-skip { margin-left: auto; opacity: 0.55; }
@@ -17353,14 +17394,14 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
   right: 16px;
   top: 13px;
   height: 1px;
-  background: linear-gradient(90deg, rgba(143, 34, 14, 0.72), rgba(var(--ink-rgb), 0.10) 54%, transparent);
+  background: linear-gradient(90deg, rgba(234, 179, 8, 0.72), rgba(var(--ink-rgb), 0.10) 54%, transparent);
   opacity: 0.72;
   pointer-events: none;
 }
 .app-card:hover {
   transform: translateY(-1px);
-  border-color: rgba(143, 34, 14, 0.58);
-  background-color: rgba(143, 34, 14, 0.035);
+  border-color: rgba(234, 179, 8, 0.58);
+  background-color: rgba(234, 179, 8, 0.035);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.055),
     0 14px 26px rgba(0, 0, 0, 0.20);
@@ -17369,7 +17410,7 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
   transform: translateY(0) scale(0.985);
 }
 .app-card:focus-visible {
-  outline: 2px solid rgba(143, 34, 14, 0.72);
+  outline: 2px solid rgba(234, 179, 8, 0.72);
   outline-offset: 3px;
 }
 .app-card-icon {
@@ -17530,7 +17571,7 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
   color: inherit;
   box-shadow:
     inset 0 1px 0 rgba(var(--overlay-rgb), 0.20),
-    inset 2px 0 0 rgba(143, 34, 14, 0.30);
+    inset 2px 0 0 rgba(234, 179, 8, 0.30);
   transition:
     transform 160ms cubic-bezier(.2, .7, .2, 1),
     border-color 160ms cubic-bezier(.2, .7, .2, 1),
@@ -17545,7 +17586,7 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
   font-family: var(--sr-font-mono);
   font-size: 10.5px;
   letter-spacing: 0;
-  color: var(--sr-red, #8f220e);
+  color: var(--sr-red, #EAB308);
 }
 .link-card::after {
   content: "open";
@@ -17563,12 +17604,12 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
 }
 .link-card:hover {
   transform: translateY(-1px);
-  border-color: rgba(143, 34, 14, 0.58);
+  border-color: rgba(234, 179, 8, 0.58);
   background:
-    linear-gradient(180deg, rgba(var(--ink-rgb), 0.058), rgba(143, 34, 14, 0.030));
+    linear-gradient(180deg, rgba(var(--ink-rgb), 0.058), rgba(234, 179, 8, 0.030));
   box-shadow:
     inset 0 1px 0 rgba(var(--overlay-rgb), 0.28),
-    inset 2px 0 0 var(--sr-red, #8f220e),
+    inset 2px 0 0 var(--sr-red, #EAB308),
     0 14px 28px rgba(0, 0, 0, 0.16);
 }
 .link-card:hover::after {
@@ -17576,7 +17617,7 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
   transform: translateX(2px);
 }
 .link-card:focus-visible {
-  outline: 2px solid rgba(143, 34, 14, 0.72);
+  outline: 2px solid rgba(234, 179, 8, 0.72);
   outline-offset: 3px;
 }
 .link-card-eyebrow {
@@ -17711,7 +17752,7 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
 .easel-sub { max-width: 70ch; font-size: 12.5px; line-height: 1.6; color: rgba(240,236,230,0.7); margin: 6px 0 0; }
 .easel-sub strong { color: #d98e6a; font-weight: 600; }
 .easel-banner { padding: 10px 14px; border-radius: 6px; font-size: 12px; }
-.easel-banner-warn { background: rgba(143,34,14,0.18); border: 1px solid rgba(143,34,14,0.5); color: #f0c9bd; }
+.easel-banner-warn { background: rgba(234, 179, 8,0.18); border: 1px solid rgba(234, 179, 8,0.5); color: #f0c9bd; }
 .easel-body { display: grid; grid-template-columns: 280px 1fr; gap: 18px; flex: 1; min-height: 0; }
 .easel-sources { overflow: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px; }
 .easel-loading { font-size: 12px; color: rgba(240,236,230,0.5); }
@@ -17732,7 +17773,7 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
 .easel-namefield span { font-family: var(--sr-font-mono); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(240,236,230,0.5); }
 .easel-namefield input { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); border-radius: 5px; padding: 7px 10px; color: #f0ece6; font-size: 13px; width: 240px; }
 .easel-namefield input:disabled { opacity: 0.5; }
-.easel-go { appearance: none; border: 0; border-radius: 6px; padding: 11px 26px; background: #8F220E; color: #fdeee8; font-family: var(--sr-font-mono); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; cursor: pointer; transition: background 160ms ease, opacity 160ms ease; }
+.easel-go { appearance: none; border: 0; border-radius: 6px; padding: 11px 26px; background: #EAB308; color: #fdeee8; font-family: var(--sr-font-mono); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; cursor: pointer; transition: background 160ms ease, opacity 160ms ease; }
 .easel-go:hover { background: #a8331a; }
 .easel-go:disabled { opacity: 0.4; cursor: default; }
 .easel-go.is-live { background: #4a4744; }
@@ -17743,7 +17784,7 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
 .easel-dot-on { background: #57c177; box-shadow: 0 0 8px rgba(87,193,119,0.8); }
 .easel-stat-sep { opacity: 0.4; }
 .easel-stat-frames { opacity: 0.6; }
-.easel-err { padding: 10px 14px; border-radius: 6px; background: rgba(143,34,14,0.18); border: 1px solid rgba(143,34,14,0.5); color: #f0c9bd; font-size: 12px; line-height: 1.5; }
+.easel-err { padding: 10px 14px; border-radius: 6px; background: rgba(234, 179, 8,0.18); border: 1px solid rgba(234, 179, 8,0.5); color: #f0c9bd; font-size: 12px; line-height: 1.5; }
 @media (max-width: 900px) { .easel-body { grid-template-columns: 1fr; } .easel-sources { max-height: 180px; } }
 /* live-state polish */
 .easel-dot-on { animation: easelPulse 1.6s ease-in-out infinite; }
@@ -17751,8 +17792,8 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
 .easel-live-tag { font-weight: 700; letter-spacing: 0.18em; color: #57c177; }
 .easel-watching { color: #f0ece6; }
 .easel-err { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-.easel-err-btn { appearance: none; border: 1px solid rgba(246,217,208,0.5); background: rgba(143,34,14,0.32); color: #f6d9d0; border-radius: 5px; padding: 5px 11px; font-family: var(--sr-font-mono); font-size: 10.5px; letter-spacing: 0.08em; cursor: pointer; white-space: nowrap; }
-.easel-err-btn:hover { background: rgba(143,34,14,0.55); }
+.easel-err-btn { appearance: none; border: 1px solid rgba(246,217,208,0.5); background: rgba(234, 179, 8,0.32); color: #f6d9d0; border-radius: 5px; padding: 5px 11px; font-family: var(--sr-font-mono); font-size: 10.5px; letter-spacing: 0.08em; cursor: pointer; white-space: nowrap; }
+.easel-err-btn:hover { background: rgba(234, 179, 8,0.55); }
 .easel-recv-hint { margin: 0; font-family: var(--sr-font-mono); font-size: 10.5px; letter-spacing: 0.04em; color: rgba(240,236,230,0.45); line-height: 1.5; }
 /* output-quality toggle (1080p / 720p) */
 .easel-quality { display: inline-flex; gap: 0; border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; overflow: hidden; align-self: flex-end; }
@@ -18275,7 +18316,7 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
   /* "B1"/"B2" are 2 chars like "01" — keep the column aligned. The
    * default num color is already low; bonus rows tint slightly red so
    * "B" reads as "bonus" without a separate badge. */
-  color: var(--sr-red, #8f220e);
+  color: var(--sr-red, #EAB308);
   opacity: 0.85;
 }
 
@@ -18419,7 +18460,7 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
   color: var(--sr-red);
 }
 .hm-restore:hover:not([disabled]) {
-  background: rgba(143, 34, 14, 0.14);
+  background: rgba(234, 179, 8, 0.14);
 }
 
 /* History link button — sits inline next to the submit button. Plain
@@ -18451,8 +18492,8 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
   display: flex; align-items: center; gap: 14px;
   margin: 12px 0 18px;
   padding: 12px 16px;
-  background: rgba(143, 34, 14, 0.08);
-  border: 1px solid rgba(143, 34, 14, 0.36);
+  background: rgba(234, 179, 8, 0.08);
+  border: 1px solid rgba(234, 179, 8, 0.36);
   border-left: 3px solid var(--sr-red);
 }
 .alch-fork-tag {
@@ -18694,7 +18735,7 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
   --alchemy-charcoal:     #F4F4F4;
   --alchemy-charcoal-2:   #E7E7E7;
   --alchemy-rule:         rgba(var(--ink-rgb), 0.14);
-  --alchemy-rule-warm:    rgba(143, 34, 14, 0.55);
+  --alchemy-rule-warm:    rgba(234, 179, 8, 0.55);
   --alchemy-ink-mute:     rgba(var(--ink-rgb), 0.62);
 
   /* editorial palette — body bg, tab bar, sidebar, alchemy rail */
@@ -18861,12 +18902,12 @@ html[data-theme="light"] .alch-card:hover {
  * every other card — the only formal-cohort cue is the oxide top hairline. */
 html[data-theme="light"] .alch-card-membership-cohort,
 html[data-theme="light"] .alch-card-role-cohort-member {
-  border-top: 1px solid rgba(180, 58, 25, 0.55);
+  border-top: 1px solid rgba(250, 204, 21, 0.55);
   background: #FFFFFF;
 }
 html[data-theme="light"] .alch-card-membership-cohort:hover,
 html[data-theme="light"] .alch-card-role-cohort-member:hover {
-  border-top-color: rgba(180, 58, 25, 0.85);
+  border-top-color: rgba(250, 204, 21, 0.85);
   background: #F7F7F7;
 }
 
@@ -18916,8 +18957,8 @@ html[data-theme="light"] .alch-onb-inline-patch {
 /* Context-vault error message — light-pink text on a red wash reads on
  * dark, but vanishes on paper. Use dark oxide text in light mode. */
 html[data-theme="light"] .alch-cv-error {
-  color: #8F220E;
-  background: rgba(143, 34, 14, 0.10);
+  color: #EAB308;
+  background: rgba(234, 179, 8, 0.10);
 }
 /* Calendar gantt scroll area hardcodes a near-black (#0b0a08); flip to the
  * neutral paper surface so the calendar page reads as light too. */
@@ -19622,7 +19663,7 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
   border-radius: 8px;
   overflow: hidden;
   background:
-    linear-gradient(112deg, rgba(180, 58, 25, 0.16), rgba(180, 58, 25, 0.03) 31%, transparent 54%),
+    linear-gradient(112deg, rgba(250, 204, 21, 0.16), rgba(250, 204, 21, 0.03) 31%, transparent 54%),
     linear-gradient(180deg, rgba(247, 241, 236, 0.045), rgba(247, 241, 236, 0.008)),
     rgba(28, 25, 25, 0.94);
   padding: 0;
@@ -19712,8 +19753,8 @@ html[data-theme="light"] .alch-asks-verb-pill.has-verb-color[aria-pressed="true"
   --lg-blur:      blur(16px) saturate(1.25);
   --lg-blur-lg:   blur(24px) saturate(1.35);
   /* Cohort signature wash — the oxide tint derived from the one accent via
-   * perceptual mixing, replacing the old rgba(180,58,25,0.10) magic literal. */
-  --lg-tint-color: color-mix(in oklch, var(--alchemy-oxide, #8F220E) 14%, transparent);
+   * perceptual mixing, replacing the old rgba(250, 204, 21,0.10) magic literal. */
+  --lg-tint-color: color-mix(in oklch, var(--alchemy-oxide, #EAB308) 14%, transparent);
   --lg-tint:       linear-gradient(112deg, var(--lg-tint-color), transparent 52%);
   /* Liquid dose — master intensity for the cursor-tracking specular sheen
    * (renderer/glass.js moves --lg-mx/--lg-my; CSS paints the glint). Held at a
@@ -20021,7 +20062,7 @@ html[data-theme="light"] .alch-constellation-stage {
 .alch-explore-btn:focus-visible {
   color: var(--alchemy-oxide-hot, #d05332);
   border-color: color-mix(in srgb, var(--alchemy-oxide-hot, #d05332) 55%, transparent);
-  background: rgba(180, 58, 25, 0.08);
+  background: rgba(250, 204, 21, 0.08);
 }
 .alch-explore-btn:focus-visible {
   outline: none;
@@ -20100,7 +20141,7 @@ button.alch-quick-link {
 .alch-quick-link:focus-visible {
   color: var(--alchemy-oxide-hot, #d05332);
   border-color: color-mix(in srgb, var(--alchemy-oxide-hot, #d05332) 55%, transparent);
-  background: rgba(180, 58, 25, 0.08);
+  background: rgba(250, 204, 21, 0.08);
 }
 .alch-quick-text {
   color: var(--ed-ink-2, var(--alchemy-ink));
@@ -20360,7 +20401,7 @@ button.alch-quick-link {
 .alch-detail-disclosure[open] .alch-section-mark {
   color: var(--alchemy-oxide-hot, #d05332);
   border-color: color-mix(in srgb, var(--alchemy-oxide-hot, #d05332) 42%, transparent);
-  background: linear-gradient(180deg, rgba(180, 58, 25, 0.16), rgba(180, 58, 25, 0.05));
+  background: linear-gradient(180deg, rgba(250, 204, 21, 0.16), rgba(250, 204, 21, 0.05));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 .alch-detail-disclosure[open] .alch-section-mark svg {
@@ -20524,7 +20565,7 @@ html[data-theme="light"] .alch-detail-disclosure summary:focus-visible .alch-sec
 body[data-active-tab="network"],
 #network-view,
 #metrics-view {
-  --net-accent: var(--sr-red, var(--accent, #8F220E));
+  --net-accent: var(--sr-red, var(--accent, #EAB308));
   --net-panel-bg: rgba(13, 12, 11, 0.72);
   --net-panel-bg-strong: rgba(19, 17, 15, 0.86);
   --net-panel-wash: rgba(var(--ink-rgb), 0.030);
@@ -20757,8 +20798,8 @@ body[data-active-tab="network"] #metrics-view {
 #metrics-view .metrics-range-btn.selected {
   color: var(--net-ink);
   border-color: color-mix(in oklch, var(--net-accent) 58%, transparent);
-  background: rgba(143, 34, 14, 0.10);
-  box-shadow: inset 0 0 0 1px rgba(143, 34, 14, 0.18);
+  background: rgba(234, 179, 8, 0.10);
+  box-shadow: inset 0 0 0 1px rgba(234, 179, 8, 0.18);
   text-shadow: none;
 }
 
@@ -21096,8 +21137,8 @@ body[data-active-tab="network"] .net-subtab:focus-visible {
 
 .alchemy-view[data-alch-mode-current="feed"] .alch-feed-btn:hover {
   transform: translateY(-1px);
-  border-color: rgba(143, 34, 14, 0.58);
-  background: rgba(143, 34, 14, 0.035);
+  border-color: rgba(234, 179, 8, 0.58);
+  background: rgba(234, 179, 8, 0.035);
   color: var(--ed-ink-1, #f5f3ee);
 }
 
@@ -21106,7 +21147,7 @@ body[data-active-tab="network"] .net-subtab:focus-visible {
 }
 
 .alchemy-view[data-alch-mode-current="feed"] .alch-feed-btn:focus-visible {
-  outline: 2px solid rgba(143, 34, 14, 0.72);
+  outline: 2px solid rgba(234, 179, 8, 0.72);
   outline-offset: 3px;
 }
 
@@ -21238,15 +21279,15 @@ body[data-active-tab="network"] .net-subtab:focus-visible {
 }
 .alch-trailbar .alch-trail-back:hover {
   color: var(--alchemy-oxide-bright);
-  border-color: rgba(180,58,25,0.50);          /* #B43A19 @ .50 — house oxide */
-  background: rgba(180,58,25,0.07);
+  border-color: rgba(250, 204, 21,0.50);          /* #FACC15 @ .50 — house oxide */
+  background: rgba(250, 204, 21,0.07);
 }
 .alch-trailbar .alch-trail-back:hover .atb-glyph svg { transform: translateX(-2px); }
 .alch-trailbar .alch-trail-back:active { transform: scale(0.97); }
 .alch-trailbar .alch-trail-back:focus-visible {
   outline: none;
   border-color: var(--alchemy-oxide-bright);
-  box-shadow: 0 0 0 2px rgba(180,58,25,0.35);
+  box-shadow: 0 0 0 2px rgba(250, 204, 21,0.35);
 }
 /* light theme: 0.16 border washes out on cream (mirrors the explore-btn fix) */
 html[data-theme="light"] .alch-trailbar .alch-trail-back {

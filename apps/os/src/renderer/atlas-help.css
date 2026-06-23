@@ -42,9 +42,9 @@
   letter-spacing: 0;
 }
 .atlas-help-toggle[aria-expanded="true"] {
-  background: var(--alchemy-oxide, #8F220E);
+  background: var(--alchemy-oxide, #EAB308);
   color: rgba(var(--overlay-rgb), 1);
-  border-color: var(--alchemy-oxide, #8F220E);
+  border-color: var(--alchemy-oxide, #EAB308);
 }
 .atlas-help-toggle[aria-expanded="true"] .aht-glyph { border-color: currentColor; }
 
@@ -130,15 +130,15 @@
   color: rgba(var(--ink-rgb), 0.88);
 }
 .ahp-section a {
-  color: var(--alchemy-oxide, #8F220E);
+  color: var(--alchemy-oxide, #EAB308);
   text-decoration: underline;
-  text-decoration-color: rgba(143, 34, 14, 0.4);
+  text-decoration-color: rgba(234, 179, 8, 0.4);
   text-underline-offset: 3px;
   text-decoration-thickness: 1px;
   transition: text-decoration-color 120ms ease;
 }
 .ahp-section a:hover {
-  text-decoration-color: var(--alchemy-oxide, #8F220E);
+  text-decoration-color: var(--alchemy-oxide, #EAB308);
 }
 .ahp-section code {
   font-family: var(--sr-font-mono);
@@ -153,7 +153,7 @@
   font-size: 10.5px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--alchemy-oxide, #8F220E);
+  color: var(--alchemy-oxide, #EAB308);
   margin-bottom: 8px;
 }
 
@@ -200,8 +200,8 @@
   transition: color 120ms ease, border-color 120ms ease;
 }
 .ahp-foot a:hover {
-  color: var(--alchemy-oxide, #8F220E);
-  border-bottom-color: var(--alchemy-oxide, #8F220E);
+  color: var(--alchemy-oxide, #EAB308);
+  border-bottom-color: var(--alchemy-oxide, #EAB308);
 }
 
 @keyframes ahp-fade-in {

@@ -67,6 +67,12 @@ export const SPHERE_BG_DEFAULT = "#231f20";
 // in the bg_mix column (migration 4). Keep in sync with shape-canvas.js's fallback.
 export const SPHERE_BG_MIX_DEFAULT = 0.45;
 
+// Time dial — the raw 0..1 slider position for the orb's animation SPEED. 0.5 is
+// the centre/default and maps to 1× (the original speed); 0 → frozen, 1 → 1.5×.
+// The 0..1 → multiplier mapping lives in shape-canvas.js (timeMult); this is just
+// the stored slider value (time_scale column, migration 5).
+export const SPHERE_TIME_DEFAULT = 0.5;
+
 // Curated Orb Core palette — 10 deep/muted tones (no neon brights), shown on one
 // row; users pick one or type a hex. The full-spectrum native picker is NOT
 // exposed. First entry is the charcoal default (== K_CANVAS).
@@ -119,6 +125,10 @@ function normalizeSphere(row) {
   // bg_mix (Orb Core amount) — optional 0..1; attach only when present (migration 4).
   const bgMix = clamp01(row.bg_mix);
   if (bgMix != null) out.bg_mix = bgMix;
+  // time_scale (Time dial, animation speed) — optional 0..1; attach only when
+  // present (migration 5). 0 is valid (frozen) so use != null, not truthiness.
+  const timeScale = clamp01(row.time_scale);
+  if (timeScale != null) out.time_scale = timeScale;
   // shader_src is optional, UNTRUSTED text — carried as-is here and validated at
   // render time (shader-dsl.compileUserExpr). The DB CHECK bounds its length.
   if (typeof row.shader_src === "string" && row.shader_src.trim()) {
@@ -197,6 +207,10 @@ export async function saveSphere(recordId, values = {}, { storage, fetchImpl, co
   // (0 is valid → no tint). Omitted → upsert preserves the existing value.
   const bgMix = clamp01(values.bg_mix);
   if (bgMix != null) body.bg_mix = bgMix;
+  // time_scale (Time dial, migration 5): the raw 0..1 speed slider. Include a
+  // finite value when supplied (0 is valid → frozen). Omitted → upsert preserves it.
+  const timeScale = clamp01(values.time_scale);
+  if (timeScale != null) body.time_scale = timeScale;
   // shader_src: when the editor passes the key, a non-empty string SETS it and an
   // explicit null/empty CLEARS it; when the key is absent we omit it (upsert
   // preserves the existing value). Stored as-is (UNTRUSTED, validated at render)
@@ -230,9 +244,9 @@ export async function saveSphere(recordId, values = {}, { storage, fetchImpl, co
   let res = await post(body);
   // On failure, progressively drop optional columns that later migrations add, so
   // saves still work before a migration is hand-applied (newest column first):
-  // bg_mix (migration 4), shader_src (migration 3), then bg (migration 2), leaving
-  // the core 5 dials.
-  for (const key of ["bg_mix", "shader_src", "bg"]) {
+  // time_scale (migration 5), bg_mix (migration 4), shader_src (migration 3), then
+  // bg (migration 2), leaving the core 5 dials.
+  for (const key of ["time_scale", "bg_mix", "shader_src", "bg"]) {
     if (res.ok) break;
     if (!(key in body)) continue;
     delete body[key];

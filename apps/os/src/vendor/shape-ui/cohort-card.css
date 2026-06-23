@@ -19,8 +19,8 @@
  * the OS app re-declares them later in styles.css (source-order wins
  * there, including the [data-theme="light"] flip). */
 :root {
-  --alchemy-oxide:        #8F220E;
-  --alchemy-oxide-bright: #B43A19;
+  --alchemy-oxide:        #EAB308;
+  --alchemy-oxide-bright: #FACC15;
   /* Hot oxide — the lighter interaction orange that had drifted into the
    * codebase as a hardcoded #d05332 in six places. Tokenized so it can
    * be retuned in one move. */
@@ -29,7 +29,7 @@
   --alchemy-charcoal:     #1D191A;
   --alchemy-charcoal-2:   #2C2728;
   --alchemy-rule:         rgba(241, 236, 231, 0.10);
-  --alchemy-rule-warm:    rgba(143, 34, 14, 0.45);
+  --alchemy-rule-warm:    rgba(234, 179, 8, 0.45);
   --alchemy-ink-mute:     rgba(241, 236, 231, 0.55);
   --ed-bg-0:        #0d0c0a;
   --ed-bg-1:        #131210;
@@ -69,12 +69,12 @@
    * diagonal oxide wash + inset cream highlight. The warmth is the wash,
    * not a flat brown. */
   background:
-    linear-gradient(112deg, rgba(180, 58, 25, 0.10), rgba(180, 58, 25, 0.020) 34%, transparent 62%),
-    linear-gradient(180deg, rgba(241, 236, 231, 0.036), rgba(143, 34, 14, 0.010)),
+    linear-gradient(112deg, rgba(250, 204, 21, 0.10), rgba(250, 204, 21, 0.020) 34%, transparent 62%),
+    linear-gradient(180deg, rgba(241, 236, 231, 0.036), rgba(234, 179, 8, 0.010)),
     rgba(33, 27, 25, 0.54);
   color: var(--ed-ink-2);
   border: 1px solid rgba(241, 236, 231, 0.105);
-  border-top-color: rgba(143, 34, 14, 0.32);
+  border-top-color: rgba(234, 179, 8, 0.32);
   border-radius: 4px;
   box-shadow: inset 0 1px 0 rgba(241, 236, 231, 0.028);
   cursor: pointer;
@@ -84,8 +84,8 @@
   border-color: rgba(241, 236, 231, 0.16);
   border-top-color: rgba(208, 83, 50, 0.46);
   background:
-    linear-gradient(112deg, rgba(180, 58, 25, 0.13), rgba(180, 58, 25, 0.030) 38%, transparent 64%),
-    linear-gradient(180deg, rgba(241, 236, 231, 0.046), rgba(143, 34, 14, 0.020)),
+    linear-gradient(112deg, rgba(250, 204, 21, 0.13), rgba(250, 204, 21, 0.030) 38%, transparent 64%),
+    linear-gradient(180deg, rgba(241, 236, 231, 0.046), rgba(234, 179, 8, 0.020)),
     rgba(35, 29, 27, 0.72);
   box-shadow: inset 0 1px 0 rgba(241, 236, 231, 0.04), 0 10px 28px rgba(0, 0, 0, 0.18);
   transform: translateY(-1px);
@@ -182,8 +182,8 @@
   100% { transform: rotate(-2.5deg) translate(0%, 0%); }
 }
 @keyframes alchBreathe {
-  0%, 100% { filter: drop-shadow(0 0 0 rgba(143,34,14,0)); }
-  50%      { filter: drop-shadow(0 6px 20px rgba(143,34,14,0.30)); }
+  0%, 100% { filter: drop-shadow(0 0 0 rgba(234, 179, 8,0)); }
+  50%      { filter: drop-shadow(0 6px 20px rgba(234, 179, 8,0.30)); }
 }
 
 /* ─── hover peeks: discrete "about · now" points in the title ─────── */

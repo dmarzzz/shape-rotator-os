@@ -1,0 +1,352 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   SHAPE ROTATOR — DESIGN SYSTEM
+   One source of truth for TYPE · COLOR · BUTTONS · DROPDOWNS.
+
+   Two parts:
+     1. TOKENS (:root) — global. Defining tokens changes nothing on its own;
+        they're the vocabulary new code should reach for instead of raw px/hex.
+     2. APPLICATION (html[data-ds] …) — the unified look. `data-ds="on"` is set
+        permanently on <html> in index.html, so this layer is always active.
+        (It was previously behind an R-key A/B toggle, since removed.)
+
+   Built ON the existing tokens in vendor/shape-ui/tokens.css (--ink-*, --red-*,
+   --space-*, --r-*, --font-*) — not a competing namespace.
+
+   Enforcement is by CONVENTION: see docs/DESIGN-SYSTEM.md + CLAUDE.md. New UI
+   should use --ds-* tokens and the .btn / .ds-select component classes.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── TYPE SCALE ─────────────────────────────────────────────────────────
+     9 steps absorb the ~55 ad-hoc sizes. size + line-height travel together.
+     Mono labels use 2xs–sm; UI body uses md–base; headings use lg–display. */
+  --ds-text-2xs:     10px; --ds-lh-2xs:     1.3;
+  --ds-text-xs:      11px; --ds-lh-xs:      1.35;
+  --ds-text-sm:      12px; --ds-lh-sm:      1.4;
+  --ds-text-md:      13px; --ds-lh-md:      1.45;
+  --ds-text-base:    14px; --ds-lh-base:    1.5;
+  --ds-text-lg:      16px; --ds-lh-lg:      1.4;
+  --ds-text-xl:      20px; --ds-lh-xl:      1.25;
+  --ds-text-2xl:     24px; --ds-lh-2xl:     1.15;
+  --ds-text-display: 28px; --ds-lh-display: 1.05;  /* rail-page heroes ("first week") */
+  --ds-text-hero:    36px; --ds-lh-hero:    1.04;  /* page heroes — project/team name,
+                                                      calendar week title, program page title */
+
+  /* font roles — two families only */
+  --ds-font-ui:   var(--font-sans, "Space Grotesk", system-ui, sans-serif);
+  --ds-font-mono: var(--font-mono, "JetBrains Mono", ui-monospace, monospace);
+
+  --ds-weight-reg:  400;
+  --ds-weight-med:  500;
+  --ds-weight-semi: 600;
+  --ds-track-caps:  0.04em;   /* mono labels */
+  --ds-track-tight: -0.01em;  /* large headings */
+
+  /* ── COLOR (semantic roles, mapped onto existing palette tokens) ───────── */
+  --ds-ink-1: var(--ink-1, rgba(241,236,231,0.94));   /* titles / emphasis */
+  --ds-ink-2: var(--ink-2, rgba(241,236,231,0.74));   /* body */
+  --ds-ink-3: var(--ink-3, rgba(241,236,231,0.52));   /* caption / labels */
+  --ds-ink-4: var(--ink-4, rgba(241,236,231,0.32));   /* marginalia */
+
+  --ds-surface-1: var(--abyss, #231F20);              /* page substrate */
+  --ds-surface-2: var(--water, #2C2728);              /* raised card */
+  --ds-surface-3: rgba(241,236,231,0.045);            /* control rest */
+  --ds-surface-4: rgba(241,236,231,0.09);             /* control hover */
+
+  --ds-border:        var(--hairline, rgba(241,236,231,0.14));
+  --ds-border-strong: rgba(241,236,231,0.26);
+
+  --ds-accent:        var(--red-1, #EAB308);          /* the one accent */
+  --ds-accent-hover:  var(--red-2, #FACC15);
+  --ds-accent-soft:   color-mix(in srgb, var(--ds-accent) 16%, transparent); /* selected wash */
+  --ds-on-accent:     #1a1410;                        /* ink on accent fill */
+  --ds-danger:        var(--c-error, #FF6B7A);
+  --ds-focus:         var(--red-2, #FACC15);
+
+  /* elevation — one menu/popover shadow (was 0.45–0.55 + glass specular per page) */
+  --ds-shadow-menu:   0 12px 32px rgba(0,0,0,0.45);
+
+  /* ── CONTROLS (buttons / dropdowns / inputs share one geometry) ────────── */
+  --ds-control-h:     30px;
+  --ds-control-h-sm:  24px;
+  --ds-control-px:    14px;
+  --ds-control-gap:   8px;
+  --ds-radius:        var(--r-md, 8px);
+  --ds-radius-sm:     var(--r-sm, 4px);
+  --ds-control-font:  var(--ds-text-xs);
+  --ds-control-weight: var(--ds-weight-med);
+  --ds-dur:           var(--dur-fast, 120ms);
+  --ds-ease:          var(--ease-out, cubic-bezier(0.16,1,0.3,1));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   APPLICATION LAYER — scoped under html[data-ds], which is set permanently on
+   <html> in index.html (the system is always on; the old R-key A/B toggle was
+   removed). Uses !important deliberately: this layer must win
+   over hundreds of pre-existing rules. Once the look is approved, these fold
+   into source as plain rules and the legacy declarations are removed.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── TYPE: snap the rival scales + the prominent headings to the system ─── */
+html[data-ds] {
+  /* the two legacy numeric scales now resolve to system steps, so every
+     class already using them updates with zero per-rule edits. */
+  --t-11: var(--ds-text-sm);  --t-12: var(--ds-text-md);  --t-13: var(--ds-text-base);
+  --t-15: var(--ds-text-lg);  --t-18: var(--ds-text-xl);  --t-24: var(--ds-text-2xl);
+  --t-32: var(--ds-text-display);
+  --ts-micro: var(--ds-text-2xs); --ts-meta: var(--ds-text-xs); --ts-base: var(--ds-text-base);
+  --ts-lg: var(--ds-text-lg); --ts-xl: var(--ds-text-xl); --ts-display: var(--ds-text-2xl);
+}
+/* page titles → display step */
+html[data-ds] :is(.alch-onb-title, .alch-prog-title, .cal-page-title, .alch-feed-title) {
+  font-family: var(--ds-font-ui) !important;
+  font-size: var(--ds-text-display) !important;
+  line-height: var(--ds-lh-display) !important;
+  letter-spacing: var(--ds-track-tight) !important;
+}
+/* page heroes — the single biggest title on a detail/section page → hero step.
+   Project/team name (.alch-detail-name, an <h2>), calendar week title
+   (.rr-title), and the program page title (.alch-prog-page-title, "overview" /
+   "success & graduation"). These were 32–36px when the system is off; unified to
+   one "a bit bigger" step. NOTE: do NOT fold these into a generic `.alchemy-canvas
+   h2` rule — that also catches detail names and shrinks them. */
+html[data-ds] :is(.alch-detail-name, .rr-title, .alch-prog-page-title) {
+  font-family: var(--ds-font-ui) !important;
+  font-size: var(--ds-text-hero) !important;
+  line-height: var(--ds-lh-hero) !important;
+  letter-spacing: var(--ds-track-tight) !important;
+}
+/* section / step titles → xl step */
+html[data-ds] :is(.alch-asks-section-title, .alch-onb-step-title, .cal-subtab .cs-label) {
+  font-size: var(--ds-text-xl) !important;
+  line-height: var(--ds-lh-xl) !important;
+}
+/* mono metadata / sub-lines → xs step */
+html[data-ds] :is(.alch-onb-sub, .alch-prog-sub, .alch-asks-section-count, .cs-num, .cs-hint) {
+  font-size: var(--ds-text-xs) !important;
+  line-height: var(--ds-lh-xs) !important;
+}
+/* program-info pages read too narrow. Widen the content column. Uses rem (not
+   ch) because the page's font-size — and therefore ch — isn't stable, so a ch
+   cap barely moved. ~58rem gives a clearly wider, still-readable column. */
+html[data-ds] .alch-prog-page { max-width: 60rem !important; }
+/* say/did/shipped rows (constellation "shipped" mode) used 8–9px labels — below
+   the 10px floor and used nowhere else in the app. Lift to the scale minimum so
+   the column headers ("say / did / shipped"), domain tag, chips and footer read. */
+html[data-ds] :is(.ac-sds-cell b, .ac-sds-domain, .ac-sds-foot, .ac-sds-mix,
+                  .ac-sds-chip, .ac-sds-evidence) {
+  font-size: var(--ds-text-2xs) !important;
+}
+
+/* ── BUTTONS: unify the action + icon families into one control ──────────
+   Deliberately EXCLUDES nav-rail items, segmented tabs and list rows
+   (.alchemy-rail-btn, .alch-rail-sub-btn, .tab-btn, .chat-seg-btn,
+    .*-scope-btn, .*-mode-btn, .*-range-btn, .ac-layout-btn, .ac-proj-btn,
+    .rr-navbtn, .ac-tl-navbtn, .alch-page-view-btn, .chat-room-btn …) —
+   those get a dedicated "segmented" treatment in the next slice so their
+   layouts aren't broken. */
+html[data-ds] :is(
+  .btn, .ao-btn, .chat-btn, .fp-btn, .d-btn, .alch-feed-btn, .alch-submit-pr-btn,
+  .alch-explore-btn, .cdn-btn, .hm-btn, .im-btn, .mpa-btn, .azc-btn,
+  .easel-back-btn, .easel-err-btn, .easel-q-btn, .intel-copy-btn, .cal-png-btn,
+  .peer-count-btn, .atlas-back-btn, .swarm-start-btn, .swarm-stop-btn,
+  .alch-seal-btn, .alch-onb-action,
+  .ao-btn-primary, .chat-btn-primary, .fp-btn-primary, .fp-btn-skip,
+  .alch-seal-btn-danger, .ao-btn-glyph, .swarm-icon-btn, .ux-icon-btn,
+  .alch-onb-secondary, .ds-primary, .ds-danger, .ds-icon-btn, .ds-ghost
+) {
+  display: inline-flex !important; align-items: center; justify-content: center;
+  gap: var(--ds-control-gap);
+  min-height: var(--ds-control-h) !important;
+  padding: 0 var(--ds-control-px) !important;
+  border-radius: var(--ds-radius) !important;
+  border: 1px solid var(--ds-border-strong) !important;
+  background: var(--ds-surface-3) !important;
+  color: var(--ds-ink-1) !important;
+  font: var(--ds-control-weight) var(--ds-control-font)/1 var(--ds-font-mono) !important;
+  letter-spacing: var(--ds-track-caps) !important;
+  cursor: pointer;
+  transition: background var(--ds-dur) var(--ds-ease),
+              border-color var(--ds-dur) var(--ds-ease),
+              color var(--ds-dur) var(--ds-ease) !important;
+}
+html[data-ds] :is(
+  .btn, .ao-btn, .chat-btn, .fp-btn, .d-btn, .alch-feed-btn, .alch-submit-pr-btn,
+  .alch-explore-btn, .cdn-btn, .hm-btn, .im-btn, .mpa-btn, .azc-btn,
+  .easel-back-btn, .easel-err-btn, .easel-q-btn, .intel-copy-btn, .cal-png-btn,
+  .peer-count-btn, .atlas-back-btn, .swarm-start-btn, .swarm-stop-btn,
+  .alch-seal-btn, .alch-onb-action,
+  .ao-btn-primary, .chat-btn-primary, .fp-btn-primary, .fp-btn-skip,
+  .alch-seal-btn-danger, .ao-btn-glyph, .swarm-icon-btn, .ux-icon-btn,
+  .alch-onb-secondary, .ds-primary, .ds-danger, .ds-icon-btn, .ds-ghost
+):hover {
+  background: var(--ds-surface-4) !important;
+  border-color: var(--ds-ink-3) !important;
+}
+html[data-ds] :is(
+  .btn, .ao-btn, .chat-btn, .fp-btn, .d-btn, .alch-feed-btn, .alch-submit-pr-btn,
+  .alch-explore-btn, .cdn-btn, .hm-btn, .im-btn, .mpa-btn, .azc-btn,
+  .easel-back-btn, .easel-err-btn, .easel-q-btn, .intel-copy-btn, .cal-png-btn,
+  .peer-count-btn, .atlas-back-btn, .swarm-start-btn, .swarm-stop-btn,
+  .alch-seal-btn, .alch-onb-action,
+  .ao-btn-primary, .chat-btn-primary, .fp-btn-primary, .fp-btn-skip,
+  .alch-seal-btn-danger, .ao-btn-glyph, .swarm-icon-btn, .ux-icon-btn,
+  .alch-onb-secondary, .ds-primary, .ds-danger, .ds-icon-btn, .ds-ghost
+):focus-visible {
+  outline: 2px solid var(--ds-focus) !important; outline-offset: 2px;
+}
+
+/* primary — filled accent */
+html[data-ds] :is(.ao-btn-primary, .chat-btn-primary, .fp-btn-primary, .swarm-start-btn, .ds-primary, .btn.ds-primary) {
+  background: var(--ds-accent) !important;
+  border-color: var(--ds-accent) !important;
+  color: var(--ds-on-accent) !important;
+}
+html[data-ds] :is(.ao-btn-primary, .chat-btn-primary, .fp-btn-primary, .swarm-start-btn, .ds-primary, .btn.ds-primary):hover {
+  background: var(--ds-accent-hover) !important;
+  border-color: var(--ds-accent-hover) !important;
+}
+
+/* danger — outlined warning */
+html[data-ds] :is(.alch-seal-btn-danger, .swarm-stop-btn, .ds-danger, .btn.ds-danger) {
+  background: rgba(255,107,122,0.08) !important;
+  border-color: var(--ds-danger) !important;
+  color: var(--ds-danger) !important;
+}
+
+/* icon-only — square, no horizontal padding. .alch-explore-btn is the
+   project/record "explore" toolbar (calendar / availability / edit-on-github);
+   it's a 32px square by grammar, so it MUST be here, not in the action group
+   (which would add horizontal padding and stretch it into a rectangle). */
+html[data-ds] :is(.alch-explore-btn, .azc-btn, .ao-btn-glyph, .swarm-icon-btn, .ux-icon-btn, .ds-icon-btn) {
+  min-width: var(--ds-control-h) !important;
+  width: var(--ds-control-h) !important;
+  height: var(--ds-control-h) !important;   /* clean square — override legacy height (e.g. 32px) */
+  padding: 0 !important;
+  gap: 0;
+}
+
+/* secondary / skip — quieter, borderless */
+html[data-ds] :is(.fp-btn-skip, .alch-onb-secondary, .ds-ghost) {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: var(--ds-ink-3) !important;
+}
+
+/* ── NATIVE FORM CONTROLS + DROPDOWNS ───────────────────────────────────── */
+html[data-ds] :is(input[type="text"], input[type="search"], input[type="email"],
+                  input[type="number"], input:not([type]), textarea, .ds-input) {
+  min-height: var(--ds-control-h) !important;
+  padding: 6px 11px !important;
+  border-radius: var(--ds-radius) !important;
+  border: 1px solid var(--ds-border) !important;
+  background: var(--ds-surface-3) !important;
+  color: var(--ds-ink-1) !important;
+  font: var(--ds-weight-reg) var(--ds-text-sm)/1.4 var(--ds-font-mono) !important;
+}
+html[data-ds] :is(input, textarea, .ds-input):focus {
+  outline: none !important;
+  border-color: var(--ds-focus) !important;
+}
+html[data-ds] textarea { line-height: 1.5 !important; }
+
+/* native <select> (e.g. the collab-board project picker) — its own complete
+   rule, NOT folded into the input rule above, because that rule's `background`
+   shorthand would wipe our chevron. Strip the raw OS arrow and draw our own so
+   selects match the unified control look instead of rendering as an ugly native
+   dropdown. */
+/* EXEMPTED selects — these have their own good legacy styling and DS made them
+   worse, so leave them untouched (per request):
+     .cb-intake-input  — collab intake "which company?" select
+     .cb-picker select — collab board "pick your team/project" pill dropdown */
+html[data-ds] :is(select, .ds-select):not(.cb-intake-input):not(.cb-picker select) {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  min-height: var(--ds-control-h) !important;
+  padding: 6px 30px 6px 11px !important;   /* right pad leaves room for the chevron */
+  border-radius: var(--ds-radius) !important;
+  border: 1px solid var(--ds-border) !important;
+  color: var(--ds-ink-1) !important;
+  font: var(--ds-weight-reg) var(--ds-text-sm)/1.4 var(--ds-font-mono) !important;
+  background-color: var(--ds-surface-3) !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23b8b4ab' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 11px center !important;
+}
+html[data-ds] :is(select, .ds-select):not(.cb-intake-input):not(.cb-picker select):focus {
+  outline: none !important;
+  border-color: var(--ds-focus) !important;
+}
+
+/* ── DROPDOWN TRIGGERS — the closed control that opens a custom menu. Make them
+   match the native <select> above so every dropdown reads identically when
+   closed (was: c2-scope 'scope'-kicker pill, cw-scope 28px pill, c2-rowsctl 9px
+   uppercase mini — all different). The inner chevron (.c2-chev) is left as-is. */
+html[data-ds] :is(.c2-scope-btn, .cw-scope-btn, .c2-rowsctl-btn) {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+  height: var(--ds-control-h) !important;
+  min-height: var(--ds-control-h) !important;
+  padding: 0 11px !important;
+  border-radius: var(--ds-radius) !important;
+  border: 1px solid var(--ds-border) !important;
+  background: var(--ds-surface-3) !important;
+  color: var(--ds-ink-1) !important;
+  font: var(--ds-weight-med) var(--ds-text-sm)/1 var(--ds-font-mono) !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+html[data-ds] :is(.c2-scope-btn, .cw-scope-btn, .c2-rowsctl-btn):hover {
+  background: var(--ds-surface-4) !important;
+  border-color: var(--ds-ink-3) !important;
+}
+/* the "scope" kicker inside .c2-scope-btn → quiet caps label */
+html[data-ds] .c2-scope-k {
+  font-size: var(--ds-text-2xs) !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase !important;
+  opacity: 0.55;
+}
+
+/* ── DROPDOWN MENUS — one panel, one option row, one selected state ──────────
+   These diverged badly per page: panel backgrounds were --ed-bg-2 (cold grey)
+   vs --alchemy-charcoal (warm) vs glass --lg-solid; shadows ran 0.45–0.55 plus
+   a glass specular on .ac-sent-menu; selected rows were oxide-tint on some and a
+   checkmark on others. Unify the floating panel + its rows everywhere.
+   (Info popovers — .anon-popover, .search-latency-popover, .ux-conn-popover —
+   are tooltips, NOT dropdowns, so they're intentionally not in this group.) */
+html[data-ds] :is(.ac-sent-menu, .c2-rowsctl-menu, .c2-scope-menu, .cw-scope-menu,
+                  .cb-intake-intent-options) {
+  padding: 5px !important;
+  border-radius: var(--ds-radius) !important;
+  border: 1px solid var(--ds-border-strong) !important;
+  background: var(--ds-surface-2) !important;
+  box-shadow: var(--ds-shadow-menu) !important;   /* kills the glass + per-page depths */
+}
+/* option rows — visual only; don't force display/min-height so multi-line
+   options (.ac-sent-opt has a label + description) keep their structure. */
+html[data-ds] :is(.ac-sent-opt, .ac-jbn-opt, .c2-rowsctl-opt, .c2-scope-opt, .cw-scope-opt,
+                  .cb-intake-intent-option, .cb-intake-team-option) {
+  padding: 6px 10px !important;
+  border: 0 !important;
+  border-radius: var(--ds-radius-sm) !important;
+  background: transparent !important;
+  color: var(--ds-ink-2) !important;
+  font-family: var(--ds-font-mono) !important;
+  text-align: left;
+}
+html[data-ds] :is(.ac-sent-opt, .ac-jbn-opt, .c2-rowsctl-opt, .c2-scope-opt, .cw-scope-opt,
+                  .cb-intake-intent-option, .cb-intake-team-option):hover {
+  background: var(--ds-surface-4) !important;
+  color: var(--ds-ink-1) !important;
+}
+/* selected — ONE oxide-tint wash for every family (was oxide-tint here,
+   checkmark there, nothing elsewhere). Covers aria-selected, aria-checked and
+   the .is-active / .is-selected conventions. */
+html[data-ds] :is(.ac-sent-opt, .ac-jbn-opt, .c2-rowsctl-opt, .c2-scope-opt, .cw-scope-opt,
+                  .cb-intake-intent-option, .cb-intake-team-option):is([aria-selected="true"],
+                  [aria-checked="true"], .is-active, .is-selected) {
+  background: var(--ds-accent-soft) !important;
+  color: var(--ds-ink-1) !important;
+}

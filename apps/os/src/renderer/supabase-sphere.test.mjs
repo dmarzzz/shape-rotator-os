@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   fetchAllSpheres, saveSphere, normalizeHex,
   SPHERE_DIALS, SPHERE_KEYS, SPHERE_DEFAULTS, SPHERE_BG_DEFAULT, SPHERE_INTENSITY, SPHERE_BG_PRESETS,
+  SPHERE_TIME_DEFAULT,
 } from './supabase-sphere.mjs';
 
 const CONFIG = { url: 'https://proj.supabase.co', anonKey: 'anon-key' };
@@ -158,6 +159,50 @@ test('fetchAllSpheres: carries shader_src text through', async () => {
   ]);
   const { spheres } = await fetchAllSpheres({ fetchImpl, config: CONFIG });
   assert.equal(spheres.a.shader_src, 'pal(t)');
+});
+
+test('Time dial: default is the centre (0.5 → 1×)', () => {
+  assert.equal(SPHERE_TIME_DEFAULT, 0.5);
+});
+
+test('fetchAllSpheres: carries + clamps time_scale, omits when absent', async () => {
+  const fetchImpl = async () => jsonResponse([
+    { record_id: 'a', hue: 0.1, hue2: 0.2, phase: 0.3, intensity: 0.4, complexity: 0.5, time_scale: 0 },    // frozen, valid
+    { record_id: 'b', hue: 0.1, hue2: 0.2, phase: 0.3, intensity: 0.4, complexity: 0.5, time_scale: 9 },    // out of range → clamped
+    { record_id: 'c', hue: 0.1, hue2: 0.2, phase: 0.3, intensity: 0.4, complexity: 0.5 },                   // absent → omitted
+  ]);
+  const { spheres } = await fetchAllSpheres({ fetchImpl, config: CONFIG });
+  assert.equal(spheres.a.time_scale, 0, '0 (frozen) is a valid value, kept');
+  assert.equal(spheres.b.time_scale, 1, 'clamped to [0,1]');
+  assert.equal('time_scale' in spheres.c, false, 'absent column omitted, row still present');
+});
+
+test('saveSphere: includes time_scale when set (clamped), omitted when absent', async () => {
+  let bodies = [];
+  const ok = async (_u, o) => { bodies.push(JSON.parse(o.body)); return { ok: true, status: 204, async json() { return null; } }; };
+
+  await saveSphere('p', { hue: 0.5, time_scale: 0 }, { fetchImpl: ok, config: CONFIG });
+  assert.equal(bodies[0].time_scale, 0, '0 (frozen) sent, not dropped as falsy');
+
+  bodies = [];
+  await saveSphere('p', { hue: 0.5, time_scale: 5 }, { fetchImpl: ok, config: CONFIG });
+  assert.equal(bodies[0].time_scale, 1, 'clamped to 1');
+
+  bodies = [];
+  await saveSphere('p', { hue: 0.5 }, { fetchImpl: ok, config: CONFIG });
+  assert.equal('time_scale' in bodies[0], false, 'omitted when the key is absent (upsert preserves)');
+});
+
+test('saveSphere: progressive retry drops time_scale first when its column is missing', async () => {
+  let n = 0; const bodies = [];
+  // First POST 400s (time_scale column absent); the retry without it succeeds.
+  const fetchImpl = async (_u, o) => { bodies.push(JSON.parse(o.body)); n += 1; return { ok: n >= 2, status: n >= 2 ? 204 : 400, async json() { return null; } }; };
+  const res = await saveSphere('p', { hue: 0.5, time_scale: 0.9 }, { fetchImpl, config: CONFIG });
+  assert.equal(res.ok, true, 'falls back to a working write');
+  assert.equal(bodies.length, 2);
+  assert.equal('time_scale' in bodies[0], true, 'first attempt carried time_scale');
+  assert.equal('time_scale' in bodies[1], false, 'retry dropped time_scale');
+  assert.equal('hue' in bodies[1], true, 'core dials survive');
 });
 
 test('saveSphere: bad record id + unconfigured rejected without a network call', async () => {

@@ -16,7 +16,6 @@
 import {
   escHtml, escAttr,
   parseWeekRow, parseRecurring, currentWeekIdx, phaseFor,
-  CALENDAR_URL,
 } from "@shape-rotator/shape-ui";
 // The curated session→transcript join (date + title fragments → recorded source).
 // Previously consumed only by build-bundles for dossier timelines; surfacing it here
@@ -515,23 +514,14 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
     }
   }
 
-  // The 10-week arc (below) is the week navigator now; the old dot-rail is gone.
-  const nowWeekIdx = currentWeekIdx();
-
   const isPresence = view === "presence";
   // Same shared view-nav component as the cohort / context / program pages
   // (.alch-page-views) — one visual language for in-page tabs everywhere. The
   // agenda tab is gone: the grid below now carries its filter + signals, so the
   // two views are one.
-  const viewTabs = `
-    <nav class="alch-page-views" role="tablist" aria-label="calendar view">
-      <button class="alch-page-view-btn" data-c2-view="cal" role="tab" aria-selected="${!isPresence}" type="button">
-        <span class="apv-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></span><span class="apv-label">calendar</span>
-      </button>
-      <button class="alch-page-view-btn" data-c2-view="presence" role="tab" aria-selected="${isPresence}" type="button">
-        <span class="apv-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg></span><span class="apv-label">presence</span>
-      </button>
-    </nav>`;
+  // Calendar views (calendar grid | presence) moved to the rail sub-nav (left
+  // panel), so the page no longer renders its own in-page tab strip.
+  const viewTabs = "";
   const subscribeAction = `
     <a class="c2-subscribe" href="${escAttr(managedGoogleCalendarUrl(GUEST_GOOGLE_CALENDAR_ID))}" data-external
        aria-label="Subscribe to the read-only Shape Rotator Google Calendar"
@@ -619,7 +609,6 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
   const DAY_MS = 86400000;
   const shortDate = (ms) => { const d = new Date(ms); return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`; };
   const fmtHour = (m) => String(Math.floor(m / 60) % 24).padStart(2, "0");
-  const presColor = "oklch(0.70 0.055 155)";
 
   const weekStartMs = Number.isFinite(days[0]?.dayMs) ? days[0].dayMs : null;
   const weekEndMs = Number.isFinite(days[6]?.dayMs) ? days[6].dayMs : null;
@@ -629,8 +618,6 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
   const weekTitle = WEEK_TITLES[safeWeekIdx] || `Week ${safeWeekIdx + 1}`;
 
   const rosterTotal = Math.max(1, Number(signals?.rosterTotal) || perDaySig.reduce((m, s) => Math.max(m, Number(s?.inTown) || 0), 1));
-  const weekly = Array.isArray(signals?.weeklyOccupancy) ? signals.weeklyOccupancy : [];
-  const weeklyShips = Array.isArray(signals?.weeklyShips) ? signals.weeklyShips : [];
 
   // stats — who's here, what shipped, how much we gathered
   const todayIdx = days.findIndex(d => d.isToday);
@@ -645,12 +632,14 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
   const headHtml = `
     <header class="rr-head">
       <div class="rr-head-l">
-        <div class="rr-eyebrow">residency · may 18 → jul 26 · week ${String(safeWeekIdx + 1).padStart(2, "0")} / ${WEEK_COUNT}</div>
         <h2 class="rr-title">${escHtml(weekTitle)}</h2>
         <div class="rr-sub">${escHtml(rangeLabel)} — ${escHtml(descriptor)}.</div>
       </div>
       <div class="rr-head-r">
-        ${scopeChip}
+        <div class="rr-controls">
+          ${scopeChip}
+          ${subscribeAction}
+        </div>
         <div class="rr-stats">
           <div class="rr-stat"><div class="rr-stat-lab">in town</div><div class="rr-stat-big">${inTownToday}<small> /${rosterTotal}</small></div><div class="rr-stat-note rr-tone-pres">${satPct}% of the house</div></div>
           <div class="rr-stat"><div class="rr-stat-lab">shipped</div><div class="rr-stat-big">${shipCount}</div><div class="rr-stat-note rr-tone-ship">release${shipCount === 1 ? "" : "s"} this wk</div></div>
@@ -658,41 +647,6 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
         </div>
       </div>
     </header>`;
-
-  // ── the arc — ten weeks, presence height over ship marks; the navigator ──
-  const arcHtml = `
-    <section class="rr-arc" aria-label="program weeks">
-      <div class="rr-arc-head">
-        <div class="rr-section-lab">the arc <em>— ten weeks, presence over shipping</em></div>
-        <div class="rr-legend"><span><i class="rr-sw rr-sw-pres"></i>presence</span><span><i class="rr-sw rr-sw-ship"></i>ship</span></div>
-      </div>
-      <div class="rr-arc-bar" role="group" aria-label="select week">
-        ${Array.from({ length: WEEK_COUNT }, (_, w) => {
-          const frac = Number(weekly[w]?.frac);
-          // Window the bar to the same near-full band the ribbon uses (roster-8..
-          // roster), so 42 vs 45 reads as a real height difference instead of a
-          // flat 93–96% — the arc IS the presence sparkline.
-          const occN = Number.isFinite(frac) ? frac * rosterTotal : 0;
-          const win = Math.max(0, Math.min(1, (occN - (rosterTotal - 8)) / 8));
-          const h = Number.isFinite(frac) && frac > 0 ? Math.round(14 + win * 84) : 28;
-          const ships = Number(weeklyShips[w]) || 0;
-          const isActive = w === safeWeekIdx;
-          const isFuture = w > nowWeekIdx;
-          const isDemo = w === WEEK_COUNT - 1;
-          const cls = ["rr-wk", isActive ? "active" : "", isFuture ? "future" : "", isDemo ? "demo" : ""].filter(Boolean).join(" ");
-          const dots = isDemo
-            ? `<span class="rr-shipdot"></span>`
-            : Array.from({ length: Math.min(3, ships) }, () => `<span class="rr-shipdot"></span>`).join("");
-          return `
-          <button class="${cls}" data-c2-week="${w}" aria-label="week ${w + 1}${isDemo ? " · demo" : ""}${isActive ? " (current view)" : ""}"${isActive ? ' aria-current="true"' : ""} type="button">
-            ${isActive ? `<span class="rr-ring" aria-hidden="true"></span>` : ""}
-            <span class="rr-ticks" aria-hidden="true">${dots}</span>
-            <span class="rr-pcol"><span class="rr-pbar" style="height:${h}%"></span></span>
-            <span class="rr-num">${String(w + 1).padStart(2, "0")}${isDemo ? `<b> demo</b>` : ""}</span>
-          </button>`;
-        }).join("")}
-      </div>
-    </section>`;
 
   // ── this week — linear time field floored to a residency day so build reads
   // as continuous ground; gatherings drop at their real time. ──
@@ -748,48 +702,6 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
     return `<div class="${cls}"${d.isToday ? ` data-rr-win="${bWinStart}:${bWinEnd}"` : ""}>${ground}${banners}${ticks}${nowEls}</div>`;
   }).join("");
 
-  // ── presence ribbon — one honest near-full line, windowed to the top of roster ──
-  const RW = 700, RH = 52, rPad = 9;
-  const rLo = Math.max(0, rosterTotal - 8), rHi = rosterTotal;
-  const yFor = (n) => { const f = Math.max(0, Math.min(1, (n - rLo) / Math.max(1, rHi - rLo))); return rPad + (1 - f) * (RH - rPad - 13); };
-  const rpts = days.map((d, i) => ({ x: (i + 0.5) / 7 * RW, y: yFor(Number(perDaySig[i]?.inTown) || 0) }));
-  let rLine = `M0 ${rpts[0].y.toFixed(1)} L${rpts[0].x.toFixed(1)} ${rpts[0].y.toFixed(1)}`;
-  for (let i = 1; i < rpts.length; i++) rLine += ` L${rpts[i].x.toFixed(1)} ${rpts[i].y.toFixed(1)}`;
-  rLine += ` L${RW} ${rpts[rpts.length - 1].y.toFixed(1)}`;
-  const rArea = `${rLine} L${RW} ${RH} L0 ${RH} Z`;
-  const rCircles = rpts.map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="2.3"></circle>`).join("");
-  const ribbonRow = `
-    <div class="rr-row">
-      <div class="rr-rowlab"><span>in town</span></div>
-      <div class="rr-ribbon">
-        <svg viewBox="0 0 ${RW} ${RH}" preserveAspectRatio="none" aria-hidden="true">
-          <defs><linearGradient id="rrPres" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${presColor}" stop-opacity="0.4"></stop><stop offset="1" stop-color="${presColor}" stop-opacity="0.04"></stop></linearGradient></defs>
-          <path d="${rArea}" fill="url(#rrPres)"></path>
-          <path d="${rLine}" fill="none" stroke="${presColor}" stroke-width="1.5"></path>
-          <g fill="${presColor}">${rCircles}</g>
-        </svg>
-        <div class="rr-pcells">
-          ${days.map((d, di) => {
-            const n = Number(perDaySig[di]?.inTown) || 0;
-            const lbl = n ? `${d.name} ${d.date.replace(/^[a-z]+\s+/, "")} · ${n} of ${rosterTotal} in town — open presence` : `${d.name} · nobody in town — open presence`;
-            return `<div class="rr-pcell${n >= rosterTotal - 2 ? " hi" : ""}${d.isToday ? " today" : ""}" data-c2-intown="${di}" role="button" tabindex="0" aria-label="${escAttr(lbl)}"><span>${n || "·"}</span></div>`;
-          }).join("")}
-        </div>
-      </div>
-    </div>`;
-
-  const shipRow = `
-    <div class="rr-row">
-      <div class="rr-rowlab"><span>shipped</span></div>
-      ${days.map((d, di) => {
-        const acts = d.activity || [];
-        if (!acts.length) return `<div class="rr-ship${d.isToday ? " today" : ""}"></div>`;
-        const pulses = `<div class="rr-pulses">${acts.slice(0, 5).map(() => `<span class="rr-pulse"></span>`).join("")}</div>`;
-        const lines = acts.map((a, ai) => `<button class="rr-rel" data-c2-act="${di}:${ai}" type="button" title="${escAttr(`${a.team} ${a.label}`)}"><span class="rr-rel-team">${escHtml(a.team)}</span> ${escHtml(a.label)}</button>`).join("");
-        return `<div class="rr-ship has${d.isToday ? " today" : ""}">${pulses}<div class="rr-rels">${lines}</div></div>`;
-      }).join("")}
-    </div>`;
-
   const navHtml = `
     <div class="rr-nav">
       <button class="rr-navbtn rr-prev" data-c2-nav="prev"${safeWeekIdx === 0 ? " disabled" : ""} type="button">${safeWeekIdx === 0 ? "start of residency" : `← wk ${String(safeWeekIdx).padStart(2, "0")} · ${escHtml(weekStartMs != null ? shortDate(weekStartMs - 7 * DAY_MS) : "")}`}</button>
@@ -797,15 +709,30 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       <button class="rr-navbtn rr-next" data-c2-nav="next"${safeWeekIdx === WEEK_COUNT - 1 ? " disabled" : ""} type="button">${safeWeekIdx === WEEK_COUNT - 1 ? "demo week" : `wk ${String(safeWeekIdx + 2).padStart(2, "0")} · ${escHtml(weekStartMs != null ? shortDate(weekStartMs + 7 * DAY_MS) : "")} →`}</button>
     </div>`;
 
+  // ── week dot-rail — the restored navigator: ← 1 2 … 10 → on a hairline rail.
+  // The week containing today keeps an under-dot; the VIEWED week is the oxide
+  // bead (glides between weeks via scrubberSweep). Reuses the c2-scrub data attrs
+  // (data-c2-week / data-c2-nav) so the existing click + keyboard wiring carries.
+  const nowWeekIdx = currentWeekIdx();
+  const scrubDots = Array.from({ length: WEEK_COUNT }, (_, i) => `
+    <button class="c2-scrub-dot${i === nowWeekIdx ? " is-now" : ""}" data-c2-week="${i}"
+            aria-selected="${i === safeWeekIdx}" aria-label="week ${i + 1}" type="button">${i + 1}</button>`).join("");
+  const weekRailHtml = `
+    <header class="c2-masthead">
+      <div class="c2-scrub" role="tablist" aria-label="program week">
+        <button class="c2-scrub-arrow" data-c2-nav="prev" aria-label="previous week" ${safeWeekIdx === 0 ? "disabled" : ""} type="button">←</button>
+        ${scrubDots}
+        <button class="c2-scrub-arrow" data-c2-nav="next" aria-label="next week" ${safeWeekIdx === WEEK_COUNT - 1 ? "disabled" : ""} type="button">→</button>
+      </div>
+    </header>`;
+
   return `
     <section class="c2 rr-cal" data-phase="${escAttr(phase)}">
-      ${masthead}
       ${staleBanner}
       ${headHtml}
-      ${arcHtml}
+      ${weekRailHtml}
       <section class="rr-panel">
         <div class="rr-panel-head">
-          <div class="rr-section-lab">this week <em>— build is the ground; gatherings are punctuation</em></div>
           ${filterBar}
         </div>
         <div class="rr-weekscroll">
@@ -815,16 +742,9 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
             ${spineHtml}
             ${fieldsHtml}
           </div>
-          ${ribbonRow}
-          ${shipRow}
         </div>
         ${navHtml}
       </section>
-      <footer class="rr-foot">
-        <span>source · <a href="${escAttr(CALENDAR_URL)}" data-external>os-web.shaperotator.xyz/calendar.json</a></span>
-        <span aria-hidden="true">·</span>
-        <span>cohort may 18 → jul 26 2026</span>
-      </footer>
     </section>`;
 }
 
