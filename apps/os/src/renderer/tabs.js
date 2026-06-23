@@ -17,6 +17,9 @@
 //     blank?: true  // a fresh empty tab
 //   }
 
+import { serializeLocation } from "./share-link.js";
+import { toast } from "./ux.js";
+
 const TABS_LS_KEY = "srwk:tabs_v1";
 
 const alchemyFallback = {
@@ -345,6 +348,40 @@ function hideMenu() {
   if (menuEl) { menuEl.remove(); menuEl = null; }
 }
 
+// Map a tab-system location (mode/constellationMode/contextView) to the
+// snapshot shape serializeLocation expects (alchMode/constMode/ctxView). Same
+// mapping boot.js's applyDeepLink does in reverse.
+function locToSnapshot(loc) {
+  const l = loc || {};
+  const snap = { tab: l.tab || "alchemy", recordId: l.recordId || "" };
+  if (snap.tab === "alchemy") {
+    snap.alchMode = l.mode || "membrane";
+    snap.constMode = l.constellationMode || "";
+    snap.ctxView = l.contextView || "";
+    snap.programPage = l.programPage || "";
+  } else if (snap.tab === "apps") {
+    snap.appsView = l.appsView || "";
+  } else if (snap.tab === "network") {
+    snap.netSub = l.netSub || "network";
+  }
+  return snap;
+}
+
+// Copy a shareable link to the right-clicked target — same https link the
+// share button copies for the current page, but for an arbitrary location.
+function copyLinkForLoc(loc) {
+  let url = "";
+  try { url = serializeLocation(locToSnapshot(loc)); } catch {}
+  if (!url) return;
+  const done = () => { try { toast({ message: "Link copied", kind: "success" }); } catch {} };
+  try {
+    window.api?.clipboardWrite?.(url);
+    done();
+  } catch {
+    try { navigator.clipboard?.writeText(url).then(done).catch(() => {}); } catch {}
+  }
+}
+
 function showContextMenu(x, y, loc) {
   hideMenu();
   menuEl = document.createElement("div");
@@ -355,6 +392,12 @@ function showContextMenu(x, y, loc) {
   item.textContent = "Open in new tab";
   item.addEventListener("click", () => { hideMenu(); newTab(loc, { after: true, background: true }); });
   menuEl.appendChild(item);
+  const copyItem = document.createElement("button");
+  copyItem.type = "button";
+  copyItem.className = "os-tab-ctxitem";
+  copyItem.textContent = "Copy link";
+  copyItem.addEventListener("click", () => { hideMenu(); copyLinkForLoc(loc); });
+  menuEl.appendChild(copyItem);
   menuEl.style.left = x + "px";
   menuEl.style.top = y + "px";
   document.body.appendChild(menuEl);
