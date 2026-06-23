@@ -127,6 +127,20 @@ export function toggleSubscriptionHidden(id) {
   return setSubscriptionHidden(id, !(row && row.hidden));
 }
 
+// Drag-to-reorder: move `dragId` to just before (or after) `targetId`. The list's
+// order IS the row order rendered top→bottom, so this is the whole reorder.
+export function reorderSubscriptions(dragId, targetId, after = false) {
+  const rows = clone(load());
+  const from = rows.findIndex((r) => r.id === dragId);
+  if (from < 0 || dragId === targetId) return getSubscriptions();
+  const [moved] = rows.splice(from, 1);
+  let to = rows.findIndex((r) => r.id === targetId);
+  if (to < 0) return persist([...rows, moved]); // target gone — drop at end
+  if (after) to += 1;
+  rows.splice(to, 0, moved);
+  return persist(rows);
+}
+
 export function subscribeToSubscriptions(fn) {
   if (typeof fn !== "function") return () => {};
   listeners.add(fn);

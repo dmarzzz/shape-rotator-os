@@ -798,11 +798,20 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
   const rowsHtml = rowModels.map((row, ri) => {
     row.__ri = ri;
     const cells = row.render === "presence" ? presenceCells : feedCells(row);
+    // A row reads "active" when it has something this week (presence is a
+    // continuous signal, so it's always live); quiet rows dim so the eye lands on
+    // what actually happened. The count badge is the at-a-glance weight.
+    const active = row.render === "presence" || row.count > 0;
+    const badge = row.render === "presence"
+      ? ""
+      : (row.count > 0 ? `<span class="rr-row-count" title="${row.count} this week">${row.count}</span>` : "");
     return `
-      <div class="rr-row rr-frow" data-rr-row="${ri}">
-        <div class="rr-rowlab rr-frowlab" title="${escAttr(row.label)}">
+      <div class="rr-row rr-frow ${active ? "is-active" : "is-quiet"}" data-rr-row="${ri}" data-c2-subrow-id="${escAttr(row.id)}" data-row-kind="${escAttr(row.kind)}">
+        <div class="rr-rowlab rr-frowlab" draggable="true" title="drag to reorder · ${escAttr(row.label)}">
+          <span class="rr-row-grip" aria-hidden="true"></span>
           <span class="rr-rowlab-ico" aria-hidden="true">${rowIcon(row.kind)}</span>
           <span class="rr-rowlab-tx">${escHtml(row.label)}</span>
+          ${badge}
           <button class="rr-rowlab-x" data-c2-subrow-remove="${escAttr(row.id)}" type="button" title="remove row" aria-label="remove ${escAttr(row.label)} row">×</button>
         </div>
         ${cells}
@@ -829,12 +838,17 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
     { kind: "presence", label: "in town" },
     { kind: "shipped", label: "shipped" },
   ];
+  // Add affordance — a full-width "+ add a feed row" sits as the last lane in the
+  // stack (in-context, not a stray corner button), opening the same checklist so
+  // you tick feeds + teams on/off. Aligned to the grid so it reads as the next row.
   const addRowControl = `
     <div class="rr-addrow" data-c2-subrow-ctl>
-      <button class="c2-rowsctl-btn" data-c2-subrow-add type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="add or remove calendar rows">
-        rows<i class="c2-chev" aria-hidden="true"></i>
+      <button class="rr-addrow-trigger" data-c2-subrow-add type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="add or remove calendar rows">
+        <span class="rr-addrow-plus" aria-hidden="true">+</span>
+        <span class="rr-addrow-tx">add a feed row</span>
+        <i class="c2-chev" aria-hidden="true"></i>
       </button>
-      <div class="c2-rowsctl-menu" role="listbox" aria-label="calendar rows" hidden>
+      <div class="c2-rowsctl-menu rr-addrow-menu" role="listbox" aria-label="calendar rows" hidden>
         <div class="c2-rowsctl-grp">cohort feeds</div>
         ${addKinds.map(k => rowOpt(k.kind, k.label)).join("")}
         ${scopeTeams.length ? `<div class="c2-rowsctl-grp">teams — commits · releases · meetings</div>${scopeTeams.map(t => rowOpt("team", t.name, t.id)).join("")}` : ""}

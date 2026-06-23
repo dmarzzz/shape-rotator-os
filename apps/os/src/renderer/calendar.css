@@ -1386,7 +1386,7 @@
 /* ── this week panel — build is the ground, gatherings are punctuation ── */
 .rr-panel { padding-top: 0; }
 .rr-panel-head { display: flex; align-items: baseline; justify-content: flex-end; margin-bottom: 4px; }
-.rr-grid { display: grid; grid-template-columns: 48px repeat(7, minmax(0, 1fr)); }
+.rr-grid { display: grid; grid-template-columns: 96px repeat(7, minmax(0, 1fr)); }
 .rr-dh { padding: 10px 11px 12px; border-left: 1px solid var(--ed-rule); }
 .rr-dh-d { display: block; font-family: var(--ed-display); font-size: 15px; letter-spacing: -0.01em; color: var(--ed-ink-2); }
 .rr-dh-n { display: block; font-family: var(--ed-mono); font-variant-numeric: tabular-nums; font-size: 10.5px; color: var(--rr-faint); margin-top: 1px; }
@@ -1423,7 +1423,7 @@
    (The old presence-ribbon + shipped strips were retired in #488 / the rows
    refactor; their .rr-ribbon/.rr-pcell/.rr-ship rules are gone. Presence + ship
    are now ordinary rows in .rr-rows below, rendered with .rr-fcell / .rr-rel.) */
-.rr-row { display: grid; grid-template-columns: 48px repeat(7, minmax(0, 1fr)); }
+.rr-row { display: grid; grid-template-columns: 96px repeat(7, minmax(0, 1fr)); }
 .rr-rowlab { display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; }
 .rr-rowlab span { font-size: var(--ds-text-2xs); letter-spacing: var(--ds-track-caps); text-transform: uppercase; color: var(--rr-faint); }
 .rr-pulses { display: flex; align-items: center; gap: 5px; margin-bottom: 5px; }
@@ -1433,17 +1433,36 @@
 .rr-rel-team { color: var(--ds-ink-1); }
 .rr-rel:hover, .rr-rel:focus-visible { outline: none; color: var(--ds-ink-1); }
 
-/* ── subscribable feed rows — the configurable lane stack ───────────────── */
+/* ── subscribable feed rows — the configurable, reorderable lane stack ──────
+   The 96px gutter (matched to the week grid above) carries a drag grip, the feed
+   icon + name, an at-a-glance count badge, and a hover ✕. Active rows read full
+   strength; quiet rows (nothing this week) dim so the eye lands on what moved. */
 .rr-rows { display: flex; flex-direction: column; }
-.rr-frow { border-top: 1px solid var(--ed-rule); }
+.rr-frow { position: relative; border-top: 1px solid var(--ed-rule); transition: background 120ms ease; }
 .rr-frow:first-child { border-top: 0; }
-.rr-frowlab { gap: 6px; justify-content: flex-start; padding: 0 5px 0 3px; min-width: 0; overflow: hidden; }
-.rr-rowlab-ico { display: inline-flex; flex: 0 0 auto; color: var(--rr-faint); }
-.rr-rowlab-ico svg { width: 13px; height: 13px; }
-.rr-rowlab-tx { font-size: var(--ds-text-2xs); letter-spacing: var(--ds-track-caps); text-transform: uppercase; color: var(--rr-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rr-rowlab-x { margin-left: auto; flex: 0 0 auto; appearance: none; background: transparent; border: 0; cursor: pointer; color: var(--rr-faint-2); font-size: 13px; line-height: 1; padding: 1px 3px; border-radius: 3px; opacity: 0; transition: opacity 120ms ease, color 120ms ease, background 120ms ease; }
-.rr-frow:hover .rr-rowlab-x, .rr-rowlab-x:focus-visible { opacity: 1; }
-.rr-rowlab-x:hover, .rr-rowlab-x:focus-visible { outline: none; color: var(--rr-ox); background: color-mix(in oklch, var(--rr-ox) 16%, transparent); }
+.rr-frow:hover { background: color-mix(in oklch, var(--ds-ink-1) 3%, transparent); }
+.rr-frow.is-active::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--ds-accent); opacity: 0.5; }
+.rr-frow.is-quiet .rr-frowlab { opacity: 0.5; }
+.rr-frow.is-quiet:hover .rr-frowlab { opacity: 0.9; }
+
+.rr-frowlab { position: relative; gap: 7px; justify-content: flex-start; padding: 0 6px 0 10px; min-width: 0; overflow: hidden; cursor: grab; user-select: none; }
+.rr-frowlab:active { cursor: grabbing; }
+.rr-frowlab .rr-row-grip { flex: 0 0 auto; width: 7px; height: 16px; opacity: 0; transition: opacity 120ms ease; background-image: radial-gradient(var(--rr-faint) 1.1px, transparent 1.2px); background-size: 4px 4px; }
+.rr-frow:hover .rr-row-grip { opacity: 0.7; }
+.rr-frowlab .rr-rowlab-ico { display: inline-flex; flex: 0 0 auto; color: var(--rr-faint); }
+.rr-frowlab .rr-rowlab-ico svg { width: 14px; height: 14px; }
+.rr-frow.is-active .rr-rowlab-ico { color: var(--ds-ink-2); }
+.rr-frowlab .rr-rowlab-tx { font-size: var(--ds-text-xs); letter-spacing: 0.005em; text-transform: none; color: var(--rr-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rr-frow.is-active .rr-rowlab-tx { color: var(--ds-ink-1); }
+.rr-frowlab .rr-row-count { flex: 0 0 auto; margin-left: auto; min-width: 17px; height: 16px; padding: 0 5px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--ds-accent-soft); color: var(--ds-ink-1); font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); font-variant-numeric: tabular-nums; transition: opacity 120ms ease; }
+.rr-frow:hover .rr-row-count { opacity: 0; }
+.rr-frowlab .rr-rowlab-x { position: absolute; right: 5px; top: 50%; transform: translateY(-50%) scale(0.8); appearance: none; background: transparent; border: 0; cursor: pointer; color: var(--rr-faint-2); font-size: 14px; line-height: 1; padding: 1px 3px; border-radius: var(--ds-radius-sm); opacity: 0; transition: opacity 120ms ease, color 120ms ease, background 120ms ease, transform 120ms ease; }
+.rr-frow:hover .rr-frowlab .rr-rowlab-x, .rr-frowlab .rr-rowlab-x:focus-visible { opacity: 1; transform: translateY(-50%) scale(1); }
+.rr-frowlab .rr-rowlab-x:hover, .rr-frowlab .rr-rowlab-x:focus-visible { outline: none; color: var(--ds-danger); background: color-mix(in srgb, var(--ds-danger) 14%, transparent); }
+/* drag-reorder feedback */
+.rr-frow.is-dragging { opacity: 0.4; }
+.rr-frow.drop-before { box-shadow: inset 0 2px 0 0 var(--ds-accent); }
+.rr-frow.drop-after { box-shadow: inset 0 -2px 0 0 var(--ds-accent); }
 
 .rr-fcell { border-left: 1px solid var(--ed-rule); min-height: 44px; }
 .rr-fcell.has { padding: 8px 7px; }
@@ -1458,11 +1477,16 @@
 .rr-fcell-pres.hi .rr-fcell-n { color: var(--ds-ink-1); }
 .rr-fcell-pres.today .rr-fcell-n { color: var(--ds-ink-1); font-weight: 500; }
 
-/* rows control — reuses the design-system dropdown family (.c2-rowsctl-btn/-menu/
-   -opt/-check), so it inherits the unified panel + option + selected wash. Only the
-   bottom placement, the upward-opening menu, and the group header are local here. */
-.rr-addrow { position: relative; padding: 8px 0 2px; }
-.rr-addrow .c2-rowsctl-menu { top: auto; bottom: calc(100% + 6px); left: 8px; min-width: 224px; max-height: 320px; overflow-y: auto; }
+/* add affordance — a full-width "+ add a feed row" reads as the next lane in the
+   stack (in-context, not a stray corner button). It opens the shared checklist
+   (.c2-rowsctl-menu, the design-system dropdown) to tick feeds + teams on/off. */
+.rr-addrow { position: relative; }
+.rr-addrow-trigger { display: flex; align-items: center; gap: 8px; width: 100%; appearance: none; cursor: pointer; background: transparent; border: 0; border-top: 1px dashed var(--ed-rule-2); padding: 9px 10px; color: var(--rr-faint); font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); letter-spacing: var(--ds-track-caps); text-transform: uppercase; transition: background 120ms ease, color 120ms ease; }
+.rr-addrow-trigger:hover, .rr-addrow-trigger[aria-expanded="true"] { background: color-mix(in oklch, var(--ds-ink-1) 4%, transparent); color: var(--ds-ink-1); }
+.rr-addrow-trigger:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: -2px; }
+.rr-addrow-plus { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border: 1px solid currentColor; border-radius: var(--ds-radius-sm); font-size: 12px; line-height: 1; }
+.rr-addrow-trigger .c2-chev { margin-left: auto; }
+.rr-addrow .c2-rowsctl-menu { top: auto; bottom: calc(100% + 4px); left: 8px; min-width: 240px; max-height: 340px; overflow-y: auto; }
 .c2-rowsctl-grp { padding: 7px 9px 4px; font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); letter-spacing: 0.14em; text-transform: uppercase; color: var(--rr-faint-2); }
 .c2-rowsctl-opt .rr-rowlab-ico { display: inline-flex; flex: 0 0 auto; color: var(--rr-faint); }
 .c2-rowsctl-opt .rr-rowlab-ico svg { width: 14px; height: 14px; }
@@ -1499,7 +1523,7 @@
   .rr-arc { overflow-x: auto; overflow-y: hidden; padding-bottom: 24px; scrollbar-width: thin; }
   .rr-arc-bar { min-width: 540px; }
   .rr-weekscroll { overflow-x: auto; scrollbar-width: thin; padding-bottom: 2px; }
-  .rr-grid, .rr-row { min-width: 660px; }
+  .rr-grid, .rr-row { min-width: 708px; }
   .rr-panel-head .rr-filter { max-width: 100%; justify-content: flex-start; }
 }
 @media (prefers-reduced-motion: reduce) {

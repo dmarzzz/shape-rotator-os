@@ -33,7 +33,7 @@ import {
 } from "@shape-rotator/shape-ui";
 import { saveSphere, SPHERE_DIALS, SPHERE_DEFAULTS, SPHERE_BG_DEFAULT, SPHERE_BG_MIX_DEFAULT, SPHERE_TIME_DEFAULT, SPHERE_BG_PRESETS, normalizeHex } from "./supabase-sphere.mjs";
 import { highlightGLSL } from "./shader-dsl.mjs";
-import { getSubscriptions, addSubscription, removeSubscription } from "./calendar-subscriptions.js";
+import { getSubscriptions, addSubscription, removeSubscription, reorderSubscriptions } from "./calendar-subscriptions.js";
 import {
   aggregateSkillAreas, buildCohortIndex, buildCollabModel, collabAffKey, collabHasText,
   dependencyPairKey, dependencySafeToken,
@@ -10273,6 +10273,40 @@ function wireCalendar() {
       x.addEventListener("click", (e) => {
         e.stopPropagation();
         cal.subscriptions = removeSubscription(x.getAttribute("data-c2-subrow-remove"));
+        refreshCalendarView();
+      });
+    }
+    // drag-to-reorder rows (handle = the gutter label; cells stay clickable). The
+    // drop indicator is a class on the hovered row; drop commits the new order.
+    const clearDrop = () => {
+      for (const el of state.canvas.querySelectorAll(".drop-before, .drop-after")) el.classList.remove("drop-before", "drop-after");
+    };
+    let dragRowId = null;
+    for (const row of state.canvas.querySelectorAll(".rr-frow[data-c2-subrow-id]")) {
+      const handle = row.querySelector(".rr-frowlab[draggable]") || row;
+      handle.addEventListener("dragstart", (e) => {
+        dragRowId = row.getAttribute("data-c2-subrow-id");
+        row.classList.add("is-dragging");
+        try { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", dragRowId); } catch {}
+      });
+      handle.addEventListener("dragend", () => { row.classList.remove("is-dragging"); clearDrop(); dragRowId = null; });
+      row.addEventListener("dragover", (e) => {
+        if (!dragRowId || row.getAttribute("data-c2-subrow-id") === dragRowId) return;
+        e.preventDefault();
+        try { e.dataTransfer.dropEffect = "move"; } catch {}
+        const r = row.getBoundingClientRect();
+        const after = (e.clientY - r.top) > r.height / 2;
+        clearDrop();
+        row.classList.add(after ? "drop-after" : "drop-before");
+      });
+      row.addEventListener("drop", (e) => {
+        e.preventDefault();
+        const targetId = row.getAttribute("data-c2-subrow-id");
+        if (!dragRowId || dragRowId === targetId) { clearDrop(); return; }
+        const r = row.getBoundingClientRect();
+        const after = (e.clientY - r.top) > r.height / 2;
+        cal.subscriptions = reorderSubscriptions(dragRowId, targetId, after);
+        dragRowId = null;
         refreshCalendarView();
       });
     }
