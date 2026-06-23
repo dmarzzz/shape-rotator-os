@@ -202,9 +202,15 @@
 /* the week being viewed — marked only by an oxide brim (no fill, no brighter
    number). It jumps instantly between weeks — no view-transition glide. */
 .c2-scrub-dot[aria-selected="true"] {
-  border-color: var(--alchemy-oxide-bright, #FACC15);
-  box-shadow: 0 0 0 1px var(--alchemy-oxide-bright, #FACC15);
+  border-color: var(--rr-ox);
+  background: color-mix(in srgb, var(--rr-ox) 22%, var(--ed-bg-1));
+  color: var(--ed-ink-1); font-weight: 600;
+  transform: scale(1.32);
+  box-shadow: 0 0 0 1px var(--rr-ox),
+              0 0 14px 1px color-mix(in srgb, var(--rr-ox) 60%, transparent);
 }
+.c2-scrub-dot[aria-selected="true"]:hover { transform: scale(1.32); }
+.c2-scrub-dot[aria-selected="true"]:active { transform: scale(1.24); }
 
 .c2-scrub-arrow {
   appearance: none; cursor: pointer;
@@ -310,42 +316,11 @@
 .c2-dayhead.is-today .c2-dh-name { color: var(--ed-ink-2); }
 .c2-dayhead.is-today .c2-dh-num  { color: var(--ed-ink-1); }
 
-/* ── rows chooser (board corner cell) + per-row hide ─────────────────── */
-/* Signal rows are managed where they live, not in a top toolbar: a quiet
-   "rows ⌄" trigger sits in the gutter×header corner and opens a checklist of
-   the optional rows to add; each shown row also gets a hover ✕ on its gutter
-   label. This replaces the old top "signals" toggle cluster. */
-.c2-rowsctl-cell { position: relative; overflow: visible; padding: 0; }
-.c2-rowsctl {
-  position: relative; width: 100%; height: 100%;
-  display: flex; align-items: center; justify-content: flex-end;
-  padding-right: 7px; box-sizing: border-box;
-}
-/* A small bordered pill at rest (not a ghost): it is the ONLY way to re-add a
-   row hidden by its ✕, so it must read as a control without hovering. Resting
-   ink is --ed-ink-3 (≥3:1 on the board) and the faint border carries the rest. */
-.c2-rowsctl-btn {
-  appearance: none; cursor: pointer;
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 3px 7px;
-  background: transparent;
-  border: 1px solid var(--ed-rule-2);
-  border-radius: 6px;
-  color: var(--rr-faint);
-  font-family: var(--ed-mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
-  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
-}
-.c2-rowsctl-btn .c2-chev { opacity: 0.6; transition: transform 160ms cubic-bezier(0.19, 1, 0.22, 1); }
-.c2-rowsctl-btn:hover,
-.c2-rowsctl-btn[aria-expanded="true"] {
-  color: var(--ed-ink-1);
-  border-color: var(--ed-rule-3);
-  background: rgba(var(--ink-rgb), 0.04);
-}
-.c2-rowsctl-btn[aria-expanded="true"] .c2-chev { transform: rotate(180deg); }
-.c2-rowsctl-btn:focus-visible {
-  outline: 2px solid var(--alchemy-oxide-bright, #FACC15); outline-offset: -2px; border-radius: 4px;
-}
+/* ── rows chooser menu (shared DS dropdown: .c2-rowsctl-menu/-opt/-check) ───
+   The old corner "rows ⌄" pill (.c2-rowsctl-cell/.c2-rowsctl/.c2-rowsctl-btn) and
+   the per-row .c2-rowlabel/.c2-rowhide were retired with the .rr-* rows rewrite:
+   the trigger is now .rr-addrow-trigger and per-row remove is .rr-rowlab-x. Only
+   the floating menu + its option rows survive, reused by the feed-row checklist. */
 .c2-rowsctl-menu {
   position: absolute; top: calc(100% + 5px); left: 6px; z-index: 30;
   min-width: 170px; padding: 5px; display: grid; gap: 1px;
@@ -378,29 +353,6 @@
   border-color: transparent;
   color: #fff;
 }
-
-/* per-row hide ✕ — overlays the gutter label's right edge; on row hover/focus
-   the label slides left to make room and the ✕ fades in (a transform reveal, so
-   the resting row is untouched). Drop a row fast here; re-add from the chooser. */
-.c2-rowlabel { position: relative; }
-.c2-rowlabel-t { display: inline-block; transition: transform 160ms cubic-bezier(0.16, 1, 0.3, 1), opacity 160ms ease; }
-.c2-row:hover .c2-rowlabel-t,
-.c2-rowlabel:focus-within .c2-rowlabel-t { transform: translateX(-15px); opacity: 0.8; }
-.c2-rowhide {
-  appearance: none; cursor: pointer;
-  position: absolute; right: 7px; top: 50%;
-  width: 15px; height: 15px; padding: 0; margin: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: transparent; border: 0; border-radius: 3px;
-  color: var(--rr-faint); font-size: 13px; line-height: 1;
-  opacity: 0; transform: translateY(-50%) scale(0.7);
-  transition: opacity 160ms cubic-bezier(0.16, 1, 0.3, 1), transform 160ms cubic-bezier(0.16, 1, 0.3, 1), color 140ms ease, background 140ms ease;
-}
-.c2-activity .c2-rowhide { top: 14px; }   /* the shipped label is top-aligned */
-.c2-row:hover .c2-rowhide,
-.c2-rowhide:focus-visible { opacity: 1; transform: translateY(-50%) scale(1); }
-.c2-rowhide:hover { color: var(--ed-ink-1); background: rgba(var(--ink-rgb), 0.08); }
-.c2-rowhide:focus-visible { outline: 2px solid var(--alchemy-oxide-bright, #FACC15); outline-offset: 1px; }
 
 /* ── all-day lane ───────────────────────────────────────────────────── */
 .c2-allday { border-bottom: 1px solid var(--ed-rule-2); }
@@ -1297,12 +1249,7 @@
     box-shadow: 0 0 7px -1px color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 32%, transparent);
   }
   .c2-rowsctl-menu { animation: none; }
-  .c2-rowlabel-t { transition: none; }
-  .c2-rowhide { transition: opacity 140ms ease; transform: translateY(-50%); }
-  .c2-row:hover .c2-rowlabel-t,
-  .c2-rowlabel:focus-within .c2-rowlabel-t { transform: none; }
-  .c2-row:hover .c2-rowhide,
-  .c2-rowhide:focus-visible { transform: translateY(-50%); }
+  .rr-frowlab .rr-rowlab-x { transition: opacity 120ms ease, color 120ms ease, background 120ms ease; transform: translateY(-50%); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -1329,13 +1276,16 @@
 .rr-title { font-family: var(--ed-display); font-weight: 500; font-size: 34px; line-height: 0.98; letter-spacing: -0.022em; color: var(--ed-ink-1); margin: 0; text-wrap: balance; }
 .rr-sub { font-family: var(--ed-display); font-style: italic; font-size: 19px; letter-spacing: -0.01em; color: var(--rr-faint); margin-top: 12px; text-wrap: pretty; }
 .rr-stats { display: flex; text-align: right; flex: 0 0 auto; }
-.rr-stat { padding: 2px 26px; }
+.rr-stat { position: relative; padding: 1px 22px; display: flex; flex-direction: column; gap: 4px; }
 .rr-stat + .rr-stat { border-left: 1px solid var(--ed-rule-2); }
 .rr-stat:last-child { padding-right: 2px; }
-.rr-stat-lab { font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--rr-faint); }
-.rr-stat-big { font-family: var(--ed-display); font-size: 33px; line-height: 1.18; letter-spacing: -0.02em; color: var(--ed-ink-1); font-variant-numeric: tabular-nums; }
-.rr-stat-big small { font-family: var(--ed-mono); font-size: 13px; color: var(--rr-faint); letter-spacing: 0; }
-.rr-stat-note { font-size: 10px; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; color: var(--rr-faint); }
+.rr-stat-lab { font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); letter-spacing: 0.18em; text-transform: uppercase; color: var(--rr-faint); }
+.rr-stat-big { font-family: var(--ed-display); font-size: 32px; line-height: 1.02; letter-spacing: -0.02em; color: var(--ed-ink-1); font-variant-numeric: tabular-nums; }
+.rr-stat-big small { font-family: var(--ds-font-mono); font-size: 12px; color: var(--rr-faint); letter-spacing: 0; }
+.rr-stat-note { font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); letter-spacing: 0.01em; font-variant-numeric: tabular-nums; color: var(--rr-faint); }
+/* a subtle tone so each metric reads at a glance, without shouting */
+.rr-stat--pres .rr-stat-big { color: color-mix(in oklch, var(--rr-pres) 38%, var(--ed-ink-1)); }
+.rr-stat--ship .rr-stat-big { color: color-mix(in oklch, var(--rr-ship) 38%, var(--ed-ink-1)); }
 .rr-tone-pres { color: var(--rr-pres); }
 .rr-tone-ship { color: var(--rr-ship); }
 /* subscribe + scope sit on one controls row above the week facts (scope focuses
@@ -1386,7 +1336,7 @@
 /* ── this week panel — build is the ground, gatherings are punctuation ── */
 .rr-panel { padding-top: 0; }
 .rr-panel-head { display: flex; align-items: baseline; justify-content: flex-end; margin-bottom: 4px; }
-.rr-grid { display: grid; grid-template-columns: 48px repeat(7, minmax(0, 1fr)); }
+.rr-grid { display: grid; grid-template-columns: 96px repeat(7, minmax(0, 1fr)); }
 .rr-dh { padding: 10px 11px 12px; border-left: 1px solid var(--ed-rule); }
 .rr-dh-d { display: block; font-family: var(--ed-display); font-size: 15px; letter-spacing: -0.01em; color: var(--ed-ink-2); }
 .rr-dh-n { display: block; font-family: var(--ed-mono); font-variant-numeric: tabular-nums; font-size: 10.5px; color: var(--rr-faint); margin-top: 1px; }
@@ -1419,30 +1369,83 @@
 .rr-now { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid var(--rr-ox); box-shadow: 0 0 10px -1px color-mix(in srgb, var(--rr-ox) 35%, transparent); z-index: 4; pointer-events: none; }
 .rr-now-dot { position: absolute; left: -3px; width: 7px; height: 7px; border-radius: 1px; background: var(--rr-ox); transform: translateY(-50%) rotate(45deg); z-index: 5; pointer-events: none; animation: c2-now-pulse 2.8s cubic-bezier(0.22,1,0.36,1) infinite; }
 
-/* ── ribbon (in town) + ship rows — aligned to the same 7-col grid ───── */
-.rr-row { display: grid; grid-template-columns: 48px repeat(7, minmax(0, 1fr)); }
+/* ── feed-row lanes — aligned to the same 7-col grid as the week above ───
+   (The old presence-ribbon + shipped strips were retired in #488 / the rows
+   refactor; their .rr-ribbon/.rr-pcell/.rr-ship rules are gone. Presence + ship
+   are now ordinary rows in .rr-rows below, rendered with .rr-fcell / .rr-rel.) */
+.rr-row { display: grid; grid-template-columns: 96px repeat(7, minmax(0, 1fr)); }
 .rr-rowlab { display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; }
-.rr-rowlab span { font-size: 8px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--rr-faint); }
-.rr-ribbon { grid-column: 2 / span 7; position: relative; height: 54px; border-top: 1px solid var(--ed-rule); }
-.rr-ribbon svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.rr-pcells { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(7, 1fr); }
-.rr-pcell { border-left: 1px solid var(--ed-rule); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 6px; cursor: pointer; transition: background 140ms ease; }
-.rr-pcell:first-child { border-left: 0; }
-.rr-pcell:hover { background: color-mix(in oklch, var(--rr-pres) 9%, transparent); }
-.rr-pcell.today { border-left: 1px solid color-mix(in oklch, var(--rr-ox) 38%, transparent); }
-.rr-pcell span { font-family: var(--ed-mono); font-variant-numeric: tabular-nums; font-size: 10px; color: #aebfa6; }
-.rr-pcell.hi span { color: #cdddc6; }
-.rr-pcell.today span { font-size: 11px; font-weight: 500; color: var(--ed-ink-1); }
-.rr-pcell:focus-visible { outline: none; box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--rr-pres) 60%, transparent); }
-.rr-ship { border-left: 1px solid var(--ed-rule); border-top: 1px solid var(--ed-rule); min-height: 64px; }
-.rr-ship.has { padding: 9px 8px; }
-.rr-ship.today { border-left: 1px solid color-mix(in oklch, var(--rr-ox) 30%, transparent); }
+.rr-rowlab span { font-size: var(--ds-text-2xs); letter-spacing: var(--ds-track-caps); text-transform: uppercase; color: var(--rr-faint); }
 .rr-pulses { display: flex; align-items: center; gap: 5px; margin-bottom: 5px; }
 .rr-pulse { width: 6px; height: 6px; border-radius: 1px; background: var(--rr-ship); transform: rotate(45deg); box-shadow: 0 0 7px color-mix(in oklch, var(--rr-ship) 38%, transparent); }
 .rr-rels { display: flex; flex-direction: column; gap: 2px; }
-.rr-rel { appearance: none; background: transparent; border: 0; padding: 0; text-align: left; cursor: pointer; font-family: var(--ed-mono); font-size: 9.5px; line-height: 1.45; letter-spacing: -0.005em; color: #b6cdb9; transition: color 140ms ease; }
-.rr-rel-team { color: #cfe1d0; }
-.rr-rel:hover, .rr-rel:focus-visible { outline: none; color: var(--ed-ink-1); }
+.rr-rel { appearance: none; background: transparent; border: 0; padding: 0; text-align: left; cursor: pointer; font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); line-height: var(--ds-lh-2xs); letter-spacing: -0.005em; color: var(--ds-ink-2); transition: color 140ms ease; }
+.rr-rel-team { color: var(--ds-ink-1); }
+.rr-rel:hover, .rr-rel:focus-visible { outline: none; color: var(--ds-ink-1); }
+
+/* ── subscribable feed rows — the configurable, reorderable lane stack ──────
+   The 96px gutter (matched to the week grid above) carries a drag grip, the feed
+   icon + name, an at-a-glance count badge, and a hover ✕. Active rows read full
+   strength; quiet rows (nothing this week) dim so the eye lands on what moved. */
+.rr-rows { display: flex; flex-direction: column; }
+.rr-frow { position: relative; border-top: 1px solid var(--ed-rule); transition: background 120ms ease; }
+.rr-frow:first-child { border-top: 0; }
+.rr-frow:hover { background: color-mix(in oklch, var(--ds-ink-1) 3%, transparent); }
+.rr-frow.is-active::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--ds-accent); opacity: 0.5; }
+.rr-frow.is-quiet .rr-frowlab { opacity: 0.5; }
+.rr-frow.is-quiet:hover .rr-frowlab { opacity: 0.9; }
+
+.rr-frowlab { position: relative; gap: 7px; justify-content: flex-start; padding: 0 6px 0 10px; min-width: 0; overflow: hidden; cursor: grab; user-select: none; }
+.rr-frowlab:active { cursor: grabbing; }
+/* reorder control — click ▴/▾ (no hold) or drag the gutter; appears on hover/focus */
+.rr-frowlab .rr-row-move { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 13px; opacity: 0; transition: opacity 120ms ease; }
+.rr-frow:hover .rr-row-move, .rr-frowlab:focus-within .rr-row-move { opacity: 1; }
+.rr-row-mv { appearance: none; background: transparent; border: 0; padding: 0; margin: 0; width: 13px; height: 9px; cursor: pointer; color: var(--rr-faint-2); font-size: 8px; line-height: 1; display: flex; align-items: center; justify-content: center; border-radius: 2px; transition: color 120ms ease, background 120ms ease; }
+.rr-row-mv:hover { color: var(--ds-ink-1); background: color-mix(in oklch, var(--ds-ink-1) 12%, transparent); }
+.rr-row-mv:focus-visible { outline: none; color: var(--ds-ink-1); background: color-mix(in oklch, var(--ds-ink-1) 12%, transparent); }
+.rr-frowlab .rr-rowlab-ico { display: inline-flex; flex: 0 0 auto; color: var(--rr-faint); }
+.rr-frowlab .rr-rowlab-ico svg { width: 14px; height: 14px; }
+.rr-frow.is-active .rr-rowlab-ico { color: var(--ds-ink-2); }
+.rr-frowlab .rr-rowlab-tx { font-size: var(--ds-text-xs); letter-spacing: 0.005em; text-transform: none; color: var(--rr-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rr-frow.is-active .rr-rowlab-tx { color: var(--ds-ink-1); }
+.rr-frowlab .rr-row-count { flex: 0 0 auto; margin-left: auto; min-width: 17px; height: 16px; padding: 0 5px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--ds-accent-soft); color: var(--ds-ink-1); font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); font-variant-numeric: tabular-nums; transition: opacity 120ms ease; }
+.rr-frow:hover .rr-row-count, .rr-frowlab:focus-within .rr-row-count { opacity: 0; }
+.rr-frowlab .rr-rowlab-x { position: absolute; right: 5px; top: 50%; transform: translateY(-50%) scale(0.8); appearance: none; background: transparent; border: 0; cursor: pointer; color: var(--rr-faint-2); font-size: 14px; line-height: 1; padding: 1px 3px; border-radius: var(--ds-radius-sm); opacity: 0; transition: opacity 120ms ease, color 120ms ease, background 120ms ease, transform 120ms ease; }
+.rr-frow:hover .rr-frowlab .rr-rowlab-x, .rr-frowlab:focus-within .rr-rowlab-x, .rr-frowlab .rr-rowlab-x:focus-visible { opacity: 1; transform: translateY(-50%) scale(1); }
+.rr-frowlab .rr-rowlab-x:hover, .rr-frowlab .rr-rowlab-x:focus-visible { outline: none; color: var(--ds-danger); background: color-mix(in srgb, var(--ds-danger) 14%, transparent); }
+/* drag-reorder feedback */
+.rr-frow.is-dragging { opacity: 0.4; }
+.rr-frow.drop-before { box-shadow: inset 0 2px 0 0 var(--ds-accent); }
+.rr-frow.drop-after { box-shadow: inset 0 -2px 0 0 var(--ds-accent); }
+
+.rr-fcell { border-left: 1px solid var(--ed-rule); min-height: 44px; }
+.rr-fcell.has { padding: 8px 7px; }
+.rr-fcell.today { border-left: 1px solid color-mix(in oklch, var(--rr-ox) 28%, transparent); background: linear-gradient(180deg, color-mix(in oklch, var(--rr-ox) 5%, transparent), transparent 80%); }
+
+/* presence row — compact occupancy bar + count (replaces the old SVG ribbon) */
+/* in-town occupancy stripe — each day is a tinted segment (fill opacity scales
+   with how full the house is), so the row reads as one continuous presence
+   ribbon instead of seven separate bars. */
+.rr-fcell-pres { position: relative; overflow: hidden; appearance: none; cursor: pointer; background: transparent; border-left: 0; display: flex; align-items: center; justify-content: center; padding: 0; min-height: 30px; transition: filter 140ms ease; }
+.rr-fcell-pres .rr-pres-fill { position: absolute; inset: 0; background: var(--rr-pres); pointer-events: none; }
+.rr-fcell-pres:hover { filter: brightness(1.18); }
+.rr-fcell-pres:focus-visible { outline: none; box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--rr-pres) 70%, transparent); z-index: 2; }
+.rr-fcell-pres.today { box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--rr-ox) 45%, transparent); }
+.rr-fcell-n { position: relative; z-index: 1; font-family: var(--ds-font-mono); font-variant-numeric: tabular-nums; font-size: var(--ds-text-2xs); color: var(--ds-ink-1); }
+
+/* add affordance — a full-width "+ add a feed row" reads as the next lane in the
+   stack (in-context, not a stray corner button). It opens the shared checklist
+   (.c2-rowsctl-menu, the design-system dropdown) to tick feeds + teams on/off. */
+.rr-addrow { position: relative; }
+.rr-addrow-trigger { display: flex; align-items: center; gap: 8px; width: 100%; appearance: none; cursor: pointer; background: transparent; border: 0; border-top: 1px dashed var(--ed-rule-2); padding: 9px 10px; color: var(--rr-faint); font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); letter-spacing: var(--ds-track-caps); text-transform: uppercase; transition: background 120ms ease, color 120ms ease; }
+.rr-addrow-trigger:hover, .rr-addrow-trigger[aria-expanded="true"] { background: color-mix(in oklch, var(--ds-ink-1) 4%, transparent); color: var(--ds-ink-1); }
+.rr-addrow-trigger:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: -2px; }
+.rr-addrow-plus { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border: 1px solid currentColor; border-radius: var(--ds-radius-sm); font-size: 12px; line-height: 1; }
+.rr-addrow-trigger .c2-chev { margin-left: auto; }
+.rr-addrow .c2-rowsctl-menu { top: auto; bottom: calc(100% + 4px); left: 8px; min-width: 240px; max-height: 340px; overflow-y: auto; }
+.c2-rowsctl-grp { padding: 7px 9px 4px; font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); letter-spacing: 0.14em; text-transform: uppercase; color: var(--rr-faint-2); }
+.c2-rowsctl-opt .rr-rowlab-ico { display: inline-flex; flex: 0 0 auto; color: var(--rr-faint); }
+.c2-rowsctl-opt .rr-rowlab-ico svg { width: 14px; height: 14px; }
 
 /* ── week nav (prev / phrase / next) + provenance foot ──────────────── */
 .rr-nav { display: flex; align-items: center; justify-content: space-between; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--ed-rule-2); }
@@ -1476,7 +1479,7 @@
   .rr-arc { overflow-x: auto; overflow-y: hidden; padding-bottom: 24px; scrollbar-width: thin; }
   .rr-arc-bar { min-width: 540px; }
   .rr-weekscroll { overflow-x: auto; scrollbar-width: thin; padding-bottom: 2px; }
-  .rr-grid, .rr-row { min-width: 660px; }
+  .rr-grid, .rr-row { min-width: 708px; }
   .rr-panel-head .rr-filter { max-width: 100%; justify-content: flex-start; }
 }
 @media (prefers-reduced-motion: reduce) {

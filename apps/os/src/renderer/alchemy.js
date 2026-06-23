@@ -33,6 +33,7 @@ import {
 } from "@shape-rotator/shape-ui";
 import { saveSphere, SPHERE_DIALS, SPHERE_DEFAULTS, SPHERE_BG_DEFAULT, SPHERE_BG_MIX_DEFAULT, SPHERE_TIME_DEFAULT, SPHERE_BG_PRESETS, normalizeHex } from "./supabase-sphere.mjs";
 import { highlightGLSL } from "./shader-dsl.mjs";
+import { getSubscriptions, addSubscription, removeSubscription, reorderSubscriptions } from "./calendar-subscriptions.js";
 import {
   aggregateSkillAreas, buildCohortIndex, buildCollabModel, collabAffKey, collabHasText,
   dependencyPairKey, dependencySafeToken,
@@ -304,6 +305,7 @@ const state = {
     detach: null,                 // teardown returned by attachCalendarPageBehavior
     catHidden: [],                // category keys the legend-filter has switched off
     scope: null,                  // team record_id the signals are focused on (null = all cohort)
+    subscriptions: null,          // configurable feed rows; lazily loaded from localStorage (calendar-subscriptions.js)
   },
   events: [],          // normalized feed items, latest-first
   fetchedAt: 0,
@@ -10131,6 +10133,7 @@ function paintCalendarView({ wire = false } = {}) {
   // left over from the retired agenda tab degrades to the calendar grid.
   if (cal.view !== "presence" && cal.view !== "cal") cal.view = "cal";
   const presence = cal.view === "presence";
+  if (cal.subscriptions == null) cal.subscriptions = getSubscriptions();
   state.canvas.innerHTML = calendarModule.renderCalendarPage({
     data: cal.data,
     calendarGoogleEvents: state.cohort?.calendar_google_events || {},
@@ -10141,6 +10144,7 @@ function paintCalendarView({ wire = false } = {}) {
     activity: Array.isArray(state.cohort?.whats_new) ? state.cohort.whats_new : [],
     catHidden: Array.isArray(cal.catHidden) ? cal.catHidden : [],
     signals: presence ? null : computeCalendarSignals(),
+    subscriptions: cal.subscriptions,
   });
   if (presence) {
     mountAvailabilityCanvas();
@@ -10255,6 +10259,182 @@ function wireCalendar() {
         }
       });
     }
+
+    // ── subscribed feed rows: open an item, remove a row, add a new row ──
+    for (const chip of state.canvas.querySelectorAll("[data-c2-rowitem]")) {
+      chip.addEventListener("click", (event) => {
+        calendarLazy.peek()?.openCalendarRowItem?.(chip.dataset.c2Rowitem, {
+          anchor: event.currentTarget,
+          onOpenTeam: (rid) => openDetail(rid, "calendar"),
+        });
+      });
+    }
+    for (const x of state.canvas.querySelectorAll("[data-c2-subrow-remove]")) {
+      x.addEventListener("click", (e) => {
+        e.stopPropagation();
+        cal.rowsRefocus = "add";   // land on the add trigger after repaint, not <body>
+        cal.subscriptions = removeSubscription(x.getAttribute("data-c2-subrow-remove"));
+        refreshCalendarView();
+      });
+    }
+    // ── reorder: drag the gutter, click ▴/▾, or Alt+↑/↓ — all animated (FLIP) ──
+    const clearDrop = () => {
+      for (const el of state.canvas.querySelectorAll(".drop-before, .drop-after")) el.classList.remove("drop-before", "drop-after");
+    };
+    // FLIP: record each row's top, apply the reorder + repaint, then glide every
+    // row from its old position to its new one so the swap reads as motion.
+    const flipReorder = (apply) => {
+      const before = new Map();
+      for (const el of state.canvas.querySelectorAll(".rr-frow[data-c2-subrow-id]")) {
+        before.set(el.getAttribute("data-c2-subrow-id"), el.getBoundingClientRect().top);
+      }
+      apply();   // mutate cal.subscriptions + refreshCalendarView() (replaces the DOM)
+      let reduce = false;
+      try { reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.getAttribute("data-reduce-motion") === "1"; } catch {}
+      if (reduce) return;
+      const rows = [...state.canvas.querySelectorAll(".rr-frow[data-c2-subrow-id]")];
+      for (const el of rows) {
+        const old = before.get(el.getAttribute("data-c2-subrow-id"));
+        if (old == null) continue;
+        const dy = old - el.getBoundingClientRect().top;
+        if (!dy) continue;
+        el.style.transition = "none";
+        el.style.transform = `translateY(${dy}px)`;
+      }
+      requestAnimationFrame(() => {
+        for (const el of rows) {
+          if (!el.style.transform) continue;
+          el.style.transition = "transform 280ms cubic-bezier(0.22, 1, 0.36, 1)";
+          el.style.transform = "";
+          el.addEventListener("transitionend", () => { el.style.transition = ""; }, { once: true });
+        }
+      });
+    };
+    const moveRow = (rowEl, dir) => {
+      const id = rowEl.getAttribute("data-c2-subrow-id");
+      const sib = dir === "up" ? rowEl.previousElementSibling : rowEl.nextElementSibling;
+      if (!sib || !sib.matches?.(".rr-frow[data-c2-subrow-id]")) return;
+      cal.rowsRefocus = "row:" + id;
+      flipReorder(() => { cal.subscriptions = reorderSubscriptions(id, sib.getAttribute("data-c2-subrow-id"), dir === "down"); refreshCalendarView(); });
+    };
+    let dragRowId = null;
+    for (const row of state.canvas.querySelectorAll(".rr-frow[data-c2-subrow-id]")) {
+      const handle = row.querySelector(".rr-frowlab[draggable]") || row;
+      handle.addEventListener("dragstart", (e) => {
+        dragRowId = row.getAttribute("data-c2-subrow-id");
+        row.classList.add("is-dragging");
+        try { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", dragRowId); } catch {}
+      });
+      handle.addEventListener("dragend", () => { row.classList.remove("is-dragging"); clearDrop(); dragRowId = null; });
+      row.addEventListener("dragover", (e) => {
+        if (!dragRowId || row.getAttribute("data-c2-subrow-id") === dragRowId) return;
+        e.preventDefault();
+        try { e.dataTransfer.dropEffect = "move"; } catch {}
+        const r = row.getBoundingClientRect();
+        const after = (e.clientY - r.top) > r.height / 2;
+        clearDrop();
+        row.classList.add(after ? "drop-after" : "drop-before");
+      });
+      row.addEventListener("drop", (e) => {
+        e.preventDefault();
+        const targetId = row.getAttribute("data-c2-subrow-id");
+        const dId = dragRowId;
+        if (!dId || dId === targetId) { clearDrop(); return; }
+        const r = row.getBoundingClientRect();
+        const after = (e.clientY - r.top) > r.height / 2;
+        cal.rowsRefocus = "row:" + dId;
+        flipReorder(() => { cal.subscriptions = reorderSubscriptions(dId, targetId, after); refreshCalendarView(); });
+        dragRowId = null;
+      });
+      // click ▴/▾ to move (no hold) — the discoverable alternative to dragging
+      for (const mv of row.querySelectorAll("[data-c2-subrow-move]")) {
+        mv.addEventListener("click", (e) => { e.stopPropagation(); e.preventDefault(); moveRow(row, mv.getAttribute("data-c2-subrow-move")); });
+      }
+      // keyboard reorder — Alt+↑/↓ moves the focused row (non-pointer users)
+      const lab = row.querySelector(".rr-frowlab[tabindex]");
+      lab?.addEventListener("keydown", (e) => {
+        if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+        e.preventDefault();
+        moveRow(row, e.key === "ArrowUp" ? "up" : "down");
+      });
+    }
+    // dropping onto the "+ add a feed row" affordance moves the row to the end
+    const addRowEl = state.canvas.querySelector(".rr-addrow");
+    if (addRowEl) {
+      addRowEl.addEventListener("dragover", (e) => { if (dragRowId) { e.preventDefault(); try { e.dataTransfer.dropEffect = "move"; } catch {} } });
+      addRowEl.addEventListener("drop", (e) => {
+        if (!dragRowId) return;
+        e.preventDefault();
+        const rows = state.canvas.querySelectorAll(".rr-frow[data-c2-subrow-id]");
+        const lastId = rows[rows.length - 1]?.getAttribute("data-c2-subrow-id");
+        const dId = dragRowId;
+        if (lastId && lastId !== dId) { cal.rowsRefocus = "row:" + dId; flipReorder(() => { cal.subscriptions = reorderSubscriptions(dId, lastId, true); refreshCalendarView(); }); }
+        dragRowId = null;
+      });
+    }
+    const addBtn = state.canvas.querySelector("[data-c2-subrow-add]");
+    const addMenu = state.canvas.querySelector(".c2-rowsctl-menu");
+    if (addBtn && addMenu) {
+      const opts = [...addMenu.querySelectorAll("[data-c2-subrow-kind]")];
+      const setAddOpen = (open) => {
+        addMenu.toggleAttribute("hidden", !open);
+        addBtn.setAttribute("aria-expanded", open ? "true" : "false");
+        cal.rowsMenuOpen = open;
+        if (open) opts[0]?.focus();
+      };
+      addBtn.addEventListener("click", (e) => { e.stopPropagation(); setAddOpen(addMenu.hasAttribute("hidden")); });
+      addBtn.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " " || e.key === "Spacebar") { e.preventDefault(); setAddOpen(true); }
+      });
+      for (const opt of opts) {
+        opt.addEventListener("click", () => {
+          const kind = opt.getAttribute("data-c2-subrow-kind");
+          const subjectId = opt.getAttribute("data-c2-subrow-subject") || null;
+          const label = opt.getAttribute("data-c2-subrow-label") || "";
+          // checklist toggle: subscribed → remove that row; not subscribed → add it.
+          // Keep the menu open across ticks + remember which option to refocus.
+          const existing = (cal.subscriptions || []).find(r => r.kind === kind && (r.subjectId || null) === subjectId);
+          cal.rowsMenuOpen = true;
+          cal.rowsLastToggled = kind + ":" + (subjectId || "");
+          cal.subscriptions = existing ? removeSubscription(existing.id) : addSubscription({ kind, subjectId, label });
+          refreshCalendarView();
+        });
+      }
+      addMenu.addEventListener("keydown", (e) => {
+        const i = opts.indexOf(document.activeElement);
+        if (e.key === "ArrowDown") { e.preventDefault(); opts[Math.min(opts.length - 1, i + 1)]?.focus(); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); opts[Math.max(0, i - 1)]?.focus(); }
+        else if (e.key === "Home") { e.preventDefault(); opts[0]?.focus(); }
+        else if (e.key === "End") { e.preventDefault(); opts[opts.length - 1]?.focus(); }
+        else if (e.key === "Escape") { e.preventDefault(); setAddOpen(false); addBtn.focus(); }
+      });
+      if (!state.c2SubrowOutsideBound) {
+        state.c2SubrowOutsideBound = true;
+        document.addEventListener("click", (e) => {
+          if (state.mode !== "calendar") return;
+          const mn = state.canvas?.querySelector(".c2-rowsctl-menu");
+          if (mn && !mn.hasAttribute("hidden") && !e.target.closest("[data-c2-subrow-ctl]")) {
+            mn.setAttribute("hidden", "");
+            state.calendar.rowsMenuOpen = false;
+            state.canvas.querySelector("[data-c2-subrow-add]")?.setAttribute("aria-expanded", "false");
+          }
+        });
+      }
+      // restore focus after a mutation repaint — reopen the menu on the toggled
+      // option, or land on the moved row / add trigger (never drop focus to <body>).
+      if (cal.rowsMenuOpen) {
+        setAddOpen(true);
+        const want = cal.rowsLastToggled;
+        const tgt = want ? opts.find(o => (o.getAttribute("data-c2-subrow-kind") + ":" + (o.getAttribute("data-c2-subrow-subject") || "")) === want) : null;
+        (tgt || opts[0])?.focus();
+      } else if (cal.rowsRefocus) {
+        const ref = cal.rowsRefocus;
+        const el = ref === "add" ? addBtn
+          : ref.startsWith("row:") ? state.canvas.querySelector(`.rr-frow[data-c2-subrow-id="${ref.slice(4)}"] .rr-frowlab`) : null;
+        el?.focus?.();
+      }
+      cal.rowsRefocus = null;
+    }
   }
 
   // presence-view extras — gantt export + the "edit my availability" jump.
@@ -10300,17 +10480,8 @@ function wireCalendar() {
     });
   }
 
-  // Shipped chips reveal what shipped in place (same as an event); the drill to
-  // the team dossier is a deliberate, secondary button inside that reveal —
-  // onOpenTeam returns to the calendar on "back" (detailReturnMode = "calendar").
-  for (const chip of state.canvas.querySelectorAll("[data-c2-act]")) {
-    chip.addEventListener("click", (event) => {
-      calendarLazy.peek()?.openCalendarActivity?.(chip.dataset.c2Act, {
-        anchor: event.currentTarget,
-        onOpenTeam: (rid) => openDetail(rid, "calendar"),
-      });
-    });
-  }
+  // (Shipped/feed chips now use [data-c2-rowitem] → openCalendarRowItem, wired in
+  // the rows block above; the old [data-c2-act] reveal is no longer emitted.)
 
   for (const btn of state.canvas.querySelectorAll("[data-c2-retry]")) {
     btn.addEventListener("click", () => {

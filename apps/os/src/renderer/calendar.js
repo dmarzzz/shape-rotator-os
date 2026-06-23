@@ -384,7 +384,7 @@ export function flattenScheduleEvents(data) {
 // People presence + per-week PMF live outside this module's data, so the host
 // (alchemy.js) computes them and passes the shaped result in; this module stays
 // presentation-only.
-export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 0, source = null, view = "cal", presenceHtml = "", activity = [], catHidden = [], signals = null } = {}) {
+export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 0, source = null, view = "cal", presenceHtml = "", activity = [], catHidden = [], signals = null, subscriptions = null } = {}) {
   const tab = data?.tabs?.[PRIMARY_TAB] || [];
   const safeWeekIdx = Math.max(0, Math.min(WEEK_COUNT - 1, weekIdx | 0));
   const week = parseWeekRow(tab[2 + safeWeekIdx] || [], safeWeekIdx);
@@ -641,9 +641,9 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
           ${subscribeAction}
         </div>
         <div class="rr-stats">
-          <div class="rr-stat"><div class="rr-stat-lab">in town</div><div class="rr-stat-big">${inTownToday}<small> /${rosterTotal}</small></div><div class="rr-stat-note rr-tone-pres">${satPct}% of the house</div></div>
-          <div class="rr-stat"><div class="rr-stat-lab">shipped</div><div class="rr-stat-big">${shipCount}</div><div class="rr-stat-note rr-tone-ship">release${shipCount === 1 ? "" : "s"} this wk</div></div>
-          <div class="rr-stat"><div class="rr-stat-lab">gathered</div><div class="rr-stat-big">${gatherCount}</div><div class="rr-stat-note">${gatherHrs}h together</div></div>
+          <div class="rr-stat rr-stat--pres"><div class="rr-stat-lab">in town</div><div class="rr-stat-big">${inTownToday}<small> /${rosterTotal}</small></div><div class="rr-stat-note rr-tone-pres">${satPct}% of the house</div></div>
+          <div class="rr-stat rr-stat--ship"><div class="rr-stat-lab">shipped</div><div class="rr-stat-big">${shipCount}</div><div class="rr-stat-note rr-tone-ship">release${shipCount === 1 ? "" : "s"} this wk</div></div>
+          <div class="rr-stat rr-stat--gather"><div class="rr-stat-lab">gathered</div><div class="rr-stat-big">${gatherCount}</div><div class="rr-stat-note">${gatherHrs}h together</div></div>
         </div>
       </div>
     </header>`;
@@ -702,6 +702,165 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
     return `<div class="${cls}"${d.isToday ? ` data-rr-win="${bWinStart}:${bWinEnd}"` : ""}>${ground}${banners}${ticks}${nowEls}</div>`;
   }).join("");
 
+  // ── subscribable rows — the configurable lane stack under the week grid ──
+  // The week panel used to hard-code two strips (presence ribbon + shipped). Those
+  // are now the two DEFAULT rows in a user-controlled stack: each row subscribes to
+  // a feed (a team, github pushes, releases, meeting transcripts, presence) and the
+  // "+ subscribe a row" control adds more. Every row resolves from data already
+  // loaded — `activity` (whats_new), the public transcript anchors, and per-day
+  // presence — so this module stays presentation-only (no new fetches). The host
+  // (alchemy.js) owns persistence + add/remove wiring; we just render the model and
+  // stash it on _model.rows so the reveal can read the clicked item back.
+  const subList = (Array.isArray(subscriptions) && subscriptions.length)
+    ? subscriptions
+    : [{ id: "row-presence", kind: "presence" }, { id: "row-shipped", kind: "shipped" }];
+  const dayIsos = days.map(d => isoDay(d.dayMs));
+  const teamNameOf = (id) => (scopeTeams.find(t => t.id === id)?.name) || id || "team";
+  const actToItem = (a) => ({ kind: a.kind, label: a.label || "", team: a.meta || "", recordId: a.nav?.recordId || null, date: a.date });
+  const transcriptsForDay = (iso, subjectId = null) => CALENDAR_TRANSCRIPT_MATCHES
+    .filter(e => e && e.date === iso)
+    .filter(e => {
+      if (!subjectId) return true;
+      const want = new Set([subjectId, slug(teamNameOf(subjectId))]);
+      return (e.sources || []).some(s => [...(s.mentions_any || []), ...(s.mentions_direct || [])].some(m => want.has(m)));
+    })
+    .map(e => ({ kind: "transcript", label: e.section || (e.title_contains || [])[0] || "session",
+                 title: (e.title_contains || []).join(" · "), confidence: e.confidence || "",
+                 sourceCount: (e.sources || []).length, date: e.date }));
+
+  const resolveRow = (sub) => {
+    const kind = sub.kind;
+    const subjectId = sub.subjectId || null;
+    let label = sub.label || "";
+    let render = "feed";
+    const perDay = dayIsos.map(() => ({ items: [] }));
+    if (kind === "presence") { render = "presence"; label = label || "in town"; }
+    else if (kind === "shipped") {
+      label = label || "shipped";
+      dayIsos.forEach((iso, di) => { for (const a of activityList) if (a && a.date === iso && ACT_KINDS.has(a.kind) && (!scopeId || a.nav?.recordId === scopeId)) perDay[di].items.push(actToItem(a)); });
+    } else if (kind === "commits" || kind === "releases") {
+      const want = kind === "commits" ? "commit" : "release";
+      label = label || (kind === "commits" ? "github pushes" : "releases");
+      dayIsos.forEach((iso, di) => { for (const a of activityList) if (a && a.date === iso && a.kind === want && (!scopeId || a.nav?.recordId === scopeId)) perDay[di].items.push(actToItem(a)); });
+    } else if (kind === "transcripts") {
+      label = label || "meetings";
+      dayIsos.forEach((iso, di) => { for (const t of transcriptsForDay(iso)) perDay[di].items.push(t); });
+    } else if (kind === "team") {
+      label = label || teamNameOf(subjectId);
+      dayIsos.forEach((iso, di) => {
+        for (const a of activityList) if (a && a.date === iso && ACT_KINDS.has(a.kind) && (a.nav?.recordId === subjectId)) perDay[di].items.push(actToItem(a));
+        for (const t of transcriptsForDay(iso, subjectId)) perDay[di].items.push(t);
+      });
+    }
+    const count = perDay.reduce((n, c) => n + c.items.length, 0);
+    return { id: sub.id, kind, subjectId, label, hidden: !!sub.hidden, builtin: !!sub.builtin, render, perDay, count };
+  };
+  const rowModels = subList.filter((s) => !s.hidden).map(resolveRow);
+  _model.rows = rowModels;
+
+  // 16px line glyphs per row kind (matches the app's lucide-ish stroke set).
+  const ROW_ICON = {
+    presence: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>',
+    shipped: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>',
+    commits: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M3 12h6"/><path d="M15 12h6"/></svg>',
+    releases: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>',
+    transcripts: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+    team: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  };
+  const rowIcon = (kind) => ROW_ICON[kind] || ROW_ICON.team;
+
+  // presence row — a compact per-day occupancy bar + count (sleeker than the old
+  // SVG ribbon, and consistent with every other lane). Click still opens presence.
+  const presenceCells = days.map((d, di) => {
+    const n = Number(perDaySig[di]?.inTown) || 0;
+    const frac = rosterTotal ? Math.max(0, Math.min(1, n / rosterTotal)) : 0;
+    const lbl = n ? `${cap(d.name)} ${d.date.replace(/^[a-z]+\s+/, "")} · ${n} of ${rosterTotal} in town — open presence`
+                  : `${cap(d.name)} · nobody in town — open presence`;
+    // a continuous occupancy stripe — each day's fill opacity scales with how full
+    // the house is, so the seven segments read as one intensity ribbon along the row.
+    const fill = (0.08 + frac * 0.82).toFixed(3);
+    return `<button class="rr-fcell rr-fcell-pres${d.isToday ? " today" : ""}" data-c2-intown="${di}" type="button" aria-label="${escAttr(lbl)}"><span class="rr-pres-fill" style="opacity:${fill}"></span><span class="rr-fcell-n">${n || ""}</span></button>`;
+  }).join("");
+
+  // feed row — per-day cells of clickable items (release/commit/team chips, or a
+  // transcript anchor), mirroring the old shipped lane but driven by the feed.
+  const feedCells = (row) => row.perDay.map((c, di) => {
+    const today = days[di]?.isToday ? " today" : "";
+    if (!c.items.length) return `<div class="rr-fcell rr-fcell-empty${today}"></div>`;
+    const pulses = `<div class="rr-pulses">${c.items.slice(0, 5).map(() => `<span class="rr-pulse"></span>`).join("")}</div>`;
+    const lines = c.items.map((it, ii) => {
+      const inner = it.kind === "transcript"
+        ? escHtml(it.label)
+        : `${it.team ? `<span class="rr-rel-team">${escHtml(it.team)}</span> ` : ""}${escHtml(it.label)}`;
+      const title = it.kind === "transcript" ? it.label : `${it.team ? it.team + " " : ""}${it.label}`;
+      return `<button class="rr-rel" data-c2-rowitem="${row.__ri}:${di}:${ii}" type="button" title="${escAttr(title)}">${inner}</button>`;
+    }).join("");
+    return `<div class="rr-fcell has${today}">${pulses}<div class="rr-rels">${lines}</div></div>`;
+  }).join("");
+
+  const rowsHtml = rowModels.map((row, ri) => {
+    row.__ri = ri;
+    const cells = row.render === "presence" ? presenceCells : feedCells(row);
+    // A row reads "active" when it has something this week (presence is a
+    // continuous signal, so it's always live); quiet rows dim so the eye lands on
+    // what actually happened. The count badge is the at-a-glance weight.
+    const active = row.render === "presence" || row.count > 0;
+    const badge = row.render === "presence"
+      ? ""
+      : (row.count > 0 ? `<span class="rr-row-count" title="${row.count} this week" aria-label="${row.count} this week">${row.count}</span>` : "");
+    return `
+      <div class="rr-row rr-frow ${active ? "is-active" : "is-quiet"}" data-rr-row="${ri}" data-c2-subrow-id="${escAttr(row.id)}" data-row-kind="${escAttr(row.kind)}">
+        <div class="rr-rowlab rr-frowlab" draggable="true" tabindex="0" role="button" title="drag to reorder · ${escAttr(row.label)}" aria-label="${escAttr(row.label)} row — drag, click ▴▾, or Alt+↑/↓ to reorder">
+          <span class="rr-row-move" aria-hidden="true">
+            <button class="rr-row-mv" data-c2-subrow-move="up" type="button" tabindex="-1" draggable="false" title="move up">▴</button>
+            <button class="rr-row-mv" data-c2-subrow-move="down" type="button" tabindex="-1" draggable="false" title="move down">▾</button>
+          </span>
+          <span class="rr-rowlab-ico" aria-hidden="true">${rowIcon(row.kind)}</span>
+          <span class="rr-rowlab-tx">${escHtml(row.label)}</span>
+          ${badge}
+          <button class="rr-rowlab-x" data-c2-subrow-remove="${escAttr(row.id)}" type="button" draggable="false" title="remove row" aria-label="remove ${escAttr(row.label)} row">×</button>
+        </div>
+        ${cells}
+      </div>`;
+  }).join("");
+
+  // rows control — the "rows ⌄" checklist that adds/removes feed lanes. Reuses the
+  // design-system dropdown family (.c2-rowsctl-*) the calendar already ships (and ds.css
+  // styles), so it inherits the unified panel / option / selected-wash look; each
+  // option is a checkbox reflecting whether that lane is subscribed. Toggle + menu
+  // wiring live in wireCalendar().
+  const subOn = (kind, subjectId = null) => subList.some(s => s.kind === kind && (s.subjectId || null) === (subjectId || null));
+  const rowOpt = (kind, label, subjectId = null) => `
+    <button class="c2-rowsctl-opt" role="menuitemcheckbox" aria-checked="${subOn(kind, subjectId) ? "true" : "false"}"
+            data-c2-subrow-toggle data-c2-subrow-kind="${escAttr(kind)}"${subjectId ? ` data-c2-subrow-subject="${escAttr(subjectId)}"` : ""} data-c2-subrow-label="${escAttr(label)}" type="button">
+      <i class="c2-rowsctl-check" aria-hidden="true">✓</i>
+      <span class="rr-rowlab-ico" aria-hidden="true">${rowIcon(kind)}</span>
+      <span>${escHtml(label)}</span>
+    </button>`;
+  const addKinds = [
+    { kind: "commits", label: "github pushes" },
+    { kind: "releases", label: "products / releases" },
+    { kind: "transcripts", label: "meetings · transcripts" },
+    { kind: "presence", label: "in town" },
+    { kind: "shipped", label: "shipped" },
+  ];
+  // Add affordance — a full-width "+ add a feed row" sits as the last lane in the
+  // stack (in-context, not a stray corner button), opening the same checklist so
+  // you tick feeds + teams on/off. Aligned to the grid so it reads as the next row.
+  const addRowControl = `
+    <div class="rr-addrow" data-c2-subrow-ctl>
+      <button class="rr-addrow-trigger" data-c2-subrow-add type="button" aria-haspopup="menu" aria-expanded="false" aria-label="add or remove calendar rows">
+        <span class="rr-addrow-plus" aria-hidden="true">+</span>
+        <span class="rr-addrow-tx">add a feed row</span>
+        <i class="c2-chev" aria-hidden="true"></i>
+      </button>
+      <div class="c2-rowsctl-menu rr-addrow-menu" role="menu" aria-label="calendar rows" hidden>
+        <div class="c2-rowsctl-grp">cohort feeds</div>
+        ${addKinds.map(k => rowOpt(k.kind, k.label)).join("")}
+        ${scopeTeams.length ? `<div class="c2-rowsctl-grp">teams — commits · releases · meetings</div>${scopeTeams.map(t => rowOpt("team", t.name, t.id)).join("")}` : ""}
+      </div>
+    </div>`;
+
   const navHtml = `
     <div class="rr-nav">
       <button class="rr-navbtn rr-prev" data-c2-nav="prev"${safeWeekIdx === 0 ? " disabled" : ""} type="button">${safeWeekIdx === 0 ? "start of residency" : `← wk ${String(safeWeekIdx).padStart(2, "0")} · ${escHtml(weekStartMs != null ? shortDate(weekStartMs - 7 * DAY_MS) : "")}`}</button>
@@ -742,6 +901,10 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
             ${spineHtml}
             ${fieldsHtml}
           </div>
+          <div class="rr-rows" role="group" aria-label="subscribed feed rows">
+            ${rowsHtml}
+          </div>
+          ${addRowControl}
         </div>
         ${navHtml}
       </section>
@@ -1028,6 +1191,87 @@ export function openCalendarActivity(ref, { anchor = null, anchorRect = null, on
               </svg>
             </span>
             <span class="c2-action-copy"><strong>open ${escHtml(item.team || "team")}</strong><small>team dossier</small></span>
+          </button>
+        </div>` : ""}
+    </div>`;
+  const close = () => {
+    clearCalendarEventSelection();
+    document.removeEventListener("keydown", onKey);
+    if (overlay.dataset.closing === "1") return;
+    overlay.dataset.closing = "1";
+    let reduce = false;
+    try {
+      reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        || document.documentElement.getAttribute("data-reduce-motion") === "1";
+    } catch {}
+    if (reduce) { overlay.remove(); return; }
+    overlay.classList.add("is-closing");
+    const done = () => { try { overlay.remove(); } catch {} };
+    overlay.addEventListener("animationend", done, { once: true });
+    setTimeout(done, 180);
+  };
+  function onKey(e) { if (e.key === "Escape") close(); }
+  overlay.addEventListener("click", (e) => {
+    const openTeam = e.target?.closest?.("[data-open-team]");
+    if (openTeam) {
+      e.preventDefault();
+      const rid = openTeam.getAttribute("data-open-team");
+      close();
+      if (rid) { try { onOpenTeam(rid); } catch {} }
+      return;
+    }
+    if (e.target === overlay) close();
+  });
+  overlay.querySelector(".c2-modal-close")?.addEventListener("click", close);
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(overlay);
+  positionEventPanel(overlay, eventAnchorRect);
+  overlay.querySelector(".c2-modal-close")?.focus?.({ preventScroll: true });
+}
+
+// Reveal a subscribed-row item. release/commit/team items drill to the team
+// dossier (same secondary "open team →" as the shipped reveal); a transcript item
+// shows its public anchor (the body is held in the private vault). Reads the
+// clicked item back from _model.rows so every row kind shares one click path.
+export function openCalendarRowItem(ref, { anchor = null, anchorRect = null, onOpenTeam = null } = {}) {
+  if (!_model || typeof document === "undefined") return;
+  const m = String(ref || "").match(/^(\d+):(\d+):(\d+)$/);
+  if (!m) return;
+  const row = (_model.rows || [])[+m[1]];
+  const day = _model.days[+m[2]];
+  const item = row?.perDay?.[+m[2]]?.items?.[+m[3]];
+  if (!row || !day || !item) return;
+
+  const weekday = DAY_NAMES_FULL[day.name] || day.name;
+  const VERB = { release: "shipped", commit: "committed", transcript: "recorded" };
+  const verb = VERB[item.kind] || item.kind;
+  const isTranscript = item.kind === "transcript";
+  const titleLine = isTranscript ? (item.title || item.label || "session") : (item.team || row.label || "a team");
+  const eventAnchor = anchor || null;
+  const eventAnchorRect = anchorRect || rectFromAnchor(eventAnchor);
+
+  document.querySelector(".c2-modal")?.remove();
+  clearCalendarEventSelection();
+  eventAnchor?.classList?.add?.("is-selected");
+  const overlay = document.createElement("div");
+  overlay.className = "c2-modal";
+  overlay.innerHTML = `
+    <div class="c2-modal-panel c2-modal-panel--act" data-act-kind="${escAttr(item.kind)}" role="dialog" aria-modal="true" aria-label="row item details">
+      <button class="c2-modal-close" type="button" aria-label="close">×</button>
+      <div class="c2-modal-meta">
+        <div class="c2-modal-when">${escHtml(weekday)} · ${escHtml(day.date)}</div>
+        <div class="c2-modal-cat"><i class="c2-act-dot" aria-hidden="true"></i>${escHtml(verb)}</div>
+      </div>
+      <h3 class="c2-modal-title"><em>${escHtml(titleLine)}</em></h3>
+      ${!isTranscript && item.label ? `<p class="c2-modal-actlabel">${escHtml(item.label)}</p>` : ""}
+      ${isTranscript ? `<p class="c2-modal-actlabel">${escHtml(item.label || "")}${item.sourceCount ? ` · ${item.sourceCount} source${item.sourceCount === 1 ? "" : "s"}` : ""}${item.confidence ? ` · ${escHtml(item.confidence)} confidence` : ""}</p>` : ""}
+      ${item.recordId && typeof onOpenTeam === "function" ? `
+        <div class="c2-modal-actions">
+          <button class="c2-modal-team" type="button" data-open-team="${escAttr(item.recordId)}">
+            <span class="c2-action-glyph" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+            </span>
+            <span class="c2-action-copy"><strong>open ${escHtml(item.team || row.label || "team")}</strong><small>team dossier</small></span>
           </button>
         </div>` : ""}
     </div>`;
