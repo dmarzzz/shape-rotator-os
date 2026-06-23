@@ -641,9 +641,9 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
           ${subscribeAction}
         </div>
         <div class="rr-stats">
-          <div class="rr-stat"><div class="rr-stat-lab">in town</div><div class="rr-stat-big">${inTownToday}<small> /${rosterTotal}</small></div><div class="rr-stat-note rr-tone-pres">${satPct}% of the house</div></div>
-          <div class="rr-stat"><div class="rr-stat-lab">shipped</div><div class="rr-stat-big">${shipCount}</div><div class="rr-stat-note rr-tone-ship">release${shipCount === 1 ? "" : "s"} this wk</div></div>
-          <div class="rr-stat"><div class="rr-stat-lab">gathered</div><div class="rr-stat-big">${gatherCount}</div><div class="rr-stat-note">${gatherHrs}h together</div></div>
+          <div class="rr-stat rr-stat--pres"><div class="rr-stat-lab">in town</div><div class="rr-stat-big">${inTownToday}<small> /${rosterTotal}</small></div><div class="rr-stat-note rr-tone-pres">${satPct}% of the house</div></div>
+          <div class="rr-stat rr-stat--ship"><div class="rr-stat-lab">shipped</div><div class="rr-stat-big">${shipCount}</div><div class="rr-stat-note rr-tone-ship">release${shipCount === 1 ? "" : "s"} this wk</div></div>
+          <div class="rr-stat rr-stat--gather"><div class="rr-stat-lab">gathered</div><div class="rr-stat-big">${gatherCount}</div><div class="rr-stat-note">${gatherHrs}h together</div></div>
         </div>
       </div>
     </header>`;
@@ -776,7 +776,10 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
     const frac = rosterTotal ? Math.max(0, Math.min(1, n / rosterTotal)) : 0;
     const lbl = n ? `${cap(d.name)} ${d.date.replace(/^[a-z]+\s+/, "")} · ${n} of ${rosterTotal} in town — open presence`
                   : `${cap(d.name)} · nobody in town — open presence`;
-    return `<button class="rr-fcell rr-fcell-pres${rosterTotal > 2 && n >= rosterTotal - 2 ? " hi" : ""}${d.isToday ? " today" : ""}" data-c2-intown="${di}" type="button" aria-label="${escAttr(lbl)}"><span class="rr-presbar" style="height:${Math.max(6, Math.round(frac * 100))}%"></span><span class="rr-fcell-n">${n || "·"}</span></button>`;
+    // a continuous occupancy stripe — each day's fill opacity scales with how full
+    // the house is, so the seven segments read as one intensity ribbon along the row.
+    const fill = (0.08 + frac * 0.82).toFixed(3);
+    return `<button class="rr-fcell rr-fcell-pres${d.isToday ? " today" : ""}" data-c2-intown="${di}" type="button" aria-label="${escAttr(lbl)}"><span class="rr-pres-fill" style="opacity:${fill}"></span><span class="rr-fcell-n">${n || ""}</span></button>`;
   }).join("");
 
   // feed row — per-day cells of clickable items (release/commit/team chips, or a
@@ -807,8 +810,11 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       : (row.count > 0 ? `<span class="rr-row-count" title="${row.count} this week" aria-label="${row.count} this week">${row.count}</span>` : "");
     return `
       <div class="rr-row rr-frow ${active ? "is-active" : "is-quiet"}" data-rr-row="${ri}" data-c2-subrow-id="${escAttr(row.id)}" data-row-kind="${escAttr(row.kind)}">
-        <div class="rr-rowlab rr-frowlab" draggable="true" tabindex="0" role="button" title="drag to reorder · ${escAttr(row.label)}" aria-label="${escAttr(row.label)} row — drag, or Alt+↑/↓ to reorder">
-          <span class="rr-row-grip" aria-hidden="true"></span>
+        <div class="rr-rowlab rr-frowlab" draggable="true" tabindex="0" role="button" title="drag to reorder · ${escAttr(row.label)}" aria-label="${escAttr(row.label)} row — drag, click ▴▾, or Alt+↑/↓ to reorder">
+          <span class="rr-row-move" aria-hidden="true">
+            <button class="rr-row-mv" data-c2-subrow-move="up" type="button" tabindex="-1" draggable="false" title="move up">▴</button>
+            <button class="rr-row-mv" data-c2-subrow-move="down" type="button" tabindex="-1" draggable="false" title="move down">▾</button>
+          </span>
           <span class="rr-rowlab-ico" aria-hidden="true">${rowIcon(row.kind)}</span>
           <span class="rr-rowlab-tx">${escHtml(row.label)}</span>
           ${badge}

@@ -10277,10 +10277,45 @@ function wireCalendar() {
         refreshCalendarView();
       });
     }
-    // drag-to-reorder rows (handle = the gutter label; cells stay clickable). The
-    // drop indicator is a class on the hovered row; drop commits the new order.
+    // ── reorder: drag the gutter, click ▴/▾, or Alt+↑/↓ — all animated (FLIP) ──
     const clearDrop = () => {
       for (const el of state.canvas.querySelectorAll(".drop-before, .drop-after")) el.classList.remove("drop-before", "drop-after");
+    };
+    // FLIP: record each row's top, apply the reorder + repaint, then glide every
+    // row from its old position to its new one so the swap reads as motion.
+    const flipReorder = (apply) => {
+      const before = new Map();
+      for (const el of state.canvas.querySelectorAll(".rr-frow[data-c2-subrow-id]")) {
+        before.set(el.getAttribute("data-c2-subrow-id"), el.getBoundingClientRect().top);
+      }
+      apply();   // mutate cal.subscriptions + refreshCalendarView() (replaces the DOM)
+      let reduce = false;
+      try { reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.getAttribute("data-reduce-motion") === "1"; } catch {}
+      if (reduce) return;
+      const rows = [...state.canvas.querySelectorAll(".rr-frow[data-c2-subrow-id]")];
+      for (const el of rows) {
+        const old = before.get(el.getAttribute("data-c2-subrow-id"));
+        if (old == null) continue;
+        const dy = old - el.getBoundingClientRect().top;
+        if (!dy) continue;
+        el.style.transition = "none";
+        el.style.transform = `translateY(${dy}px)`;
+      }
+      requestAnimationFrame(() => {
+        for (const el of rows) {
+          if (!el.style.transform) continue;
+          el.style.transition = "transform 280ms cubic-bezier(0.22, 1, 0.36, 1)";
+          el.style.transform = "";
+          el.addEventListener("transitionend", () => { el.style.transition = ""; }, { once: true });
+        }
+      });
+    };
+    const moveRow = (rowEl, dir) => {
+      const id = rowEl.getAttribute("data-c2-subrow-id");
+      const sib = dir === "up" ? rowEl.previousElementSibling : rowEl.nextElementSibling;
+      if (!sib || !sib.matches?.(".rr-frow[data-c2-subrow-id]")) return;
+      cal.rowsRefocus = "row:" + id;
+      flipReorder(() => { cal.subscriptions = reorderSubscriptions(id, sib.getAttribute("data-c2-subrow-id"), dir === "down"); refreshCalendarView(); });
     };
     let dragRowId = null;
     for (const row of state.canvas.querySelectorAll(".rr-frow[data-c2-subrow-id]")) {
@@ -10303,25 +10338,24 @@ function wireCalendar() {
       row.addEventListener("drop", (e) => {
         e.preventDefault();
         const targetId = row.getAttribute("data-c2-subrow-id");
-        if (!dragRowId || dragRowId === targetId) { clearDrop(); return; }
+        const dId = dragRowId;
+        if (!dId || dId === targetId) { clearDrop(); return; }
         const r = row.getBoundingClientRect();
         const after = (e.clientY - r.top) > r.height / 2;
-        cal.rowsRefocus = "row:" + dragRowId;
-        cal.subscriptions = reorderSubscriptions(dragRowId, targetId, after);
+        cal.rowsRefocus = "row:" + dId;
+        flipReorder(() => { cal.subscriptions = reorderSubscriptions(dId, targetId, after); refreshCalendarView(); });
         dragRowId = null;
-        refreshCalendarView();
       });
+      // click ▴/▾ to move (no hold) — the discoverable alternative to dragging
+      for (const mv of row.querySelectorAll("[data-c2-subrow-move]")) {
+        mv.addEventListener("click", (e) => { e.stopPropagation(); e.preventDefault(); moveRow(row, mv.getAttribute("data-c2-subrow-move")); });
+      }
       // keyboard reorder — Alt+↑/↓ moves the focused row (non-pointer users)
       const lab = row.querySelector(".rr-frowlab[tabindex]");
       lab?.addEventListener("keydown", (e) => {
         if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
         e.preventDefault();
-        const id = row.getAttribute("data-c2-subrow-id");
-        const sib = e.key === "ArrowUp" ? row.previousElementSibling : row.nextElementSibling;
-        if (!sib || !sib.matches?.(".rr-frow[data-c2-subrow-id]")) return;
-        cal.rowsRefocus = "row:" + id;
-        cal.subscriptions = reorderSubscriptions(id, sib.getAttribute("data-c2-subrow-id"), e.key === "ArrowDown");
-        refreshCalendarView();
+        moveRow(row, e.key === "ArrowUp" ? "up" : "down");
       });
     }
     // dropping onto the "+ add a feed row" affordance moves the row to the end
@@ -10333,9 +10367,9 @@ function wireCalendar() {
         e.preventDefault();
         const rows = state.canvas.querySelectorAll(".rr-frow[data-c2-subrow-id]");
         const lastId = rows[rows.length - 1]?.getAttribute("data-c2-subrow-id");
-        if (lastId && lastId !== dragRowId) { cal.rowsRefocus = "row:" + dragRowId; cal.subscriptions = reorderSubscriptions(dragRowId, lastId, true); }
+        const dId = dragRowId;
+        if (lastId && lastId !== dId) { cal.rowsRefocus = "row:" + dId; flipReorder(() => { cal.subscriptions = reorderSubscriptions(dId, lastId, true); refreshCalendarView(); }); }
         dragRowId = null;
-        refreshCalendarView();
       });
     }
     const addBtn = state.canvas.querySelector("[data-c2-subrow-add]");

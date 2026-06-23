@@ -202,9 +202,15 @@
 /* the week being viewed — marked only by an oxide brim (no fill, no brighter
    number). It jumps instantly between weeks — no view-transition glide. */
 .c2-scrub-dot[aria-selected="true"] {
-  border-color: var(--alchemy-oxide-bright, #FACC15);
-  box-shadow: 0 0 0 1px var(--alchemy-oxide-bright, #FACC15);
+  border-color: var(--rr-ox);
+  background: color-mix(in srgb, var(--rr-ox) 22%, var(--ed-bg-1));
+  color: var(--ed-ink-1); font-weight: 600;
+  transform: scale(1.32);
+  box-shadow: 0 0 0 1px var(--rr-ox),
+              0 0 14px 1px color-mix(in srgb, var(--rr-ox) 60%, transparent);
 }
+.c2-scrub-dot[aria-selected="true"]:hover { transform: scale(1.32); }
+.c2-scrub-dot[aria-selected="true"]:active { transform: scale(1.24); }
 
 .c2-scrub-arrow {
   appearance: none; cursor: pointer;
@@ -1270,13 +1276,16 @@
 .rr-title { font-family: var(--ed-display); font-weight: 500; font-size: 34px; line-height: 0.98; letter-spacing: -0.022em; color: var(--ed-ink-1); margin: 0; text-wrap: balance; }
 .rr-sub { font-family: var(--ed-display); font-style: italic; font-size: 19px; letter-spacing: -0.01em; color: var(--rr-faint); margin-top: 12px; text-wrap: pretty; }
 .rr-stats { display: flex; text-align: right; flex: 0 0 auto; }
-.rr-stat { padding: 2px 26px; }
+.rr-stat { position: relative; padding: 1px 22px; display: flex; flex-direction: column; gap: 4px; }
 .rr-stat + .rr-stat { border-left: 1px solid var(--ed-rule-2); }
 .rr-stat:last-child { padding-right: 2px; }
-.rr-stat-lab { font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--rr-faint); }
-.rr-stat-big { font-family: var(--ed-display); font-size: 33px; line-height: 1.18; letter-spacing: -0.02em; color: var(--ed-ink-1); font-variant-numeric: tabular-nums; }
-.rr-stat-big small { font-family: var(--ed-mono); font-size: 13px; color: var(--rr-faint); letter-spacing: 0; }
-.rr-stat-note { font-size: 10px; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; color: var(--rr-faint); }
+.rr-stat-lab { font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); letter-spacing: 0.18em; text-transform: uppercase; color: var(--rr-faint); }
+.rr-stat-big { font-family: var(--ed-display); font-size: 32px; line-height: 1.02; letter-spacing: -0.02em; color: var(--ed-ink-1); font-variant-numeric: tabular-nums; }
+.rr-stat-big small { font-family: var(--ds-font-mono); font-size: 12px; color: var(--rr-faint); letter-spacing: 0; }
+.rr-stat-note { font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); letter-spacing: 0.01em; font-variant-numeric: tabular-nums; color: var(--rr-faint); }
+/* a subtle tone so each metric reads at a glance, without shouting */
+.rr-stat--pres .rr-stat-big { color: color-mix(in oklch, var(--rr-pres) 38%, var(--ed-ink-1)); }
+.rr-stat--ship .rr-stat-big { color: color-mix(in oklch, var(--rr-ship) 38%, var(--ed-ink-1)); }
 .rr-tone-pres { color: var(--rr-pres); }
 .rr-tone-ship { color: var(--rr-ship); }
 /* subscribe + scope sit on one controls row above the week facts (scope focuses
@@ -1388,8 +1397,12 @@
 
 .rr-frowlab { position: relative; gap: 7px; justify-content: flex-start; padding: 0 6px 0 10px; min-width: 0; overflow: hidden; cursor: grab; user-select: none; }
 .rr-frowlab:active { cursor: grabbing; }
-.rr-frowlab .rr-row-grip { flex: 0 0 auto; width: 7px; height: 16px; opacity: 0; transition: opacity 120ms ease; background-image: radial-gradient(var(--rr-faint) 1.1px, transparent 1.2px); background-size: 4px 4px; }
-.rr-frow:hover .rr-row-grip, .rr-frowlab:focus-within .rr-row-grip { opacity: 0.7; }
+/* reorder control — click ▴/▾ (no hold) or drag the gutter; appears on hover/focus */
+.rr-frowlab .rr-row-move { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 13px; opacity: 0; transition: opacity 120ms ease; }
+.rr-frow:hover .rr-row-move, .rr-frowlab:focus-within .rr-row-move { opacity: 1; }
+.rr-row-mv { appearance: none; background: transparent; border: 0; padding: 0; margin: 0; width: 13px; height: 9px; cursor: pointer; color: var(--rr-faint-2); font-size: 8px; line-height: 1; display: flex; align-items: center; justify-content: center; border-radius: 2px; transition: color 120ms ease, background 120ms ease; }
+.rr-row-mv:hover { color: var(--ds-ink-1); background: color-mix(in oklch, var(--ds-ink-1) 12%, transparent); }
+.rr-row-mv:focus-visible { outline: none; color: var(--ds-ink-1); background: color-mix(in oklch, var(--ds-ink-1) 12%, transparent); }
 .rr-frowlab .rr-rowlab-ico { display: inline-flex; flex: 0 0 auto; color: var(--rr-faint); }
 .rr-frowlab .rr-rowlab-ico svg { width: 14px; height: 14px; }
 .rr-frow.is-active .rr-rowlab-ico { color: var(--ds-ink-2); }
@@ -1410,13 +1423,15 @@
 .rr-fcell.today { border-left: 1px solid color-mix(in oklch, var(--rr-ox) 28%, transparent); background: linear-gradient(180deg, color-mix(in oklch, var(--rr-ox) 5%, transparent), transparent 80%); }
 
 /* presence row — compact occupancy bar + count (replaces the old SVG ribbon) */
-.rr-fcell-pres { appearance: none; background: transparent; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px; padding: 7px 4px; transition: background 140ms ease; }
-.rr-fcell-pres:hover { background: color-mix(in oklch, var(--rr-pres) 9%, transparent); }
-.rr-fcell-pres:focus-visible { outline: none; box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--rr-pres) 60%, transparent); }
-.rr-presbar { width: 56%; max-width: 30px; min-height: 2px; border-radius: 1px 1px 0 0; background: linear-gradient(180deg, color-mix(in oklch, var(--rr-pres) 58%, transparent), color-mix(in oklch, var(--rr-pres) 14%, transparent)); }
-.rr-fcell-n { font-family: var(--ds-font-mono); font-variant-numeric: tabular-nums; font-size: var(--ds-text-2xs); color: var(--ds-ink-2); }
-.rr-fcell-pres.hi .rr-fcell-n { color: var(--ds-ink-1); }
-.rr-fcell-pres.today .rr-fcell-n { color: var(--ds-ink-1); font-weight: 500; }
+/* in-town occupancy stripe — each day is a tinted segment (fill opacity scales
+   with how full the house is), so the row reads as one continuous presence
+   ribbon instead of seven separate bars. */
+.rr-fcell-pres { position: relative; overflow: hidden; appearance: none; cursor: pointer; background: transparent; border-left: 0; display: flex; align-items: center; justify-content: center; padding: 0; min-height: 30px; transition: filter 140ms ease; }
+.rr-fcell-pres .rr-pres-fill { position: absolute; inset: 0; background: var(--rr-pres); pointer-events: none; }
+.rr-fcell-pres:hover { filter: brightness(1.18); }
+.rr-fcell-pres:focus-visible { outline: none; box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--rr-pres) 70%, transparent); z-index: 2; }
+.rr-fcell-pres.today { box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--rr-ox) 45%, transparent); }
+.rr-fcell-n { position: relative; z-index: 1; font-family: var(--ds-font-mono); font-variant-numeric: tabular-nums; font-size: var(--ds-text-2xs); color: var(--ds-ink-1); }
 
 /* add affordance — a full-width "+ add a feed row" reads as the next lane in the
    stack (in-context, not a stray corner button). It opens the shared checklist
