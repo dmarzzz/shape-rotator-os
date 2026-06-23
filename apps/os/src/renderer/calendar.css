@@ -310,42 +310,11 @@
 .c2-dayhead.is-today .c2-dh-name { color: var(--ed-ink-2); }
 .c2-dayhead.is-today .c2-dh-num  { color: var(--ed-ink-1); }
 
-/* ── rows chooser (board corner cell) + per-row hide ─────────────────── */
-/* Signal rows are managed where they live, not in a top toolbar: a quiet
-   "rows ⌄" trigger sits in the gutter×header corner and opens a checklist of
-   the optional rows to add; each shown row also gets a hover ✕ on its gutter
-   label. This replaces the old top "signals" toggle cluster. */
-.c2-rowsctl-cell { position: relative; overflow: visible; padding: 0; }
-.c2-rowsctl {
-  position: relative; width: 100%; height: 100%;
-  display: flex; align-items: center; justify-content: flex-end;
-  padding-right: 7px; box-sizing: border-box;
-}
-/* A small bordered pill at rest (not a ghost): it is the ONLY way to re-add a
-   row hidden by its ✕, so it must read as a control without hovering. Resting
-   ink is --ed-ink-3 (≥3:1 on the board) and the faint border carries the rest. */
-.c2-rowsctl-btn {
-  appearance: none; cursor: pointer;
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 3px 7px;
-  background: transparent;
-  border: 1px solid var(--ed-rule-2);
-  border-radius: 6px;
-  color: var(--rr-faint);
-  font-family: var(--ed-mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
-  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
-}
-.c2-rowsctl-btn .c2-chev { opacity: 0.6; transition: transform 160ms cubic-bezier(0.19, 1, 0.22, 1); }
-.c2-rowsctl-btn:hover,
-.c2-rowsctl-btn[aria-expanded="true"] {
-  color: var(--ed-ink-1);
-  border-color: var(--ed-rule-3);
-  background: rgba(var(--ink-rgb), 0.04);
-}
-.c2-rowsctl-btn[aria-expanded="true"] .c2-chev { transform: rotate(180deg); }
-.c2-rowsctl-btn:focus-visible {
-  outline: 2px solid var(--alchemy-oxide-bright, #FACC15); outline-offset: -2px; border-radius: 4px;
-}
+/* ── rows chooser menu (shared DS dropdown: .c2-rowsctl-menu/-opt/-check) ───
+   The old corner "rows ⌄" pill (.c2-rowsctl-cell/.c2-rowsctl/.c2-rowsctl-btn) and
+   the per-row .c2-rowlabel/.c2-rowhide were retired with the .rr-* rows rewrite:
+   the trigger is now .rr-addrow-trigger and per-row remove is .rr-rowlab-x. Only
+   the floating menu + its option rows survive, reused by the feed-row checklist. */
 .c2-rowsctl-menu {
   position: absolute; top: calc(100% + 5px); left: 6px; z-index: 30;
   min-width: 170px; padding: 5px; display: grid; gap: 1px;
@@ -378,29 +347,6 @@
   border-color: transparent;
   color: #fff;
 }
-
-/* per-row hide ✕ — overlays the gutter label's right edge; on row hover/focus
-   the label slides left to make room and the ✕ fades in (a transform reveal, so
-   the resting row is untouched). Drop a row fast here; re-add from the chooser. */
-.c2-rowlabel { position: relative; }
-.c2-rowlabel-t { display: inline-block; transition: transform 160ms cubic-bezier(0.16, 1, 0.3, 1), opacity 160ms ease; }
-.c2-row:hover .c2-rowlabel-t,
-.c2-rowlabel:focus-within .c2-rowlabel-t { transform: translateX(-15px); opacity: 0.8; }
-.c2-rowhide {
-  appearance: none; cursor: pointer;
-  position: absolute; right: 7px; top: 50%;
-  width: 15px; height: 15px; padding: 0; margin: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: transparent; border: 0; border-radius: 3px;
-  color: var(--rr-faint); font-size: 13px; line-height: 1;
-  opacity: 0; transform: translateY(-50%) scale(0.7);
-  transition: opacity 160ms cubic-bezier(0.16, 1, 0.3, 1), transform 160ms cubic-bezier(0.16, 1, 0.3, 1), color 140ms ease, background 140ms ease;
-}
-.c2-activity .c2-rowhide { top: 14px; }   /* the shipped label is top-aligned */
-.c2-row:hover .c2-rowhide,
-.c2-rowhide:focus-visible { opacity: 1; transform: translateY(-50%) scale(1); }
-.c2-rowhide:hover { color: var(--ed-ink-1); background: rgba(var(--ink-rgb), 0.08); }
-.c2-rowhide:focus-visible { outline: 2px solid var(--alchemy-oxide-bright, #FACC15); outline-offset: 1px; }
 
 /* ── all-day lane ───────────────────────────────────────────────────── */
 .c2-allday { border-bottom: 1px solid var(--ed-rule-2); }
@@ -1297,12 +1243,7 @@
     box-shadow: 0 0 7px -1px color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 32%, transparent);
   }
   .c2-rowsctl-menu { animation: none; }
-  .c2-rowlabel-t { transition: none; }
-  .c2-rowhide { transition: opacity 140ms ease; transform: translateY(-50%); }
-  .c2-row:hover .c2-rowlabel-t,
-  .c2-rowlabel:focus-within .c2-rowlabel-t { transform: none; }
-  .c2-row:hover .c2-rowhide,
-  .c2-rowhide:focus-visible { transform: translateY(-50%); }
+  .rr-frowlab .rr-rowlab-x { transition: opacity 120ms ease, color 120ms ease, background 120ms ease; transform: translateY(-50%); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -1448,16 +1389,16 @@
 .rr-frowlab { position: relative; gap: 7px; justify-content: flex-start; padding: 0 6px 0 10px; min-width: 0; overflow: hidden; cursor: grab; user-select: none; }
 .rr-frowlab:active { cursor: grabbing; }
 .rr-frowlab .rr-row-grip { flex: 0 0 auto; width: 7px; height: 16px; opacity: 0; transition: opacity 120ms ease; background-image: radial-gradient(var(--rr-faint) 1.1px, transparent 1.2px); background-size: 4px 4px; }
-.rr-frow:hover .rr-row-grip { opacity: 0.7; }
+.rr-frow:hover .rr-row-grip, .rr-frowlab:focus-within .rr-row-grip { opacity: 0.7; }
 .rr-frowlab .rr-rowlab-ico { display: inline-flex; flex: 0 0 auto; color: var(--rr-faint); }
 .rr-frowlab .rr-rowlab-ico svg { width: 14px; height: 14px; }
 .rr-frow.is-active .rr-rowlab-ico { color: var(--ds-ink-2); }
 .rr-frowlab .rr-rowlab-tx { font-size: var(--ds-text-xs); letter-spacing: 0.005em; text-transform: none; color: var(--rr-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rr-frow.is-active .rr-rowlab-tx { color: var(--ds-ink-1); }
 .rr-frowlab .rr-row-count { flex: 0 0 auto; margin-left: auto; min-width: 17px; height: 16px; padding: 0 5px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--ds-accent-soft); color: var(--ds-ink-1); font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); font-variant-numeric: tabular-nums; transition: opacity 120ms ease; }
-.rr-frow:hover .rr-row-count { opacity: 0; }
+.rr-frow:hover .rr-row-count, .rr-frowlab:focus-within .rr-row-count { opacity: 0; }
 .rr-frowlab .rr-rowlab-x { position: absolute; right: 5px; top: 50%; transform: translateY(-50%) scale(0.8); appearance: none; background: transparent; border: 0; cursor: pointer; color: var(--rr-faint-2); font-size: 14px; line-height: 1; padding: 1px 3px; border-radius: var(--ds-radius-sm); opacity: 0; transition: opacity 120ms ease, color 120ms ease, background 120ms ease, transform 120ms ease; }
-.rr-frow:hover .rr-frowlab .rr-rowlab-x, .rr-frowlab .rr-rowlab-x:focus-visible { opacity: 1; transform: translateY(-50%) scale(1); }
+.rr-frow:hover .rr-frowlab .rr-rowlab-x, .rr-frowlab:focus-within .rr-rowlab-x, .rr-frowlab .rr-rowlab-x:focus-visible { opacity: 1; transform: translateY(-50%) scale(1); }
 .rr-frowlab .rr-rowlab-x:hover, .rr-frowlab .rr-rowlab-x:focus-visible { outline: none; color: var(--ds-danger); background: color-mix(in srgb, var(--ds-danger) 14%, transparent); }
 /* drag-reorder feedback */
 .rr-frow.is-dragging { opacity: 0.4; }

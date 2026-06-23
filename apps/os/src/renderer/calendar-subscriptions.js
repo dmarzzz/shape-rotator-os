@@ -54,7 +54,10 @@ function sanitize(rows) {
       builtin: !!r.builtin,
     });
   }
-  return out.length ? out : clone(DEFAULT_SUBSCRIPTIONS);
+  // Allow a legitimately-empty list through — an intentionally-emptied stack must
+  // stay empty, not resurrect the defaults. Defaults seed only a MISSING/corrupt
+  // store (handled in load()).
+  return out;
 }
 
 function load() {
@@ -66,7 +69,9 @@ function load() {
   } catch {
     parsed = null;
   }
-  _cache = parsed ? sanitize(parsed) : clone(DEFAULT_SUBSCRIPTIONS);
+  // Only seed defaults when there's no stored value (first run) or it's corrupt.
+  // A stored "[]" (user removed every row) is a valid empty stack and is kept.
+  _cache = Array.isArray(parsed) ? sanitize(parsed) : clone(DEFAULT_SUBSCRIPTIONS);
   return _cache;
 }
 

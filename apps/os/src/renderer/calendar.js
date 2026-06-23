@@ -737,11 +737,11 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
     if (kind === "presence") { render = "presence"; label = label || "in town"; }
     else if (kind === "shipped") {
       label = label || "shipped";
-      dayIsos.forEach((iso, di) => { for (const a of activityList) if (a && a.date === iso && ACT_KINDS.has(a.kind)) perDay[di].items.push(actToItem(a)); });
+      dayIsos.forEach((iso, di) => { for (const a of activityList) if (a && a.date === iso && ACT_KINDS.has(a.kind) && (!scopeId || a.nav?.recordId === scopeId)) perDay[di].items.push(actToItem(a)); });
     } else if (kind === "commits" || kind === "releases") {
       const want = kind === "commits" ? "commit" : "release";
       label = label || (kind === "commits" ? "github pushes" : "releases");
-      dayIsos.forEach((iso, di) => { for (const a of activityList) if (a && a.date === iso && a.kind === want) perDay[di].items.push(actToItem(a)); });
+      dayIsos.forEach((iso, di) => { for (const a of activityList) if (a && a.date === iso && a.kind === want && (!scopeId || a.nav?.recordId === scopeId)) perDay[di].items.push(actToItem(a)); });
     } else if (kind === "transcripts") {
       label = label || "meetings";
       dayIsos.forEach((iso, di) => { for (const t of transcriptsForDay(iso)) perDay[di].items.push(t); });
@@ -755,7 +755,7 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
     const count = perDay.reduce((n, c) => n + c.items.length, 0);
     return { id: sub.id, kind, subjectId, label, hidden: !!sub.hidden, builtin: !!sub.builtin, render, perDay, count };
   };
-  const rowModels = subList.map(resolveRow);
+  const rowModels = subList.filter((s) => !s.hidden).map(resolveRow);
   _model.rows = rowModels;
 
   // 16px line glyphs per row kind (matches the app's lucide-ish stroke set).
@@ -776,7 +776,7 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
     const frac = rosterTotal ? Math.max(0, Math.min(1, n / rosterTotal)) : 0;
     const lbl = n ? `${cap(d.name)} ${d.date.replace(/^[a-z]+\s+/, "")} · ${n} of ${rosterTotal} in town — open presence`
                   : `${cap(d.name)} · nobody in town — open presence`;
-    return `<button class="rr-fcell rr-fcell-pres${n >= rosterTotal - 2 ? " hi" : ""}${d.isToday ? " today" : ""}" data-c2-intown="${di}" type="button" aria-label="${escAttr(lbl)}"><span class="rr-presbar" style="height:${Math.max(6, Math.round(frac * 100))}%"></span><span class="rr-fcell-n">${n || "·"}</span></button>`;
+    return `<button class="rr-fcell rr-fcell-pres${rosterTotal > 2 && n >= rosterTotal - 2 ? " hi" : ""}${d.isToday ? " today" : ""}" data-c2-intown="${di}" type="button" aria-label="${escAttr(lbl)}"><span class="rr-presbar" style="height:${Math.max(6, Math.round(frac * 100))}%"></span><span class="rr-fcell-n">${n || "·"}</span></button>`;
   }).join("");
 
   // feed row — per-day cells of clickable items (release/commit/team chips, or a
@@ -804,15 +804,15 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
     const active = row.render === "presence" || row.count > 0;
     const badge = row.render === "presence"
       ? ""
-      : (row.count > 0 ? `<span class="rr-row-count" title="${row.count} this week">${row.count}</span>` : "");
+      : (row.count > 0 ? `<span class="rr-row-count" title="${row.count} this week" aria-label="${row.count} this week">${row.count}</span>` : "");
     return `
       <div class="rr-row rr-frow ${active ? "is-active" : "is-quiet"}" data-rr-row="${ri}" data-c2-subrow-id="${escAttr(row.id)}" data-row-kind="${escAttr(row.kind)}">
-        <div class="rr-rowlab rr-frowlab" draggable="true" title="drag to reorder · ${escAttr(row.label)}">
+        <div class="rr-rowlab rr-frowlab" draggable="true" tabindex="0" role="button" title="drag to reorder · ${escAttr(row.label)}" aria-label="${escAttr(row.label)} row — drag, or Alt+↑/↓ to reorder">
           <span class="rr-row-grip" aria-hidden="true"></span>
           <span class="rr-rowlab-ico" aria-hidden="true">${rowIcon(row.kind)}</span>
           <span class="rr-rowlab-tx">${escHtml(row.label)}</span>
           ${badge}
-          <button class="rr-rowlab-x" data-c2-subrow-remove="${escAttr(row.id)}" type="button" title="remove row" aria-label="remove ${escAttr(row.label)} row">×</button>
+          <button class="rr-rowlab-x" data-c2-subrow-remove="${escAttr(row.id)}" type="button" draggable="false" title="remove row" aria-label="remove ${escAttr(row.label)} row">×</button>
         </div>
         ${cells}
       </div>`;
@@ -825,8 +825,8 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
   // wiring live in wireCalendar().
   const subOn = (kind, subjectId = null) => subList.some(s => s.kind === kind && (s.subjectId || null) === (subjectId || null));
   const rowOpt = (kind, label, subjectId = null) => `
-    <button class="c2-rowsctl-opt" role="option" aria-checked="${subOn(kind, subjectId) ? "true" : "false"}"
-            data-c2-subrow-toggle data-c2-subrow-kind="${escAttr(kind)}"${subjectId ? ` data-c2-subrow-subject="${escAttr(subjectId)}"` : ""} type="button">
+    <button class="c2-rowsctl-opt" role="menuitemcheckbox" aria-checked="${subOn(kind, subjectId) ? "true" : "false"}"
+            data-c2-subrow-toggle data-c2-subrow-kind="${escAttr(kind)}"${subjectId ? ` data-c2-subrow-subject="${escAttr(subjectId)}"` : ""} data-c2-subrow-label="${escAttr(label)}" type="button">
       <i class="c2-rowsctl-check" aria-hidden="true">✓</i>
       <span class="rr-rowlab-ico" aria-hidden="true">${rowIcon(kind)}</span>
       <span>${escHtml(label)}</span>
@@ -843,12 +843,12 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
   // you tick feeds + teams on/off. Aligned to the grid so it reads as the next row.
   const addRowControl = `
     <div class="rr-addrow" data-c2-subrow-ctl>
-      <button class="rr-addrow-trigger" data-c2-subrow-add type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="add or remove calendar rows">
+      <button class="rr-addrow-trigger" data-c2-subrow-add type="button" aria-haspopup="menu" aria-expanded="false" aria-label="add or remove calendar rows">
         <span class="rr-addrow-plus" aria-hidden="true">+</span>
         <span class="rr-addrow-tx">add a feed row</span>
         <i class="c2-chev" aria-hidden="true"></i>
       </button>
-      <div class="c2-rowsctl-menu rr-addrow-menu" role="listbox" aria-label="calendar rows" hidden>
+      <div class="c2-rowsctl-menu rr-addrow-menu" role="menu" aria-label="calendar rows" hidden>
         <div class="c2-rowsctl-grp">cohort feeds</div>
         ${addKinds.map(k => rowOpt(k.kind, k.label)).join("")}
         ${scopeTeams.length ? `<div class="c2-rowsctl-grp">teams — commits · releases · meetings</div>${scopeTeams.map(t => rowOpt("team", t.name, t.id)).join("")}` : ""}
