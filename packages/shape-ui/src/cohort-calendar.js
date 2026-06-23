@@ -50,7 +50,7 @@ let CAL_INK_1      = "#f5f3ee";
 let CAL_INK_2      = "#b8b4ab";
 let CAL_INK_3      = "#7a7368";
 let CAL_INK_4      = "#3a3833";
-let CAL_OXIDE      = "#8F220E";  // today marker (xyz sr-red)
+let CAL_OXIDE      = "#EAB308";  // today marker (xyz sr-red)
 // Today-column wash + glow. Theme-driven (via --cal-today-band/glow, which key
 // off --ink-rgb) so they don't stay near-white and vanish on the light/paper
 // theme. The dark fallbacks below equal the prior hardcoded values exactly.

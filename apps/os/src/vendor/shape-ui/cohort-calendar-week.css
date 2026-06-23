@@ -61,14 +61,14 @@
 }
 .cal-page-sync.is-live  .cps-dot { color: #6da26d; opacity: 0.9; }
 .cal-page-sync.is-bundled .cps-dot,
-.cal-page-sync.is-unknown .cps-dot { color: var(--alchemy-oxide-bright, #B43A19); opacity: 0.85; }
+.cal-page-sync.is-unknown .cps-dot { color: var(--alchemy-oxide-bright, #FACC15); opacity: 0.85; }
 
 /* ── stale banner ─────────────────────────────────────────────────────── */
 .cal-stale {
   margin: 12px var(--cal-page-px) 0;
   padding: 10px 14px;
-  border-top: 1px solid rgba(180, 58, 25, 0.55);
-  background: linear-gradient(180deg, rgba(143,34,14,0.10), rgba(143,34,14,0.02));
+  border-top: 1px solid rgba(250, 204, 21, 0.55);
+  background: linear-gradient(180deg, rgba(234, 179, 8,0.10), rgba(234, 179, 8,0.02));
   font-family: var(--ed-mono);
   font-size: 11px;
   letter-spacing: 0.04em;
@@ -78,7 +78,7 @@
   box-sizing: border-box;
   min-width: 0;
 }
-.cal-stale .cs-glyph { color: var(--alchemy-oxide-bright, #B43A19); opacity: 0.7; }
+.cal-stale .cs-glyph { color: var(--alchemy-oxide-bright, #FACC15); opacity: 0.7; }
 .cal-stale .cs-retry {
   appearance: none; background: transparent; border: 0;
   font: inherit; color: var(--ed-ink-1);
@@ -86,8 +86,8 @@
   padding: 0 0 1px; cursor: pointer;
 }
 .cal-stale .cs-retry:hover {
-  border-bottom-color: var(--alchemy-oxide-bright, #B43A19);
-  color: var(--alchemy-oxide-bright, #B43A19);
+  border-bottom-color: var(--alchemy-oxide-bright, #FACC15);
+  color: var(--alchemy-oxide-bright, #FACC15);
 }
 .cal-stale .cs-install-link {
   color: var(--ed-ink-1);
@@ -96,8 +96,8 @@
   padding-bottom: 1px;
 }
 .cal-stale .cs-install-link:hover {
-  border-bottom-color: var(--alchemy-oxide-bright, #B43A19);
-  color: var(--alchemy-oxide-bright, #B43A19);
+  border-bottom-color: var(--alchemy-oxide-bright, #FACC15);
+  color: var(--alchemy-oxide-bright, #FACC15);
 }
 
 /* ── canvas wrapper ─────────────────────────────────────────────────── */
@@ -132,7 +132,7 @@
 }
 .cal-masthead[data-phase="m1"],
 .cal-masthead[data-phase="m3"] {
-  border-top-color: rgba(180, 58, 25, 0.50);
+  border-top-color: rgba(250, 204, 21, 0.50);
 }
 .cal-masthead-rail {
   display: flex; align-items: center; justify-content: space-between;
@@ -168,7 +168,7 @@
 .cal-subtab:hover { opacity: 1; }
 .cal-subtab[aria-selected="true"] {
   opacity: 1;
-  border-bottom-color: var(--alchemy-oxide-bright, #B43A19);
+  border-bottom-color: var(--alchemy-oxide-bright, #FACC15);
 }
 .cal-subtab .cs-label {
   font-family: var(--ed-display); font-size: 22px; font-style: italic;
@@ -219,13 +219,13 @@
 }
 .cal-scrub-dot[aria-selected="true"] {
   opacity: 1;
-  background: var(--alchemy-oxide-bright, #B43A19);
-  border-color: var(--alchemy-oxide-bright, #B43A19);
+  background: var(--alchemy-oxide-bright, #FACC15);
+  border-color: var(--alchemy-oxide-bright, #FACC15);
   color: #0a0908;
   font-weight: 600;
 }
-.cal-scrub-dot[data-phase="m1"]:not([aria-selected="true"]) { border-color: rgba(180, 58, 25, 0.38); }
-.cal-scrub-dot[data-phase="m3"]:not([aria-selected="true"]) { border-color: rgba(180, 58, 25, 0.55); }
+.cal-scrub-dot[data-phase="m1"]:not([aria-selected="true"]) { border-color: rgba(250, 204, 21, 0.38); }
+.cal-scrub-dot[data-phase="m3"]:not([aria-selected="true"]) { border-color: rgba(250, 204, 21, 0.55); }
 
 /* ── dateline — bottom row of the masthead ──────────────────────────── */
 /* Single-row composition: program-week meta on the left, date range on
@@ -252,7 +252,7 @@
   flex: 0 1 auto;
 }
 .cal-dateline-tag {
-  color: var(--alchemy-oxide-bright, #B43A19);
+  color: var(--alchemy-oxide-bright, #FACC15);
   opacity: 1; font-weight: 500;
   white-space: nowrap;
 }
@@ -314,7 +314,7 @@
 .cal-dateline-nav .cdn-today::before {
   content: ""; display: inline-block;
   width: 6px; height: 6px; border-radius: 50%;
-  background: var(--alchemy-oxide-bright, #B43A19);
+  background: var(--alchemy-oxide-bright, #FACC15);
 }
 
 /* ── week-view heading — the "week N of ten" display that used to live
@@ -415,11 +415,11 @@
  * column reads at a glance against the rest of the week. */
 .cal-day.is-today {
   background:
-    linear-gradient(90deg, rgba(180,58,25,0.06) 0, rgba(180,58,25,0) 60%),
+    linear-gradient(90deg, rgba(250, 204, 21,0.06) 0, rgba(250, 204, 21,0) 60%),
     linear-gradient(180deg, #1a130e 0%, #110d0b 100%);
-  border-top: 2px solid var(--alchemy-oxide-bright, #B43A19);
+  border-top: 2px solid var(--alchemy-oxide-bright, #FACC15);
   padding-top: 11px;   /* compensate for the extra 1px of top border */
-  box-shadow: inset 2px 0 0 0 rgba(180, 58, 25, 0.55);
+  box-shadow: inset 2px 0 0 0 rgba(250, 204, 21, 0.55);
 }
 .cal-day.is-empty .cal-day-empty {
   margin: auto;
@@ -444,7 +444,7 @@
   left: 0;
   right: 0;
   height: 1px;
-  background: var(--alchemy-oxide-bright, #B43A19);
+  background: var(--alchemy-oxide-bright, #FACC15);
   opacity: 0.55;
   pointer-events: none;
   z-index: 1;
@@ -457,7 +457,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--alchemy-oxide-bright, #B43A19);
+  background: var(--alchemy-oxide-bright, #FACC15);
   opacity: 1;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -475,7 +475,7 @@
   color: var(--ed-ink-1); opacity: 0.55;
 }
 .cal-day.is-today .cdh-name {
-  color: var(--alchemy-oxide-bright, #B43A19); opacity: 1;
+  color: var(--alchemy-oxide-bright, #FACC15); opacity: 1;
 }
 .cdh-date {
   font-family: var(--ed-mono); font-size: 10px;
@@ -487,7 +487,7 @@
 .cdh-today {
   font-family: var(--ed-display); font-style: italic;
   font-size: 12px; line-height: 1;
-  color: var(--alchemy-oxide-bright, #B43A19);
+  color: var(--alchemy-oxide-bright, #FACC15);
   letter-spacing: -0.01em;
   margin-left: 6px;
 }
@@ -507,7 +507,7 @@
 .cal-day-anchor {
   display: flex; align-items: baseline; gap: 5px;
   padding: 2px 0 2px 8px;
-  border-left: 1.5px solid var(--alchemy-oxide-bright, #B43A19);
+  border-left: 1.5px solid var(--alchemy-oxide-bright, #FACC15);
   background: transparent;
   font-family: var(--ed-mono); font-size: 10px;
   letter-spacing: 0.02em;
@@ -519,7 +519,7 @@
 .cal-day-anchor .cda-title {
   font-family: var(--ed-display); font-style: italic;
   font-size: 12.5px; line-height: 1.2; letter-spacing: -0.01em;
-  color: var(--alchemy-oxide-bright, #B43A19);
+  color: var(--alchemy-oxide-bright, #FACC15);
   min-width: 0;            /* lets the title shrink + wrap inside the flex row */
   word-wrap: break-word; overflow-wrap: anywhere;
 }
@@ -663,10 +663,10 @@
   min-height: 0;
   padding: 0 0 1px;
   border: 0;
-  border-bottom: 1px solid rgba(180, 58, 25, 0.34);
+  border-bottom: 1px solid rgba(250, 204, 21, 0.34);
   border-radius: 0;
   background: transparent;
-  color: var(--alchemy-oxide-bright, #B43A19);
+  color: var(--alchemy-oxide-bright, #FACC15);
   cursor: pointer;
   font: inherit;
   line-height: 1;
@@ -676,12 +676,12 @@
 }
 .cal-source-link:hover,
 .cal-source-link:focus-visible {
-  border-bottom-color: rgba(180, 58, 25, 0.72);
+  border-bottom-color: rgba(250, 204, 21, 0.72);
   opacity: 1;
   outline: none;
 }
 .cal-source-link:focus-visible {
-  box-shadow: 0 2px 0 rgba(180, 58, 25, 0.18);
+  box-shadow: 0 2px 0 rgba(250, 204, 21, 0.18);
 }
 .cal-source-link[data-confidence="medium"] {
   border-bottom-color: rgba(193,168,114,0.42);
@@ -775,16 +775,16 @@
 .cal-day-pill.is-today {
   /* faint warm wash always present on today's pill so users can find it
    * across week navigation without reading the labels */
-  background: linear-gradient(180deg, rgba(180, 58, 25, 0.04) 0%, rgba(180, 58, 25, 0) 100%);
+  background: linear-gradient(180deg, rgba(250, 204, 21, 0.04) 0%, rgba(250, 204, 21, 0) 100%);
 }
 .cal-day-pill.is-today[aria-selected="true"] {
-  background: linear-gradient(180deg, rgba(180, 58, 25, 0.10) 0%, rgba(180, 58, 25, 0) 100%);
+  background: linear-gradient(180deg, rgba(250, 204, 21, 0.10) 0%, rgba(250, 204, 21, 0) 100%);
 }
 .cal-day-pill.is-today[aria-selected="true"]::after {
   content: "";
   position: absolute; left: 0; right: 0; bottom: -1px;
   height: 2px;
-  background: var(--alchemy-oxide-bright, #B43A19);
+  background: var(--alchemy-oxide-bright, #FACC15);
 }
 .cal-day-pill .cdp-name {
   font-family: var(--ed-mono); font-size: 9.5px;
@@ -795,7 +795,7 @@
 }
 .cal-day-pill .cdp-rel-sep { color: var(--ed-ink-4); }
 .cal-day-pill .cdp-rel { color: var(--ed-ink-2); opacity: 0.85; }
-.cal-day-pill.is-today .cdp-rel { color: var(--alchemy-oxide-bright, #B43A19); opacity: 1; }
+.cal-day-pill.is-today .cdp-rel { color: var(--alchemy-oxide-bright, #FACC15); opacity: 1; }
 .cal-day-pill .cdp-date {
   font-family: var(--ed-display); font-style: italic;
   font-size: 22px;
@@ -811,7 +811,7 @@
 }
 .cal-day-pill.is-today .cdp-name,
 .cal-day-pill.is-today .cdp-date {
-  color: var(--alchemy-oxide-bright, #B43A19);
+  color: var(--alchemy-oxide-bright, #FACC15);
 }
 .cal-day-pill.is-empty .cdp-count { opacity: 0.55; }
 
@@ -863,11 +863,11 @@
 .cdc-h-today {
   font-family: var(--ed-display); font-style: italic;
   font-size: 16px; line-height: 1;
-  color: var(--alchemy-oxide-bright, #B43A19);
+  color: var(--alchemy-oxide-bright, #FACC15);
   letter-spacing: -0.01em;
 }
 .cdc-h-tag {
-  color: var(--alchemy-oxide-bright, #B43A19);
+  color: var(--alchemy-oxide-bright, #FACC15);
 }
 .cdc-h-tag[data-phase="m2"] { color: var(--ed-ink-2); opacity: 0.8; }
 .cdc-h-theme {
@@ -960,11 +960,11 @@
 .cda-row-anchor .cda-row-time { opacity: 1; padding-top: 6px; }
 .cda-row-time-dot {
   display: inline-block;
-  color: var(--alchemy-oxide-bright, #B43A19);
+  color: var(--alchemy-oxide-bright, #FACC15);
   font-size: 10px;
 }
 .cda-row-anchor .cda-row-title {
-  color: var(--alchemy-oxide-bright, #B43A19);
+  color: var(--alchemy-oxide-bright, #FACC15);
   font-size: 32px;
   line-height: 1.05;
 }
@@ -983,7 +983,7 @@
   font-family: var(--ed-mono); font-size: 8.5px;
   font-weight: 500;
   letter-spacing: 0.24em; text-transform: lowercase;
-  color: var(--alchemy-oxide-bright, #B43A19);
+  color: var(--alchemy-oxide-bright, #FACC15);
   margin-bottom: 4px;
 }
 
@@ -993,14 +993,14 @@
   font-family: var(--ed-mono); font-size: 8.5px;
   font-weight: 500;
   letter-spacing: 0.24em; text-transform: lowercase;
-  color: var(--alchemy-oxide-bright, #B43A19);
+  color: var(--alchemy-oxide-bright, #FACC15);
   margin-bottom: 4px;
 }
 .cda-row[data-state="current"] > .cda-row-time {
-  color: var(--alchemy-oxide-bright, #B43A19);
+  color: var(--alchemy-oxide-bright, #FACC15);
 }
 .cda-row[data-state="current"] > .cda-row-body .cda-row-title {
-  color: var(--alchemy-oxide-bright, #B43A19);
+  color: var(--alchemy-oxide-bright, #FACC15);
 }
 
 /* Empty day — typeset like the agenda would have been, just absent of
@@ -1113,8 +1113,8 @@
   text-decoration: none;
 }
 .cal-page-foot a:hover {
-  border-bottom-color: var(--alchemy-oxide-bright, #B43A19);
-  color: var(--alchemy-oxide-bright, #B43A19);
+  border-bottom-color: var(--alchemy-oxide-bright, #FACC15);
+  color: var(--alchemy-oxide-bright, #FACC15);
 }
 
 /* ── keyboard hint bar ───────────────────────────────────────────────── */
@@ -1235,9 +1235,9 @@
   .cal-day.is-today {
     border-top-width: 3px;
     padding-top: 13px;
-    box-shadow: inset 3px 0 0 0 var(--alchemy-oxide-bright, #B43A19);
+    box-shadow: inset 3px 0 0 0 var(--alchemy-oxide-bright, #FACC15);
     background:
-      linear-gradient(90deg, rgba(180,58,25,0.10) 0, rgba(180,58,25,0) 70%),
+      linear-gradient(90deg, rgba(250, 204, 21,0.10) 0, rgba(250, 204, 21,0) 70%),
       linear-gradient(180deg, #1c140f 0%, #110d0b 100%);
   }
   .cal-day.is-today .cdh-name { font-size: 11px; letter-spacing: 0.28em; }

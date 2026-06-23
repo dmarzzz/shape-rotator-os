@@ -42,7 +42,7 @@
 }
 .c2-masthead {
   display: flex; align-items: center; justify-content: center;
-  padding: 18px 2px 20px;
+  padding: 8px 2px 4px;
   margin: 0;
 }
 /* A quiet hook, not a rust slab: transparent at rest in muted ink, oxide only on
@@ -73,9 +73,9 @@
 .c2-subscribe:hover,
 .c2-subscribe:focus-visible {
   outline: none;
-  color: var(--alchemy-oxide-bright, #B43A19);
-  border-color: color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 32%, transparent);
-  background: color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 8%, transparent);
+  color: var(--alchemy-oxide-bright, #FACC15);
+  border-color: color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 32%, transparent);
+  background: color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 8%, transparent);
 }
 .c2-subscribe:active { transform: scale(0.98); }
 .c2-subscribe-ico { width: 14px; height: 14px; flex: 0 0 auto; opacity: 0.85; }
@@ -152,7 +152,7 @@
   pointer-events: none;
   border: 1px solid color-mix(in srgb, var(--alchemy-oxide-bright, #d05332) 70%, transparent);
   border-radius: 2px;
-  background: rgba(180, 58, 25, 0.07);
+  background: rgba(250, 204, 21, 0.07);
   animation: cal-focus-in var(--dur-base, 220ms) var(--ease-out, ease-out) both;
 }
 @keyframes cal-focus-in {
@@ -186,9 +186,9 @@
               background 160ms cubic-bezier(0.19, 1, 0.22, 1), transform 110ms cubic-bezier(0.19, 1, 0.22, 1),
               box-shadow 160ms ease;
 }
-.c2-scrub-dot:hover { color: var(--ed-ink-1); border-color: color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 50%, var(--ed-rule-3)); }
+.c2-scrub-dot:hover { color: var(--ed-ink-1); border-color: color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 50%, var(--ed-rule-3)); }
 .c2-scrub-dot:active { transform: scale(0.92); }
-.c2-scrub-dot:focus-visible { outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 55%, transparent); }
+.c2-scrub-dot:focus-visible { outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 55%, transparent); }
 /* the week containing today — small dot under the bead, always visible */
 .c2-scrub-dot.is-now { color: var(--ed-ink-1); }
 .c2-scrub-dot.is-now::after {
@@ -199,16 +199,11 @@
   border-radius: 50%;
   background: var(--ed-ink-1);
 }
-/* the week being viewed — the oxide bead (the scrubber's glide, applied here).
-   The view-transition-name lets the bead GLIDE from week to week when the change
-   re-renders inside scrubberSweep, instead of jumping. */
+/* the week being viewed — marked only by an oxide brim (no fill, no brighter
+   number). It jumps instantly between weeks — no view-transition glide. */
 .c2-scrub-dot[aria-selected="true"] {
-  border-color: transparent;
-  color: #fff;
-  text-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.5);
-  background: radial-gradient(circle at 35% 30%, #f0b49f, var(--alchemy-oxide-bright, #B43A19) 60%, #8a2a14);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 0 0 4px color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 12%, transparent);
-  view-transition-name: c2-week-bead;
+  border-color: var(--alchemy-oxide-bright, #FACC15);
+  box-shadow: 0 0 0 1px var(--alchemy-oxide-bright, #FACC15);
 }
 
 .c2-scrub-arrow {
@@ -231,19 +226,19 @@
   display: flex; align-items: center; gap: 10px;
   margin: 0 0 12px;
   padding: 9px 13px;
-  border-top: 1px solid rgba(180, 58, 25, 0.55);
-  background: linear-gradient(180deg, rgba(143,34,14,0.10), rgba(143,34,14,0.02));
+  border-top: 1px solid rgba(250, 204, 21, 0.55);
+  background: linear-gradient(180deg, rgba(234, 179, 8,0.10), rgba(234, 179, 8,0.02));
   font-size: 11px; letter-spacing: 0.04em;
   color: var(--ed-ink-1);
 }
-.c2-stale > span:first-child { color: var(--alchemy-oxide-bright, #B43A19); opacity: 0.7; }
+.c2-stale > span:first-child { color: var(--alchemy-oxide-bright, #FACC15); opacity: 0.7; }
 .c2-retry {
   appearance: none; background: transparent; border: 0; cursor: pointer;
   font: inherit; color: var(--ed-ink-1);
   border-bottom: 1px solid var(--ed-rule-3);
   padding: 0 0 1px;
 }
-.c2-retry:hover { color: var(--alchemy-oxide-bright, #B43A19); border-bottom-color: var(--alchemy-oxide-bright, #B43A19); }
+.c2-retry:hover { color: var(--alchemy-oxide-bright, #FACC15); border-bottom-color: var(--alchemy-oxide-bright, #FACC15); }
 .c2-loading {
   padding: 64px 0; text-align: center;
   font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
@@ -310,7 +305,7 @@
    header, the signal rows and the grid column (framed there), so "now" is
    unmistakable without a heavy highlight slab. */
 .c2-dayhead.is-today {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 8%, transparent), transparent 92%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 8%, transparent), transparent 92%);
 }
 .c2-dayhead.is-today .c2-dh-name { color: var(--ed-ink-2); }
 .c2-dayhead.is-today .c2-dh-num  { color: var(--ed-ink-1); }
@@ -349,7 +344,7 @@
 }
 .c2-rowsctl-btn[aria-expanded="true"] .c2-chev { transform: rotate(180deg); }
 .c2-rowsctl-btn:focus-visible {
-  outline: 2px solid var(--alchemy-oxide-bright, #B43A19); outline-offset: -2px; border-radius: 4px;
+  outline: 2px solid var(--alchemy-oxide-bright, #FACC15); outline-offset: -2px; border-radius: 4px;
 }
 .c2-rowsctl-menu {
   position: absolute; top: calc(100% + 5px); left: 6px; z-index: 30;
@@ -369,7 +364,7 @@
 }
 .c2-rowsctl-opt:hover { background: var(--ed-rule); color: var(--ed-ink-1); }
 .c2-rowsctl-opt:focus-visible {
-  outline: 2px solid var(--alchemy-oxide-bright, #B43A19); outline-offset: 1px;
+  outline: 2px solid var(--alchemy-oxide-bright, #FACC15); outline-offset: 1px;
 }
 .c2-rowsctl-check {
   flex: 0 0 auto; width: 14px; height: 14px;
@@ -379,7 +374,7 @@
   transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
 }
 .c2-rowsctl-opt[aria-checked="true"] .c2-rowsctl-check {
-  background: color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 82%, transparent);
+  background: color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 82%, transparent);
   border-color: transparent;
   color: #fff;
 }
@@ -405,7 +400,7 @@
 .c2-row:hover .c2-rowhide,
 .c2-rowhide:focus-visible { opacity: 1; transform: translateY(-50%) scale(1); }
 .c2-rowhide:hover { color: var(--ed-ink-1); background: rgba(var(--ink-rgb), 0.08); }
-.c2-rowhide:focus-visible { outline: 2px solid var(--alchemy-oxide-bright, #B43A19); outline-offset: 1px; }
+.c2-rowhide:focus-visible { outline: 2px solid var(--alchemy-oxide-bright, #FACC15); outline-offset: 1px; }
 
 /* ── all-day lane ───────────────────────────────────────────────────── */
 .c2-allday { border-bottom: 1px solid var(--ed-rule-2); }
@@ -565,7 +560,7 @@
 .c2-sigctl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .c2-scope-btn:focus-visible,
 .c2-scope-opt:focus-visible {
-  outline: 2px solid var(--alchemy-oxide-bright, #B43A19); outline-offset: 1px;
+  outline: 2px solid var(--alchemy-oxide-bright, #FACC15); outline-offset: 1px;
 }
 
 /* scope chip — label = current value = trigger */
@@ -584,8 +579,8 @@
 .c2-scope-btn:hover { color: var(--ed-ink-1); border-color: var(--ed-rule-3); }
 .c2-scope-btn.is-on {
   color: var(--ed-ink-1);
-  border-color: color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 50%, transparent);
-  background: color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 10%, transparent);
+  border-color: color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 50%, transparent);
+  background: color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 10%, transparent);
 }
 .c2-scope-k {
   font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--rr-faint-2);
@@ -614,7 +609,7 @@
 }
 .c2-scope-opt:hover { background: var(--ed-rule); color: var(--ed-ink-1); }
 .c2-scope-opt[aria-selected="true"] {
-  background: color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 16%, transparent);
+  background: color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 16%, transparent);
   color: var(--ed-ink-1);
 }
 
@@ -631,7 +626,7 @@
 .c2-sig-cell:first-of-type { border-left: 0; }
 .c2-sig-cell.is-today,
 .c2-activity-cell.is-today,
-.c2-allday-cell.is-today { background: color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 5%, transparent); }
+.c2-allday-cell.is-today { background: color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 5%, transparent); }
 .c2-sig-bar {
   position: relative; flex: 1 1 auto; height: 4px; min-width: 0;
   border-radius: 2px; background: var(--ed-rule-2); overflow: hidden;
@@ -647,9 +642,9 @@
 .c2-sig-mut { color: var(--rr-faint-2); font-weight: 400; }
 .c2-intown { --c2-sig-acc: var(--c2-presence); }
 /* scoped: the signal follows one workstream — an oxide rail flags the filter */
-.c2-signal.is-scoped { --c2-sig-acc: var(--alchemy-oxide-bright, #B43A19); }
+.c2-signal.is-scoped { --c2-sig-acc: var(--alchemy-oxide-bright, #FACC15); }
 .c2-signal.is-scoped .c2-gutter-cell {
-  color: color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 65%, var(--ed-ink-2));
+  color: color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 65%, var(--ed-ink-2));
 }
 /* the in-town cells are buttons: glance (bar+count) → hover/focus (popover) →
    click (presence gantt). Quiet at rest; the affordance shows on hover/focus. */
@@ -659,7 +654,7 @@
   transition: background 140ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 .c2-intown-cell:hover { background: color-mix(in srgb, var(--c2-presence) 9%, transparent); }
-.c2-signal.is-scoped .c2-intown-cell:hover { background: color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 9%, transparent); }
+.c2-signal.is-scoped .c2-intown-cell:hover { background: color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 9%, transparent); }
 .c2-intown-cell:focus-visible {
   outline: none;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c2-sig-acc) 60%, var(--ed-ink-1));
@@ -782,12 +777,12 @@
 .c2-col.is-weekend { background-color: rgba(var(--ink-rgb), 0.020); }
 .c2-col.is-today {
   background: linear-gradient(180deg,
-    color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 8%, transparent) 0%,
-    color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 3%, transparent) 45%,
-    color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 1.5%, transparent) 100%);
+    color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 8%, transparent) 0%,
+    color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 3%, transparent) 45%,
+    color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 1.5%, transparent) 100%);
   box-shadow:
-    inset 1px 0 0 color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 20%, transparent),
-    inset -1px 0 0 color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 20%, transparent);
+    inset 1px 0 0 color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 20%, transparent),
+    inset -1px 0 0 color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 20%, transparent);
 }
 
 /* hour hairlines — DOM-positioned (the axis is non-linear, so a repeating
@@ -946,8 +941,8 @@
 /* ── now line ───────────────────────────────────────────────────────── */
 .c2-now {
   position: absolute; left: 0; right: 0; height: 0;
-  border-top: 1.5px solid var(--alchemy-oxide-bright, #B43A19);
-  box-shadow: 0 0 12px -1px color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 32%, transparent);
+  border-top: 1.5px solid var(--alchemy-oxide-bright, #FACC15);
+  box-shadow: 0 0 12px -1px color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 32%, transparent);
   z-index: 4;
   pointer-events: none;
 }
@@ -958,15 +953,15 @@
 .c2-now-dot {
   position: absolute; left: -4px; top: -4.5px;
   width: 8px; height: 8px; border-radius: 50%;
-  background: var(--alchemy-oxide-bright, #B43A19);
+  background: var(--alchemy-oxide-bright, #FACC15);
   /* a slow heartbeat — the one piece of idle life on the board (box-shadow only,
      so it never shifts layout); stilled under reduced-motion. */
   animation: c2-now-pulse 2.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
 }
 @keyframes c2-now-pulse {
-  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 55%, transparent); }
-  70%  { box-shadow: 0 0 0 9px color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 0%, transparent); }
-  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 0%, transparent); }
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 55%, transparent); }
+  70%  { box-shadow: 0 0 0 9px color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 0%, transparent); }
 }
 
 /* ── footer — legend + recurring + source ───────────────────────────── */
@@ -987,7 +982,7 @@
   color: var(--rr-faint-2);
 }
 .c2-source a { color: var(--rr-faint); text-decoration: none; border-bottom: 1px solid var(--ed-rule-2); }
-.c2-source a:hover { color: var(--alchemy-oxide-bright, #B43A19); border-bottom-color: var(--alchemy-oxide-bright, #B43A19); }
+.c2-source a:hover { color: var(--alchemy-oxide-bright, #FACC15); border-bottom-color: var(--alchemy-oxide-bright, #FACC15); }
 
 /* ── event modal ────────────────────────────────────────────────────── */
 .c2-modal {
@@ -1299,7 +1294,7 @@
   /* still the heartbeat + reveals; show the final informative state, not motion. */
   .c2-now-dot {
     animation: none;
-    box-shadow: 0 0 7px -1px color-mix(in srgb, var(--alchemy-oxide-bright, #B43A19) 32%, transparent);
+    box-shadow: 0 0 7px -1px color-mix(in srgb, var(--alchemy-oxide-bright, #FACC15) 32%, transparent);
   }
   .c2-rowsctl-menu { animation: none; }
   .c2-rowlabel-t { transition: none; }
@@ -1320,18 +1315,18 @@
 .rr-cal {
   --rr-pres: oklch(0.70 0.055 155);
   --rr-ship: oklch(0.72 0.10 150);
-  --rr-ox: var(--alchemy-oxide-bright, #B43A19);
+  --rr-ox: var(--alchemy-oxide-bright, #FACC15);
   padding: 6px 0 36px;
 }
 
 /* ── masthead — editorial thesis + the three week facts ──────────────── */
-.rr-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; padding: 6px 0 24px; border-bottom: 1px solid var(--ed-rule-2); }
+.rr-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; padding: 2px 0 16px; border-bottom: 1px solid var(--ed-rule-2); }
 .rr-head-l { min-width: 0; }
 .rr-eyebrow { font-size: 10px; letter-spacing: 0.26em; text-transform: uppercase; color: var(--rr-faint); margin-bottom: 15px; }
 /* Shape Rotator signature mark — a small rotated square (a "shape"), the brand
    thread: it opens the eyebrow and recurs as the ship/now marks below. */
 .rr-eyebrow::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 10px; background: var(--rr-ox); border-radius: 1px; transform: rotate(45deg); vertical-align: middle; }
-.rr-title { font-family: var(--ed-display); font-weight: 500; font-size: 52px; line-height: 0.96; letter-spacing: -0.022em; color: var(--ed-ink-1); margin: 0; text-wrap: balance; }
+.rr-title { font-family: var(--ed-display); font-weight: 500; font-size: 34px; line-height: 0.98; letter-spacing: -0.022em; color: var(--ed-ink-1); margin: 0; text-wrap: balance; }
 .rr-sub { font-family: var(--ed-display); font-style: italic; font-size: 19px; letter-spacing: -0.01em; color: var(--rr-faint); margin-top: 12px; text-wrap: pretty; }
 .rr-stats { display: flex; text-align: right; flex: 0 0 auto; }
 .rr-stat { padding: 2px 26px; }
@@ -1343,8 +1338,11 @@
 .rr-stat-note { font-size: 10px; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; color: var(--rr-faint); }
 .rr-tone-pres { color: var(--rr-pres); }
 .rr-tone-ship { color: var(--rr-ship); }
-/* scope chip sits above the week facts (it focuses presence + shipping) */
-.rr-head-r { display: flex; flex-direction: column; align-items: flex-end; gap: 13px; flex: 0 0 auto; }
+/* subscribe + scope sit on one controls row above the week facts (scope focuses
+   presence + shipping; subscribe moved down here from the old standalone masthead) */
+.rr-head-r { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; flex: 0 0 auto; }
+.rr-controls { display: flex; align-items: center; gap: 8px; }
+.rr-controls .c2-subscribe { min-height: 28px; }
 .rr-scope { align-self: flex-end; }
 /* the category filter doubles as the "this week" legend — compact, right-aligned */
 .rr-panel-head { gap: 14px 24px; flex-wrap: wrap; }
@@ -1386,8 +1384,8 @@
 .rr-wk.demo .rr-pbar { background: repeating-linear-gradient(135deg, color-mix(in oklch, var(--rr-ox) 16%, transparent) 0 2px, transparent 2px 6px); border-top: 1px dashed color-mix(in oklch, var(--rr-ox) 48%, transparent); }
 
 /* ── this week panel — build is the ground, gatherings are punctuation ── */
-.rr-panel { padding-top: 24px; }
-.rr-panel-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+.rr-panel { padding-top: 0; }
+.rr-panel-head { display: flex; align-items: baseline; justify-content: flex-end; margin-bottom: 4px; }
 .rr-grid { display: grid; grid-template-columns: 48px repeat(7, minmax(0, 1fr)); }
 .rr-dh { padding: 10px 11px 12px; border-left: 1px solid var(--ed-rule); }
 .rr-dh-d { display: block; font-family: var(--ed-display); font-size: 15px; letter-spacing: -0.01em; color: var(--ed-ink-2); }
@@ -1398,13 +1396,13 @@
 .rr-dh.today::after { content: ""; position: absolute; top: 13px; right: 11px; width: 5px; height: 5px; background: var(--rr-ox); border-radius: 1px; transform: rotate(45deg); }
 .rr-dh.today .rr-dh-d { color: var(--ed-ink-1); }
 .rr-dh.today .rr-dh-n { color: var(--rr-ox); }
-.rr-spine { position: relative; height: 210px; border-top: 1px solid var(--ed-rule); }
+.rr-spine { position: relative; height: 500px; border-top: 1px solid var(--ed-rule); }
 .rr-t { position: absolute; right: 8px; font-family: var(--ed-mono); font-variant-numeric: tabular-nums; font-size: 9px; color: var(--rr-faint-2); transform: translateY(-50%); white-space: nowrap; }
 .rr-t.acc { color: var(--rr-ox); }
 /* a calm build-ground: a faint 2-hour guide (not a busy hourly grid), softer
    borders; the today column drinks a quiet oxide wash. */
-.rr-field { position: relative; height: 210px; border-left: 1px solid var(--ed-rule); border-top: 1px solid var(--ed-rule); background: repeating-linear-gradient(0deg, transparent 0 47px, rgba(var(--ink-rgb), 0.028) 47px 48px); overflow: hidden; }
-.rr-field.today { border-left: 1px solid color-mix(in oklch, var(--rr-ox) 55%, transparent); background: linear-gradient(180deg, color-mix(in oklch, var(--rr-ox) 6%, transparent), color-mix(in oklch, var(--rr-ox) 1.5%, transparent)), repeating-linear-gradient(0deg, transparent 0 47px, rgba(var(--ink-rgb), 0.028) 47px 48px); }
+.rr-field { position: relative; height: 500px; border-left: 1px solid var(--ed-rule); border-top: 1px solid var(--ed-rule); background: repeating-linear-gradient(0deg, transparent 0 112px, rgba(var(--ink-rgb), 0.028) 112px 114px); overflow: hidden; }
+.rr-field.today { border-left: 1px solid color-mix(in oklch, var(--rr-ox) 55%, transparent); background: linear-gradient(180deg, color-mix(in oklch, var(--rr-ox) 6%, transparent), color-mix(in oklch, var(--rr-ox) 1.5%, transparent)), repeating-linear-gradient(0deg, transparent 0 112px, rgba(var(--ink-rgb), 0.028) 112px 114px); }
 .rr-ghost { position: absolute; top: 50%; left: 0; right: 0; text-align: center; transform: translateY(-50%); font-family: var(--ed-display); font-style: italic; font-size: 13px; letter-spacing: -0.01em; color: var(--rr-faint-2); }
 .rr-allday { position: absolute; top: 0; left: 4px; right: 4px; height: 19px; display: flex; align-items: center; padding: 0 8px; border: 0; border-left: 2px solid var(--c2-acc, #8f817a); border-radius: 0 5px 5px 0; background: color-mix(in oklch, var(--c2-acc, #8f817a) 15%, transparent); color: var(--ed-ink-1); font-family: var(--ed-mono); font-size: 9.5px; cursor: pointer; z-index: 2; overflow: hidden; transition: background 150ms ease; }
 .rr-allday span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1462,7 +1460,7 @@
   .rr-head-r { align-items: flex-start; align-self: stretch; }
   .rr-stats { align-self: stretch; }
   .rr-stat:first-child { padding-left: 0; }
-  .rr-title { font-size: 40px; }
+  .rr-title { font-size: 28px; }
 }
 /* mobile — the 10-week arc and the 7-day week are intrinsically wide, so let
    them scroll horizontally as a unit (the masthead, legend and week-nav stay
@@ -1470,7 +1468,7 @@
 .rr-weekscroll { min-width: 0; }
 @media (max-width: 720px) {
   .rr-cal { padding: 2px 0 26px; }
-  .rr-title { font-size: 31px; }
+  .rr-title { font-size: 24px; }
   .rr-sub { font-size: 16px; }
   .rr-stat { padding: 2px 16px; }
   .rr-arc-head, .rr-panel-head { flex-direction: column; align-items: flex-start; gap: 7px; }

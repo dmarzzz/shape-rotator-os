@@ -43,8 +43,8 @@
   /* ─ brand palette (xyz-aligned) ────────────────────────────────────────
    * Oxide red is the one accent. Paper + charcoal are substrate; red is
    * everything that needs to vibrate. */
-  --red-1:      #8F220E;   /* xyz --color-sr-red — primary brand */
-  --red-2:      #B43A19;   /* xyz --color-sr-red-light — hover / focus */
+  --red-1:      #EAB308;   /* xyz --color-sr-red — primary brand */
+  --red-2:      #FACC15;   /* xyz --color-sr-red-light — hover / focus */
   --paper-1:    #F7F1EC;   /* xyz --color-sr-cream — selection text, hi-emp */
   --paper-2:    #F1ECE7;   /* xyz --color-sr-paper — body paper */
   --paper-3:    #C8BFB9;   /* xyz --color-sr-paper-muted */
@@ -53,8 +53,8 @@
    * the active tab underline, the pinned peer ring, the today marker,
    * the live status. */
   --accent:        var(--red-1);
-  --accent-soft:   rgba(143, 34, 14, 0.22);
-  --accent-glow:   rgba(143, 34, 14, 0.42);
+  --accent-soft:   rgba(234, 179, 8, 0.22);
+  --accent-glow:   rgba(234, 179, 8, 0.42);
   --neon-cyan:    var(--accent);            /* legacy alias */
   --neon-magenta: #FF4FE6;                  /* legacy alias — keep magenta literal */
   --neon-amber:   #FFB454;

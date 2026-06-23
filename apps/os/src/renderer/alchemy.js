@@ -31,7 +31,7 @@ import {
   parseWeekRow as calendarParseWeekRow,
   PROGRAM_START_MS, PROGRAM_END_MS,
 } from "@shape-rotator/shape-ui";
-import { saveSphere, SPHERE_DIALS, SPHERE_DEFAULTS, SPHERE_BG_DEFAULT, SPHERE_BG_MIX_DEFAULT, SPHERE_BG_PRESETS, normalizeHex } from "./supabase-sphere.mjs";
+import { saveSphere, SPHERE_DIALS, SPHERE_DEFAULTS, SPHERE_BG_DEFAULT, SPHERE_BG_MIX_DEFAULT, SPHERE_TIME_DEFAULT, SPHERE_BG_PRESETS, normalizeHex } from "./supabase-sphere.mjs";
 import { highlightGLSL } from "./shader-dsl.mjs";
 import {
   aggregateSkillAreas, buildCohortIndex, buildCollabModel, collabAffKey, collabHasText,
@@ -478,12 +478,23 @@ export function mount(container) {
     setTimeout(() => refreshFeed({ source: "mount" }), 1500);
   }
 
-  buildCohortSubnav();
+  buildRailSubnavs();
   for (const btn of state.rail.querySelectorAll(".alchemy-rail-btn")) {
     btn.addEventListener("click", () => {
       const next = ALCHEMY_MODES.includes(btn.dataset.alchMode) ? btn.dataset.alchMode : null;
       if (!next) return;
       if (state.mode === "membrane") setMembraneMenuOpen(false);
+      // If this row owns a sub-nav tree and we're already on its page (no detail
+      // open), a click toggles the tree open/closed instead of re-navigating —
+      // one click opens, the next closes.
+      const subSpec = railSubnavSpecs().find(s => s.railMode === btn.dataset.alchMode);
+      if (subSpec && subSpec.isActive()) {
+        const isOpen = document.getElementById(subSpec.id)?.dataset.open === "true";
+        if (isOpen) railSubCollapsed.add(subSpec.railMode);
+        else railSubCollapsed.delete(subSpec.railMode);
+        setRailSubOpen(subSpec, !isOpen);
+        return;
+      }
       // Clicking any rail mode also exits the detail page if it's open.
       const wasDetail = !!state.detailRecordId;
       if (next === state.mode && !wasDetail) return;
@@ -541,14 +552,17 @@ export function mount(container) {
       if (navBtn && !navBtn.disabled) navBtn.click();
       return;
     }
-    // Cohort views no longer have an in-page strip — they live in the rail
-    // disclosure. Cycle them straight through CONST_VIEWS via the shared switch.
-    if (isCohortMode() && !state.detailRecordId) {
-      const cur = CONST_VIEWS.findIndex(v => v.mode === currentCohortView());
+    // Pages with a rail sub-nav (cohort, context, …) no longer have an in-page
+    // strip — their views live in the rail disclosure. Cycle them through the
+    // active page's spec via the shared switch.
+    const activeSubnav = railSubnavSpecs().find(s => s.isActive());
+    if (activeSubnav) {
+      const views = activeSubnav.views;
+      const cur = views.findIndex(v => v.key === activeSubnav.current());
       if (cur >= 0) {
-        const nextV = (cur + (e.key === "ArrowRight" ? 1 : -1) + CONST_VIEWS.length) % CONST_VIEWS.length;
+        const nextV = (cur + (e.key === "ArrowRight" ? 1 : -1) + views.length) % views.length;
         e.preventDefault();
-        selectCohortView(CONST_VIEWS[nextV].mode);
+        activeSubnav.select(views[nextV].key);
       }
       return;
     }
@@ -575,7 +589,7 @@ export function mount(container) {
   // Cmd/Ctrl +/-/0 keyboard zoom (document-level so it works wherever focus is).
   document.addEventListener("keydown", onZoomKeydown);
   syncRailSelection();
-  reconcileCohortSub();  // booting onto a cohort view shows the disclosure expanded right away
+  reconcileRailSubnavs();  // booting onto a sub-nav page shows its disclosure expanded right away
   startContextAutoRefresh();
   setTimeout(() => { warmMode(state.mode).catch(() => {}); }, 0);
   loadCohort().then(render).catch(err => {
@@ -883,7 +897,7 @@ function syncRailSelection() {
   for (const btn of state.rail.querySelectorAll(".alchemy-rail-btn")) {
     btn.setAttribute("aria-selected", btn.dataset.alchMode === activeMode ? "true" : "false");
   }
-  syncCohortSubnav();
+  syncRailSubnavs();
 }
 
 // ─── cohort rail sub-nav ───────────────────────────────────────────────────
@@ -944,37 +958,170 @@ function selectCohortView(constMode) {
   return true;
 }
 
-// Inject the disclosure submenu once, directly after the "cohort" rail row.
-// CONST_VIEWS is the single source of truth for the rows — this is now the
-// only cohort view switcher (the in-page tab strip was retired).
-function buildCohortSubnav() {
+// Switch to one of the context views. Shared by the rail submenu and any
+// programmatic switch; navigates to the context page first if needed. Mirror
+// of selectCohortView so the two pages drive their disclosures identically.
+function selectContextView(view) {
+  const next = contextNormalizeView(view);
+  if (state.mode === "context" && contextNormalizeView(state.contextVault.mode) === next && !state.detailRecordId) return false;
+  state.mode = "context";
+  state.contextVault.mode = next;
+  clearDetailIfOpen();
+  try {
+    localStorage.setItem(CONTEXT_VIEW_LS_KEY, next);
+    localStorage.setItem(ALCHEMY_LS_KEY, "context");
+  } catch {}
+  syncRailSelection();
+  render();
+  return true;
+}
+
+// Switch to a calendar view ("cal" grid | "presence" gantt). Navigates to the
+// calendar page first if needed; mirror of selectContextView.
+function selectCalendarView(view) {
+  const next = view === "presence" ? "presence" : "cal";
+  if (state.mode === "calendar" && state.calendar?.view === next && !state.detailRecordId) return false;
+  state.mode = "calendar";
+  if (state.calendar) state.calendar.view = next; else state.calendar = { view: next };
+  clearDetailIfOpen();
+  try { localStorage.setItem(ALCHEMY_LS_KEY, "calendar"); } catch {}
+  syncRailSelection();
+  render();
+  return true;
+}
+
+// Switch to a program handbook page. Navigates to the program page first if
+// needed; mirror of selectContextView (program rows are data-driven).
+function selectProgramView(pageId) {
+  if (!pageId) return false;
+  if (state.mode === "program" && state.programPage === pageId && !state.detailRecordId) return false;
+  state.mode = "program";
+  state.programPage = pageId;
+  clearDetailIfOpen();
+  try {
+    localStorage.setItem(PROGRAM_PAGE_LS_KEY, pageId);
+    localStorage.setItem(ALCHEMY_LS_KEY, "program");
+  } catch {}
+  syncRailSelection();
+  render();
+  return true;
+}
+
+// ─── generic rail page sub-navs ─────────────────────────────────────────────
+// Some rail pages expose their views as an indented disclosure nested directly
+// under the rail row — the same views the page used to show as an in-page tab
+// strip, surfaced in the persistent left menu. Cohort was the first; this
+// registry lets other pages (context, and later program/calendar) reuse the
+// exact same disclosure plumbing. Each spec owns its domain logic (which view
+// is active, how to switch, when the disclosure should be open); the build/
+// open/sync machinery below is shared, so there is one source of truth.
+//   railMode  data-alch-mode of the rail row this nests under
+//   id        unique element id for the disclosure wrap
+//   views     [{ key, label, hint }] rows, in order
+//   current() active view key, or null when off this page
+//   select()  switch to a view key (also lands on the page)
+//   isActive() whether this is the active page right now (drives open/close,
+//             the active-row highlight, and ←/→ cycling)
+// Each disclosure expands while its page is active and collapses on leave.
+// `views` is a function so data-driven pages (program) resolve rows lazily.
+let _railSubnavSpecs = null;
+const railSubCollapsed = new Set();  // rail pages the user manually collapsed while on them
+function railSubnavSpecs() {
+  if (_railSubnavSpecs) return _railSubnavSpecs;
+  _railSubnavSpecs = [
+    {
+      railMode: "shapes",
+      id: "cohort-subnav",
+      ariaLabel: "cohort views",
+      views: () => CONST_VIEWS.map(v => ({ key: v.mode, label: v.label, hint: v.hint })),
+      current: () => currentCohortView(),
+      select: (key) => selectCohortView(key),
+      isActive: () => isCohortMode() && !state.detailRecordId,
+    },
+    {
+      railMode: "context",
+      id: "context-subnav",
+      ariaLabel: "context views",
+      views: () => CONTEXT_VIEWS.map(v => ({ key: v.view, label: v.label, hint: v.hint })),
+      current: () => (state.mode === "context" ? contextNormalizeView(state.contextVault.mode) : null),
+      select: (key) => selectContextView(key),
+      isActive: () => state.mode === "context" && !state.detailRecordId,
+    },
+    {
+      railMode: "calendar",
+      id: "calendar-subnav",
+      ariaLabel: "calendar views",
+      views: () => [
+        { key: "cal", label: "calendar", hint: "the week's hour grid" },
+        { key: "presence", label: "presence", hint: "who's in town, when" },
+      ],
+      current: () => (state.mode === "calendar" ? (state.calendar?.view === "presence" ? "presence" : "cal") : null),
+      select: (key) => selectCalendarView(key),
+      isActive: () => state.mode === "calendar" && !state.detailRecordId,
+    },
+    {
+      railMode: "program",
+      id: "program-subnav",
+      ariaLabel: "program sections",
+      // Rows are data-driven (the cohort surface's program pages) and load
+      // async, so views() is recomputed each call + reconcile refreshes them.
+      views: () => programPages().map(p => ({ key: p.record_id, label: p.title || p.record_id, hint: "" })),
+      current: () => (state.mode === "program" ? (state.programPage || programPages()[0]?.record_id || null) : null),
+      select: (key) => selectProgramView(key),
+      isActive: () => state.mode === "program" && !state.detailRecordId,
+    },
+  ];
+  return _railSubnavSpecs;
+}
+
+// Inject each registered disclosure once, directly after its rail row.
+function buildRailSubnavs() {
   if (!state.rail) return;
-  const cohortBtn = state.rail.querySelector('.alchemy-rail-btn[data-alch-mode="shapes"]');
-  if (!cohortBtn || document.getElementById("cohort-subnav")) return;
-  cohortBtn.setAttribute("aria-expanded", "false");
-  cohortBtn.setAttribute("aria-controls", "cohort-subnav");
+  for (const spec of railSubnavSpecs()) buildRailSubnav(spec);
+}
+
+function buildRailSubnav(spec) {
+  const railBtn = state.rail?.querySelector(`.alchemy-rail-btn[data-alch-mode="${spec.railMode}"]`);
+  if (!railBtn || document.getElementById(spec.id)) return;
+  railBtn.setAttribute("aria-controls", spec.id);
   const wrap = document.createElement("div");
   wrap.className = "alch-rail-sub";
-  wrap.id = "cohort-subnav";
+  wrap.id = spec.id;
   wrap.dataset.open = "false";
   wrap.inert = true;
   wrap.setAttribute("role", "group");
-  wrap.setAttribute("aria-label", "cohort views");
-  wrap.innerHTML = `
-    <div class="alch-rail-sub-inner">
-      ${CONST_VIEWS.map((v, i) => `
-        <button class="alch-rail-sub-btn" type="button" data-const-mode="${escAttr(v.mode)}" style="--sub-i:${i}" aria-selected="false" tabindex="-1" aria-label="${escAttr(`${v.label}: ${v.hint}`)}" title="${escAttr(v.hint)}">
-          <span class="ars-mark" aria-hidden="true"></span>
-          <span class="ars-label">${escHtml(v.label)}</span>
-        </button>`).join("")}
-    </div>`;
-  cohortBtn.after(wrap);
-  const subBtns = [...wrap.querySelectorAll(".alch-rail-sub-btn")];
+  wrap.setAttribute("aria-label", spec.ariaLabel);
+  wrap.innerHTML = `<div class="alch-rail-sub-inner"></div>`;
+  railBtn.after(wrap);
+  populateRailSubnav(spec, wrap);            // fill rows (may be empty until data loads)
+  setRailSubOpen(spec, spec.isActive());     // open iff this is the active page
+}
+
+// (Re)render a disclosure's rows from spec.views() and wire them. Idempotent:
+// rebuilds only when the row set actually changed, so it's cheap to call from
+// reconcile on every render (program's rows arrive with the cohort surface,
+// after the menu was first built).
+function populateRailSubnav(spec, wrap) {
+  wrap = wrap || document.getElementById(spec.id);
+  const inner = wrap && wrap.querySelector(".alch-rail-sub-inner");
+  if (!inner) return;
+  const views = spec.views() || [];
+  const have = [...inner.querySelectorAll(".alch-rail-sub-btn")].map(b => b.dataset.subView).join("");
+  const want = views.map(v => v.key).join("");
+  if (have === want) return;  // unchanged — keep the existing nodes + listeners
+  const railBtn = state.rail?.querySelector(`.alchemy-rail-btn[data-alch-mode="${spec.railMode}"]`);
+  inner.innerHTML = views.map((v, i) => {
+    const aria = v.hint ? `${v.label}: ${v.hint}` : v.label;
+    const connector = i === views.length - 1 ? "└─" : "├─";  // ASCII folder tree
+    return `
+      <button class="alch-rail-sub-btn" type="button" data-sub-view="${escAttr(v.key)}" style="--sub-i:${i}" aria-selected="false" tabindex="-1" aria-label="${escAttr(aria)}">
+        <span class="ars-mark" aria-hidden="true">${connector}</span>
+        <span class="ars-label">${escHtml(v.label)}</span>
+      </button>`;
+  }).join("");
+  const subBtns = [...inner.querySelectorAll(".alch-rail-sub-btn")];
   for (const btn of subBtns) {
-    btn.addEventListener("click", () => {
-      selectCohortView(btn.dataset.constMode);
-      setCohortSubOpen(true);
-    });
+    btn.addEventListener("click", () => spec.select(btn.dataset.subView));
     // Roving-tabindex keyboard contract for the disclosure list.
     btn.addEventListener("keydown", (e) => {
       const i = subBtns.indexOf(btn);
@@ -983,32 +1130,33 @@ function buildCohortSubnav() {
       else if (e.key === "ArrowUp") j = (i - 1 + subBtns.length) % subBtns.length;
       else if (e.key === "Home") j = 0;
       else if (e.key === "End") j = subBtns.length - 1;
-      else if (e.key === "Escape") {
-        setCohortSubOpen(false);
-        cohortBtn.focus();
-        return;
-      } else return;
+      else if (e.key === "Escape") { setRailSubOpen(spec, false); railBtn?.focus(); return; }  // collapse + return focus
+      else return;
       e.preventDefault();
       for (const b of subBtns) b.tabIndex = -1;
       subBtns[j].tabIndex = 0;
       subBtns[j].focus();
     });
   }
-  syncCohortSubnav();
+  syncRailSubnav(spec);
 }
 
-// The disclosure is open exactly while a cohort view is the active page (and
-// no record detail is covering it). Called from render() so every navigation
-// path — rail click, sub-view pick, tab manager, history — keeps it in sync.
-function reconcileCohortSub() {
-  setCohortSubOpen(isCohortMode() && !state.detailRecordId);
+// Each disclosure expands while its page is active and collapses when you leave
+// (or open a record detail). Reconcile also keeps rows fresh (program loads
+// async). Called from render() so every nav path keeps them in sync.
+function reconcileRailSubnavs() {
+  for (const spec of railSubnavSpecs()) {
+    populateRailSubnav(spec);
+    const active = spec.isActive();
+    if (!active) railSubCollapsed.delete(spec.railMode);  // reset the manual collapse once off the page
+    setRailSubOpen(spec, active && !railSubCollapsed.has(spec.railMode));
+  }
 }
 
-function setCohortSubOpen(open) {
+function setRailSubOpen(spec, open) {
   open = !!open;
-  state.cohortSubOpen = open;
-  const wrap = document.getElementById("cohort-subnav");
-  const cohortBtn = state.rail?.querySelector('.alchemy-rail-btn[data-alch-mode="shapes"]');
+  const wrap = document.getElementById(spec.id);
+  const railBtn = state.rail?.querySelector(`.alchemy-rail-btn[data-alch-mode="${spec.railMode}"]`);
   if (wrap) {
     // Measure the natural content height for the open tween (scrollHeight is
     // valid while the wrap is clipped to height:0). Re-measured on each open so
@@ -1022,24 +1170,30 @@ function setCohortSubOpen(open) {
     wrap.dataset.open = open ? "true" : "false";
     wrap.inert = !open;  // keep collapsed rows out of tab order + the a11y tree
   }
-  if (cohortBtn) cohortBtn.setAttribute("aria-expanded", open ? "true" : "false");
-  if (open) syncCohortSubnav();
+  if (railBtn) railBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  if (open) syncRailSubnav(spec);
 }
 
-// Mirror the current cohort view onto the submenu rows + roving tabindex.
-function syncCohortSubnav() {
-  const wrap = document.getElementById("cohort-subnav");
+// Sync every disclosure's active row (used after partial repaints that skip
+// the full render(), e.g. an in-page cross-link switching the context view).
+function syncRailSubnavs() {
+  for (const spec of railSubnavSpecs()) syncRailSubnav(spec);
+}
+
+// Mirror the current view onto the submenu rows + roving tabindex.
+function syncRailSubnav(spec) {
+  const wrap = document.getElementById(spec.id);
   if (!wrap) return;
-  const active = currentCohortView();
+  const active = spec.current();
   let matched = false;
-  for (const btn of wrap.querySelectorAll(".alch-rail-sub-btn[data-const-mode]")) {
-    const on = btn.dataset.constMode === active;
+  for (const btn of wrap.querySelectorAll(".alch-rail-sub-btn[data-sub-view]")) {
+    const on = btn.dataset.subView === active;
     if (on) matched = true;
     btn.setAttribute("aria-selected", on ? "true" : "false");
     btn.tabIndex = on ? 0 : -1;
   }
-  // Off the cohort page (no active row): keep the first row keyboard-reachable
-  // so opening the disclosure has a focus target.
+  // Off the page (no active row): keep the first row keyboard-reachable so
+  // opening the disclosure has a focus target.
   if (!matched) {
     const first = wrap.querySelector(".alch-rail-sub-btn");
     if (first) first.tabIndex = 0;
@@ -1108,10 +1262,10 @@ function render(opts = {}) {
     if (!isMembraneHome()) state.menuOpen = false;
     syncMembraneMenuChrome();
   }
-  // The cohort disclosure is the page's view switcher now, so it stays
-  // expanded while on any cohort view and collapses when you leave (or open a
-  // record detail). Reconciled here so every navigation path keeps it in sync.
-  reconcileCohortSub();
+  // The rail disclosures are each page's view switcher now, so each stays
+  // expanded while on its page and collapses when you leave (or open a record
+  // detail). Reconciled here so every navigation path keeps them in sync.
+  reconcileRailSubnavs();
   const canvas = state.canvas;
   // Tear down every active shape-shader controller before the innerHTML
   // rewrite — each one owns a WebGL2 context, and browsers cap us to
@@ -1399,7 +1553,9 @@ function stepBubbleGrain(dir) {
 function syncCohortZoomControl() {
   if (!state.container) return;
   let el = state.container.querySelector(".alch-zoom-ctl");
-  if (!cohortZoomActive()) { if (el) el.hidden = true; return; }
+  // Only the ecosystem (bubble) map gets the zoom control — not the ring view
+  // or any other cohort subpage.
+  if (!cohortZoomActive() || !bubbleMapShowing()) { if (el) el.hidden = true; return; }
   if (!el) {
     el = document.createElement("div");
     el.className = "alch-zoom-ctl";
@@ -1493,6 +1649,7 @@ function mountCustomDetailOrb() {
       // Same dial→uniform mapping as the editor preview + sphereAttrs.
       hue: sp?.hue, warp: sp?.phase, progress: sp?.complexity,
       iters: sp?.hue2, sharp: sp?.intensity, bg: sp?.bg, bgMix: sp?.bg_mix,
+      timeScale: sp?.time_scale,   // Time dial → animation speed
       shaderGLSL: glsl,
     });
   } catch (err) {
@@ -2962,6 +3119,7 @@ function journeyDetailSection(rec) {
 // page, five ways of understanding the cohort.
 const CONST_VIEWS = [
   { mode: "directory", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>', label: "directory", hint: "teams, projects, people" },
+  { mode: "collab",  glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>', label: "collab board", hint: "asks, offers, dependencies" },
   { mode: "map",     glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>', label: "ecosystem map", hint: "where every team sits, grouped by what it builds" },
   { mode: "journey", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>', label: "pmf evidence", hint: "market-fit signal coverage" },
   { mode: "stack",   glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>', label: "standing", hint: "status + gap to target" },
@@ -2970,7 +3128,6 @@ const CONST_VIEWS = [
   // is now the "gap to target" toggle inside standing. Mode kept valid in
   // constNormalizeConstellationMode so old deep-links still resolve.
   { mode: "shipped", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>', label: "say / did / shipped", hint: "intent vs public proof" },
-  { mode: "collab",  glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>', label: "collab board", hint: "asks, offers, dependencies" },
 ];
 function constNormalizeConstellationMode(raw) {
   const mode = String(raw || "").toLowerCase();
@@ -2984,8 +3141,8 @@ function constNormalizeConstellationMode(raw) {
 // (constellationNav). They were consolidated into the left rail's "cohort"
 // disclosure submenu (2026-06) — one switcher, not two. The submenu is the
 // single source of view navigation now; CONST_VIEWS still drives it (see
-// buildCohortSubnav). ←/→ cohort-view cycling is handled directly in the
-// rail-mount keydown handler.
+// railSubnavSpecs / buildRailSubnav). ←/→ cohort-view cycling is handled
+// directly in the rail-mount keydown handler.
 
 // Shared page header — same structure on the cohort and context pages so
 // the OS's two "understanding" surfaces read as one design. `side` is
@@ -3082,7 +3239,7 @@ function constTimelineDropdownHtml() {
         <button type="button" class="ac-sent-tok ac-timeline-tok${isTotal ? "" : " is-rewound"}" data-sent-menu="timeline" aria-haspopup="listbox" aria-expanded="false" aria-label="${escAttr(`viewing ${curLabel} — rewind the cohort to a week`)}">
           ${clock}<span>${escHtml(curLabel)}</span><i class="ac-sent-chev" aria-hidden="true"></i>
         </button>
-        <div class="ac-sent-menu" data-sent-menu-for="timeline" role="listbox" aria-label="cohort timeline" hidden>${options}</div>
+        <div class="ac-sent-menu" data-sent-menu-for="timeline" role="listbox" aria-label="cohort timeline" data-shape-occluder hidden>${options}</div>
       </span>
     </span>`;
 }
@@ -3251,7 +3408,7 @@ function constSentenceUnit({ menu, token, ariaMenu, options }) {
   return `
     <span class="ac-sent-unit">
       ${token}
-      <div class="ac-sent-menu" data-sent-menu-for="${escAttr(menu)}" role="listbox" aria-label="${escAttr(ariaMenu)}" hidden>${options}</div>
+      <div class="ac-sent-menu" data-sent-menu-for="${escAttr(menu)}" role="listbox" aria-label="${escAttr(ariaMenu)}" data-shape-occluder hidden>${options}</div>
     </span>`;
 }
 function constellationSentenceBar({ view = "bubble", scope = "projects", granularity = "clusters", sizeBy = "maturity", lens = "all", metrics = {}, tier = "all", peopleLinkFilter = "all" } = {}) {
@@ -3347,7 +3504,7 @@ function constellationSentenceBar({ view = "bubble", scope = "projects", granula
       <button type="button" class="ac-sent-tok ac-jbn-tok${activeDomain !== "all" ? " is-active" : ""}" data-sent-menu="constdomain" aria-haspopup="listbox" aria-expanded="false" aria-label="${escAttr(activeDomain !== "all" ? `coloured by ${CONST_DOMAIN_LABEL[activeDomain] || activeDomain} — click to change or clear` : "colour key: tee, ai, crypto, ux — click to isolate one domain")}">
         ${domTokenInner}<i class="ac-sent-chev" aria-hidden="true"></i>
       </button>
-      <div class="ac-sent-menu" data-sent-menu-for="constdomain" role="listbox" aria-label="isolate one domain colour" hidden>${domOptions}</div>
+      <div class="ac-sent-menu" data-sent-menu-for="constdomain" role="listbox" aria-label="isolate one domain colour" data-shape-occluder hidden>${domOptions}</div>
     </span>`;
   return `
     <div class="ac-sentence" role="group" aria-label="bubble map controls">
@@ -6199,7 +6356,7 @@ function renderJourney() {
       <button type="button" class="ac-sent-tok ac-jbn-tok${activeBn ? " is-active" : ""}" data-sent-menu="jbottleneck" aria-haspopup="listbox" aria-expanded="false" aria-label="${escAttr(activeBn ? `coloured by bottleneck, isolated to ${activeBn} — click to change or clear` : "coloured by bottleneck family: market, product, growth, company — click to isolate one")}">
         ${bnTokenInner}<i class="ac-sent-chev" aria-hidden="true"></i>
       </button>
-      <div class="ac-sent-menu" data-sent-menu-for="jbottleneck" role="listbox" aria-label="isolate one PMF bottleneck" hidden>${bnOptions}</div>
+      <div class="ac-sent-menu" data-sent-menu-for="jbottleneck" role="listbox" aria-label="isolate one PMF bottleneck" data-shape-occluder hidden>${bnOptions}</div>
     </span>`;
   // Encoding bits woven into the sentence below (not a standalone legend panel):
   // the size ramp for "sized by upside", and a hollow-dot hint shown only when
@@ -8592,7 +8749,15 @@ function wireConstellationHover() {
       const openTarget = e.target.closest("[data-const-open-record]");
       if (openTarget) {
         const rid = openTarget.getAttribute("data-const-open-record");
-        if (rid) openDirectoryRecord(rid) || openDetail(rid);
+        // Say/did/shipped rows are full-width project cards: clicking one opens
+        // that project's dossier directly. The generic "return to the roster
+        // card in the grid" grammar reads here as being dumped on the cohort
+        // overview, which is not where the user clicked. (Back restores the
+        // shipped view via the "constellation" return mode.)
+        if (rid) {
+          if (openTarget.classList.contains("ac-sds-row")) openDetail(rid, "constellation");
+          else openDirectoryRecord(rid) || openDetail(rid);
+        }
       }
     });
   }
@@ -10809,7 +10974,7 @@ function triggerConfetti(originEl) {
 
   // Cohort palette — keep the celebration on-brand with the rest of the
   // app rather than rainbow Mardi Gras.
-  const colors = ["#8F220E", "#c1a872", "#e8b94c", "#7eb499", "#f5f3ee"];
+  const colors = ["#EAB308", "#c1a872", "#e8b94c", "#7eb499", "#f5f3ee"];
 
   const container = document.createElement("div");
   container.className = "confetti-burst";
@@ -11224,10 +11389,9 @@ function renderProgram() {
   }
 
   const current = currentProgramPage(pages);
-  const tabs = renderProgramTabs(pages, current);
 
+  // Program sections moved to the rail sub-nav (left panel) — no in-page tabs.
   state.canvas.innerHTML = `
-    <nav class="alch-prog-tabs" role="tablist" aria-label="program section">${tabs}</nav>
     ${renderProgramPage(current)}
   `;
 }
@@ -12259,20 +12423,18 @@ function collabTeamPickerHtml(m, focusRid) {
   const options = [`<option value="">— pick your team —</option>`]
     .concat(opts.map(o => `<option value="${escAttr(o.rid)}"${o.rid === focusRid ? " selected" : ""}>${escHtml(o.name)}</option>`))
     .join("");
-  return `<label class="cb-picker"><span>i'm</span><select data-collab-focus aria-label="your team">${options}</select></label>`;
+  return `<label class="cb-picker"><select data-collab-focus aria-label="your team">${options}</select></label>`;
 }
 
 // The answer, led by the list. Default (no team) = the cohort's strongest intros,
 // a calm no-decode start. With a team chosen: who can help you, the mutual intros
-// worth making, who you can help, and what you depend on. "How strong" is bar
-// LENGTH (an easy read), never dot size.
+// worth making, who you can help, and what you depend on. Match strength drives
+// the ORDER of each list (strongest first), never dot size.
 function collabRouteSheetHtml(m, focusRid) {
-  const maxScore = m.seekOffer.reduce((mx, s) => Math.max(mx, s.score || 0), 1);
-  const bar = (score) => `<div class="cb-route-barwrap"><div class="cb-route-bar" style="width:${Math.round(Math.max(0.12, (score || 0) / maxScore) * 100)}%"></div></div>`;
   const rawName = (rid) => m.byRecordId.get(rid)?.name || rid;
   const nameOf = (rid) => escHtml(rawName(rid));
   const tagOf = (s) => escHtml((s.shared || []).slice(0, 3).join(" · ") || s.offering || s.seeking || "match");
-  const sec = (title, pipCls, inner) => `<div class="cb-route-sec"><div class="cb-route-sh"><i class="cb-route-pip ${pipCls}"></i>${escHtml(title)}</div>${inner}</div>`;
+  const sec = (title, pipCls, inner) => `<div class="cb-route-sec"><div class="cb-route-sh">${escHtml(title)}</div>${inner}</div>`;
   const empty = (msg) => `<p class="cb-route-empty">${escHtml(msg)}</p>`;
   // One unified gesture: clicking a row FOCUSES that team (the whole surface
   // pivots to them, same as the picker and the map headers); the trailing ↗
@@ -12336,16 +12498,16 @@ function collabRouteSheetHtml(m, focusRid) {
     </div>`;
   };
 
-  // A disclosure row: a compact head (name · why-tag · strength) that toggles an
-  // in-place panel (full why + contacts). It carries NO data-collab-focus-team —
+  // A disclosure row: a compact head (name · why-tag) that toggles an in-place
+  // panel (full why + contacts). It carries NO data-collab-focus-team —
   // clicking EXPANDS, it never pivots the whole surface (the old broken behavior).
-  const discRow = ({ rid, from, to, section, cls = "", tag = "", badge = "", barHtml = "", why }) => {
+  const discRow = ({ rid, from, to, section, cls = "", tag = "", badge = "", why }) => {
     const pid = `cbr-${section}-${escAttr(String(rid))}`;
     return `<div class="cb-route-row cb-route-disc${cls}" data-route-from="${escAttr(from)}" data-route-to="${escAttr(to)}">
       <button type="button" class="cb-route-dh" aria-expanded="false" aria-controls="${pid}" data-route-toggle>
         <span class="cb-route-nm">${nameOf(rid)}</span>
         ${tag ? `<span class="cb-route-tg">${tag}</span>` : ""}
-        ${badge}${barHtml}
+        ${badge}
         <span class="cb-route-chev" aria-hidden="true"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></span>
       </button>
       <div class="cb-route-panel" id="${pid}"><div class="cb-route-panel-in">${why}${contactBlock(rid)}</div></div>
@@ -12355,11 +12517,11 @@ function collabRouteSheetHtml(m, focusRid) {
   const whyMatch = (lead, s) => `<div class="cb-route-why"><p class="cb-route-whyline">${lead}</p>${(s.shared && s.shared.length) ? `<div class="cb-route-chips">${chips(s.shared)}</div>` : ""}</div>`;
   const helpRows = help.map(s => discRow({
     rid: s.offerer, from: focusRid, to: s.offerer, section: "help", cls: s.mutual ? " is-mut" : "",
-    tag: tagOf(s), badge: s.mutual ? `<span class="cb-route-badge">mutual</span>` : "", barHtml: bar(s.score),
+    tag: tagOf(s), badge: s.mutual ? `<span class="cb-route-badge">mutual</span>` : "",
     why: whyMatch(`they offer <b>${escHtml(s.offering || "—")}</b> · you seek <b>${escHtml(s.seeking || "—")}</b>`, s),
   }));
   const giveRows = give.map(s => discRow({
-    rid: s.seeker, from: s.seeker, to: focusRid, section: "give", tag: tagOf(s), barHtml: bar(s.score),
+    rid: s.seeker, from: s.seeker, to: focusRid, section: "give", tag: tagOf(s),
     why: whyMatch(`you offer <b>${escHtml(s.offering || "—")}</b> · they seek <b>${escHtml(s.seeking || "—")}</b>`, s),
   }));
   const depRowsHtml = depList.map(d => {
@@ -12368,7 +12530,6 @@ function collabRouteSheetHtml(m, focusRid) {
     const conf = e.confidence_label ? ` · <span class="cb-route-conf">${escHtml(e.confidence_label)}</span>` : "";
     const reason = e.reason ? `<p class="cb-route-reason">${escHtml(e.reason)}</p>` : "";
     return discRow({ rid: d.to, from: focusRid, to: d.to, section: "dep", cls: " is-deprow",
-      tag: "you depend on them",
       why: `<div class="cb-route-why"><p class="cb-route-whyline">${head}${conf}</p>${reason}</div>` });
   });
 
@@ -12496,7 +12657,6 @@ function renderCollab() {
   const mapSection = `
     <section class="alch-cb-section cb-matrix-section" data-cb-section="grid" aria-label="cohort map — rows need, columns provide">
       <div class="cb-maphead">
-        <span class="cb-map-label">cohort map${focusRid ? ` · ${escHtml(m.byRecordId.get(focusRid)?.name || "")} lit` : ""}</span>
         ${collabLensFilterHtml(lens, m)}
       </div>
       ${collabReadKeyHtml()}
@@ -13387,6 +13547,7 @@ function setContextVaultMode(mode) {
   if (state.container && state.mode === "context") state.container.dataset.contextView = nextMode;
   renderContextVault();
   wireContextVault();
+  syncRailSubnavs();  // keep the rail disclosure's active row in lock-step
 }
 
 async function selectContextRawScript(sourceId) {
@@ -14397,16 +14558,9 @@ function renderContextVault() {
   const sources = contextArticleSources(manifest);
   const rawScripts = manifest?.raw_scripts || [];
   const intelMeta = contextIntelMeta();
-  const nav = contextViewNav(view, {
-    articles: cv.loaded ? sources.length : undefined,
-    raw: cv.loaded ? rawScripts.length : undefined,
-    signals: intelMeta.signals,
-    data: intelMeta.entities,
-    evidence: (() => {
-      const d = contextEvidenceData();
-      return (contextEvidenceTier() === "T2" ? d.namedCount : d.generalizedCount) || undefined;
-    })(),
-  });
+  // Context views moved to the rail sub-nav (left panel) — the page no longer
+  // renders its own in-page tab strip. (contextViewNav is retired.)
+  const nav = "";
 
   // Evidence view — distilled transcript cards read live from Supabase
   // (cohort-source.js overlays them onto the surface). Full-width under the
@@ -14797,8 +14951,8 @@ function renderAtlas() {
 
   const nodeSvg = laid.map(n => {
     const dim = active ? (n.tag === active ? 1 : 0.32) : 1;
-    const fill = n.tag === active ? "#8F220E" : "rgba(193,168,114,0.55)";
-    const stroke = n.tag === active ? "#8F220E" : "rgba(245,243,238,0.55)";
+    const fill = n.tag === active ? "#EAB308" : "rgba(193,168,114,0.55)";
+    const stroke = n.tag === active ? "#EAB308" : "rgba(245,243,238,0.55)";
     const label = n.tag.length > 16 ? n.tag.slice(0, 15) + "…" : n.tag;
     return `
       <g class="alch-atlas-node" data-atlas-tag="${escAttr(n.tag)}" opacity="${dim}" style="cursor:pointer;">
@@ -15886,6 +16040,16 @@ function renderDependencyLinks(ids) {
   }).join("")}</ul>`;
 }
 
+// Whether the open dossier shows the constellation time-scrubber. It belongs to
+// the graph sub-views (map / journey / stack / collab), which time-travel the
+// cohort. Say/did/shipped is snapshot-aware too, but its full-width project
+// cards open as the normal project page — no scrubber on top — so dossiers
+// reached from there suppress it while still returning to the shipped list.
+function detailShowsConstellationTimeline() {
+  return state.detailReturnMode === "constellation"
+    && constNormalizeConstellationMode(state.constellationMode) !== "shipped";
+}
+
 function renderDetail(recordId) {
   const cohortIndex = buildCohortIndex(activeDetailCohort());
   const team = cohortIndex.teamById.get(recordId);
@@ -16009,7 +16173,7 @@ function renderTeamDetail(team) {
         ${team.is_mentor ? `<span class="atb-sep" aria-hidden="true">·</span><span class="atb-kind">mentor</span>` : ""}
       </nav>
     </header>
-    ${state.detailReturnMode === "constellation" ? renderConstellationTimelineControls({ compact: true }) : ""}
+    ${detailShowsConstellationTimeline() ? renderConstellationTimelineControls({ compact: true }) : ""}
 
     <article class="alch-detail-dossier alch-detail-dossier-team">
       ${renderTeamRail(team, teamPeople, fam, kind)}
@@ -16037,7 +16201,7 @@ function renderTeamDetail(team) {
   wirePersonLinks(state.canvas);
   wireExternalLinks(state.canvas);
   wireDetailJumps(state.canvas);
-  if (state.detailReturnMode === "constellation") wireConstellationTimelineControls(state.canvas);
+  if (detailShowsConstellationTimeline()) wireConstellationTimelineControls(state.canvas);
   wirePlateFoil(state.canvas.querySelector(".cohort-plate"));
 }
 
@@ -16146,7 +16310,7 @@ function renderPersonDetail(person) {
         <span class="atb-here" aria-current="page">${escHtml(recordId.toLowerCase())}</span>
       </nav>
     </header>
-    ${state.detailReturnMode === "constellation" ? renderConstellationTimelineControls({ compact: true }) : ""}
+    ${detailShowsConstellationTimeline() ? renderConstellationTimelineControls({ compact: true }) : ""}
 
     <article class="alch-detail-dossier alch-detail-dossier-person">
       ${renderPersonRail(person, team, fam)}
@@ -16173,7 +16337,7 @@ function renderPersonDetail(person) {
   wirePersonLinks(state.canvas);
   wireExternalLinks(state.canvas);
   wireDetailJumps(state.canvas);
-  if (state.detailReturnMode === "constellation") wireConstellationTimelineControls(state.canvas);
+  if (detailShowsConstellationTimeline()) wireConstellationTimelineControls(state.canvas);
 }
 
 function wireDetailJumps(root) {
@@ -17006,6 +17170,7 @@ function sphereStudioValues(recordId) {
     intensity:  num(saved?.intensity,  SPHERE_DEFAULTS.intensity),   // Filament (sharpness)
     bg:         normalizeHex(saved?.bg) || SPHERE_BG_DEFAULT,  // Orb Core colour
     bg_mix:     num(saved?.bg_mix,     SPHERE_BG_MIX_DEFAULT),  // Orb Core amount (0..1)
+    time_scale: num(saved?.time_scale, SPHERE_TIME_DEFAULT),   // Time dial (0..1; 0.5 → 1×)
     shader_src: (typeof saved?.shader_src === "string" ? saved.shader_src : ""),  // custom shader (raw, untrusted)
   };
 }
@@ -17052,6 +17217,12 @@ function sphereEditorBodyHtml(recordId) {
       </div>
       <div class="alch-sphere-dials">
         ${dials}
+        <label class="alch-sphere-dial" style="--dial-accent:#8a8f98">
+          <span class="alch-sphere-dial-label">Time</span>
+          <input class="alch-sphere-range" type="range" min="0" max="1" step="0.01"
+                 value="${cur.time_scale}" data-sphere-dial="time_scale"
+                 aria-label="Time — animation speed (centre = 1×, left = frozen, right = 1.5×)" />
+        </label>
         <div class="alch-sphere-dial alch-sphere-bg-dial">
           <span class="alch-sphere-dial-label">Orb Core</span>
           <div class="alch-sphere-bg-stack">
@@ -17162,6 +17333,7 @@ function wireSphereEditor(root, recordId) {
     _sphereModalCtl?.update({
       hue: vals.hue, warp: vals.phase, progress: vals.complexity,
       iters: vals.hue2, sharp: vals.intensity, bg: vals.bg, bgMix: vals.bgMix,
+      timeScale: vals.time_scale,   // Time dial → animation speed (live scrub)
     });
   };
   const setStatus = (msg, kind) => {
@@ -17194,13 +17366,13 @@ function wireSphereEditor(root, recordId) {
   const shaderInput = root.querySelector("[data-sphere-shader]");
   const shaderStatus = root.querySelector("[data-sphere-shader-status]");
   const shaderHl = root.querySelector("[data-sphere-shader-hl]");
-  const shaderDetails = root.querySelector("[data-sphere-code]");
   // Render the GLSL-highlighted layer behind the (transparent-text) textarea.
   const syncHighlight = () => { if (shaderHl && shaderInput) shaderHl.innerHTML = highlightGLSL(shaderInput.value); };
   const savedShader = String(state.cohort?.person_spheres?.[recordId]?.shader_src || "");
   // The box is PREFILLED with the real kaleidoscope GLSL so the user can read/edit
-  // it — but it's only adopted as THEIR shader once they ENGAGE (open the section
-  // or type); a dial-only save never persists the prefilled default.
+  // it — but it's only adopted as THEIR shader once they actually EDIT it (type).
+  // Merely OPENING the section to read the code must NOT touch the orb; a look-only
+  // save never persists the prefilled default.
   let _shaderTouched = false;
   let activeGLSL = savedShader || null;   // what the preview renders (null = standard orb)
   const setShaderStatus = (msg, kind) => {
@@ -17227,6 +17399,7 @@ function wireSphereEditor(root, recordId) {
       _sphereModalCtl = mountShape(canvas, {
         seed: recordId, kind: "person", scale: 1.5, draggable: true, smooth: true,
         hue: v.hue, warp: v.phase, progress: v.complexity, iters: v.hue2, sharp: v.intensity, bg: v.bg, bgMix: v.bgMix,
+        timeScale: v.time_scale,
         shaderGLSL: glsl || undefined,
         onStatus: previewStatus,
       });
@@ -17241,13 +17414,12 @@ function wireSphereEditor(root, recordId) {
   markSwatches();
   syncHighlight();   // paint the prefilled GLSL with colour
 
-  // Opening the section = engaging: render the current code live (WYSIWYG).
-  shaderDetails?.addEventListener("toggle", () => {
-    if (!shaderDetails.open) return;
-    _shaderTouched = true;
-    activeGLSL = shaderInput ? shaderInput.value : null;
-    remountPreview();
-  });
+  // NOTE: opening the Custom-shader section deliberately does NOTHING to the orb —
+  // the <details> just reveals the (prefilled) code to read. The orb only changes
+  // when the user actually EDITS the code (the textarea "input" handler below).
+  // Previously, opening adopted the prefilled DEFAULT_SURFACE_GLSL and remounted,
+  // which flipped a no-saved-shader orb from the standard path onto the custom-GLSL
+  // path and made it look different/"laggy" just from looking at the code.
 
   for (const r of ranges) r.addEventListener("input", () => { pushToPreview(readDials()); setStatus("unsaved", "dirty"); });
   // Orb Core amount slider → live-tint the orb (no title; it's part of Orb Core).
@@ -17299,7 +17471,7 @@ function wireSphereEditor(root, recordId) {
     const prevLabel = saveBtn.textContent;
     saveBtn.textContent = "saving…";
     setStatus("saving…", "loading");
-    const vals = readDials();  // five dials + bg + bgMix
+    const vals = readDials();  // five visual dials + time_scale + bg + bgMix
     vals.bg_mix = vals.bgMix; delete vals.bgMix;   // → the bg_mix column (saveSphere + the stored map)
     // Persist shader_src only if the person engaged with the box (opened/typed)
     // or already had a custom shader. Otherwise omit the key so saveSphere's

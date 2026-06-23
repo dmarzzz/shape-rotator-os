@@ -518,6 +518,18 @@ export function numAttr(value, fallback) {
   return Number.isFinite(n) ? clamp01(n) : fallback;
 }
 
+// The Time dial → an animation-SPEED multiplier. The dial is a raw 0..1 slider
+// whose centre (0.5) is the default; each half of the track covers one side so
+// the default sits dead-centre and maps to 1× (the original speed):
+//   0 → 0× (frozen) · 0.5 → 1× · 1 → 1.5×
+// Anything non-finite falls back to 0.5 (→ 1×), so un-customized orbs are unchanged.
+function timeMult(s) {
+  let x = Number(s);
+  if (!Number.isFinite(x)) x = 0.5;
+  x = clamp01(x);
+  return x <= 0.5 ? x * 2 : 0.5 + x;
+}
+
 // "team" | "project" | "person" (or a 0|1|2 number) → the u_kind uniform value.
 export function kindToNum(kind) {
   return kind === "person" || kind === 2 ? 2
@@ -551,6 +563,8 @@ export function sphereAttrs(sphere) {
   if (hexToRgb(sphere.bg)) parts.push(`data-shape-bg="${sphere.bg.trim().toLowerCase()}"`);
   // Orb Core amount (0..1) — emitted only when present so absent records use the default.
   if (Number.isFinite(Number(sphere.bg_mix))) parts.push(`data-shape-bgmix="${clamp01(Number(sphere.bg_mix))}"`);
+  // Time dial (0..1 speed slider) — emitted only when present; absent → 0.5 (1×).
+  if (Number.isFinite(Number(sphere.time_scale))) parts.push(`data-shape-timescale="${clamp01(Number(sphere.time_scale))}"`);
   return parts.join(" ");
 }
 
@@ -637,6 +651,7 @@ export function mountShape(canvas, opts = {}) {
   let sharp         = opts.sharp != null ? +opts.sharp : 0.3333;  // Filament (→ 1.2 exponent)
   let bg            = hexToRgb(opts.bg);   // orb canvas colour or null (transparent)
   let bgMix         = opts.bgMix != null ? +opts.bgMix : 0.45;   // Orb Core amount (0..1)
+  let timeScale     = opts.timeScale != null ? +opts.timeScale : 0.5;  // Time dial (raw 0..1; 0.5 → 1×)
   const animate     = opts.animate !== false;  // false → render one still frame (no spin)
 
   // ── optional drag-to-spin (editor preview), mirroring the detail-page die:
@@ -728,10 +743,17 @@ export function mountShape(canvas, opts = {}) {
 
   let raf = 0;
   let running = true;
-  let started = performance.now();
+  // Animation clock: accumulate real dt × the Time-dial speed multiplier rather
+  // than reading absolute elapsed time, so dragging the Time slider speeds up /
+  // freezes the orb smoothly (a plain u_time×scale would jump the phase mid-drag).
+  // timeScale 0.5 (the default) → 1×, so this matches the old elapsed clock.
+  let animClock = 0, _clockMs = 0;
   function frame(now) {
     if (!running) { raf = 0; return; }
-    const t = (now - started) / 1000;
+    const _dtClock = _clockMs ? Math.min(0.1, (now - _clockMs) / 1000) : 0;
+    _clockMs = now;
+    animClock += _dtClock * timeMult(timeScale);
+    const t = animClock;
     if (draggable) {
       const dtFrame = _lastFrameMs ? Math.min(0.05, (now - _lastFrameMs) / 1000) : 0.016;
       _lastFrameMs = now;
@@ -785,7 +807,7 @@ export function mountShape(canvas, opts = {}) {
     if (animate) raf = requestAnimationFrame(frame); else raf = 0;
   }
   function pause() { if (!running) return; running = false; if (raf) cancelAnimationFrame(raf); raf = 0; }
-  function resume() { if (running) return; running = true; started = performance.now(); raf = requestAnimationFrame(frame); }
+  function resume() { if (running) return; running = true; _clockMs = 0; raf = requestAnimationFrame(frame); }
 
   // Pause when the canvas isn't visible to keep the GPU calm.
   let io = null;
@@ -840,6 +862,7 @@ export function mountShape(canvas, opts = {}) {
       if (next.rotationPhase != null) rotationPhase = +next.rotationPhase;
       if (next.bg            !== undefined) bg      = hexToRgb(next.bg);
       if (next.bgMix         != null) bgMix         = +next.bgMix;
+      if (next.timeScale     != null) timeScale     = +next.timeScale;   // Time dial (live scrub)
       // Live shader edit: hot-swap the program in place (no remount → no flash).
       if ("shaderGLSL" in next) swapShaderGLSL(next.shaderGLSL);
     },
@@ -978,6 +1001,7 @@ function mountSharedOverlay(overlay) {
         progress:  numAttr(el.dataset.shapeProgress, 0.25),  // editable (Recursion Depth)
         bg: hexToRgb(el.dataset.shapeBg),                    // orb canvas colour or null
         bgMix: numAttr(el.dataset.shapeBgmix, 0.45),         // Orb Core amount (0..1)
+        timeScale: numAttr(el.dataset.shapeTimescale, 0.5),  // Time dial (0..1; 0.5 → 1×)
         clips: clipChainFor(el),
       });
     }
@@ -1194,7 +1218,10 @@ function mountSharedOverlay(overlay) {
       if (sx + sw < 0 || syB + sh < 0 || sx >= overlay.width || syB >= overlay.height) continue;
       gl.viewport(x, yB, w, h);
       gl.scissor(sx, syB, sw, sh);
-      gl.uniform1f(prog.uniforms.time, t);
+      // Per-shape speed: scale the shared clock by the Time dial. In the overlay
+      // a card's timeScale is static for its lifetime (a save rebuilds the card),
+      // so a plain multiply can't jump; default 0.5 → 1× → tp === t (unchanged).
+      gl.uniform1f(prog.uniforms.time, t * timeMult(p.timeScale));
       gl.uniform1f(prog.uniforms.family, p.family);
       gl.uniform1f(prog.uniforms.kind, p.kind);
       gl.uniform1f(prog.uniforms.hue, p.colors.hue);

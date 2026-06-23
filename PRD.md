@@ -2,6 +2,24 @@
 
 Succinct log of shipped features. Newest first.
 
+## Time dial — orb animation speed, saved for everyone (2026-06-23)
+
+The sphere popup gains a sixth dial, **Time**, controlling the orb's animation
+SPEED. It's a `0..1` range whose **centre (the default) = 1×** — exactly today's
+speed — so the thumb sits dead-centre on open. Drag **left → 0× (frozen)**, **right
+→ 1.5×**. Mapping (`timeMult` in [shape-canvas.js](apps/os/src/vendor/shape-ui/shape-canvas.js)):
+`0→0×, 0.5→1×, 1→1.5×` (each half of the track covers one side).
+
+- **Stored** as a raw `0..1` slider value in a new nullable `time_scale` column on
+  `os_spheres` ([migration 5](supabase/migrations/20260618050000_os_spheres_time.sql);
+  **hand-apply or `saveSphere`'s progressive retry drops it** — dials still save,
+  time just won't persist/share until applied). Default `0.5` → orbs unchanged.
+- **Applied on every surface**: the editor preview + detail orb scale a per-shape
+  accumulated clock (smooth while you scrub — no phase jump); the shared overlay
+  (cohort cards + seal avatar) multiplies its shared clock per shape via
+  `data-shape-timescale` from `sphereAttrs()`. Default `0.5`→`1×` leaves the overlay
+  byte-identical to before. The static pill is unaffected (it draws one frame).
+
 ## Custom shader — edit the real orb GLSL (2026-06-18)
 
 Below the dials, the sphere popup has a collapsible **Custom shader** section. It now

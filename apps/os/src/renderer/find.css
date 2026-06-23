@@ -9,7 +9,7 @@
   --find-rule:    var(--ed-rule, rgba(var(--ink-rgb), 0.14));
   --find-ink:     rgba(var(--ink-rgb), 0.92);
   --find-ink-dim: rgba(var(--ink-rgb), 0.50);
-  --find-accent:  var(--sr-red, #b43a19);
+  --find-accent:  var(--sr-red, #FACC15);
   --find-mono:    var(--sr-font-mono, "JetBrains Mono", ui-monospace, monospace);
 }
 
@@ -210,7 +210,7 @@ mark.os-find-hl {
 mark.os-find-hl.is-current {
   background: var(--find-accent);
   color: var(--ink-hi);
-  box-shadow: 0 0 0 2px rgba(180, 58, 25, 0.6);
+  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.6);
 }
 
 /* ─── new-tab launcher ────────────────────────────────────────────────────── */
