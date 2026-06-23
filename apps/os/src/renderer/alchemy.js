@@ -33,6 +33,7 @@ import {
 } from "@shape-rotator/shape-ui";
 import { saveSphere, SPHERE_DIALS, SPHERE_DEFAULTS, SPHERE_BG_DEFAULT, SPHERE_BG_MIX_DEFAULT, SPHERE_TIME_DEFAULT, SPHERE_BG_PRESETS, normalizeHex } from "./supabase-sphere.mjs";
 import { highlightGLSL } from "./shader-dsl.mjs";
+import { getSubscriptions, addSubscription, removeSubscription } from "./calendar-subscriptions.js";
 import {
   aggregateSkillAreas, buildCohortIndex, buildCollabModel, collabAffKey, collabHasText,
   dependencyPairKey, dependencySafeToken,
@@ -304,6 +305,7 @@ const state = {
     detach: null,                 // teardown returned by attachCalendarPageBehavior
     catHidden: [],                // category keys the legend-filter has switched off
     scope: null,                  // team record_id the signals are focused on (null = all cohort)
+    subscriptions: null,          // configurable feed rows; lazily loaded from localStorage (calendar-subscriptions.js)
   },
   events: [],          // normalized feed items, latest-first
   fetchedAt: 0,
@@ -10131,6 +10133,7 @@ function paintCalendarView({ wire = false } = {}) {
   // left over from the retired agenda tab degrades to the calendar grid.
   if (cal.view !== "presence" && cal.view !== "cal") cal.view = "cal";
   const presence = cal.view === "presence";
+  if (cal.subscriptions == null) cal.subscriptions = getSubscriptions();
   state.canvas.innerHTML = calendarModule.renderCalendarPage({
     data: cal.data,
     calendarGoogleEvents: state.cohort?.calendar_google_events || {},
@@ -10141,6 +10144,7 @@ function paintCalendarView({ wire = false } = {}) {
     activity: Array.isArray(state.cohort?.whats_new) ? state.cohort.whats_new : [],
     catHidden: Array.isArray(cal.catHidden) ? cal.catHidden : [],
     signals: presence ? null : computeCalendarSignals(),
+    subscriptions: cal.subscriptions,
   });
   if (presence) {
     mountAvailabilityCanvas();
@@ -10254,6 +10258,65 @@ function wireCalendar() {
           state.canvas.querySelector("[data-c2-scope-toggle]")?.setAttribute("aria-expanded", "false");
         }
       });
+    }
+
+    // ── subscribed feed rows: open an item, remove a row, add a new row ──
+    for (const chip of state.canvas.querySelectorAll("[data-c2-rowitem]")) {
+      chip.addEventListener("click", (event) => {
+        calendarLazy.peek()?.openCalendarRowItem?.(chip.dataset.c2Rowitem, {
+          anchor: event.currentTarget,
+          onOpenTeam: (rid) => openDetail(rid, "calendar"),
+        });
+      });
+    }
+    for (const x of state.canvas.querySelectorAll("[data-c2-subrow-remove]")) {
+      x.addEventListener("click", (e) => {
+        e.stopPropagation();
+        cal.subscriptions = removeSubscription(x.getAttribute("data-c2-subrow-remove"));
+        refreshCalendarView();
+      });
+    }
+    const addBtn = state.canvas.querySelector("[data-c2-subrow-add]");
+    const addMenu = state.canvas.querySelector(".rr-addrow-menu");
+    if (addBtn && addMenu) {
+      const opts = [...addMenu.querySelectorAll("[data-c2-subrow-kind]")];
+      const setAddOpen = (open) => {
+        addMenu.toggleAttribute("hidden", !open);
+        addBtn.setAttribute("aria-expanded", open ? "true" : "false");
+        if (open) opts[0]?.focus();
+      };
+      addBtn.addEventListener("click", (e) => { e.stopPropagation(); setAddOpen(addMenu.hasAttribute("hidden")); });
+      addBtn.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " " || e.key === "Spacebar") { e.preventDefault(); setAddOpen(true); }
+      });
+      for (const opt of opts) {
+        opt.addEventListener("click", () => {
+          cal.subscriptions = addSubscription({
+            kind: opt.getAttribute("data-c2-subrow-kind"),
+            subjectId: opt.getAttribute("data-c2-subrow-subject") || null,
+          });
+          refreshCalendarView();
+        });
+      }
+      addMenu.addEventListener("keydown", (e) => {
+        const i = opts.indexOf(document.activeElement);
+        if (e.key === "ArrowDown") { e.preventDefault(); opts[Math.min(opts.length - 1, i + 1)]?.focus(); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); opts[Math.max(0, i - 1)]?.focus(); }
+        else if (e.key === "Home") { e.preventDefault(); opts[0]?.focus(); }
+        else if (e.key === "End") { e.preventDefault(); opts[opts.length - 1]?.focus(); }
+        else if (e.key === "Escape") { e.preventDefault(); setAddOpen(false); addBtn.focus(); }
+      });
+      if (!state.c2SubrowOutsideBound) {
+        state.c2SubrowOutsideBound = true;
+        document.addEventListener("click", (e) => {
+          if (state.mode !== "calendar") return;
+          const mn = state.canvas?.querySelector(".rr-addrow-menu");
+          if (mn && !mn.hasAttribute("hidden") && !e.target.closest("[data-c2-subrow-ctl]")) {
+            mn.setAttribute("hidden", "");
+            state.canvas.querySelector("[data-c2-subrow-add]")?.setAttribute("aria-expanded", "false");
+          }
+        });
+      }
     }
   }
 
