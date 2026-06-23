@@ -202,33 +202,11 @@ function hashShort(s) {
 }
 
 function contextVaultRoots() {
-  const desktop = app.getPath("desktop");
-  const docs = app.getPath("documents");
+  // Only the bundled, in-app transcripts are scanned. We deliberately do NOT
+  // reach into ~/Desktop or ~/Documents: on macOS, any access to those folders
+  // — even a stat on a non-existent subpath — triggers a TCC "wants to access
+  // your Documents folder" prompt at boot, which is alarming in the prod app.
   return [
-    {
-      key: "shape-rotator-desktop",
-      label: "In-person session context",
-      path: path.join(desktop, "scripts @ shape rotator"),
-      max_depth: 4,
-    },
-    {
-      key: "voxterm-transcripts",
-      label: "VoxTerm transcripts",
-      path: path.join(docs, "voxterm-transcripts"),
-      max_depth: 4,
-    },
-    {
-      key: "voxterm-documents",
-      label: "VoxTerm documents",
-      path: path.join(docs, "voxterm"),
-      max_depth: 4,
-    },
-    {
-      key: "voxterm-documents-cap",
-      label: "VoxTerm documents",
-      path: path.join(docs, "VoxTerm"),
-      max_depth: 4,
-    },
     {
       key: "bundled-raw-scripts",
       label: "Bundled transcripts",
