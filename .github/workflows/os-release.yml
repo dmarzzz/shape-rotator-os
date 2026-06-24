@@ -50,6 +50,15 @@ on:
 permissions:
   contents: write   # needed to create the GitHub Release
 
+# One release run per tag. The matrix legs publish into a single draft Release
+# and the promote job flips it to Latest — overlapping runs (a re-tag, or a tag
+# push + manual dispatch on the same ref) could interleave asset uploads and
+# double-promote a partially-populated release that electron-updater then 404s
+# on. cancel-in-progress:false so an in-flight upload is never killed mid-publish.
+concurrency:
+  group: os-release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     name: build (${{ matrix.os }})
@@ -73,10 +82,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
       - name: setup node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: '24'
           cache: 'npm'
@@ -342,7 +351,7 @@ jobs:
 
       - name: upload artifacts (workflow_dispatch only)
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: Shape Rotator OS-${{ matrix.platform }}
           path: |
