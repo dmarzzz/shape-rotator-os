@@ -1914,7 +1914,26 @@ function buildWhatsNew({ teams, releaseItems, githubProgressArtifacts, asks, eve
     out.push({ date, kind: "event", label: e.title || e.name || "program event", meta: e.subtitle ? `${e.subtitle} · event` : "event", nav: { mode: "calendar" } });
   }
 
-  return out.sort((x, y) => String(y.date).localeCompare(String(x.date))).slice(0, FEED_MAX);
+  // Diversify: cap the high-volume feed kinds (releases + weekly commit digests)
+  // to a few most-recent items PER PROJECT so one prolific repo (e.g. the OS app
+  // itself, which can carry a whole release history) can't flood the feed and
+  // bury other teams' activity. Low-volume kinds (asks, events) are never capped.
+  // The full release history still lives in github_releases + each team's
+  // timeline — this only shapes the "what's happening across the cohort" feed.
+  const PER_PROJECT_FEED = 4;
+  const sorted = out.sort((x, y) => String(y.date).localeCompare(String(x.date)));
+  const perProject = new Map();
+  const balanced = [];
+  for (const it of sorted) {
+    if (it.kind === "release" || it.kind === "commit") {
+      const key = String(it.meta || "");
+      const n = perProject.get(key) || 0;
+      if (n >= PER_PROJECT_FEED) continue;
+      perProject.set(key, n + 1);
+    }
+    balanced.push(it);
+  }
+  return balanced.slice(0, FEED_MAX);
 }
 
 function loadJsonArray(file, label) {

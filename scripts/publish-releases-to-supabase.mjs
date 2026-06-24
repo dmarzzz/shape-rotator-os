@@ -85,9 +85,24 @@ export function buildReleaseItems(artifacts, teams, { since, perProjectLimit = P
 // committed surface's whats_new (commit digests / asks / events), newest-first,
 // capped. Releases are the only kind we recompute here — the others ride along
 // unchanged from the deterministic build.
-export function buildWhatsNew(releaseItems, baseWhatsNew, { max = FEED_MAX } = {}) {
+export function buildWhatsNew(releaseItems, baseWhatsNew, { max = FEED_MAX, perProject = 4 } = {}) {
   const others = (Array.isArray(baseWhatsNew) ? baseWhatsNew : []).filter((it) => it && it.kind !== "release");
-  return [...(Array.isArray(releaseItems) ? releaseItems : []), ...others]
+  // Cap releases per project in the FEED so one prolific repo (e.g. the OS app's
+  // full backfilled history) can't flood it; the complete history still ships in
+  // github_releases. `others` (commits/asks/events) rides through from the
+  // committed surface, which is already per-project capped in build-bundles.js.
+  const perProj = new Map();
+  const cappedReleases = [];
+  for (const it of (Array.isArray(releaseItems) ? releaseItems : [])
+    .slice()
+    .sort((x, y) => String(y.date).localeCompare(String(x.date)))) {
+    const key = String(it.meta || "");
+    const n = perProj.get(key) || 0;
+    if (n >= perProject) continue;
+    perProj.set(key, n + 1);
+    cappedReleases.push(it);
+  }
+  return [...cappedReleases, ...others]
     .sort((x, y) => String(y.date).localeCompare(String(x.date)))
     .slice(0, max);
 }
