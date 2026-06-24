@@ -42,6 +42,10 @@ calendar-ingress-deploy-plan.md
 # private signing keys — NEVER commit
 cohort-data/.private/
 
+# local-only reference material (boss's meeting notes etc.) — NEVER commit or deploy.
+# Real names + raw quotes; lives outside apps/web/ so it can't reach the site.
+references/
+
 # generated transcript catalog — build output only, written under cohort-data/.private/
 # by scripts/build-transcript-talk-index-html.mjs; not tracked in this repo.
 docs/INFORMATION_INDEX.html

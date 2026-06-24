@@ -17,7 +17,7 @@ Use this as a compact retrieval index for Shape Rotator articles.
 - Why LLM agents need memory, workflows, and social routing
   - HTML: https://os-web.shaperotator.xyz/workspace/journal/articles/llm-agents-memory-workflows-social-routing
   - Markdown: https://os-web.shaperotator.xyz/workspace/journal/articles/llm-agents-memory-workflows-social-routing/article.md
-  - Version: v0.0.1
+  - Version: v0.0.2
   - Section: agent infrastructure
   - Tags: LLM agents, workflow memory, human override
   - Source file: cohort-data/articles/why-llm-agents-need-memory-workflows-and-social-routing.md
@@ -25,7 +25,7 @@ Use this as a compact retrieval index for Shape Rotator articles.
 - Privacy is not the product; capability is the product
   - HTML: https://os-web.shaperotator.xyz/workspace/journal/articles/private-ai-capability
   - Markdown: https://os-web.shaperotator.xyz/workspace/journal/articles/private-ai-capability/article.md
-  - Version: v0.0.2
+  - Version: v0.0.3
   - Section: privacy and capability
   - Tags: private AI, trust, capability
   - Source file: cohort-data/articles/privacy-is-not-the-product-capability-is-the-product.md
