@@ -31,6 +31,7 @@ import { fetchCohortArticles } from "./supabase-articles.mjs";
 import { fetchCohortDistillations } from "./supabase-distillations.mjs";
 import { fetchAllSpheres } from "./supabase-sphere.mjs";
 import { fetchReleasesFeed } from "./supabase-releases.mjs";
+import { fetchConnections, connectionsByRecord } from "./supabase-connections.mjs";
 
 const GH_REPO     = "dmarzzz/shape-rotator-os";
 const GH_BRANCH   = "main";
@@ -899,6 +900,46 @@ async function applyReleaseOverlay(surface) {
   return surface;
 }
 
+// Apply the precomputed cohort connection graph onto the surface. The daily
+// connection routine publishes ranked, reasoned "who should talk to whom" edges
+// to public_cohort_connections; we read that row LIVE and hang the per-record
+// adjacency on each team/person as `record.connections` so detail pages can show
+// a "who to talk to" block and cohort chat can ground its answers in the same
+// edges. The APP never calls an LLM here — it only reads precomputed edges.
+//
+// Live row wins; on a Supabase outage — or before the table exists — we fall
+// back to the committed `surface.cohort_connections` bundle (offline / first
+// paint), and if neither has edges every record just carries connections:[] and
+// the "who to talk to" block hides itself. Never throws.
+async function applyConnectionsOverlay(surface) {
+  try {
+    let edges = [];
+    let source = "";
+    const live = await fetchConnections();
+    if (live.source === "supabase" && Array.isArray(live.edges) && live.edges.length) {
+      edges = live.edges;
+      source = "supabase-live";
+    } else if (surface.cohort_connections && Array.isArray(surface.cohort_connections.edges)) {
+      edges = surface.cohort_connections.edges;
+      source = surface._connectionSource || "bundle";
+    }
+    const teams = Array.isArray(surface.teams) ? surface.teams : [];
+    const people = Array.isArray(surface.people) ? surface.people : [];
+    const nameById = new Map();
+    for (const r of [...teams, ...people]) {
+      if (r && r.record_id) nameById.set(r.record_id, r.name || r.record_id);
+    }
+    const byRecord = connectionsByRecord(edges, nameById);
+    for (const r of [...teams, ...people]) {
+      if (r && r.record_id) r.connections = byRecord.get(r.record_id) || [];
+    }
+    if (source) surface._connectionSource = source;
+  } catch {
+    // keep whatever the surface already carries
+  }
+  return surface;
+}
+
 function signatureOf(grouped) {
   const hash = (value) => {
     const s = String(value ?? "");
@@ -1082,6 +1123,7 @@ function _startBackgroundRefresh({ forceGithub = false } = {}) {
       await applyDistillationOverlay(merged);
       await applySphereOverlay(merged);
       await applyReleaseOverlay(merged);
+      await applyConnectionsOverlay(merged);
       merged._sig = signatureOf(merged);
       // Did anything actually change? If not, no subscriber notify.
       const prevSig = _cache?._sig;
