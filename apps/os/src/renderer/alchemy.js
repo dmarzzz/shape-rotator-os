@@ -72,6 +72,7 @@ import {
   askVerbVars, askVerbIconSvg,
 } from "./asks.js";
 import { submitContest } from "./supabase-contest.mjs";
+import { openSelfReport } from "./self-report.js";
 import { createLazyModule } from "./lazy-module.js";
 import { loadStylesheetOnce } from "./stylesheet-loader.js";
 
@@ -696,11 +697,25 @@ export function getRecordTitle(recordId) {
 //                              record_id: "<slug>",
 //                              mode: "edit"|"add" })
 // Switches to the alchemy tab + profile mode, sets editor state, renders.
+// A one-shot prefill (e.g. from the self-report modal) merged onto a freshly
+// seeded person editDraft. The caller has already whitelisted the fields; here we
+// just merge them and clear the patch so it applies exactly once.
+function applyPendingDraftPatch(p) {
+  const patch = p && p.pendingDraftPatch;
+  if (p) p.pendingDraftPatch = null;
+  if (!patch || !p.editDraft) return;
+  if (patch.record_id && String(patch.record_id) !== String(p.editTargetId)) return;
+  const fields = patch.fields && typeof patch.fields === "object" ? patch.fields : {};
+  for (const [k, v] of Object.entries(fields)) p.editDraft[k] = v;
+}
+
 window.__srwkOpenProfile = function openProfileExternal(opts = {}) {
   const kind = (opts.kind === "team" || opts.kind === "project" || opts.kind === "person") ? opts.kind : "person";
   const mode = (opts.mode === "add") ? "add" : "edit";
   // Make sure profile state exists (may be called before alchemy mounts).
   if (!state.profile) loadProfile();
+  // A one-shot prefill merged into the edit draft when it's seeded (loadEditTarget).
+  state.profile.pendingDraftPatch = (opts.draftPatch && typeof opts.draftPatch === "object") ? opts.draftPatch : null;
   state.profile.editKind = kind;
   state.profile.editMode = mode;
   if (mode === "edit" && opts.record_id) {
@@ -7165,6 +7180,24 @@ function mirrorCalibrationLine(card) {
   };
 }
 
+// A plain-text GitHub signal for the self-report, derived from the member's own
+// say/did/shipped card (already public) — so the github side needs no new scan.
+function mirrorGithubDigest(card) {
+  if (!card) return "";
+  const c = insightContent(card);
+  const act = sdsActivity(card);
+  const parts = [];
+  if (c.did) parts.push(`did: ${constShortText(c.did, 200)}`);
+  if (c.shipped) parts.push(`shipped: ${constShortText(c.shipped, 200)}`);
+  const topics = (Array.isArray(act.topics) ? act.topics : [])
+    .map((t) => String(t?.key || "").trim()).filter(Boolean).slice(0, 6);
+  if (topics.length) parts.push(`topics: ${topics.join(", ")}`);
+  const rc = sdsNumber(act, "release_count");
+  const cc = sdsNumber(act, "useful_commit_count");
+  if (rc || cc) parts.push(`activity: ${cc} useful commits, ${rc} releases`);
+  return parts.join("\n");
+}
+
 // The panel HTML, or "" when there is no resolved member, no team, or no card —
 // in every empty case the shipped grid below renders unchanged.
 function mirrorPanelHtml(myPerson, cardByTeam) {
@@ -7216,6 +7249,7 @@ function mirrorPanelHtml(myPerson, cardByTeam) {
         <span class="ac-sds-cell${observedClass}"><b>shipped</b><span>${escHtml(constShortText(content.shipped || "not observed", 160))}</span>${chips ? `<span class="ac-sds-chips">${chips}</span>` : ""}${releasedHtml}</span>
       </div>
       <p class="ac-mirror-cal" data-tone="${escAttr(cal.tone)}">${escHtml(cal.text)}</p>
+      <div class="ac-mirror-actions-row"><button type="button" class="ac-mirror-update" data-mirror-update>✨ update from my recent work</button></div>
       ${traceBody ? `<details class="ac-mirror-trace"><summary>how this reads</summary><div class="ac-mirror-trace-body">${traceBody}</div></details>` : ""}
       ${tail}
     </section>`;
@@ -7280,6 +7314,15 @@ function wireMirrorPanel() {
             : "couldn’t send — try again.";
         }
       }
+    });
+  }
+  const updateBtn = root.querySelector("[data-mirror-update]");
+  if (updateBtn) {
+    updateBtn.addEventListener("click", () => {
+      const { myPerson } = currentAskContext();
+      if (!myPerson) return;
+      const card = cohortInsightSubjectMap("say_did_shipped").get(myPerson.team);
+      openSelfReport({ person: myPerson, githubDigest: mirrorGithubDigest(card) });
     });
   }
 }
@@ -17477,6 +17520,7 @@ function loadEditTarget() {
     if (person) {
       p.editDraft = JSON.parse(JSON.stringify(person));
       p.editBaseline = JSON.parse(JSON.stringify(person));
+      applyPendingDraftPatch(p);
     } else {
       p.editDraft = null;
       p.editBaseline = null;

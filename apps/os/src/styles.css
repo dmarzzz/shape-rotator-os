@@ -11020,6 +11020,15 @@ html.jweek-vt .ac-cmp-grid { animation: none; }
 .ac-mirror-trace > summary::before { content: "▸"; font-size: 8px; }
 .ac-mirror-trace[open] > summary::before { content: "▾"; }
 .ac-mirror-trace-body { margin-top: 8px; }
+.ac-mirror-actions-row { margin-top: 11px; }
+.ac-mirror-update {
+  appearance: none; cursor: pointer; padding: 6px 13px; border-radius: 7px;
+  border: 1px solid rgba(214,189,134,0.5); background: rgba(214,189,134,0.14);
+  color: var(--alchemy-paper-warm);
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.03em;
+  transition: background 150ms var(--ease);
+}
+.ac-mirror-update:hover { background: rgba(214,189,134,0.24); }
 @media (max-width: 720px) {
   .ac-mirror-strip { grid-template-columns: 1fr; gap: 8px; }
 }
