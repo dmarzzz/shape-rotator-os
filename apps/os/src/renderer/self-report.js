@@ -17,6 +17,7 @@ import {
   mergeDelta,
 } from "./self-report-synth.mjs";
 import { loadStylesheetOnce } from "./stylesheet-loader.js";
+import { scanGithubActivity, resolvePersonHandle } from "./gh-self-report.mjs";
 
 let stylesheetPromise = null;
 function ensureStylesheet() {
@@ -69,8 +70,12 @@ function card(inner) {
 }
 
 // ── Step 1 — consent ────────────────────────────────────────────────────────
-function renderConsent(person, githubDigest) {
-  const hasGithub = !!(githubDigest && githubDigest.trim());
+function renderConsent(person, githubFallback) {
+  const handle = resolvePersonHandle(person);
+  const hasGithub = !!handle || !!(githubFallback && githubFallback.trim());
+  const ghSmall = handle
+    ? `Reads your recent <em>public</em> GitHub activity — one call to github.com for <b>@${esc(handle)}</b>’s public events. Nothing private, no token, nothing uploaded.`
+    : (githubFallback ? "Uses the public commit/release signal already on your profile." : "No public GitHub handle on your profile yet.");
   host.innerHTML = card(`
     <header class="selfrep-head">
       <span class="selfrep-eyebrow">update from my recent work</span>
@@ -88,7 +93,7 @@ function renderConsent(person, githubDigest) {
       <input type="checkbox" data-sr-github ${hasGithub ? "checked" : "disabled"}>
       <span>
         <b>My public GitHub activity</b>
-        <small>${hasGithub ? "Uses the public commit/release signal already on your profile — no new scan." : "No public GitHub signal on your profile yet."}</small>
+        <small>${ghSmall}</small>
       </span>
     </label>
     <div class="selfrep-actions">
@@ -107,7 +112,8 @@ function renderConsent(person, githubDigest) {
   run.addEventListener("click", () => {
     runSelfReport(person, {
       useSessions: sessions.checked,
-      githubDigest: github && github.checked ? githubDigest : "",
+      useGithub: !!(github && github.checked),
+      githubFallback,
     });
   });
 }
@@ -133,18 +139,28 @@ function renderError(message) {
   for (const b of host.querySelectorAll("[data-sr-close]")) b.addEventListener("click", closeSelfReport);
 }
 
-async function runSelfReport(person, { useSessions, githubDigest }) {
+async function runSelfReport(person, { useSessions, useGithub, githubFallback }) {
   renderBusy("reading your recent work…");
   let sessionDigest = "";
   if (useSessions) {
     const scan = await safeCall(() => window.api?.selfReportScan?.({ days: 14 }));
     if (!scan || !scan.ok) return renderError("Scanning your local sessions isn’t available on this build yet.");
     sessionDigest = scan.digest || "";
-    if (!sessionDigest && !githubDigest) {
-      return renderError("No recent local AI sessions found to read. Try again after some work, or update your profile by hand.");
+  }
+  let githubDigest = "";
+  if (useGithub) {
+    const handle = resolvePersonHandle(person);
+    if (handle) {
+      setBusy("reading your recent GitHub activity…");
+      const gh = await safeCall(() => scanGithubActivity(handle));
+      githubDigest = (gh && gh.ok && gh.digest) ? gh.digest : (githubFallback || "");
+    } else {
+      githubDigest = githubFallback || "";
     }
   }
-  if (!sessionDigest && !githubDigest) return renderError("Nothing selected to read.");
+  if (!sessionDigest && !githubDigest) {
+    return renderError("No recent activity found to read. Try again after some work, or update your profile by hand.");
+  }
 
   setBusy("drafting an update with your local AI…");
   const prompt = buildSelfReportPrompt({ person, sessionDigest, githubDigest });
