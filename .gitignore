@@ -60,6 +60,11 @@ apps/web/cohort-surface.json
 apps/web/calendar.json
 apps/web/calendar.ics
 
+# live calendar grid — carries Google Meet join links for the app's live Supabase
+# source ONLY. Published to Supabase; MUST NOT be committed to this public repo
+# (the committed calendar.json / .ics / cohort-surface.json stay Meet-free).
+cohort-data/calendar.live-grid.json
+
 # cohort-internal transcript evidence — generated locally from the private
 # vault (consent: cohort-internal, max_surface: cohort). MUST NOT be committed
 # to this public repo. The app reads reviewed evidence from the gated Supabase

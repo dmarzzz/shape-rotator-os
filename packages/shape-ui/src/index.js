@@ -161,6 +161,7 @@ export {
   parseRecurring,
   buildEventsByDay,
   buildEventCalendarActions,
+  extractJoinLink,
   renderWeekView,
   renderSkeletonWeek,
   loadCalendar,
