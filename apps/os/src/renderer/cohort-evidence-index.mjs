@@ -86,6 +86,111 @@ export function indexCohortEvidence(cards = []) {
   return { byTeam, byWeek, edges, teams };
 }
 
+// ─── client-side card → team attribution ─────────────────────────────────────
+// The live public transcript_evidence_cards are anonymized at the SOURCE: they
+// arrive as claim_type "insight" with NO content_json.teams, so cardTeams()
+// returns [] and they feed NONE of the per-team views (dossier timeline,
+// say/did/shipped, PMF, weekly activity). That strands the real distilled
+// session content — the exact "who is doing what" signal the cohort is meant to
+// surface. attributeInsightCards re-attaches a best-effort team by matching a
+// card's text against each team's DISTINCTIVE vocabulary (name, record_id,
+// skill_areas, focus), weighting rare tokens over generic ones via an inverse
+// document frequency: a project name or a single-team token counts a lot; a
+// token shared by half the cohort ("tee", "agent") barely counts. Conservative —
+// a card is attributed only on a NAME/ID match or a strong distinctive-token
+// score, else left unattributed (no regression). Inferred teams are tagged
+// teams_basis:"inferred" so views can mark them derived, never declared. Pure.
+
+const ATTR_STOP = new Set([
+  "the","and","for","with","that","this","from","into","your","you","our","are","team","teams",
+  "project","projects","cohort","build","building","builds","using","based","work","working",
+  "agent","agents","data","app","apps","tool","tools","stack","layer","system","systems","new",
+]);
+
+// Word tokens: lowercase, alnum-split, drop stopwords + short noise; keep a few
+// load-bearing short domain tokens.
+function attrTokens(value) {
+  const text = Array.isArray(value) ? value.join(" ") : String(value == null ? "" : value);
+  const out = new Set();
+  for (const w of text.toLowerCase().split(/[^a-z0-9]+/)) {
+    if (w.length < 3) { if (w === "tee" || w === "rl" || w === "ai") out.add(w); continue; }
+    if (ATTR_STOP.has(w)) continue;
+    out.add(w);
+  }
+  return out;
+}
+
+function cardSearchText(card) {
+  const cj = card && card.content_json && typeof card.content_json === "object" ? card.content_json : {};
+  return [
+    card && card.claim_text, card && card.title, card && card.summary,
+    cj.summary, cj.claim_text, cj.what_it_is, cj.what_it_does, cj.who_it_serves,
+  ].filter(Boolean).join(" ");
+}
+
+// Per-team match vocabulary + the cohort-wide inverse-document-frequency weights.
+// Exposed for tests. `nameTokens`/`idTokens` drive the strong "named" hit; the
+// merged `tokens` (skills/focus/domain) drive the distinctive-token score.
+export function buildTeamMatchers(teams = []) {
+  const matchers = (Array.isArray(teams) ? teams : [])
+    .filter((t) => t && t.record_id)
+    .map((t) => {
+      const nameTokens = attrTokens(t.name);
+      const idTokens = attrTokens(String(t.record_id).replace(/[-_]/g, " "));
+      const tokens = new Set([
+        ...nameTokens, ...idTokens,
+        ...attrTokens(t.skill_areas), ...attrTokens(t.focus), ...attrTokens(t.domain),
+      ]);
+      return { id: String(t.record_id), nameTokens, idTokens, tokens };
+    });
+  const df = new Map();
+  for (const m of matchers) for (const tok of m.tokens) df.set(tok, (df.get(tok) || 0) + 1);
+  const idf = new Map();
+  for (const [tok, n] of df) idf.set(tok, 1 / n);
+  return { matchers, idf };
+}
+
+function everyIn(needles, haySet) {
+  if (!needles || needles.size === 0) return false;
+  for (const n of needles) if (!haySet.has(n)) return false;
+  return true;
+}
+
+// Return a new card list where insight cards with no declared teams gain a
+// best-effort `content_json.teams` (+ teams_basis:"inferred"). Declared cards
+// pass through untouched. `minScore`/`minDistinct` gate token-only matches.
+export function attributeInsightCards(cards = [], teams = [], { maxTeams = 2, minScore = 1.2, minDistinct = 2 } = {}) {
+  const list = Array.isArray(cards) ? cards : [];
+  const { matchers, idf } = buildTeamMatchers(teams);
+  if (!matchers.length) return list.slice();
+
+  return list.map((card) => {
+    if (!card || typeof card !== "object") return card;
+    if (cardTeams(card).length) return card; // declared — leave it
+    const haySet = attrTokens(cardSearchText(card));
+    if (!haySet.size) return card;
+
+    const scored = [];
+    for (const m of matchers) {
+      const named = everyIn(m.nameTokens, haySet) || everyIn(m.idTokens, haySet);
+      let weighted = 0;
+      let distinct = 0;
+      for (const tok of m.tokens) {
+        if (haySet.has(tok)) { weighted += (idf.get(tok) || 0); distinct += 1; }
+      }
+      const score = (named ? 3 : 0) + weighted;
+      if (named || (distinct >= minDistinct && weighted >= minScore)) {
+        scored.push({ id: m.id, score, named });
+      }
+    }
+    if (!scored.length) return card;
+    scored.sort((a, b) => (b.named === a.named ? b.score - a.score : (b.named ? 1 : -1)));
+    const picked = scored.slice(0, maxTeams).map((s) => s.id);
+    const cj = card.content_json && typeof card.content_json === "object" ? card.content_json : {};
+    return { ...card, content_json: { ...cj, teams: picked, teams_basis: "inferred" } };
+  });
+}
+
 // A team's evidence slice (safe on a missing team).
 export function teamEvidence(index, teamId) {
   return (index && index.byTeam && index.byTeam.get(teamId)) || emptyBucket();

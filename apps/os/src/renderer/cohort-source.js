@@ -26,7 +26,7 @@
 import yaml from "js-yaml";
 import { getManifest, getRecord } from "./sync-client.js";
 import { fetchPublicEvidenceCards, fetchCohortEvidenceCards, COHORT_APP_READER_ENABLED, fetchCohortInsightCards } from "./supabase-evidence.mjs";
-import { evidenceDependencyRecords, insightCollaborationDependencyRecords, collaborationContributionDependencyRecords } from "./cohort-evidence-index.mjs";
+import { evidenceDependencyRecords, insightCollaborationDependencyRecords, collaborationContributionDependencyRecords, attributeInsightCards } from "./cohort-evidence-index.mjs";
 import { fetchCohortArticles } from "./supabase-articles.mjs";
 import { fetchCohortDistillations } from "./supabase-distillations.mjs";
 import { fetchAllSpheres } from "./supabase-sphere.mjs";
@@ -772,7 +772,13 @@ async function applyEvidenceOverlay(surface) {
       for (const card of [...(gotCohort ? cohort.cards : []), ...(gotPublic ? pub.cards : [])]) {
         if (card && card.id && !seen.has(card.id)) { seen.add(card.id); merged.push(card); }
       }
-      surface.transcript_evidence_cards = merged;
+      // Re-attach a best-effort team to the anonymized public insight cards
+      // (claim_type "insight", no declared content_json.teams) by matching their
+      // text to each team's distinctive vocabulary. Without this the live cards —
+      // the real distilled session content — feed NONE of the per-team views.
+      // Inferred teams are tagged teams_basis:"inferred"; declared cards untouched.
+      const attributed = attributeInsightCards(merged, Array.isArray(surface.teams) ? surface.teams : []);
+      surface.transcript_evidence_cards = attributed;
       surface._evidenceSource = gotCohort ? (gotPublic ? "supabase-cohort+public" : "supabase-cohort") : "supabase-live";
 
       // Shape collaboration-edge evidence into dependency records so the relationship
@@ -780,7 +786,7 @@ async function applyEvidenceOverlay(surface) {
       // surface already carries, provenance-tagged (status=session_observed). Additive
       // + idempotent (skip any evidence-edge id already present on re-overlay).
       const baseDeps = Array.isArray(surface.dependencies) ? surface.dependencies : [];
-      const edgeRecords = evidenceDependencyRecords(merged, baseDeps);
+      const edgeRecords = evidenceDependencyRecords(attributed, baseDeps);
       if (edgeRecords.length) {
         const have = new Set(baseDeps.map((d) => d && d.record_id).filter(Boolean));
         surface.dependencies = [...baseDeps, ...edgeRecords.filter((r) => !have.has(r.record_id))];
