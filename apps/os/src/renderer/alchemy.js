@@ -7177,6 +7177,19 @@ function mirrorPanelHtml(myPerson, cardByTeam) {
   const content = insightContent(card);
   const observedClass = sdsObserved(card) ? " is-observed" : " is-declared";
   const cal = mirrorCalibrationLine(card);
+  // The concrete numbers behind "did"/"shipped" — the same chips + activity mix the
+  // grid rows show, so the member sees the actual metrics, not just prose — plus the
+  // card's reasoning trace (move 8) for a "how this reads" disclosure.
+  const act = sdsActivity(card);
+  const relCount = sdsNumber(act, "release_count");
+  const commitCount = sdsNumber(act, "useful_commit_count");
+  const releasedHtml = sdsShippedReleasesHtml(teamId);
+  const mixHtml = sdsActivityMixHtml(act);
+  const chips = [
+    (relCount && !releasedHtml) ? `<span class="ac-sds-chip"><strong>${relCount}</strong> rel</span>` : "",
+    commitCount ? `<span class="ac-sds-chip"><strong>${commitCount}</strong> commits</span>` : "",
+  ].filter(Boolean).join("");
+  const traceBody = cardTraceBodyHtml(card);
   const contested = (state.mirrorContests && state.mirrorContests[teamId]) || null;
   const kindOpts = Object.keys(MIRROR_KIND_LABELS)
     .map(k => `<option value="${escAttr(k)}">${escHtml(mirrorKindLabel(k))}</option>`).join("");
@@ -7199,10 +7212,11 @@ function mirrorPanelHtml(myPerson, cardByTeam) {
       </div>
       <div class="ac-mirror-strip">
         <span class="ac-sds-cell"><b>you said</b><span>${escHtml(constShortText(content.say || team.now || team.focus || "not declared", 160))}</span></span>
-        <span class="ac-sds-cell${observedClass}"><b>repo shows</b><span>${escHtml(constShortText(content.did || "not observed", 160))}</span></span>
-        <span class="ac-sds-cell${observedClass}"><b>shipped</b><span>${escHtml(constShortText(content.shipped || "not observed", 160))}</span></span>
+        <span class="ac-sds-cell${observedClass}"><b>repo shows</b><span>${escHtml(constShortText(content.did || "not observed", 160))}</span>${mixHtml}</span>
+        <span class="ac-sds-cell${observedClass}"><b>shipped</b><span>${escHtml(constShortText(content.shipped || "not observed", 160))}</span>${chips ? `<span class="ac-sds-chips">${chips}</span>` : ""}${releasedHtml}</span>
       </div>
       <p class="ac-mirror-cal" data-tone="${escAttr(cal.tone)}">${escHtml(cal.text)}</p>
+      ${traceBody ? `<details class="ac-mirror-trace"><summary>how this reads</summary><div class="ac-mirror-trace-body">${traceBody}</div></details>` : ""}
       ${tail}
     </section>`;
 }

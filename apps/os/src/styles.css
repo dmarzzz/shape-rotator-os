@@ -11009,6 +11009,17 @@ html.jweek-vt .ac-cmp-grid { animation: none; }
   margin: 10px 0 0; font-family: var(--font-mono); font-size: 10.5px; line-height: 1.45;
   letter-spacing: 0.01em; color: rgba(214,189,134,0.9); max-width: 64ch;
 }
+/* "how this reads" — the card's reasoning trace (move 8), collapsed by default. */
+.ac-mirror-trace { margin-top: 10px; }
+.ac-mirror-trace > summary {
+  cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--alchemy-ink-mute);
+}
+.ac-mirror-trace > summary::-webkit-details-marker { display: none; }
+.ac-mirror-trace > summary::before { content: "▸"; font-size: 8px; }
+.ac-mirror-trace[open] > summary::before { content: "▾"; }
+.ac-mirror-trace-body { margin-top: 8px; }
 @media (max-width: 720px) {
   .ac-mirror-strip { grid-template-columns: 1fr; gap: 8px; }
 }
