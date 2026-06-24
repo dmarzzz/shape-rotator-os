@@ -45,7 +45,7 @@ into `package.json` or CI. Listed here for discoverability:
 - `build-cohort-timeline.js` — one-off cohort timeline generation.
 - `create-google-calendar-event.js` / `prepare-google-calendar-event.js` —
   manual single-event helpers (superseded for bulk flows by the
-  `calendar:sync` / `calendar:mirror` targets).
+  `calendar:sync` target).
 
 If any of the above is genuinely obsolete, confirm and delete it; otherwise add
 a thin `npm run` alias so it shows up in the script catalog.
