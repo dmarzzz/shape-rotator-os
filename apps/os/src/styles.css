@@ -10958,6 +10958,61 @@ html.jweek-vt .ac-sds-row,
 html.jweek-vt .ac-inspector-hero.is-compare,
 html.jweek-vt .ac-cmp-grid { animation: none; }
 
+/* ── "Your Mirror" — the member's own say/did/shipped + a contest control, atop
+   the shipped view. Framed as a self-mirror, not a score: no rank, no red — the
+   calibration line is a prompt to update, and a member can push back (move 5).
+   Reuses the .ac-sds-cell strip; the rest uses this view's local tokens. ── */
+.ac-mirror {
+  margin: 0 0 14px;
+  padding: 13px 15px;
+  border: 1px solid rgba(214,189,134,0.30);
+  border-radius: 10px;
+  background: rgba(214,189,134,0.05);
+}
+.ac-mirror-head { display: flex; align-items: baseline; gap: 9px; margin-bottom: 9px; }
+.ac-mirror-eyebrow {
+  font-family: var(--font-mono); font-size: 8.5px; font-weight: 800;
+  letter-spacing: 0.14em; text-transform: uppercase; color: rgba(214,189,134,0.85);
+}
+.ac-mirror-team { color: var(--alchemy-paper-warm); font-size: 13px; font-weight: 700; }
+.ac-mirror-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; min-width: 0; }
+.ac-mirror-cal {
+  margin: 11px 0 0; font-size: 11.5px; line-height: 1.45; color: rgba(var(--ink-rgb), 0.72); max-width: 70ch;
+}
+.ac-mirror-cal[data-tone="drift"] { color: var(--alchemy-paper-warm); }
+.ac-mirror-flag {
+  appearance: none; margin-top: 10px; padding: 5px 10px;
+  border: 1px solid rgba(var(--ink-rgb), 0.18); border-radius: 6px;
+  background: transparent; color: rgba(var(--ink-rgb), 0.7); cursor: pointer;
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.04em;
+  transition: background 150ms var(--ease), color 150ms var(--ease);
+}
+.ac-mirror-flag:hover { background: rgba(var(--ink-rgb), 0.05); color: var(--alchemy-paper-warm); }
+.ac-mirror-contest { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; max-width: 52ch; }
+.ac-mirror-contest[hidden] { display: none; }
+.ac-mirror-contest select,
+.ac-mirror-contest textarea {
+  width: 100%; font: inherit; font-size: 11.5px; color: inherit;
+  background: rgba(var(--ink-rgb), 0.04);
+  border: 1px solid rgba(var(--ink-rgb), 0.18); border-radius: 6px; padding: 6px 8px;
+}
+.ac-mirror-contest textarea { min-height: 54px; resize: vertical; }
+.ac-mirror-actions { display: flex; align-items: center; gap: 10px; }
+.ac-mirror-send {
+  appearance: none; padding: 5px 12px; border-radius: 6px; border: 0; cursor: pointer;
+  background: rgba(214,189,134,0.85); color: #1a1206;
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em;
+}
+.ac-mirror-send:disabled { opacity: 0.5; cursor: default; }
+.ac-mirror-status { font-family: var(--font-mono); font-size: 9.5px; color: var(--alchemy-ink-mute); }
+.ac-mirror-contested {
+  margin: 10px 0 0; font-family: var(--font-mono); font-size: 10.5px; line-height: 1.45;
+  letter-spacing: 0.01em; color: rgba(214,189,134,0.9); max-width: 64ch;
+}
+@media (max-width: 720px) {
+  .ac-mirror-strip { grid-template-columns: 1fr; gap: 8px; }
+}
+
 /* Latent-overlap cards — visually related to intro cards, but clearly prompts. */
 .cb-latent-overlap {
   gap: 10px;
