@@ -91,6 +91,29 @@ test("privacy boundary blocks PII in generated public surfaces", () => {
   );
 });
 
+test("privacy boundary catches GitHub tokens of varying body length (not just 36 chars)", () => {
+  // Build tokens at runtime so no literal token ever appears in this source
+  // file (which the gate also scans). Pre-fix bug: the rule was anchored to an
+  // exact {36}-char body + a trailing \b, so gho_/ghr_ tokens of other lengths
+  // slipped through the last-line privacy gate.
+  const mk = (prefix, n) => `${prefix}_${"A".repeat(n)}`;
+  for (const tok of [mk("ghp", 36), mk("gho", 40), mk("ghs", 30), mk("ghr", 55), mk("ghu", 36)]) {
+    const findings = evaluateContent("notes.txt", Buffer.from(`gh_token = ${tok}\n`));
+    assert.ok(
+      findings.some((f) => f.label === "GitHub token"),
+      `expected the GitHub-token rule to fire for ${tok.slice(0, 4)}…(${tok.length} chars)`,
+    );
+  }
+
+  // A fine-grained PAT (github_pat_) must still be caught.
+  const pat = `github_pat_${"B".repeat(50)}`;
+  assert.ok(
+    evaluateContent("notes.txt", Buffer.from(`gh_token = ${pat}\n`))
+      .some((f) => f.label === "GitHub token"),
+    "expected the GitHub-token rule to fire for a github_pat_ token",
+  );
+});
+
 test("privacy boundary ignores an untracked local allowlist", () => {
   const allowlist = loadAllowlist({
     mode: "all",

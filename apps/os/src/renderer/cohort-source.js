@@ -74,6 +74,11 @@ let _cache = null;            // grouped by record_type (baseline merged with sy
 // refreshCohortFromGithub().
 let _baseline = null;
 let _baselineFetchedAt = 0;
+// Timestamp of the last GitHub baseline *attempt* (success OR failure). The
+// throttle gates on this — not on last success — so a network error / 403
+// rate-limit doesn't re-fire the full tree+raw+commit fetch on every 30s sync
+// tick (which would deepen the very rate-limit hole the gap is meant to avoid).
+let _baselineLastAttemptAt = 0;
 let _refreshTimer = null;
 let _bgRefreshInFlight = null; // promise of any active background refresh
 const _subscribers = new Set();
@@ -1015,7 +1020,12 @@ function _startBackgroundRefresh({ forceGithub = false } = {}) {
     try {
       const now = Date.now();
       const baselineStale = !_baseline || (now - _baselineFetchedAt) >= GH_BASELINE_MIN_GAP_MS;
-      const shouldFetchGh = forceGithub || baselineStale;
+      // Gate on the last ATTEMPT, not the last success: when GitHub is
+      // erroring/rate-limited we never advanced _baselineFetchedAt, so a stale
+      // baseline (or a null one on first launch) re-fired the fetch every tick.
+      // A manual resync (forceGithub) still bypasses both throttles.
+      const attemptThrottled = (now - _baselineLastAttemptAt) < GH_BASELINE_MIN_GAP_MS;
+      const shouldFetchGh = forceGithub || (baselineStale && !attemptThrottled);
 
       let baseline = _baseline;
       if (devPreferLocal()) {
@@ -1030,6 +1040,9 @@ function _startBackgroundRefresh({ forceGithub = false } = {}) {
           baseline = null;
         }
       } else if (shouldFetchGh) {
+        // Stamp the attempt up-front so a throw below still counts as a try and
+        // backs off for GH_BASELINE_MIN_GAP_MS instead of retrying next tick.
+        _baselineLastAttemptAt = now;
         try {
           baseline = await loadFromGithub();
           baseline._source = "github";
@@ -1176,6 +1189,7 @@ export function _resetCohortSource() {
   _cache = null;
   _baseline = null;
   _baselineFetchedAt = 0;
+  _baselineLastAttemptAt = 0;
   _bgRefreshInFlight = null;
   _subscribers.clear();
   if (_refreshTimer) { clearInterval(_refreshTimer); _refreshTimer = null; }

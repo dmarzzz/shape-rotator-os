@@ -21,7 +21,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import yaml from "js-yaml";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -69,21 +69,46 @@ function usage() {
   ].join("\n"));
 }
 
+// Synchronous sleep — this script is intentionally sequential/sync. Used to
+// back off between gh retries on a rate-limit, without pulling in async.
+function sleepSync(ms) {
+  if (!(ms > 0)) return;
+  try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); } catch {}
+}
+
+// gh failures we should retry: primary + secondary (abuse) rate limits. A
+// transient 403/429 here previously dropped the repo for the whole run.
+const RATE_LIMIT_RE = /rate limit|secondary rate limit|abuse detection|was submitted too quickly|retry after|\b(?:403|429)\b/i;
+export function isRateLimited(stderr) {
+  return RATE_LIMIT_RE.test(stderr || "");
+}
+
 function gh(args, opts = {}) {
-  try {
-    return execFileSync("gh", args, {
-      cwd: REPO_ROOT,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-      timeout: opts.timeout || 60000,
-      maxBuffer: 20 * 1024 * 1024,
-    });
-  } catch (err) {
-    const stderr = err.stderr ? String(err.stderr).trim() : "";
-    const e = new Error(`gh ${args.join(" ")} failed${stderr ? `: ${stderr}` : ""}`);
-    e.stderr = stderr;
-    throw e;
+  const maxAttempts = Math.max(1, opts.retries ?? 3);
+  let lastErr;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return execFileSync("gh", args, {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        timeout: opts.timeout || 60000,
+        maxBuffer: 20 * 1024 * 1024,
+      });
+    } catch (err) {
+      const stderr = err.stderr ? String(err.stderr).trim() : "";
+      lastErr = new Error(`gh ${args.join(" ")} failed${stderr ? `: ${stderr}` : ""}`);
+      lastErr.stderr = stderr;
+      if (attempt < maxAttempts && isRateLimited(stderr)) {
+        const backoffMs = Math.min(30000, 1000 * 2 ** attempt); // 2s, 4s, 8s…
+        process.stderr.write(`[github-releases] rate-limited; backing off ${backoffMs}ms (attempt ${attempt}/${maxAttempts})\n`);
+        sleepSync(backoffMs);
+        continue;
+      }
+      throw lastErr;
+    }
   }
+  throw lastErr;
 }
 
 function ghAvailable() {
@@ -212,7 +237,7 @@ function listReleases(repo, limit) {
   return Array.isArray(parsed) ? parsed : [];
 }
 
-function buildReleaseArtifact(repo, teamId, releases) {
+export function buildReleaseArtifact(repo, teamId, releases, opts = {}) {
   const sorted = releases
     .map((r) => ({
       tag_name: String(r.tagName || ""),
@@ -229,7 +254,7 @@ function buildReleaseArtifact(repo, teamId, releases) {
   // No generated_at field: the artifact is a pure projection of the repo's
   // releases, so it stays byte-stable across runs unless a release actually
   // changes — letting the scheduled workflow commit only on real updates.
-  return {
+  const artifact = {
     schema_version: 1,
     artifact_id: `github-releases:${teamId}:${slugPart(repo)}`,
     artifact_kind: "github_release_list",
@@ -248,6 +273,28 @@ function buildReleaseArtifact(repo, teamId, releases) {
     release_count: sorted.length,
     releases: sorted,
   };
+  // Only stamp this when the upstream fetch hit the --limit cap, so the common
+  // (un-truncated) case stays byte-identical to prior runs and doesn't churn
+  // a spurious commit. Signals to the publisher that older in-window releases
+  // may be missing for this repo.
+  if (opts.capped) artifact.release_count_capped = true;
+  return artifact;
+}
+
+// On a transient query failure (rate-limit/outage) keep the repo's previously
+// written artifact, because writeArtifacts() deletes-all-then-rewrites and the
+// publisher globs *.json — without this, a flaky hour silently drops the repo
+// from the live feed. Returned as-is (no mutation) so a recovered run rewrites
+// it identically and produces no spurious diff.
+function loadPriorArtifact(dir, teamId, repo) {
+  try {
+    const file = path.join(dir, `${slugPart(`github-releases:${teamId}:${slugPart(repo)}`)}.json`);
+    if (!fs.existsSync(file)) return null;
+    const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+    return parsed && parsed.artifact_kind === "github_release_list" ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 function writeArtifacts(dir, artifacts) {
@@ -297,7 +344,22 @@ function main() {
       releases = listReleases(target.repo, args.limit);
     } catch (err) {
       failed.push({ repo: target.repo, error: err.message });
+      // Preserve the repo's prior artifact so a transient failure doesn't drop
+      // it from the live feed (writeArtifacts wipes anything not re-listed).
+      if (args.writeArtifacts) {
+        const prior = loadPriorArtifact(args.artifactsDir, teamId, target.repo);
+        if (prior) {
+          artifacts.push(prior);
+          process.stderr.write(`[github-releases] kept prior artifact for ${target.repo} after query failure (feed not regressed)\n`);
+        }
+      }
       continue;
+    }
+    // gh returns newest-first up to --limit; hitting the cap means older
+    // in-window releases may be truncated at the source. Make it loud.
+    const capped = releases.length >= args.limit;
+    if (capped) {
+      process.stderr.write(`[github-releases] WARNING: ${target.repo} returned the full --limit (${args.limit}); older in-window releases may be truncated. Raise --limit or add pagination.\n`);
     }
     let usable = releases.filter((r) => !r.isDraft);
     if (!args.includePrereleases) usable = usable.filter((r) => !r.isPrerelease);
@@ -305,7 +367,7 @@ function main() {
       empty.push(target.repo);
       continue;
     }
-    artifacts.push(buildReleaseArtifact(target.repo, teamId, usable));
+    artifacts.push(buildReleaseArtifact(target.repo, teamId, usable, { capped }));
   }
 
   artifacts.sort((a, b) => String(a.artifact_id).localeCompare(String(b.artifact_id)));
@@ -331,9 +393,14 @@ function main() {
   }
 }
 
-try {
-  main();
-} catch (err) {
-  console.error(`[github-releases] ${err.message}`);
-  process.exit(1);
+// Only run as a CLI — guarded so tests can import the exported helpers without
+// triggering main() (which hard-fails when gh is absent).
+const isCli = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isCli) {
+  try {
+    main();
+  } catch (err) {
+    console.error(`[github-releases] ${err.message}`);
+    process.exit(1);
+  }
 }
