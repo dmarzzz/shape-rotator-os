@@ -16,7 +16,6 @@
 import {
   escHtml, escAttr,
   parseWeekRow, parseRecurring, currentWeekIdx, phaseFor,
-  extractJoinLink,
 } from "@shape-rotator/shape-ui";
 // The curated session→transcript join (date + title fragments → recorded source).
 // Previously consumed only by build-bundles for dossier timelines; surfacing it here
@@ -263,6 +262,18 @@ function c2SplitLeadingTime(line) {
     time: t.endMin == null ? fmtMin(t.startMin) : `${fmtMin(t.startMin)} – ${fmtMin(t.endMin)}`,
     rest: t.rest,
   };
+}
+
+// Google Meet join link from a `Meet:`/`join:` marker line (or a bare Meet URL).
+// Kept local because the OS-vendored shape-ui copy predates shape-ui's
+// extractJoinLink; mirrors that parser so the web + OS behave identically.
+function extractJoinLink(blockText) {
+  const text = String(blockText || "");
+  const clean = (u) => u.replace(/[.,);\]]+$/, "");
+  const marker = text.match(/(?:^|\n)\s*(?:meet|join)\s*:\s*(https:\/\/meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}[^\s<]*)/i);
+  if (marker) return clean(marker[1]);
+  const anyMeet = text.match(/https:\/\/meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}[^\s<]*/i);
+  return anyMeet ? clean(anyMeet[0]) : null;
 }
 
 // Parse one cell block into { time, title, details[], meetUrl } for cards + modal.
