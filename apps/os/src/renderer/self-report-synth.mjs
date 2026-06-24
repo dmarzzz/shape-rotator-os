@@ -35,39 +35,48 @@ const STRING_MAX = 280;
 const LIST_MAX = 12;
 const ITEM_MAX = 80;
 
-// Build the synthesis prompt. The local model is told to emit STRICT JSON with
-// only the changed allowed fields — unlike the chat path, whose stdout is opaque
-// prose. Conservative by construction: propose a field only when the evidence
-// supports it, never invent.
-export function buildSelfReportPrompt({ person = {}, sessionDigest = "", githubDigest = "" } = {}) {
+// Build the synthesis prompt — Router/daybook style: the member's OWN local AI,
+// running on THEIR machine with THEIR tools/github, grounds the update in real
+// recent work and ASKS one question to sharpen it (rather than silently guessing).
+// It emits STRICT JSON with only the changed whitelist fields + a `question`.
+// `answer` folds the member's reply back in on a refine pass. Conservative by
+// construction: propose a field only when the evidence supports it, never invent.
+export function buildSelfReportPrompt({ person = {}, sessionDigest = "", githubDigest = "", answer = "" } = {}) {
   const cur = {};
   for (const k of Object.keys(SELF_REPORT_FIELDS)) {
     if (person && person[k] != null) cur[k] = person[k];
   }
+  const name = String((person && person.name) || "this member").trim() || "this member";
   const fields = Object.keys(SELF_REPORT_FIELDS).join(", ");
   const evidence = [
-    sessionDigest ? `LOCAL AI SESSIONS (the member's own recent work, read on their machine):\n${sessionDigest}` : "",
-    githubDigest ? `GITHUB ACTIVITY (the member's own public commits / releases):\n${githubDigest}` : "",
+    sessionDigest ? `LOCAL AI SESSIONS (${name}'s recent work, read on their machine):\n${sessionDigest}` : "",
+    githubDigest ? `GITHUB ACTIVITY (pre-gathered, public — verify/extend with gh/git if you can):\n${githubDigest}` : "",
   ].filter(Boolean).join("\n\n");
   return [
-    "You help a cohort member keep their PUBLIC profile accurate and current.",
-    "From the evidence of their OWN recent work below, propose updates to their profile.",
+    `You are ${name}'s OWN AI assistant, running on their machine. Help them keep their PUBLIC cohort`,
+    "profile accurate and current — grounded in their REAL recent work, not a guess.",
+    "",
+    "GATHER (first-hand, since you run in their environment):",
+    "- If `gh` or `git` is available to you, review their recent work yourself — e.g. `gh api user`,",
+    "  recent commits / PRs / releases (`git -C <repo> log --oneline -20`). Prefer this first-hand signal.",
+    "- Also use the LOCAL AI SESSIONS digest and any pre-gathered GITHUB ACTIVITY below.",
     "",
     "RULES:",
-    `- Only propose values for these fields: ${fields}.`,
+    `- Only propose values for these profile fields: ${fields}.`,
     "- Propose a field ONLY when the evidence clearly supports a change; otherwise omit it.",
     "- Be truthful and conservative. Do NOT invent work that is not in the evidence.",
-    "- `now` = one present-tense line on what they are working on now.",
-    "- `weekly_intention` = a short sentence on this week's aim.",
-    "- `skills` / `skill_areas` = short lists; `seeking` / `offering` = short lists;",
-    "  `prior_work` = shipped / public artifacts (list).",
-    "- Output STRICT JSON ONLY: an object with just the changed fields. No prose, no markdown fence.",
+    "- `now` = one present-tense line on what they're building now. `weekly_intention` = this week's aim.",
+    "- `skills`/`skill_areas`/`seeking`/`offering` = short lists; `prior_work` = shipped/public artifacts (list).",
+    "- ALSO include `question`: ONE warm, specific question (≤20 words, addressed to them as 'you') that",
+    "  invites them to confirm or sharpen the update. This is how you ASK rather than assume.",
+    "- Output STRICT JSON ONLY: { ...changed fields, \"question\": \"…\" }. No prose, no markdown fence.",
     "",
-    "CURRENT PROFILE (for reference — do not repeat unchanged values):",
+    "CURRENT PROFILE (do not repeat unchanged values):",
     JSON.stringify(cur, null, 1),
+    answer ? `\nTHEIR ANSWER to your last question (fold this in, then ask a follow-up only if needed):\n${answer}` : "",
     "",
     "EVIDENCE:",
-    evidence || "(no signal provided)",
+    evidence || "(nothing pre-gathered — gather it yourself with gh/git, or ask.)",
     "",
     "Respond with the JSON object now:",
   ].join("\n");

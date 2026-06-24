@@ -139,6 +139,32 @@ function renderError(message) {
   for (const b of host.querySelectorAll("[data-sr-close]")) b.addEventListener("click", closeSelfReport);
 }
 
+// One synthesis pass by the member's own AI. When `answer` is given it's a refine
+// pass (the answer to the AI's previous question folds in). Returns
+// { ok, merged, changed, question } or { ok:false, error }.
+async function synthesize(person, digests, answer = "") {
+  setBusy(answer ? "sharpening with your answer…" : "drafting an update with your local AI…");
+  const prompt = buildSelfReportPrompt({
+    person, sessionDigest: digests.sessionDigest, githubDigest: digests.githubDigest, answer,
+  });
+  const synth = await safeCall(() => window.api?.selfReportSynthesize?.({ prompt }));
+  if (!synth || !synth.ok) {
+    return {
+      ok: false,
+      error: synth && synth.reason === "no_local_ai_cli"
+        ? "No local AI tool found. Install Claude Code, Codex, or Ollama (or set the command in chat settings)."
+        : "Your local AI tool didn’t return a draft. Try again.",
+    };
+  }
+  const parsed = parseSelfReportDelta(synth.stdout || "");
+  if (!parsed.ok) return { ok: false, error: "Couldn’t read a clean update from the AI’s reply. Try again." };
+  // The AI's follow-up question rides alongside the delta; sanitize drops it from
+  // the writable fields (it's interview, not a profile value).
+  const question = typeof parsed.delta.question === "string" ? parsed.delta.question.trim() : "";
+  const { merged, changed } = mergeDelta(person, sanitizeDelta(parsed.delta));
+  return { ok: true, merged, changed, question };
+}
+
 async function runSelfReport(person, { useSessions, useGithub, githubFallback }) {
   renderBusy("reading your recent work…");
   let sessionDigest = "";
@@ -161,28 +187,18 @@ async function runSelfReport(person, { useSessions, useGithub, githubFallback })
   if (!sessionDigest && !githubDigest) {
     return renderError("No recent activity found to read. Try again after some work, or update your profile by hand.");
   }
-
-  setBusy("drafting an update with your local AI…");
-  const prompt = buildSelfReportPrompt({ person, sessionDigest, githubDigest });
-  const synth = await safeCall(() => window.api?.selfReportSynthesize?.({ prompt }));
-  if (!synth || !synth.ok) {
-    const why = synth && synth.reason === "no_local_ai_cli"
-      ? "No local AI tool found. Install Claude Code, Codex, or Ollama (or set the command in chat settings)."
-      : "Your local AI tool didn’t return a draft. Try again.";
-    return renderError(why);
-  }
-  const parsed = parseSelfReportDelta(synth.stdout || "");
-  if (!parsed.ok) return renderError("Couldn’t read a clean update from the AI’s reply. Try again.");
-  const clean = sanitizeDelta(parsed.delta);
-  const { merged, changed } = mergeDelta(person, clean);
-  if (!changed.length) {
+  const digests = { sessionDigest, githubDigest };
+  const res = await synthesize(person, digests, "");
+  if (!res.ok) return renderError(res.error);
+  if (!res.changed.length) {
     return renderError("Your profile already matches your recent work — nothing to update. 🎉");
   }
-  renderReview(person, merged, changed);
+  renderReview(person, { ...res, digests });
 }
 
-// ── Step 3 — review → hand to the existing editor ─────────────────────────────
-function renderReview(person, merged, changed) {
+// ── Step 3 — review → optional interview refine → hand to the editor ──────────
+function renderReview(person, state) {
+  const { merged, changed, question, digests } = state;
   const rows = changed.map((k) => `
     <div class="selfrep-diff">
       <div class="selfrep-diff-k">${esc(fieldLabel(k))}</div>
@@ -190,11 +206,20 @@ function renderReview(person, merged, changed) {
       <div class="selfrep-diff-arrow" aria-hidden="true">→</div>
       <div class="selfrep-diff-new">${esc(asText(merged[k]))}</div>
     </div>`).join("");
+  // Router-style: the member's AI asks ONE question to sharpen; answering it runs a
+  // refine pass. Optional — they can open the editor without answering.
+  const refine = question ? `
+    <div class="selfrep-refine">
+      <p class="selfrep-q">${esc(question)}</p>
+      <textarea data-sr-answer placeholder="answer to sharpen it (optional)…"></textarea>
+      <button type="button" class="selfrep-btn selfrep-ghost selfrep-refine-btn" data-sr-refine>refine with my answer ↻</button>
+    </div>` : "";
   host.innerHTML = card(`
     <header class="selfrep-head"><span class="selfrep-eyebrow">proposed update · ${changed.length} field${changed.length === 1 ? "" : "s"}</span>
       <button type="button" class="selfrep-x" data-sr-close aria-label="close">✕</button></header>
-    <p class="selfrep-lede">Drafted from your recent work. Nothing is saved yet — open it in your profile editor to tweak and save.</p>
+    <p class="selfrep-lede">Drafted from your recent work by your own AI. Answer its question to sharpen it, or open it in your profile editor to save.</p>
     <div class="selfrep-diffs">${rows}</div>
+    ${refine}
     <div class="selfrep-actions">
       <button type="button" class="selfrep-btn selfrep-ghost" data-sr-close>discard</button>
       <button type="button" class="selfrep-btn selfrep-primary" data-sr-apply>open in editor →</button>
@@ -214,6 +239,17 @@ function renderReview(person, merged, changed) {
     }
     closeSelfReport();
   });
+  const refineBtn = host.querySelector("[data-sr-refine]");
+  if (refineBtn) {
+    refineBtn.addEventListener("click", async () => {
+      const answer = ((host.querySelector("[data-sr-answer]") || {}).value || "").trim();
+      if (!answer) return;
+      const res = await synthesize(person, digests, answer);
+      if (!res.ok) return renderError(res.error);
+      if (!res.changed.length) return renderError("Looks good — nothing more to change. 🎉");
+      renderReview(person, { ...res, digests });
+    });
+  }
 }
 
 async function safeCall(fn) {

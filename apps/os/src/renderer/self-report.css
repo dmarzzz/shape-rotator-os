@@ -80,6 +80,20 @@
 .selfrep-diff-was { font-size: var(--ds-text-xs); color: var(--ds-ink-4); text-decoration: line-through; }
 .selfrep-diff-arrow { color: var(--ds-ink-4); }
 .selfrep-diff-new { font-size: var(--ds-text-xs); color: var(--ds-ink-1); }
+
+/* Router-style interview: the AI's one question + the member's answer → refine. */
+.selfrep-refine {
+  margin-top: 14px; padding: 12px 13px;
+  border: 1px solid var(--ds-border); border-radius: 10px; background: var(--ds-surface-3);
+}
+.selfrep-q { margin: 0 0 8px; font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); color: var(--ds-ink-1); }
+.selfrep-refine textarea {
+  width: 100%; min-height: 44px; resize: vertical; font: inherit; font-size: var(--ds-text-sm);
+  color: var(--ds-ink-1); background: var(--ds-surface-2);
+  border: 1px solid var(--ds-border); border-radius: 8px; padding: 7px 9px;
+}
+.selfrep-refine-btn { margin-top: 8px; height: auto; padding: 6px 12px; }
+
 @media (max-width: 560px) {
   .selfrep-diff { grid-template-columns: 1fr; gap: 3px; }
   .selfrep-diff-arrow { display: none; }

@@ -10,22 +10,31 @@ import {
   stripAnsi,
 } from "./self-report-synth.mjs";
 
-test("prompt names every allowed field, the evidence, and demands strict JSON", () => {
+test("prompt is the member's own AI: names fields, evidence, gh/git, a question, strict JSON", () => {
   const p = buildSelfReportPrompt({
-    person: { now: "old now", record_id: "dmarz" },
+    person: { name: "Dmarz", now: "old now", record_id: "dmarz" },
     sessionDigest: "wrote a calibration panel for the shipped view",
     githubDigest: "12 commits to shape-rotator-os",
   });
   for (const field of Object.keys(SELF_REPORT_FIELDS)) assert.ok(p.includes(field), `mentions ${field}`);
   assert.ok(p.includes("STRICT JSON"));
-  assert.ok(p.includes("calibration panel"));   // session digest folded in
-  assert.ok(p.includes("12 commits"));           // github digest folded in
-  assert.ok(p.includes("old now"));              // current value given for reference
+  assert.ok(p.includes("calibration panel"));    // session digest folded in
+  assert.ok(p.includes("12 commits"));            // github digest folded in
+  assert.ok(p.includes("old now"));               // current value given for reference
+  assert.ok(p.includes("Dmarz"));                 // personalized to the member
+  assert.ok(p.includes("gh") && p.includes("git")); // told to gather first-hand
+  assert.ok(p.includes("question"));              // Router-style: it ASKS
+});
+
+test("a refine answer is folded into the prompt", () => {
+  const p = buildSelfReportPrompt({ person: { name: "X" }, answer: "actually I shipped the contest table too" });
+  assert.ok(p.includes("THEIR ANSWER"));
+  assert.ok(p.includes("contest table"));
 });
 
 test("prompt tolerates no signal and no current profile", () => {
   const p = buildSelfReportPrompt({});
-  assert.ok(p.includes("(no signal provided)"));
+  assert.ok(p.includes("gather it yourself"));
   assert.ok(typeof p === "string" && p.length > 0);
 });
 
