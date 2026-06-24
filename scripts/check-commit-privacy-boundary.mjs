@@ -63,7 +63,11 @@ export const SECRET_CONTENT_RULES = [
   { label: "Google API key", pattern: /AIza[0-9A-Za-z_-]{35}/ },
   { label: "OpenAI API key", pattern: /\bsk-(?:proj-)?[A-Za-z0-9]{20,}\b/ },
   { label: "Anthropic API key", pattern: /\bsk-ant-[A-Za-z0-9-]{20,}/ },
-  { label: "GitHub token", pattern: /\b(?:ghp|gho|ghs|ghu|ghr)_[A-Za-z0-9]{36}\b|\bgithub_pat_[A-Za-z0-9_]{40,}/ },
+  // Length is a RANGE, not an exact {36}: gho_/ghs/ghu/ghr_ server/OAuth tokens
+  // vary in length and GitHub has said token lengths may grow. A trailing \b
+  // also never fires between two word chars, so it silently let longer tokens
+  // through — dropped here. 30+ alphanumerics after the prefix stays specific.
+  { label: "GitHub token", pattern: /\b(?:ghp|gho|ghs|ghu|ghr)_[A-Za-z0-9]{30,}|\bgithub_pat_[A-Za-z0-9_]{40,}/ },
   { label: "Slack token", pattern: /\bxox[baprs]-[A-Za-z0-9-]{10,}/ },
   { label: "Stripe live secret key", pattern: /\bsk_live_[A-Za-z0-9]{20,}/ },
   { label: "AWS access key id", pattern: /\bAKIA[0-9A-Z]{16}\b/ },
