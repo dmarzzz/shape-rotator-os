@@ -13,10 +13,41 @@
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { spawn } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
 
 const { digestFromRawFiles } = require("./daybook/transcripts");
-const { resolveCommand } = require("./cohort-chat-node");
+
+// Resolve the member's own local AI CLI — same convention as the cohort-chat
+// supervisor, kept self-contained here so the self-report doesn't depend on that
+// module. First match wins: explicit chatCmd → COHORT_CHAT_CMD/COHORT_LLM_CMD env
+// → auto-detect on PATH (claude → codex → ollama). No API key either way.
+const DETECT = [
+  { bin: "claude", args: ["-p"] },
+  { bin: "codex", args: ["exec"] },
+  { bin: "ollama", args: ["run", process.env.OLLAMA_MODEL || "qwen2.5"] },
+];
+function onPath(bin) {
+  const probe = process.platform === "win32" ? "where" : "which";
+  try {
+    const r = spawnSync(probe, [bin], { encoding: "utf8" });
+    return r.status === 0 && String(r.stdout || "").trim().length > 0;
+  } catch { return false; }
+}
+function splitCommand(str) {
+  const out = [];
+  const re = /"([^"]*)"|'([^']*)'|(\S+)/g;
+  let m;
+  while ((m = re.exec(String(str || ""))) !== null) out.push(m[1] ?? m[2] ?? m[3]);
+  return out;
+}
+function resolveCommand(configuredCmd) {
+  const explicit = (configuredCmd && configuredCmd.trim())
+    || (process.env.COHORT_CHAT_CMD && process.env.COHORT_CHAT_CMD.trim())
+    || (process.env.COHORT_LLM_CMD && process.env.COHORT_LLM_CMD.trim());
+  if (explicit) { const argv = splitCommand(explicit); if (argv.length) return argv; }
+  for (const d of DETECT) if (onPath(d.bin)) return [d.bin, ...d.args];
+  return null;
+}
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_FILES = 40; // most-recent N session files folded into the digest
