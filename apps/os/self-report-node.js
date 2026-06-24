@@ -131,10 +131,12 @@ function runSynthesis({ prompt, chatCmd, timeoutMs = 120000 } = {}) {
     if (!argv) return resolve({ ok: false, reason: "no_local_ai_cli" });
     let child;
     try {
-      child = spawn(argv[0], argv.slice(1), {
-        env: { ...process.env, CI: process.env.CI || "1", NO_COLOR: "1", PYTHONUNBUFFERED: "1" },
-        stdio: ["pipe", "pipe", "pipe"],
-      });
+      // Router lesson (reflect.js subscriptionEnv): strip ANTHROPIC_API_KEY so the
+      // local claude bills the member's own subscription, never an API key they
+      // happen to have set in their environment.
+      const env = { ...process.env, CI: process.env.CI || "1", NO_COLOR: "1", PYTHONUNBUFFERED: "1" };
+      delete env.ANTHROPIC_API_KEY;
+      child = spawn(argv[0], argv.slice(1), { env, stdio: ["pipe", "pipe", "pipe"] });
     } catch (e) { return resolve({ ok: false, reason: "spawn_failed", detail: e.message }); }
     let out = "", err = "";
     const timer = setTimeout(() => { try { child.kill("SIGTERM"); } catch {} }, timeoutMs);

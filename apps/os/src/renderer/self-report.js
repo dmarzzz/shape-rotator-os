@@ -43,9 +43,12 @@ function esc(s) {
 }
 
 let host = null;
+let busyTimer = null;
+function clearBusyTimer() { if (busyTimer) { clearInterval(busyTimer); busyTimer = null; } }
 function onKey(e) { if (e.key === "Escape") closeSelfReport(); }
 
 export function closeSelfReport() {
+  clearBusyTimer();
   if (host) { host.remove(); host = null; }
   document.removeEventListener("keydown", onKey);
 }
@@ -120,10 +123,19 @@ function renderConsent(person, githubFallback) {
 
 // ── Step 2 — scan + synthesize ────────────────────────────────────────────────
 function renderBusy(message) {
+  clearBusyTimer();
   host.innerHTML = card(`
     <header class="selfrep-head"><span class="selfrep-eyebrow">working…</span></header>
     <div class="selfrep-busy"><span class="selfrep-spinner" aria-hidden="true"></span><span data-sr-status>${esc(message)}</span></div>
+    <p class="selfrep-foot" data-sr-elapsed>your own local AI is working — local runs can take 10–60s.</p>
   `);
+  // Router lesson: never look frozen — the local CLI is slow, so show a live timer.
+  const start = Date.now();
+  busyTimer = setInterval(() => {
+    const el = host && host.querySelector("[data-sr-elapsed]");
+    if (!el) return clearBusyTimer();
+    el.textContent = `your own local AI is working — ${Math.round((Date.now() - start) / 1000)}s (local runs can take 10–60s).`;
+  }, 1000);
 }
 function setBusy(message) {
   const el = host && host.querySelector("[data-sr-status]");
