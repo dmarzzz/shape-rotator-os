@@ -1,0 +1,87 @@
+/* self-report.css — the "update from my recent work" modal. Design-system
+   tokens only (see apps/os/src/design-system/). Mirrors the cohort-chat overlay. */
+
+.selfrep-overlay {
+  position: fixed; inset: 0; z-index: 1300;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--ds-surface-1) 62%, transparent);
+  backdrop-filter: blur(6px);
+}
+.selfrep-card {
+  width: min(540px, 100%);
+  max-height: min(80vh, 720px); overflow: auto;
+  background: var(--ds-surface-2);
+  border: 1px solid var(--ds-border-strong);
+  border-radius: 14px;
+  padding: 20px 22px 18px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+  font-family: var(--ds-font-ui);
+  color: var(--ds-ink-1);
+}
+
+.selfrep-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.selfrep-eyebrow {
+  font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--ds-accent);
+}
+.selfrep-x {
+  appearance: none; border: 0; background: transparent; cursor: pointer;
+  color: var(--ds-ink-3); font-size: var(--ds-text-sm); line-height: 1; padding: 4px;
+}
+.selfrep-x:hover { color: var(--ds-ink-1); }
+
+.selfrep-lede { font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); color: var(--ds-ink-2); margin: 0 0 14px; }
+
+.selfrep-consent {
+  display: flex; gap: 11px; align-items: flex-start;
+  padding: 12px 13px; margin-bottom: 9px;
+  border: 1px solid var(--ds-border); border-radius: 10px;
+  background: var(--ds-surface-3); cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.selfrep-consent:hover { border-color: var(--ds-border-strong); }
+.selfrep-consent.is-disabled { opacity: 0.55; cursor: default; }
+.selfrep-consent input { margin-top: 3px; accent-color: var(--ds-accent); flex: none; }
+.selfrep-consent b { display: block; font-size: var(--ds-text-sm); font-weight: 600; margin-bottom: 2px; }
+.selfrep-consent small { display: block; font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); color: var(--ds-ink-3); }
+.selfrep-consent em { font-style: normal; color: var(--ds-ink-2); }
+
+.selfrep-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+.selfrep-btn {
+  appearance: none; cursor: pointer; height: var(--ds-control-h);
+  padding: 0 16px; border-radius: 8px; font-family: var(--ds-font-ui);
+  font-size: var(--ds-text-sm); font-weight: 600;
+}
+.selfrep-btn:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 2px; }
+.selfrep-ghost { background: transparent; border: 1px solid var(--ds-border-strong); color: var(--ds-ink-1); }
+.selfrep-ghost:hover { background: var(--ds-surface-3); }
+.selfrep-primary { background: var(--ds-accent); border: 1px solid var(--ds-accent); color: var(--ds-surface-1); }
+.selfrep-primary:hover { background: var(--ds-accent-hover); border-color: var(--ds-accent-hover); }
+.selfrep-primary:disabled { opacity: 0.5; cursor: default; }
+
+.selfrep-foot { margin: 12px 0 0; font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); color: var(--ds-ink-4); }
+
+.selfrep-busy { display: flex; align-items: center; gap: 12px; padding: 18px 4px; font-size: var(--ds-text-sm); color: var(--ds-ink-2); }
+.selfrep-spinner {
+  width: 18px; height: 18px; flex: none; border-radius: 50%;
+  border: 2px solid var(--ds-border-strong); border-top-color: var(--ds-accent);
+  animation: selfrep-spin 720ms linear infinite;
+}
+@keyframes selfrep-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .selfrep-spinner { animation: none; } }
+
+.selfrep-diffs { display: flex; flex-direction: column; gap: 9px; margin: 4px 0 2px; }
+.selfrep-diff {
+  display: grid; grid-template-columns: 96px 1fr auto 1fr; gap: 10px; align-items: baseline;
+  padding: 9px 11px; border: 1px solid var(--ds-border); border-radius: 9px; background: var(--ds-surface-3);
+}
+.selfrep-diff-k { font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ds-ink-3); }
+.selfrep-diff-was { font-size: var(--ds-text-xs); color: var(--ds-ink-4); text-decoration: line-through; }
+.selfrep-diff-arrow { color: var(--ds-ink-4); }
+.selfrep-diff-new { font-size: var(--ds-text-xs); color: var(--ds-ink-1); }
+@media (max-width: 560px) {
+  .selfrep-diff { grid-template-columns: 1fr; gap: 3px; }
+  .selfrep-diff-arrow { display: none; }
+  .selfrep-diff-was { text-decoration: none; opacity: 0.6; }
+}
