@@ -16,6 +16,11 @@ import { sanitizeDelta } from "./self-report-synth.mjs";
 
 const WRITE_TABLE = "os_profile_updates";
 const READ_VIEW = "app_profile_updates";
+// Bound the approved-read so it can't grow unboundedly as approved rows
+// accumulate. Approved profile updates are operator-gated + low-volume, so the
+// newest few hundred always cover the current-per-record value; we still dedup
+// to newest-per-record below, so the cap only trims ancient superseded rows.
+const APPROVED_READ_LIMIT = 500;
 
 // Append one member-approved delta. Always resolves (never throws):
 // { ok:true } | { ok:false, error }.
@@ -71,7 +76,7 @@ export async function fetchApprovedProfileUpdates({ storage, fetchImpl, config }
   let res;
   try {
     res = await doFetch(
-      `${url}/rest/v1/${READ_VIEW}?select=record_id,delta,created_at&order=created_at.asc`,
+      `${url}/rest/v1/${READ_VIEW}?select=record_id,delta,created_at&order=created_at.desc&limit=${APPROVED_READ_LIMIT}`,
       { headers: { apikey: anonKey, authorization: `Bearer ${anonKey}` }, cache: "no-store" },
     );
   } catch {
@@ -81,10 +86,14 @@ export async function fetchApprovedProfileUpdates({ storage, fetchImpl, config }
   let rows;
   try { rows = await res.json(); } catch { return { updates: {}, source: "none" }; }
   const updates = {};
+  const newestAt = {};
   for (const row of Array.isArray(rows) ? rows : []) {
     const id = row && row.record_id ? String(row.record_id) : "";
     if (!id || !row.delta || typeof row.delta !== "object") continue;
-    updates[id] = row.delta; // asc order ⇒ newest wins
+    // Keep newest-per-record by created_at — order-independent, so the result is
+    // correct whether the response came back asc, desc, or capped by the limit.
+    const at = Date.parse(row.created_at || "") || 0;
+    if (!(id in updates) || at >= newestAt[id]) { updates[id] = row.delta; newestAt[id] = at; }
   }
   return { updates, source: "supabase" };
 }

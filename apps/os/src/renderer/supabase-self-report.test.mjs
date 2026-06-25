@@ -77,6 +77,21 @@ test("fetchApprovedProfileUpdates maps newest-per-record and only the GET view",
   assert.ok(!("" in updates));
 });
 
+test("fetchApprovedProfileUpdates bounds the read and stays newest-per-record regardless of order", async () => {
+  // Rows delivered NEWEST-FIRST (the production order=created_at.desc) — the
+  // dedup must still pick the newest delta per record, not the first row seen.
+  const rows = [
+    { record_id: "dmarz", delta: { now: "newest" }, created_at: "2026-06-26T00:00:00Z" },
+    { record_id: "dmarz", delta: { now: "stale" }, created_at: "2026-06-20T00:00:00Z" },
+  ];
+  let seenUrl = "";
+  const fetchImpl = async (url) => { seenUrl = url; return { ok: true, status: 200, json: async () => rows }; };
+  const { updates } = await fetchApprovedProfileUpdates({ config: CONFIG, fetchImpl });
+  assert.ok(seenUrl.includes("limit="), "approved read must be bounded by a limit");
+  assert.ok(seenUrl.includes("order=created_at.desc"), "approved read should request newest-first");
+  assert.deepEqual(updates.dmarz, { now: "newest" });
+});
+
 test("fetchApprovedProfileUpdates is resilient: outage ⇒ source none, no throw", async () => {
   const r1 = await fetchApprovedProfileUpdates({ config: CONFIG, fetchImpl: async () => { throw new Error("offline"); } });
   assert.deepEqual(r1, { updates: {}, source: "none" });
