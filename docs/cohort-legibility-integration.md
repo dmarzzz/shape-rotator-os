@@ -82,13 +82,20 @@ SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… npm run build:connections:publish
 # or split: build locally, commit the artifact, let CI publish it:
 npm run build:connections      # → cohort-data/artifacts/connections/generated/connections.json
 git add cohort-data/artifacts/connections && git commit && git push
-#   → .github/workflows/cohort-connections-sync.yml publishes it hourly
+#   → .github/workflows/cohort-connections-sync.yml re-publishes the committed
+#     artifact to Supabase hourly (cron "41 * * * *", no LLM in CI)
 ```
+
+Two cadences by design: the **local-AI build** (edge computation) runs **daily**;
+the **CI publish** of the already-committed artifact runs **hourly** so a missed
+Supabase write self-heals without re-running the model.
 
 The CI workflow (`cohort-connections-sync.yml`) is held back from the feature
 commit because pushing `.github/workflows/` needs a `workflow`-scoped token
 (`gh auth refresh -h github.com -s workflow`, then push, or add via the GitHub
-UI). It's preserved on branch `feat/cohort-connections-workflow`.
+UI). It is **not on `origin`** — the file currently lives only on a local
+`feat/cohort-connections-workflow` branch, so recreate it from there (or via the
+Actions UI) once the token allows.
 
 ### C. Schedule it
 - **Local** (matches "your own AI"): a daily OS task / cron running
@@ -97,9 +104,10 @@ UI). It's preserved on branch `feat/cohort-connections-workflow`.
   daily (uses the cloud `claude` CLI, which the build script auto-detects).
 
 ## What's still to wire (and why it needs you)
-- **Inferred-attribution marker in views** — the cards carry
-  `content_json.teams_basis:"inferred"`; the dossier / say-did-shipped could show
-  a small "inferred" chip. Pure UI; needs a visual pass.
+- **Inferred-attribution marker in views** — partly done: #498 already renders the
+  `~ inferred` chip on the say/did/shipped evidence rows, and #500's timeline draws
+  inferred dots hollow. Remaining surfaces (directory / PMF) could follow the same
+  `content_json.teams_basis:"inferred"` flag. Pure UI; needs a visual pass.
 - **Connections on the relationship map** — connection edges are a current graph
   (no time axis), so they belong on the ecosystem map / collab board, not the
   Timeline. Could be folded in like the evidence dependency edges.
