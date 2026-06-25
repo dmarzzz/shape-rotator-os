@@ -77,6 +77,7 @@ import { emitProfileEdit, emitContest, emitTranscript } from "./cohort-emit.mjs"
 import { getAppContext } from "./app-context.mjs";
 import { getPrefs, setPrefs } from "./cohort-prefs.mjs";
 import { buildViewer, buildAuthorMeta, buildFeedView, feedItemLabel, getLastSeen, markSeen } from "./activity-feed.mjs";
+import { mirrorViewModel, subjectEyebrow, isSelfSubject } from "./mirror-view.mjs";
 import { openSelfReport } from "./self-report.js";
 import { createLazyModule } from "./lazy-module.js";
 import { loadStylesheetOnce } from "./stylesheet-loader.js";
@@ -7362,10 +7363,10 @@ function mirrorGithubDigest(card) {
 
 // The panel HTML, or "" when there is no resolved member, no team, or no card —
 // in every empty case the shipped grid below renders unchanged.
-function mirrorPanelHtml(myPerson, cardByTeam) {
-  if (!myPerson) return "";
-  const teamId = myPerson.team ? String(myPerson.team) : "";
-  const card = teamId ? cardByTeam.get(teamId) : null;
+function mirrorPanelHtml(subjectTeamId, cardByTeam, { eyebrow = "your mirror", readOnly = false } = {}) {
+  const teamId = subjectTeamId ? String(subjectTeamId) : "";
+  if (!teamId) return "";
+  const card = cardByTeam.get(teamId);
   if (!card) return "";
   const cohort = activeConstellationCohort();
   const team = (cohort.teams || []).find(t => t && t.record_id === teamId) || { record_id: teamId, name: teamId };
@@ -7402,7 +7403,7 @@ function mirrorPanelHtml(myPerson, cardByTeam) {
   return `
     <section class="ac-mirror" data-mirror data-mirror-subject="${escAttr(teamId)}" data-mirror-card="${escAttr(card.id || "")}">
       <div class="ac-mirror-head">
-        <span class="ac-mirror-eyebrow">your mirror</span>
+        <span class="ac-mirror-eyebrow">${escHtml(eyebrow)}</span>
         <span class="ac-mirror-team">${escHtml(team.name || teamId)}</span>
       </div>
       <div class="ac-mirror-strip">
@@ -7411,10 +7412,123 @@ function mirrorPanelHtml(myPerson, cardByTeam) {
         <span class="ac-sds-cell${observedClass}"><b>shipped</b><span>${escHtml(constShortText(content.shipped || "not observed", 160))}</span>${chips ? `<span class="ac-sds-chips">${chips}</span>` : ""}${releasedHtml}</span>
       </div>
       <p class="ac-mirror-cal" data-tone="${escAttr(cal.tone)}">${escHtml(cal.text)}</p>
-      <div class="ac-mirror-actions-row"><button type="button" class="ac-mirror-update" data-mirror-update>✨ update from my recent work</button></div>
+      ${readOnly ? "" : `<div class="ac-mirror-actions-row"><button type="button" class="ac-mirror-update" data-mirror-update>✨ update from my recent work</button></div>`}
       ${traceBody ? `<details class="ac-mirror-trace"><summary>how this reads</summary><div class="ac-mirror-trace-body">${traceBody}</div></details>` : ""}
-      ${tail}
+      ${readOnly ? "" : tail}
     </section>`;
+}
+
+// ── Mirror subject switcher (you · browse · compare) ─────────────────────────
+// Renders the top of the say/did/shipped page: a mode switcher, plus the focused
+// subject's mirror panel(s). "you" = your editable mirror; "browse"/"compare" =
+// read-only panels for any subject (the say/did/shipped cards are cohort-wide).
+// All selection logic is in mirror-view.mjs (node-tested); this owns the DOM.
+function mirrorSubjectName(teamId, subjects) {
+  const s = subjects.find((x) => x.teamId === String(teamId || ""));
+  return s ? s.name : String(teamId || "");
+}
+
+function mirrorSubjectSelect(key, selectedId, subjects, selfTeamId) {
+  const opts = subjects.map((s) =>
+    `<option value="${escAttr(s.teamId)}"${s.teamId === String(selectedId || "") ? " selected" : ""}>${escHtml(s.name)}${isSelfSubject(s.teamId, selfTeamId) ? " (you)" : ""}</option>`,
+  ).join("");
+  return `<select class="ac-mirror-pick" data-mirror-pick="${escAttr(key)}" aria-label="mirror subject">${opts}</select>`;
+}
+
+function renderMirrorTop(vm, cardByTeam) {
+  const { mode, selfTeamId, subjects } = vm;
+  const switcher = `
+    <div class="ac-mirror-switch" role="group" aria-label="mirror subject mode">
+      ${["self", "browse", "compare"].map((m) =>
+        `<button type="button" class="ac-mirror-mode${mode === m ? " is-on" : ""}" data-mirror-mode="${m}" aria-pressed="${mode === m}">${m === "self" ? "you" : m}</button>`,
+      ).join("")}
+    </div>`;
+  const panel = (teamId, readOnly) => (teamId ? mirrorPanelHtml(teamId, cardByTeam, {
+    eyebrow: subjectEyebrow(teamId, selfTeamId, mirrorSubjectName(teamId, subjects)),
+    readOnly,
+  }) : "");
+  let body = "";
+  if (mode === "browse") {
+    body = subjects.length
+      ? `<div class="ac-mirror-pickrow"><span>whose mirror</span>${mirrorSubjectSelect("focus", vm.focus, subjects, selfTeamId)}</div>${panel(vm.focus, true)}`
+      : `<p class="ac-mirror-hint">No say / did / shipped cards yet.</p>`;
+  } else if (mode === "compare") {
+    const a = vm.compare && vm.compare.a;
+    const b = vm.compare && vm.compare.b;
+    body = subjects.length >= 2
+      ? `<div class="ac-mirror-pickrow ac-mirror-pickrow-compare">${mirrorSubjectSelect("compare-a", a, subjects, selfTeamId)}<span class="ac-mirror-vs">vs</span>${mirrorSubjectSelect("compare-b", b, subjects, selfTeamId)}</div>
+         <div class="ac-mirror-compare">${panel(a, true)}${panel(b, true)}</div>`
+      : `<p class="ac-mirror-hint">Need at least two say / did / shipped cards to compare.</p>`;
+  } else { // self
+    const selfPanel = panel(selfTeamId, false);
+    body = selfPanel || `<p class="ac-mirror-hint">${selfTeamId ? "No say / did / shipped card for your team yet — " : "Claim your identity to see your mirror — "}browse the cohort’s below.</p>`;
+  }
+  return `<div class="ac-mirror-wrap" data-mirror-wrap>${switcher}${body}</div>`;
+}
+
+function wireMirrorSwitch() {
+  const canvas = state.canvas;
+  if (!canvas) return;
+  for (const btn of canvas.querySelectorAll("[data-mirror-mode]")) {
+    btn.addEventListener("click", () => {
+      const m = btn.getAttribute("data-mirror-mode");
+      if (!m || state.mirrorMode === m) return;
+      state.mirrorMode = m;
+      renderSayDidShipped();
+    });
+  }
+  const onPick = (key, attr) => {
+    const sel = canvas.querySelector(`[data-mirror-pick="${key}"]`);
+    if (sel) sel.addEventListener("change", () => { state[attr] = sel.value; renderSayDidShipped(); });
+  };
+  onPick("focus", "mirrorFocusId");
+  onPick("compare-a", "mirrorCompareA");
+  onPick("compare-b", "mirrorCompareB");
+}
+
+// Phase 2: the "one page" merge — a compact cohort-context band folded onto the
+// Mirror page, reusing the membrane's own aggregate (computeMembraneData) + the
+// activity feed. Fully defensive: every field guarded, and the band collapses to
+// nothing if there's no data, so it never breaks the page.
+function mirrorContextBandHtml() {
+  let m;
+  try { m = computeMembraneData(); } catch { return ""; }
+  if (!m || typeof m !== "object") return "";
+  const cohort = m.cohort || {};
+  const events = m.events || {};
+  const asks = m.asks || {};
+  let activityLine = "";
+  try {
+    const evs = Array.isArray(state.cohort && state.cohort.cohort_events) ? state.cohort.cohort_events : [];
+    const recent = evs
+      .filter((e) => e && e.event_type !== "prefs")
+      .sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")))[0];
+    if (recent) {
+      const authorMeta = buildAuthorMeta(state.cohort || {});
+      activityLine = feedItemLabel(recent, (id) => (authorMeta[id] && authorMeta[id].name) || id);
+    }
+  } catch { /* fall through to the build-time feed */ }
+  if (!activityLine) {
+    const feed = Array.isArray(m.feed) ? m.feed : [];
+    activityLine = feed.length ? String(feed[0].label || feed[0].title || "") : "";
+  }
+  const openAsks = String(asks.openAskCount || "0");
+  const myAsks = String(asks.myAskCount || "0");
+  const tile = (label, value) => (value
+    ? `<div class="ac-mirror-ctx-tile"><span class="ac-mirror-ctx-k">${escHtml(label)}</span><span class="ac-mirror-ctx-v">${escHtml(value)}</span></div>`
+    : "");
+  const tiles = [
+    tile("cohort", `${cohort.peerCount || "0"} peers · ${cohort.onlineCount || "idle"}`),
+    tile("next", events.nextEventLabel || ""),
+    tile("open asks", openAsks !== "0" ? `${openAsks}${myAsks !== "0" ? ` · ${myAsks} yours` : ""}` : ""),
+    tile("activity", activityLine ? constShortText(activityLine, 42) : ""),
+  ].filter(Boolean).join("");
+  if (!tiles) return "";
+  return `
+    <div class="ac-mirror-ctx" aria-label="your cohort context">
+      <span class="ac-mirror-ctx-eyebrow">your cohort context</span>
+      <div class="ac-mirror-ctx-tiles">${tiles}</div>
+    </div>`;
 }
 
 // Post-render wiring for the mirror panel (the asks-board idiom: query the freshly
@@ -7487,7 +7601,17 @@ function renderSayDidShipped() {
   const teams = (cohort.teams || []).filter(t => t && t.record_id && teamKind(t) !== "person");
   const cardByTeam = cohortInsightSubjectMap("say_did_shipped");
   const { myPerson } = currentAskContext();
-  const mirrorHtml = mirrorPanelHtml(myPerson, cardByTeam);
+  const selfTeamId = myPerson && myPerson.team ? String(myPerson.team) : "";
+  const mirrorVm = mirrorViewModel({
+    mode: state.mirrorMode,
+    focusId: state.mirrorFocusId,
+    compareA: state.mirrorCompareA,
+    compareB: state.mirrorCompareB,
+    selfTeamId,
+    teams,
+    hasCard: (id) => !!cardByTeam.get(String(id)),
+  });
+  const mirrorHtml = renderMirrorTop(mirrorVm, cardByTeam);
   const rows = teams
     .map(team => ({ team, card: cardByTeam.get(team.record_id) || null }))
     .filter(row => row.card)
@@ -7590,8 +7714,10 @@ function renderSayDidShipped() {
           </div>
         </div>
       </div>
+      ${mirrorContextBandHtml()}
     </div>`;
   wireMirrorPanel();
+  wireMirrorSwitch();
 }
 
 function renderProductStack() {

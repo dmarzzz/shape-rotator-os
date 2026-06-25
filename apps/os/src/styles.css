@@ -10983,6 +10983,49 @@ html.jweek-vt .ac-cmp-grid { animation: none; }
    the shipped view. Framed as a self-mirror, not a score: no rank, no red — the
    calibration line is a prompt to update, and a member can push back (move 5).
    Reuses the .ac-sds-cell strip; the rest uses this view's local tokens. ── */
+/* Mirror subject switcher (you · browse · compare) + compare layout. */
+.ac-mirror-wrap { margin: 0 0 14px; }
+.ac-mirror-switch {
+  display: inline-flex; gap: 2px; padding: 2px; margin: 0 0 10px;
+  border: 1px solid rgba(214,189,134,0.30); border-radius: 9px; background: rgba(214,189,134,0.05);
+}
+.ac-mirror-mode {
+  appearance: none; border: 0; background: transparent; cursor: pointer;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em;
+  color: rgba(var(--ink-rgb), 0.6); padding: 5px 13px; border-radius: 7px;
+  transition: background 150ms var(--ease), color 150ms var(--ease);
+}
+.ac-mirror-mode:hover { color: var(--alchemy-paper-warm); }
+.ac-mirror-mode.is-on { background: rgba(214,189,134,0.85); color: rgba(27,20,17,0.92); }
+.ac-mirror-pickrow {
+  display: flex; align-items: center; gap: 9px; margin: 0 0 10px;
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.06em;
+  text-transform: uppercase; color: rgba(var(--ink-rgb), 0.55);
+}
+.ac-mirror-vs { color: rgba(214,189,134,0.9); font-weight: 700; }
+.ac-mirror-pick {
+  font-size: 12px; padding: 5px 9px; border: 1px solid rgba(var(--ink-rgb), 0.18);
+  border-radius: 7px; background: transparent; color: var(--alchemy-paper-warm); cursor: pointer;
+}
+.ac-mirror-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+.ac-mirror-compare .ac-mirror { margin: 0; }
+.ac-mirror-hint { margin: 6px 0 14px; font-size: 12px; line-height: 1.5; color: rgba(var(--ink-rgb), 0.6); }
+@media (max-width: 640px) { .ac-mirror-compare { grid-template-columns: 1fr; } }
+
+/* Phase 2: the cohort-context band folded onto the Mirror page. */
+.ac-mirror-ctx { margin: 18px 0 4px; padding-top: 14px; border-top: 1px solid rgba(var(--ink-rgb), 0.10); }
+.ac-mirror-ctx-eyebrow {
+  font-family: var(--font-mono); font-size: 8.5px; font-weight: 800; letter-spacing: 0.14em;
+  text-transform: uppercase; color: rgba(var(--ink-rgb), 0.45);
+}
+.ac-mirror-ctx-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 10px; }
+.ac-mirror-ctx-tile {
+  display: flex; flex-direction: column; gap: 3px; padding: 9px 12px;
+  border: 1px solid rgba(var(--ink-rgb), 0.12); border-radius: 9px; background: rgba(var(--ink-rgb), 0.02);
+}
+.ac-mirror-ctx-k { font-size: 10.5px; color: rgba(var(--ink-rgb), 0.5); }
+.ac-mirror-ctx-v { font-size: 13px; color: var(--light-1); line-height: 1.35; }
+
 .ac-mirror {
   margin: 0 0 14px;
   padding: 13px 15px;
