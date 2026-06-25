@@ -33,7 +33,7 @@ export const SELF_REPORT_FIELDS = Object.freeze({
 
 const STRING_MAX = 280;
 const LIST_MAX = 12;
-const ITEM_MAX = 80;
+const ITEM_MAX = 140; // live test: prior_work artifact descriptions were cut mid-word at 80
 
 // Build the synthesis prompt — Router/daybook style: the member's OWN local AI,
 // running on THEIR machine with THEIR tools/github, grounds the update in real

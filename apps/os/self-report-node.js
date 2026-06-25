@@ -26,7 +26,10 @@ const { digestFromRawFiles } = require("./daybook/transcripts");
 // instruction directly; ollama is a last-resort fallback only. No API key either way.
 const DETECT = [
   { bin: "claude", args: ["-p"] },
-  { bin: "codex", args: ["exec"] },
+  // Live test: codex refuses outside a git repo (the app's cwd) without
+  // --skip-git-repo-check; --sandbox read-only keeps the synth from writing
+  // anything (it may still read gh/git); `-` reads the prompt from stdin.
+  { bin: "codex", args: ["exec", "--sandbox", "read-only", "--skip-git-repo-check", "-"] },
   { bin: "ollama", args: ["run", process.env.OLLAMA_MODEL || "qwen2.5"] },
 ];
 function onPath(bin) {
