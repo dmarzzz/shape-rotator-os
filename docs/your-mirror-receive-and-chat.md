@@ -72,3 +72,39 @@ real per-source read consent stays **per-run / uncached** by design, so each sca
 disjoint trees. Merge order: mirror is the dependency → merge it into the chat branch (or an integration branch).
 Filenames don't collide; reconcile only the shared `chatCmd` local-CLI readiness contract so a member's configured
 CLI is the same one both use.
+
+## Next steps (priority order)
+
+Branch `feat/your-mirror-v0` is at this point self-contained, 15 commits, 36 tests green, validated headless on a
+real machine (codex/gpt-5.5). Robustness review done (commit 7680bc2). What remains, grouped:
+
+### A. Go live (needs Supabase / Engine access — can't be done from the OS repo alone)
+1. **Apply migrations** to Supabase `txjntzwksiluvqcpccpc` via the Engine path: `20260624120000_public_card_contests.sql`
+   and `20260625000000_os_profile_updates.sql` (like `os_feedback`/`os_spheres`).
+2. **Operator approve UI/step.** Flip `os_profile_updates.status` `pending→approved` (dashboard, or a tiny CLI). The
+   read-back overlay then surfaces it cohort-wide on the next refresh — no PR.
+3. **Engine `scripts/promote-profile-updates.mjs`** (Part 4): service_role read of approved rows → re-whitelist vs
+   `schema.yml` → merge into `cohort-data/people/*.md` → one PR → flip `status='applied'`.
+
+### B. Chat opt-in (needs the branches in one tree)
+4. **Merge** mirror → chat branch (or an integration branch). At merge, dedupe the CLI resolver (the deliberate
+   decouple in `self-report-node.js` vs `cohort-chat-node.js`) and reconcile the shared `main.js` IPC region.
+5. **Wire the chat hooks**: new `cohort-chat-mirror.mjs` (offer copy + `/mirror` + gating) calling the existing
+   `window.__srwkOpenSelfReport` seam; record nag-state in `identity.js`. Reuse the modal's per-source consent.
+
+### C. Verify in-app
+6. **Full Electron run + screenshot** (backend is validated headless; the UI is bundle-checked only). Needs a local
+   CLI on PATH (or a configured `chatCmd`) + a claimed identity.
+
+### D. Residual robustness / consolidation (from the review — lower severity)
+7. **Thread `allowedSkillAreas` vocab** into the prod `sanitizeDelta`/`saveSelfReportUpdate` calls (skill_areas is
+   currently accepted unfiltered) — or drop the unused param. Also pass the refine `answer` to the inbox row.
+8. `readCapped` should cut on a line boundary (not a raw byte tail); bound the approved-read query
+   (`distinct on (record_id)` or transition promoted rows out of `approved`); `mergeDelta` compare set-fields as sets.
+9. **Consolidation P2–P4**: extract the shared anon-write POST boilerplate (`postAnonRow`), unify `clampField`, and a
+   `getSelfReportAppContext()` (also fills the inbox `app_version`/`platform`) across `supabase-self-report` /
+   `supabase-contest` / `supabase-feedback`. Safe but touches sibling modules — do as one dedicated pass.
+   **Do NOT** dedupe the CLI resolver until B.4 (deliberate cross-branch decouple).
+
+### E. Cleanup
+10. `git worktree remove C:/Users/micha/shape-os-mirror-wt` once the branch is merged.
