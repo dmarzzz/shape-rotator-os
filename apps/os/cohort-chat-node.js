@@ -26,6 +26,53 @@ const DETECT = [
   { bin: "ollama", args: ["run", process.env.OLLAMA_MODEL || "qwen2.5"] },
 ];
 
+// ── data-sensitivity gate + credential hygiene (harvested from the Hermes
+// "Ask Cohort" PR #417) ──────────────────────────────────────────────────────
+// claude/codex are REMOTE: they ship the prompt to a hosted model, even on the
+// member's own subscription — still off-device. So only PUBLIC grounding may
+// reach them; anything private/transcript-derived must stay on a LOCAL model
+// (ollama). The cohort chat grounds on the PUBLIC surface, so its dataMode is
+// "public" today — this gate keeps that property structural if private
+// grounding is ever added, rather than a promise.
+const DATA_MODES = ["public", "private_distilled", "raw_local"];
+const BACKEND_LOCALITY = { claude: "remote", codex: "remote", ollama: "local" };
+
+// Map a resolved argv to a known backend by its binary basename; unknown custom
+// commands are treated as remote (the safest assumption for the gate).
+function backendForArgv(argv) {
+  const bin = String((argv && argv[0]) || "")
+    .replace(/\\/g, "/").split("/").pop()
+    .toLowerCase().replace(/\.(exe|cmd|bat|ps1)$/, "");
+  return BACKEND_LOCALITY[bin] ? bin : "custom";
+}
+
+// Returns { ok:true } when `backend` may receive `dataMode` grounding, else
+// { ok:false, error }. Unknown modes are treated as the safest (non-public);
+// unknown backends as remote.
+function assertBackendAllowed(dataMode, backend) {
+  const mode = DATA_MODES.includes(dataMode) ? dataMode : "raw_local";
+  const locality = BACKEND_LOCALITY[backend] || "remote";
+  if (mode !== "public" && locality === "remote") {
+    return { ok: false, error: `policy: ${mode} grounding must not be sent to the remote ${backend} backend — use a local model (ollama)` };
+  }
+  return { ok: true };
+}
+
+// Provider credentials NEVER ride our process into the member's CLI: it must use
+// THEIR interactive login / subscription, never a key inherited from us. Strip
+// them from every spawn unless the member deliberately opts in.
+const PROVIDER_CREDENTIAL_ENV = [
+  "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN",
+  "OPENAI_API_KEY", "OPENAI_API_KEY_PATH",
+];
+function spawnEnv(extra = {}) {
+  const env = { ...process.env, ...extra };
+  if (process.env.COHORT_CHAT_USE_ENV_KEYS !== "1") {
+    for (const k of PROVIDER_CREDENTIAL_ENV) delete env[k];
+  }
+  return env;
+}
+
 function onPath(bin) {
   const probe = process.platform === "win32" ? "where" : "which";
   try {
@@ -80,7 +127,7 @@ function isRunning() {
 // (built in the renderer); it is written to the child's stdin. stdout streams
 // back as fg:cohort-chat:output {requestId, stream, chunk}; completion as a
 // status event.
-function start({ requestId, prompt, chatCmd }) {
+function start({ requestId, prompt, chatCmd, dataMode = "public" }) {
   if (isRunning()) return { ok: false, reason: "chat_already_running" };
   if (!prompt || !String(prompt).trim()) return { ok: false, reason: "empty_prompt" };
   const argv = resolveCommand(chatCmd);
@@ -92,13 +139,17 @@ function start({ requestId, prompt, chatCmd }) {
     };
   }
 
-  const env = {
-    ...process.env,
+  // Privacy gate: never ship non-public grounding to a remote backend.
+  const gate = assertBackendAllowed(dataMode, backendForArgv(argv));
+  if (!gate.ok) return { ok: false, reason: "policy_blocked", detail: gate.error };
+
+  // Provider keys stripped (their subscription, never ours); stay quiet/non-interactive.
+  const env = spawnEnv({
     PYTHONUNBUFFERED: "1",
     // Ask agents that honour it to stay non-interactive / quiet.
     CI: process.env.CI || "1",
     NO_COLOR: "1",
-  };
+  });
 
   let child;
   try {
@@ -153,4 +204,4 @@ function getInfo(configuredCmd) {
   };
 }
 
-module.exports = { start, stop, getStatus, getInfo, resolveCommand, splitCommand, detectAvailable, onStatus, onOutput };
+module.exports = { start, stop, getStatus, getInfo, resolveCommand, splitCommand, detectAvailable, onStatus, onOutput, assertBackendAllowed, backendForArgv, spawnEnv, DATA_MODES };

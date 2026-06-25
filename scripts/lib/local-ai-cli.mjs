@@ -52,6 +52,22 @@ export function resolveLlmCommand(env = process.env) {
 }
 
 // Run the resolved CLI with `prompt` on stdin; resolve with the collected stdout.
+// Provider credentials never ride this process into the member's CLI — it must
+// use their own login/subscription, never a key inherited from us. Strip them
+// from the spawn env unless the operator deliberately opts in (matches the
+// app-side cohort-chat-node.js spawnEnv).
+const PROVIDER_CREDENTIAL_ENV = [
+  "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN",
+  "OPENAI_API_KEY", "OPENAI_API_KEY_PATH",
+];
+export function stripProviderKeys(env = process.env) {
+  const out = { ...env };
+  if (env.COHORT_CHAT_USE_ENV_KEYS !== "1") {
+    for (const k of PROVIDER_CREDENTIAL_ENV) delete out[k];
+  }
+  return out;
+}
+
 export function runLocalAi(prompt, { env = process.env, timeoutMs = 180000, cmd = null } = {}) {
   const argv = cmd || resolveLlmCommand(env);
   if (!argv || !argv.length) {
@@ -61,7 +77,7 @@ export function runLocalAi(prompt, { env = process.env, timeoutMs = 180000, cmd 
     let child;
     try {
       child = spawn(argv[0], argv.slice(1), {
-        env: { ...env, PYTHONUNBUFFERED: "1" },
+        env: { ...stripProviderKeys(env), PYTHONUNBUFFERED: "1" },
         stdio: ["pipe", "pipe", "pipe"],
       });
     } catch (e) {
