@@ -13,7 +13,7 @@
 // existing profile-write path.
 
 // Local CLIs emit ANSI color codes; strip them before parsing (mirrors cohort-chat.js).
-const ANSI_RE = /\[[0-9;]*m/g;
+const ANSI_RE = /[][[\]()#;?]*(?:(?:[a-zA-Z\d]*(?:;[a-zA-Z\d\/#&.:=?%@~_-]*)*)?|(?:\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-ntqry=><~])/g;
 export function stripAnsi(s) {
   return String(s == null ? "" : s).replace(ANSI_RE, "");
 }
@@ -82,45 +82,73 @@ export function buildSelfReportPrompt({ person = {}, sessionDigest = "", githubD
   ].join("\n");
 }
 
-// Pull a JSON object out of possibly-noisy CLI stdout: prefer a ```json fence,
-// else the outermost balanced {…}. Returns { ok, delta } or { ok:false, error }.
+// Pull the model's JSON answer out of possibly-noisy CLI stdout. Agentic CLIs may
+// echo the prompt (which contains a current-profile object) before the answer, emit
+// cursor/OSC ANSI, or wrap reasoning in a bare fence — so: strip ANSI, prefer a
+// valid ```json fence, else scan ALL top-level balanced objects STRING-AWARELY and
+// take the LAST that carries a whitelist field or `question` (the answer comes last).
+// Returns { ok, delta } or { ok:false, error }.
 export function parseSelfReportDelta(raw) {
   const text = stripAnsi(raw).trim();
   if (!text) return { ok: false, error: "empty" };
-  let candidate = null;
+  const tryObj = (str) => {
+    try { const v = JSON.parse(str); return v && typeof v === "object" && !Array.isArray(v) ? v : null; }
+    catch { return null; }
+  };
+  const candidates = [];
+  // A ```json fence is the model's explicit answer block — try it first (but fall
+  // through if it isn't valid JSON; models wrap *thinking* in bare fences).
   const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fence) candidate = fence[1].trim();
-  if (!candidate) {
-    const start = text.indexOf("{");
-    if (start === -1) return { ok: false, error: "no_json" };
-    let depth = 0, end = -1;
-    for (let i = start; i < text.length; i++) {
-      const c = text[i];
-      if (c === "{") depth++;
-      else if (c === "}") { depth--; if (depth === 0) { end = i; break; } }
+  if (fence) candidates.push(fence[1].trim());
+  // Every top-level balanced { } object, tracking string context so a brace inside
+  // a string value (free-text now/prior_work) doesn't mis-balance the scan.
+  for (let a = 0; a < text.length; a++) {
+    if (text[a] !== "{") continue;
+    let depth = 0, end = -1, inStr = false, esc = false;
+    for (let b = a; b < text.length; b++) {
+      const c = text[b];
+      if (inStr) {
+        if (esc) esc = false;
+        else if (c === "\\") esc = true;
+        else if (c === '"') inStr = false;
+        continue;
+      }
+      if (c === '"') inStr = true;
+      else if (c === "{") depth++;
+      else if (c === "}") { depth--; if (depth === 0) { end = b; break; } }
     }
-    if (end === -1) return { ok: false, error: "unbalanced" };
-    candidate = text.slice(start, end + 1);
+    if (end === -1) break;
+    candidates.push(text.slice(a, end + 1));
+    a = end;
   }
-  let parsed;
-  try { parsed = JSON.parse(candidate); }
-  catch { return { ok: false, error: "parse_error" }; }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return { ok: false, error: "not_object" };
-  }
-  return { ok: true, delta: parsed };
+  if (!candidates.length) return { ok: false, error: "no_json" };
+  const FIELDS = Object.keys(SELF_REPORT_FIELDS);
+  const isAnswer = (o) => !!o && (("question" in o) || FIELDS.some((f) => f in o));
+  // Prefer the LAST answer-shaped object; else the last parseable object at all.
+  for (let n = candidates.length - 1; n >= 0; n--) { const v = tryObj(candidates[n]); if (v && isAnswer(v)) return { ok: true, delta: v }; }
+  for (let n = candidates.length - 1; n >= 0; n--) { const v = tryObj(candidates[n]); if (v) return { ok: true, delta: v }; }
+  return { ok: false, error: "parse_error" };
 }
 
-function clampStr(v) {
-  const s = String(v == null ? "" : v).trim();
-  return s ? s.slice(0, STRING_MAX) : "";
+// Coerce ONE value to a bounded string. Rejects non-primitives (a nested object
+// would stringify to "[object Object]") and trims a dangling high surrogate left by
+// slicing at an odd UTF-16 boundary (which would render as � / break JSON later).
+function clampOne(v, max) {
+  if (typeof v !== "string" && typeof v !== "number") return "";
+  let s = String(v).trim();
+  if (!s) return "";
+  s = s.slice(0, max);
+  const last = s.charCodeAt(s.length - 1);
+  if (last >= 0xD800 && last <= 0xDBFF) s = s.slice(0, -1);
+  return s;
 }
+function clampStr(v) { return clampOne(v, STRING_MAX); }
 function clampList(v) {
   const arr = Array.isArray(v) ? v : (v == null ? [] : [v]);
   const out = [];
   for (const item of arr) {
-    const s = String(item == null ? "" : item).trim();
-    if (s) out.push(s.slice(0, ITEM_MAX));
+    const s = clampOne(item, ITEM_MAX);
+    if (s) out.push(s);
     if (out.length >= LIST_MAX) break;
   }
   return out;

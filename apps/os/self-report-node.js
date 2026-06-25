@@ -144,17 +144,33 @@ function runSynthesis({ prompt, chatCmd, timeoutMs = 120000 } = {}) {
       delete env.ANTHROPIC_API_KEY;
       child = spawn(argv[0], argv.slice(1), { env, stdio: ["pipe", "pipe", "pipe"] });
     } catch (e) { return resolve({ ok: false, reason: "spawn_failed", detail: e.message }); }
-    let out = "", err = "";
-    const timer = setTimeout(() => { try { child.kill("SIGTERM"); } catch {} }, timeoutMs);
+    let out = "", err = "", timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      // SIGTERM doesn't reliably kill a child's subtree on Windows (codex/ollama
+      // spawn helpers), so tree-kill there; SIGTERM elsewhere.
+      try {
+        if (process.platform === "win32" && child.pid) {
+          spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"]);
+        } else {
+          child.kill("SIGTERM");
+        }
+      } catch {}
+    }, timeoutMs);
     child.stdout.on("data", (b) => { out += b.toString("utf8"); });
     child.stderr.on("data", (b) => { err += b.toString("utf8"); });
     child.on("error", (e) => { clearTimeout(timer); resolve({ ok: false, reason: "spawn_error", detail: e.message }); });
     child.on("exit", (code) => {
       clearTimeout(timer);
-      resolve({ ok: code === 0 || out.trim().length > 0, stdout: out, stderr: err, exitCode: code });
+      // A killed/partial run must NOT claim success — the renderer would surface a
+      // confusing parse error instead of "timed out / no output". Require a clean
+      // exit or at least a JSON-looking object in stdout.
+      if (timedOut) return resolve({ ok: false, reason: "timeout", stdout: out, stderr: err, exitCode: code });
+      const ok = code === 0 || out.includes("{");
+      resolve({ ok, reason: ok ? undefined : "no_output", stdout: out, stderr: err, exitCode: code });
     });
     try { child.stdin.write(String(prompt)); child.stdin.end(); } catch {}
   });
 }
 
-module.exports = { scanLocalSessions, runSynthesis };
+module.exports = { scanLocalSessions, runSynthesis, resolveCommand, splitCommand };

@@ -31,6 +31,7 @@ import { fetchCohortArticles } from "./supabase-articles.mjs";
 import { fetchCohortDistillations } from "./supabase-distillations.mjs";
 import { fetchAllSpheres } from "./supabase-sphere.mjs";
 import { fetchApprovedProfileUpdates } from "./supabase-self-report.mjs";
+import { sanitizeDelta } from "./self-report-synth.mjs";
 import { fetchReleasesFeed } from "./supabase-releases.mjs";
 
 const GH_REPO     = "dmarzzz/shape-rotator-os";
@@ -888,12 +889,25 @@ async function applyProfileUpdateOverlay(surface) {
     const { updates, source } = await fetchApprovedProfileUpdates();
     if (source !== "supabase") return surface;
     const people = Array.isArray(surface.people) ? surface.people : [];
-    for (const person of people) {
+    let touched = false;
+    // CLONE, never mutate: the baseline person objects are shared/persisted, so
+    // mutating them would bake an approved delta in permanently (un-revertible if
+    // the row is later un-approved, and masking newer markdown/sync edits). Build
+    // NEW objects each tick so the overlay is derived-not-accumulated. Re-whitelist
+    // the row (sanitizeDelta) so the read path holds the same "only 7 fields move"
+    // invariant as the write — never trust a key that lands in the view.
+    surface.people = people.map((person) => {
       const delta = person && person.record_id ? updates[person.record_id] : null;
-      if (!delta || typeof delta !== "object") continue;
-      for (const [k, v] of Object.entries(delta)) person[k] = v;
-    }
-    surface._profileUpdateSource = "supabase-live";
+      if (!delta || typeof delta !== "object") return person;
+      const clean = sanitizeDelta(delta);
+      if (!Object.keys(clean).length) return person;
+      touched = true;
+      return { ...person, ...clean };
+    });
+    // Approved self-reports intentionally win over the markdown/sync baseline (they
+    // are the latest member-approved value, operator-gated). Because we re-derive
+    // from the baseline each tick, dropping the approved row reverts cleanly.
+    if (touched) surface._profileUpdateSource = "supabase-live";
   } catch {
     // keep whatever the surface already carries
   }

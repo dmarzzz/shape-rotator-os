@@ -51,10 +51,12 @@ function esc(s) {
 
 let host = null;
 let busyTimer = null;
+let runGen = 0; // bumped on close; a long async pass captures it and drops a stale result
 function clearBusyTimer() { if (busyTimer) { clearInterval(busyTimer); busyTimer = null; } }
 function onKey(e) { if (e.key === "Escape") closeSelfReport(); }
 
 export function closeSelfReport() {
+  runGen += 1;
   clearBusyTimer();
   if (host) { host.remove(); host = null; }
   document.removeEventListener("keydown", onKey);
@@ -149,6 +151,8 @@ function setBusy(message) {
   if (el) el.textContent = message;
 }
 function renderError(message) {
+  clearBusyTimer();
+  if (!host) return; // an async pass finished after the modal was closed
   host.innerHTML = card(`
     <header class="selfrep-head"><span class="selfrep-eyebrow">couldn’t draft an update</span>
       <button type="button" class="selfrep-x" data-sr-close aria-label="close">✕</button></header>
@@ -217,6 +221,8 @@ async function runSelfReport(person, { useSessions, useGithub, githubFallback })
 
 // ── Step 3 — review → optional interview refine → hand to the editor ──────────
 function renderReview(person, state) {
+  clearBusyTimer();
+  if (!host) return; // an async pass finished after the modal was closed
   const { merged, changed, question, digests } = state;
   const rows = changed.map((k) => `
     <div class="selfrep-diff">
@@ -245,16 +251,22 @@ function renderReview(person, state) {
     </div>
   `);
   for (const b of host.querySelectorAll("[data-sr-close]")) b.addEventListener("click", closeSelfReport);
+  let applied = false;
   host.querySelector("[data-sr-apply]").addEventListener("click", () => {
+    if (applied) return; // guard a double-click → duplicate inbox rows + double editor open
+    applied = true;
     // RECEIVE (additive): append the approved delta to the Supabase inbox
-    // (os_profile_updates) so an operator/Engine can approve + promote it
-    // cohort-wide. Fire-and-forget — the canonical write is still the editor save
-    // below; this is the durable, cross-device receive of what the member approved.
+    // (os_profile_updates) so an operator/Engine can approve + promote it cohort-wide.
+    // The canonical write is still the editor save below; this is the durable
+    // cross-device receive. .then/.catch so a silent inbox drop is logged (it would
+    // otherwise defeat the cross-device premise) and a future throw can't leak.
     const sourceKinds = [
       digests.sessionDigest ? "sessions" : "",
       digests.githubDigest ? "github" : "",
     ].filter(Boolean);
-    saveSelfReportUpdate(person.record_id, merged, { question: question || "", sourceKinds });
+    Promise.resolve(saveSelfReportUpdate(person.record_id, merged, { question: question || "", sourceKinds }))
+      .then((r) => { if (!r || !r.ok) console.warn("[self-report] receive write failed:", r && r.error); })
+      .catch((e) => console.warn("[self-report] receive write error:", e && e.message ? e.message : e));
     // Hand the proposal to the existing profile editor as a one-shot prefill; the
     // member tweaks and clicks the editor's own "save" — the real HITL gate.
     if (typeof window.__srwkOpenProfile === "function") {
@@ -269,10 +281,17 @@ function renderReview(person, state) {
   });
   const refineBtn = host.querySelector("[data-sr-refine]");
   if (refineBtn) {
+    let refining = false;
     refineBtn.addEventListener("click", async () => {
+      if (refining) return; // guard concurrent refine passes (double CLI spawn + host race)
       const answer = ((host.querySelector("[data-sr-answer]") || {}).value || "").trim();
       if (!answer) return;
+      refining = true;
+      refineBtn.disabled = true;
+      const gen = runGen;
       const res = await synthesize(person, digests, answer);
+      if (gen !== runGen) return; // modal closed/reopened mid-run → drop the stale result
+      refining = false;
       if (!res.ok) return renderError(res.error);
       if (!res.changed.length) return renderError("Looks good — nothing more to change. 🎉");
       renderReview(person, { ...res, digests });

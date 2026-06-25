@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   SELF_REPORT_FIELDS,
@@ -65,9 +68,41 @@ test("parses the outermost balanced object when there is no fence", () => {
 test("reports failures instead of throwing", () => {
   assert.deepEqual(parseSelfReportDelta(""), { ok: false, error: "empty" });
   assert.deepEqual(parseSelfReportDelta("no json here"), { ok: false, error: "no_json" });
-  assert.equal(parseSelfReportDelta("{ broken").error, "unbalanced");
+  assert.equal(parseSelfReportDelta("{ broken").error, "no_json");     // unbalanced tail ⇒ no usable object
   assert.equal(parseSelfReportDelta("{ not: valid json }").error, "parse_error");
-  assert.equal(parseSelfReportDelta("[1,2,3]").error, "no_json"); // array isn't an object proposal
+  assert.equal(parseSelfReportDelta("[1,2,3]").error, "no_json");      // array isn't an object proposal
+});
+
+test("picks the model's answer, not an echoed current-profile object (C1)", () => {
+  // Agentic CLIs (codex/ollama) echo the prompt — incl. the current profile {…} —
+  // before answering. The parser must take the LAST answer-shaped object.
+  const out = `You said your profile is:
+{"now":"OLD stale value","skills":["rust"]}
+Respond with the JSON object now:
+{"now":"the REAL new update","skills":["rust","go"],"question":"emphasize what?"}`;
+  const r = parseSelfReportDelta(out);
+  assert.ok(r.ok);
+  assert.equal(r.delta.now, "the REAL new update");
+  assert.equal(r.delta.question, "emphasize what?");
+});
+
+test("scanner is string-aware: braces inside string values don't break it (H2)", () => {
+  const out = 'noise {"now":"ship {feature} and fix }bug{","skills":["a"]} trailing';
+  const r = parseSelfReportDelta(out);
+  assert.ok(r.ok);
+  assert.equal(r.delta.now, "ship {feature} and fix }bug{");
+  assert.deepEqual(r.delta.skills, ["a"]);
+});
+
+test("falls through a non-JSON fence to the real object (C2)", () => {
+  const bt = String.fromCharCode(96).repeat(3); // ```
+  const out = bt + `
+let me think — this part is not json
+` + bt + `
+` + JSON.stringify({ now: "real answer", question: "ok?" });
+  const r = parseSelfReportDelta(out);
+  assert.ok(r.ok);
+  assert.equal(r.delta.now, "real answer");
 });
 
 test("sanitize DROPS any field outside the whitelist (record_id, team, role, links…)", () => {
@@ -127,4 +162,28 @@ test("end-to-end: messy CLI stdout → safe, minimal, approved-shaped delta", ()
   assert.equal(merged.now, "wiring Your Mirror into the shipped view");
   assert.deepEqual(merged.skills, ["rust", "javascript"]);
   assert.ok(!("team" in merged) && !("record_id" in merged)); // privilege escalation blocked
+});
+
+test("sanitize rejects nested objects/arrays (no '[object Object]') + trims lone surrogates (M3)", () => {
+  const clean = sanitizeDelta({ now: { evil: "obj" }, skills: [{ a: 1 }, ["x", "y"], "real"], weekly_intention: "ok" });
+  assert.ok(!("now" in clean));              // nested object rejected, not coerced to "[object Object]"
+  assert.deepEqual(clean.skills, ["real"]);  // non-primitive items dropped
+  assert.equal(clean.weekly_intention, "ok");
+  const c2 = sanitizeDelta({ now: "a".repeat(279) + "😀" }); // clamps at an odd UTF-16 boundary
+  const last = c2.now.charCodeAt(c2.now.length - 1);
+  assert.ok(!(last >= 0xD800 && last <= 0xDBFF), "left a dangling high surrogate");
+});
+
+test("the 7-field whitelist agrees across SELF_REPORT_FIELDS, the migration, and schema.yml (drift guard)", () => {
+  const fields = Object.keys(SELF_REPORT_FIELDS).sort();
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+  const sql = fs.readFileSync(path.join(root, "supabase/migrations/20260625000000_os_profile_updates.sql"), "utf8");
+  const marker = "k not in (";
+  const at = sql.indexOf(marker);
+  assert.ok(at >= 0, "migration whitelist CHECK not found");
+  const list = sql.slice(at + marker.length, sql.indexOf(")", at));
+  const sqlFields = list.split("'").filter((_, i) => i % 2 === 1).sort(); // odd splits = quoted values
+  assert.deepEqual(sqlFields, fields, "migration whitelist CHECK drifted from SELF_REPORT_FIELDS");
+  const schema = fs.readFileSync(path.join(root, "cohort-data/schema.yml"), "utf8");
+  for (const f of fields) assert.ok(schema.includes(f), `${f} missing from schema.yml`);
 });
