@@ -19,13 +19,22 @@
 -- migration only WIDENS the kind whitelist — no new exposure. Mirrors
 -- 20260620000000_cohort_insight_collaboration_edge_kind.sql.
 
+-- NOTE: the live DB's kind list has DRIFTED from this repo's migration history
+-- (the schema is co-owned with the private shape-rotator-transcript-engine repo).
+-- Applied + verified against production 2026-06-25, the current allowed kinds were
+-- award / collaboration_contribution / latent_overlap / progress_drift /
+-- project_identity / project_narrative / rotation / say_did_shipped — which
+-- INCLUDES private-repo kinds this repo never declared and OMITS collaboration_edge
+-- this repo's 20260620000000 migration added. So the list below is the union of
+-- the live kinds + the three new ones, to avoid orphaning any existing row. If the
+-- private repo adds further kinds, widen this list (or re-derive it) before re-run.
 alter table public.cohort_insight_cards
   drop constraint if exists cohort_insight_cards_kind_check;
 
 alter table public.cohort_insight_cards
   add constraint cohort_insight_cards_kind_check
   check (kind in (
-    'project_identity', 'say_did_shipped', 'latent_overlap', 'collaboration_edge',
-    'rotation', 'progress_drift', 'award',
+    'award', 'collaboration_contribution', 'latent_overlap', 'progress_drift',
+    'project_identity', 'project_narrative', 'rotation', 'say_did_shipped',
     'connection_edge', 'card_attribution', 'cluster_summary'
   ));
