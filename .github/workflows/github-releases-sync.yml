@@ -99,7 +99,12 @@ jobs:
             echo "No committed release-bundle changes."
           else
             git commit -m "chore(releases): sync cohort GitHub releases"
-            git push --force-with-lease origin "$SYNC_BRANCH"
+            # Plain --force (not --force-with-lease): the branch is recreated
+            # fresh from main each run via `checkout -B` and the remote ref is
+            # never fetched, so --force-with-lease has no lease base and always
+            # rejects as "stale info". The branch is a disposable bot branch, so
+            # an unconditional overwrite is safe.
+            git push --force origin "$SYNC_BRANCH"
             gh pr create --base main --head "$SYNC_BRANCH" --title "chore(releases): sync cohort GitHub releases" --body "Automated refresh of generated cohort GitHub release artifacts and offline cohort surface." || echo "Bundle refresh PR already exists or could not be created."
           fi
 
