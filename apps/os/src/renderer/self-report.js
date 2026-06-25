@@ -18,6 +18,13 @@ import {
 } from "./self-report-synth.mjs";
 import { loadStylesheetOnce } from "./stylesheet-loader.js";
 import { scanGithubActivity, resolvePersonHandle } from "./gh-self-report.mjs";
+import { saveSelfReportUpdate } from "./supabase-self-report.mjs";
+
+// Expose the entry on a global so the cohort-chat bot's opt-in flow can route into
+// it: window.__srwkOpenSelfReport?.({ person, githubDigest }) — a graceful no-op
+// until the chat + mirror branches merge. Mirrors the window.__srwkOpenProfile
+// convention. (openSelfReport is a hoisted function declaration below.)
+if (typeof window !== "undefined") window.__srwkOpenSelfReport = openSelfReport;
 
 let stylesheetPromise = null;
 function ensureStylesheet() {
@@ -239,6 +246,15 @@ function renderReview(person, state) {
   `);
   for (const b of host.querySelectorAll("[data-sr-close]")) b.addEventListener("click", closeSelfReport);
   host.querySelector("[data-sr-apply]").addEventListener("click", () => {
+    // RECEIVE (additive): append the approved delta to the Supabase inbox
+    // (os_profile_updates) so an operator/Engine can approve + promote it
+    // cohort-wide. Fire-and-forget — the canonical write is still the editor save
+    // below; this is the durable, cross-device receive of what the member approved.
+    const sourceKinds = [
+      digests.sessionDigest ? "sessions" : "",
+      digests.githubDigest ? "github" : "",
+    ].filter(Boolean);
+    saveSelfReportUpdate(person.record_id, merged, { question: question || "", sourceKinds });
     // Hand the proposal to the existing profile editor as a one-shot prefill; the
     // member tweaks and clicks the editor's own "save" — the real HITL gate.
     if (typeof window.__srwkOpenProfile === "function") {

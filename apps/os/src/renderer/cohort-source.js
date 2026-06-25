@@ -30,6 +30,7 @@ import { evidenceDependencyRecords, insightCollaborationDependencyRecords, colla
 import { fetchCohortArticles } from "./supabase-articles.mjs";
 import { fetchCohortDistillations } from "./supabase-distillations.mjs";
 import { fetchAllSpheres } from "./supabase-sphere.mjs";
+import { fetchApprovedProfileUpdates } from "./supabase-self-report.mjs";
 import { fetchReleasesFeed } from "./supabase-releases.mjs";
 
 const GH_REPO     = "dmarzzz/shape-rotator-os";
@@ -875,6 +876,30 @@ async function applySphereOverlay(surface) {
   return surface;
 }
 
+// Apply the live Supabase profile-update overlay: APPROVED self-report deltas
+// ("Your Mirror") read from the app_profile_updates view, merged onto the matching
+// person records so the rendered profile "updates off it" with no PR. Unlike the
+// sphere overlay (a side map read at render), profile FIELDS merge into the person
+// object itself because the card/detail/editor renderers read person.now,
+// person.skills, etc. directly. Approved-only by design (the raw inbox is anon
+// write-only); on a Supabase outage the surface keeps its committed/synced baseline.
+async function applyProfileUpdateOverlay(surface) {
+  try {
+    const { updates, source } = await fetchApprovedProfileUpdates();
+    if (source !== "supabase") return surface;
+    const people = Array.isArray(surface.people) ? surface.people : [];
+    for (const person of people) {
+      const delta = person && person.record_id ? updates[person.record_id] : null;
+      if (!delta || typeof delta !== "object") continue;
+      for (const [k, v] of Object.entries(delta)) person[k] = v;
+    }
+    surface._profileUpdateSource = "supabase-live";
+  } catch {
+    // keep whatever the surface already carries
+  }
+  return surface;
+}
+
 // Apply the live Supabase release-feed overlay. The membrane "what's new" feed
 // (whats_new + github_releases) is published to public_releases_feed by the
 // github-releases-sync workflow, so a new release shows up live — no git PR into
@@ -1081,6 +1106,7 @@ function _startBackgroundRefresh({ forceGithub = false } = {}) {
       await applyArticleOverlay(merged);
       await applyDistillationOverlay(merged);
       await applySphereOverlay(merged);
+      await applyProfileUpdateOverlay(merged);
       await applyReleaseOverlay(merged);
       merged._sig = signatureOf(merged);
       // Did anything actually change? If not, no subscriber notify.
