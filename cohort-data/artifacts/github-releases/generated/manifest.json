@@ -16,9 +16,9 @@
       "artifact_id": "github-releases:shape-rotator-os:dmarzzz-shape-rotator-os",
       "artifact_kind": "github_release_list",
       "record_id": "shape-rotator-os",
-      "date": "2026-06-18",
+      "date": "2026-06-23",
       "file": "github-releases-shape-rotator-os-dmarzzz-shape-rotator-os.json",
-      "release_count": 82,
+      "release_count": 83,
       "review_status": "generated",
       "surface_recommendation": "promote_candidate"
     },
