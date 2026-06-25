@@ -73,6 +73,9 @@ import {
   askVerbVars, askVerbIconSvg,
 } from "./asks.js";
 import { submitContest } from "./supabase-contest.mjs";
+import { emitProfileEdit, emitContest, emitTranscript } from "./cohort-emit.mjs";
+import { getPrefs, setPrefs } from "./cohort-prefs.mjs";
+import { buildViewer, buildAuthorMeta, buildFeedView, feedItemLabel, getLastSeen, markSeen } from "./activity-feed.mjs";
 import { openSelfReport } from "./self-report.js";
 import { createLazyModule } from "./lazy-module.js";
 import { loadStylesheetOnce } from "./stylesheet-loader.js";
@@ -169,7 +172,7 @@ function normalizeDirCols(stored, defaultKeys) {
 // section below this constant for the disabled hooks.
 // `collab` is a Constellation sub-view, not a standalone OS mode. Legacy
 // saved locations that still say "collab" are normalized on restore.
-const ALCHEMY_MODES   = ["membrane", "shapes", "constellation", "calendar", "profile", "onboarding", "program", "asks", "context"];
+const ALCHEMY_MODES   = ["membrane", "shapes", "constellation", "calendar", "profile", "onboarding", "program", "asks", "context", "activity"];
 const MEMBRANE_INTRO_LS_KEY = "srwk:membrane_seen_v1";
 const membraneLazy = createLazyModule(() =>
   Promise.all([
@@ -1313,6 +1316,88 @@ function render(opts = {}) {
   renderModeContent();
 }
 
+// ── activity feed (the two-way contribution layer's visible surface) ─────────
+// Reads the cohort_events spine (surface.cohort_events, hydrated by
+// applyCohortEventsOverlay) and renders the on-device-ranked feed. All ranking +
+// labelling lives in activity-feed.mjs (node-tested); this owns the DOM + escaping.
+function activityRelTime(iso) {
+  const t = Date.parse(iso || "");
+  if (!Number.isFinite(t)) return "";
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  if (s < 60) return "now";
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h`;
+  return `${Math.floor(s / 86400)}d`;
+}
+
+function renderActivityMode() {
+  const canvas = state.canvas;
+  if (!canvas) return;
+  const cohort = state.cohort || {};
+  const events = Array.isArray(cohort.cohort_events) ? cohort.cohort_events : [];
+  const identity = getIdentity();
+  const prefs = getPrefs();
+  const authorMeta = buildAuthorMeta(cohort);
+  const viewer = buildViewer(cohort, identity);
+  let view;
+  try {
+    view = buildFeedView(events, viewer, prefs, { now: Date.now(), lastSeen: getLastSeen(), authorMeta });
+  } catch {
+    view = { items: [], mine: [], quietCount: 0, newCount: 0, mode: prefs.feed_mode || "for_you" };
+  }
+  const nameOf = (id) => (authorMeta[id] && authorMeta[id].name) || id;
+  const itemRow = (ev) => `
+    <li class="alch-activity-item${ev._isNew ? " is-new" : ""}" data-kind="${escAttr(ev.event_type)}" data-weight="${escAttr(ev.weight)}">
+      <span class="alch-activity-dot" aria-hidden="true"></span>
+      <span class="alch-activity-label">${escHtml(feedItemLabel(ev, nameOf))}</span>
+      <time class="alch-activity-time">${escHtml(activityRelTime(ev.created_at))}</time>
+    </li>`;
+  const empty = events.length === 0;
+  const newBadge = view.newCount ? ` · <strong>${view.newCount} new</strong>` : "";
+  canvas.innerHTML = `
+    <section class="alch-activity" data-activity>
+      <header class="alch-activity-head">
+        <div>
+          <h2 class="alch-activity-title">activity</h2>
+          <p class="alch-activity-sub">what the cohort is contributing${newBadge}</p>
+        </div>
+        <div class="alch-activity-modes" role="group" aria-label="feed mode">
+          <button type="button" class="alch-activity-mode${view.mode === "for_you" ? " is-on" : ""}" data-activity-mode="for_you">for you</button>
+          <button type="button" class="alch-activity-mode${view.mode === "global" ? " is-on" : ""}" data-activity-mode="global">everyone</button>
+        </div>
+      </header>
+      ${empty
+        ? `<div class="alch-activity-empty">No activity yet. Edit your profile, share a transcript, or contest a claim — it shows up here for the whole cohort.</div>`
+        : `<ul class="alch-activity-list">
+            ${view.items.map(itemRow).join("")}
+            ${view.quietCount ? `<li class="alch-activity-quiet">+ ${view.quietCount} quiet profile ${view.quietCount === 1 ? "tidy" : "tidies"}</li>` : ""}
+          </ul>`}
+      ${view.mine.length
+        ? `<div class="alch-activity-yours">
+            <h3 class="alch-activity-yours-title">your activity</h3>
+            <ul class="alch-activity-list">${view.mine.map(itemRow).join("")}</ul>
+          </div>`
+        : ""}
+    </section>`;
+  markSeen(Date.now());
+}
+
+function wireActivityMode() {
+  const root = state.canvas && state.canvas.querySelector("[data-activity]");
+  if (!root) return;
+  for (const btn of root.querySelectorAll("[data-activity-mode]")) {
+    btn.addEventListener("click", () => {
+      const mode = btn.getAttribute("data-activity-mode");
+      if (mode !== "for_you" && mode !== "global") return;
+      // Persist the view preference locally (emit:false — a UI toggle shouldn't
+      // spam the prefs timeline; the agent seam emits when IT sets a pref).
+      setPrefs({ feed_mode: mode }, { emit: false });
+      renderActivityMode();
+      wireActivityMode();
+    });
+  }
+}
+
 // The actual content swap — mode dispatch + per-mode wiring + WebGL mount.
 // Split out of render() so it can run either inside the cross-fade or
 // synchronously (instant) for tab switches.
@@ -1336,6 +1421,7 @@ function renderModeContent() {
     else if (state.mode === "program") renderProgram();
     else if (state.mode === "asks") renderAsks();
     else if (state.mode === "context") renderContextVault();
+    else if (state.mode === "activity") renderActivityMode();
     // Index cards for the staggered entrance.
     const cards = canvas.querySelectorAll(".alch-card, .alch-legend-card, .alch-feed-item");
     cards.forEach((c, i) => c.style.setProperty("--alch-i", String(i)));
@@ -1358,6 +1444,7 @@ function renderModeContent() {
       if (state.mode === "program") wireProgram();
       if (state.mode === "asks") wireAsks();
       if (state.mode === "context") wireContextVault();
+      if (state.mode === "activity") wireActivityMode();
     }
     // Mount shape shaders LAST — every <canvas data-shape-fam> emitted by the
     // renderers above gets one WebGL2 context here.
@@ -7379,6 +7466,9 @@ function wireMirrorPanel() {
       if (res && res.ok) {
         state.mirrorContests = state.mirrorContests || {};
         state.mirrorContests[subjectId] = { kind: contestKind, note };
+        // Spine: a contest is also a loud feed event. The durable rebuttal lives
+        // in public_card_contests; this surfaces "X contested a claim" in the feed.
+        emitContest({ subjectId, contestKind, cardKind: "say_did_shipped", cardId: root.getAttribute("data-mirror-card") || null });
         renderSayDidShipped(); // re-render so the rebuttal travels with the claim
       } else {
         sendBtn.disabled = false;
@@ -14615,6 +14705,12 @@ async function submitContextCompose(form) {
     if (form.elements.body) form.elements.body.value = "";
     if (form.elements.title) form.elements.title.value = "";
     if (form.elements.contact) form.elements.contact.value = "";
+    // Spine: a transcript upload is a provenance-stamped contribution. Emit the
+    // feed event (title + a with_whom hint); the raw body still goes to the
+    // context_submissions inbox for distillation. with_whom builds the graph.
+    if (input.source_kind === "transcript") {
+      emitTranscript({ title: input.title, withWhom: input.contact ? [input.contact] : [] });
+    }
     return;
   }
   const msg = res.reason === "unconfigured"
@@ -19000,6 +19096,10 @@ async function submitEditAsLocalSync() {
   if (synced.routed === "sync") {
     const recordId = synced.recordId;
     applyEnvelopeToCohort(synced.envelope, recordId, "person");
+    // Spine: emit a feed/provenance signal of this self-edit (the changed field
+    // NAMES, not the values — see cohort-emit.mjs). Fire-and-forget; must run
+    // BEFORE we snap editBaseline below so the diff is still available.
+    emitProfileEdit(recordId, p.editBaseline, p.editDraft);
     // Snap the editor's baseline to the new content so a follow-up EDIT
     // diffs from the just-saved state.
     if (p.editMode === "edit") {

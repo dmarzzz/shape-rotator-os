@@ -31,6 +31,7 @@ import { fetchCohortArticles } from "./supabase-articles.mjs";
 import { fetchCohortDistillations } from "./supabase-distillations.mjs";
 import { fetchAllSpheres } from "./supabase-sphere.mjs";
 import { fetchApprovedProfileUpdates } from "./supabase-self-report.mjs";
+import { fetchCohortFeed } from "./supabase-cohort-events.mjs";
 import { sanitizeDelta } from "./self-report-synth.mjs";
 import { fetchReleasesFeed } from "./supabase-releases.mjs";
 import { fetchConnections, connectionsByRecord } from "./supabase-connections.mjs";
@@ -946,6 +947,31 @@ async function applyProfileUpdateOverlay(surface) {
   return surface;
 }
 
+// Apply the live Supabase cohort-events overlay: the "two-way contribution layer"
+// activity feed. Reads the recent app_cohort_feed slice (claim hash stripped,
+// superseded events collapsed) and folds it onto the surface as `cohort_events`
+// for the activity panel + the on-device "for you" re-rank (feed-rank.mjs).
+//
+// Unlike applyProfileUpdateOverlay, this DOES NOT mutate person FIELD VALUES — the
+// spine is the timeline/feed/provenance, not a profile-value channel. Field values
+// keep flowing through the existing reversible/operator-gated paths (see the v0
+// scope note in the cohort_events migration). A `profile_edit` event is a feed
+// signal of a change a member made through the normal save path, not the value.
+// On a Supabase outage — or before the table exists — the surface keeps whatever
+// it already carries (an LS-cached set, or empty), so the feed degrades gracefully.
+async function applyCohortEventsOverlay(surface) {
+  try {
+    const { events, source } = await fetchCohortFeed();
+    if (source === "supabase") {
+      surface.cohort_events = events;
+      surface._cohortEventsSource = "supabase-live";
+    }
+  } catch {
+    // keep whatever the surface already carries
+  }
+  return surface;
+}
+
 // Apply the live Supabase release-feed overlay. The membrane "what's new" feed
 // (whats_new + github_releases) is published to public_releases_feed by the
 // github-releases-sync workflow, so a new release shows up live — no git PR into
@@ -1043,7 +1069,7 @@ function signatureOf(grouped) {
     .map(([id, items]) => `${id}:${Array.isArray(items) ? items.length : 0}:${fp(JSON.stringify(items || []))}`)
     .sort()
     .join("|");
-  return `${grouped.teams.length}:${teamSig(grouped.teams)}#${grouped.people.length}:${personSig(grouped.people)}#${grouped.clusters.length}:${clusterSig(grouped.clusters)}#${grouped.dependencies.length}:${depSig(grouped.dependencies)}#${grouped.program.length}:${progSig(grouped.program)}#${grouped.events.length}:${eventSig(grouped.events)}#${grouped.asks.length}:${askSig(grouped.asks)}#${(grouped.constellation_cues || []).length}:${cueSig(grouped.constellation_cues || [])}#si:${(grouped.session_insights || []).length}:${insightSig(grouped.session_insights || [])}#wn:${(grouped.whats_new || []).length}:${arraySig(grouped.whats_new || [])}#gr:${(grouped.github_releases || []).length}:${arraySig(grouped.github_releases || [])}#tec:${(grouped.transcript_evidence_cards || []).length}:${arraySig(grouped.transcript_evidence_cards || [])}#ca:${(grouped.cohort_articles || []).length}:${arraySig(grouped.cohort_articles || [])}#te:${objectSig(grouped.transcript_evidence)}#td:${objectSig(grouped.transcript_distillations)}#ci:${objectSig(grouped.cohort_intel)}#ins:${objectSig(grouped.cohort_insights)}#pt:${timelineSig(grouped.person_timeline)}#tt:${timelineSig(grouped.team_timeline)}#ps:${objectSig(grouped.person_spheres)}`;
+  return `${grouped.teams.length}:${teamSig(grouped.teams)}#${grouped.people.length}:${personSig(grouped.people)}#${grouped.clusters.length}:${clusterSig(grouped.clusters)}#${grouped.dependencies.length}:${depSig(grouped.dependencies)}#${grouped.program.length}:${progSig(grouped.program)}#${grouped.events.length}:${eventSig(grouped.events)}#${grouped.asks.length}:${askSig(grouped.asks)}#${(grouped.constellation_cues || []).length}:${cueSig(grouped.constellation_cues || [])}#si:${(grouped.session_insights || []).length}:${insightSig(grouped.session_insights || [])}#wn:${(grouped.whats_new || []).length}:${arraySig(grouped.whats_new || [])}#gr:${(grouped.github_releases || []).length}:${arraySig(grouped.github_releases || [])}#tec:${(grouped.transcript_evidence_cards || []).length}:${arraySig(grouped.transcript_evidence_cards || [])}#ca:${(grouped.cohort_articles || []).length}:${arraySig(grouped.cohort_articles || [])}#te:${objectSig(grouped.transcript_evidence)}#td:${objectSig(grouped.transcript_distillations)}#ci:${objectSig(grouped.cohort_intel)}#ins:${objectSig(grouped.cohort_insights)}#pt:${timelineSig(grouped.person_timeline)}#tt:${timelineSig(grouped.team_timeline)}#ps:${objectSig(grouped.person_spheres)}#ce:${(grouped.cohort_events || []).length}:${arraySig(grouped.cohort_events || [])}`;
 }
 
 // Dev preview override. Setting `localStorage.setItem("srfg:cohort_source", "local")`
@@ -1193,6 +1219,7 @@ function _startBackgroundRefresh({ forceGithub = false } = {}) {
       await applyDistillationOverlay(merged);
       await applySphereOverlay(merged);
       await applyProfileUpdateOverlay(merged);
+      await applyCohortEventsOverlay(merged);
       await applyReleaseOverlay(merged);
       await applyConnectionsOverlay(merged);
       merged._sig = signatureOf(merged);

@@ -21685,3 +21685,30 @@ html[data-theme="light"] .alch-trailbar .alch-trail-back {
 .alch-ev-sum-list li { font-size: 12px; line-height: 1.45; color: var(--light-1); }
 .alch-ev-sum-who { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
 .alch-ev-who-chip { background: rgba(var(--ink-rgb), 0.09); color: rgba(var(--ink-rgb), 0.85); font-weight: 600; }
+
+/* ── activity feed (two-way contribution layer) ─────────────────────────────
+   Reuses the alchemy screen's legacy tokens (--light-*, --ink-rgb, --accent) so
+   it themes consistently with the rest of this (as-yet-unmigrated) screen. When
+   alchemy is migrated to the --ds-* design system, migrate these rules with it. */
+.alch-activity { max-width: 720px; margin: 0 auto; padding: 8px 4px 40px; }
+.alch-activity-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.alch-activity-title { margin: 0; font-size: 20px; font-weight: 700; line-height: 1.2; color: var(--light-1); }
+.alch-activity-sub { margin: 3px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--light-3); }
+.alch-activity-sub strong { color: var(--accent); }
+.alch-activity-modes { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid rgba(var(--ink-rgb), 0.14); border-radius: 9px; background: rgba(var(--ink-rgb), 0.03); flex: none; }
+.alch-activity-mode { appearance: none; border: 0; background: transparent; color: var(--light-3); font: inherit; font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 7px; cursor: pointer; transition: background .15s, color .15s; }
+.alch-activity-mode:hover { color: var(--light-1); }
+.alch-activity-mode.is-on { background: var(--accent); color: #fff; }
+.alch-activity-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.alch-activity-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 9px; border: 1px solid transparent; transition: background .15s, border-color .15s; }
+.alch-activity-item:hover { background: rgba(var(--ink-rgb), 0.04); border-color: rgba(var(--ink-rgb), 0.10); }
+.alch-activity-item.is-new { background: rgba(var(--ink-rgb), 0.03); }
+.alch-activity-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: rgba(var(--ink-rgb), 0.30); }
+.alch-activity-item.is-new .alch-activity-dot { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft, rgba(var(--ink-rgb), 0.10)); }
+.alch-activity-item[data-weight="loud"] .alch-activity-dot { background: var(--accent); }
+.alch-activity-label { flex: 1; min-width: 0; font-size: 13.5px; line-height: 1.45; color: var(--light-1); }
+.alch-activity-time { flex: none; font-size: 11.5px; color: var(--light-4); font-variant-numeric: tabular-nums; }
+.alch-activity-quiet { padding: 8px 12px; font-size: 12px; color: var(--light-4); font-style: italic; }
+.alch-activity-empty { padding: 28px 16px; text-align: center; font-size: 13px; line-height: 1.5; color: var(--light-3); border: 1px dashed rgba(var(--ink-rgb), 0.16); border-radius: 12px; }
+.alch-activity-yours { margin-top: 22px; padding-top: 16px; border-top: 1px solid rgba(var(--ink-rgb), 0.10); }
+.alch-activity-yours-title { margin: 0 0 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--light-4); }

@@ -1,0 +1,86 @@
+name: cohort-events-snapshot
+
+# Daily safety net for the two-way contribution layer (the cohort_events spine).
+#
+# docs/two-way-contribution-layer.md "Direct self-edit + safety net": commit
+# cohort_events to the repo as cohort-data/snapshots/YYYY-MM-DD.json, ON TOP OF the
+# database's own automatic daily backups — two independent recovery paths, both
+# cheap. This is the OFFLINE recovery archive only; the live feed reads the
+# app_cohort_feed view directly, so this is NOT on the freshness path.
+#
+# Like calendar-sync, it reads via the service-role key and rides an automation
+# branch + PR (main is branch-protected). The committed file STRIPS claim_token_hash
+# (the read view never exposes the soft identity, and neither should the repo).
+# Skips cleanly if SUPABASE_SERVICE_ROLE_KEY is absent.
+
+on:
+  schedule:
+    - cron: "30 5 * * *"     # daily at 05:30 UTC (off the top-of-hour calendar-sync)
+  workflow_dispatch:          # manual run from the Actions tab
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: cohort-events-snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
+        with:
+          node-version: "24"
+
+      - name: write today's cohort_events snapshot
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/publish-cohort-events-snapshot.mjs
+
+      - name: detect drift
+        id: drift
+        run: |
+          changed=$(git status --porcelain cohort-data/snapshots/)
+          if [[ -z "$changed" ]]; then
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+            echo "no new/changed snapshot — exiting"
+          else
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+            git --no-pager diff --stat cohort-data/snapshots/ || true
+          fi
+
+      - name: commit snapshot (on drift)
+        if: steps.drift.outputs.drift == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SYNC_BRANCH: automation/cohort-events-snapshot
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$SYNC_BRANCH"
+          git add cohort-data/snapshots/
+          git commit -m "chore(cohort): daily cohort_events snapshot" \
+                     -m "Automated daily archive of the append-only cohort_events spine (claim_token_hash stripped). Second recovery path beyond Supabase's own backups; not on the live-feed path. Triggered by .github/workflows/cohort-events-snapshot.yml."
+          git fetch origin "$SYNC_BRANCH" 2>/dev/null || true
+          git push --force-with-lease origin "$SYNC_BRANCH"
+
+          title="chore(cohort): daily cohort_events snapshot"
+          body="Automated daily archive of the append-only cohort_events spine into cohort-data/snapshots/. Recovery path only (Supabase backups are the primary); merge when convenient. claim_token_hash is stripped from the committed file."
+          pr_number="$(gh pr list --state open --head "$SYNC_BRANCH" --json number --jq '.[0].number // empty')"
+          if [[ -z "$pr_number" ]]; then
+            if ! pr_url="$(gh pr create --base main --head "$SYNC_BRANCH" --title "$title" --body "$body" 2>pr-error.log)"; then
+              echo "::warning::Could not create snapshot PR. The automation branch was pushed; check whether GitHub Actions may create pull requests."
+              sed 's/^/gh: /' pr-error.log
+              exit 0
+            fi
+          else
+            gh pr edit "$pr_number" --title "$title" --body "$body" || echo "::warning::Could not update snapshot PR #$pr_number (branch still pushed)."
+          fi

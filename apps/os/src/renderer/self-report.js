@@ -19,6 +19,7 @@ import {
 import { loadStylesheetOnce } from "./stylesheet-loader.js";
 import { scanGithubActivity, resolvePersonHandle } from "./gh-self-report.mjs";
 import { saveSelfReportUpdate } from "./supabase-self-report.mjs";
+import { emitSelfReport } from "./cohort-emit.mjs";
 
 // Expose the entry on a global so the cohort-chat bot's opt-in flow can route into
 // it: window.__srwkOpenSelfReport?.({ person, githubDigest }) — a graceful no-op
@@ -267,6 +268,9 @@ function renderReview(person, state) {
     Promise.resolve(saveSelfReportUpdate(person.record_id, merged, { question: question || "", sourceKinds }))
       .then((r) => { if (!r || !r.ok) console.warn("[self-report] receive write failed:", r && r.error); })
       .catch((e) => console.warn("[self-report] receive write error:", e && e.message ? e.message : e));
+    // Spine: a loud "refreshed their profile from recent work" feed line (field
+    // NAMES only; the values stay gated in the os_profile_updates inbox).
+    emitSelfReport(person.record_id, Object.keys(merged || {}));
     // Hand the proposal to the existing profile editor as a one-shot prefill; the
     // member tweaks and clicks the editor's own "save" — the real HITL gate.
     if (typeof window.__srwkOpenProfile === "function") {

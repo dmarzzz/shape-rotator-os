@@ -12,6 +12,7 @@
 // but gated to approved rows because profile text isn't anon-mutable.
 
 import { readSupabaseConfig } from "./supabase-evidence.mjs";
+import { postAnonRow } from "./supabase-anon-write.mjs";
 import { sanitizeDelta } from "./self-report-synth.mjs";
 
 const WRITE_TABLE = "os_profile_updates";
@@ -28,9 +29,8 @@ export async function saveSelfReportUpdate(
   recordId,
   delta,
   { question = "", answer = "", sourceKinds = [], appVersion = null, platform = null, allowedSkillAreas } = {},
-  { storage, fetchImpl, config } = {},
+  opts = {},
 ) {
-  const doFetch = fetchImpl || globalThis.fetch;
   const id = String(recordId == null ? "" : recordId).trim();
   if (!id || id.length > 128) return { ok: false, error: "bad_record_id" };
   // Re-whitelist client-side (defense in depth alongside the DB CHECK).
@@ -46,24 +46,7 @@ export async function saveSelfReportUpdate(
     app_version: appVersion ? String(appVersion).slice(0, 64) : null,
     platform: platform ? String(platform).slice(0, 64) : null,
   };
-  const { url, anonKey } = config || readSupabaseConfig(storage);
-  if (!url || !anonKey || typeof doFetch !== "function") return { ok: false, error: "unconfigured" };
-  try {
-    const res = await doFetch(`${url}/rest/v1/${WRITE_TABLE}`, {
-      method: "POST",
-      headers: {
-        apikey: anonKey,
-        authorization: `Bearer ${anonKey}`,
-        "content-type": "application/json",
-        prefer: "return=minimal",
-      },
-      body: JSON.stringify(body),
-      cache: "no-store",
-    });
-    return res && res.ok ? { ok: true } : { ok: false, error: `HTTP ${res ? res.status : "no response"}` };
-  } catch (e) {
-    return { ok: false, error: String(e && e.message ? e.message : e) };
-  }
+  return postAnonRow(WRITE_TABLE, body, opts);
 }
 
 // Read APPROVED deltas (newest per record_id). Returns { updates, source }.
