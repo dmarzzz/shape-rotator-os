@@ -59,7 +59,8 @@ import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprint
 import { indexCohortEvidence, teamEvidence, recentClaims, teamTimeline, claimLane } from "./cohort-evidence-index.mjs";
 import { cardTraceBodyHtml, cardTraceHtml } from "./cohort-trace-view.mjs";
 import { getCohortTimeline } from "./cohort-timeline.js";
-import { isPresent } from "./cohort-timeline-tracks.mjs";
+import { isPresent, buildDefaultTimeline } from "./cohort-timeline-tracks.mjs";
+import { renderTimelineLanesHtml } from "./cohort-timeline-render.mjs";
 import { getStandingWeekly } from "./cohort-standing-weekly.js";
 import { periodScrubberHtml, wireScrubber, weekStopsFrom, snapshotStopsFrom } from "./cohort-period-scrubber.mjs";
 import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
@@ -3130,13 +3131,14 @@ const CONST_VIEWS = [
   // is now the "gap to target" toggle inside standing. Mode kept valid in
   // constNormalizeConstellationMode so old deep-links still resolve.
   { mode: "shipped", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>', label: "say / did / shipped", hint: "intent vs public proof" },
+  { mode: "timeline", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" x2="21" y1="6" y2="6"/><line x1="3" x2="21" y1="12" y2="12"/><line x1="3" x2="21" y1="18" y2="18"/><circle cx="8" cy="6" r="1.4" fill="currentColor"/><circle cx="15" cy="12" r="1.4" fill="currentColor"/><circle cx="11" cy="18" r="1.4" fill="currentColor"/></svg>', label: "timeline", hint: "activity, insights, standing & presence on one axis" },
 ];
 function constNormalizeConstellationMode(raw) {
   const mode = String(raw || "").toLowerCase();
   // The node-link "ring"/"map" layouts are retired in favour of the nested
   // bubble map; old saved state and deep-links resolve to the relationship map.
   if (mode === "circle" || mode === "ring" || mode === "wells" || mode === "clusters" || mode === "dependencies" || mode === "source") return "map";
-  if (mode === "journey" || mode === "stack" || mode === "targets" || mode === "shipped" || mode === "collab") return mode;
+  if (mode === "journey" || mode === "stack" || mode === "targets" || mode === "shipped" || mode === "collab" || mode === "timeline") return mode;
   return "map";
 }
 // The cohort views used to render as an in-page tab strip here
@@ -7903,6 +7905,50 @@ function constBubbleContainerSvg(c, accentStyle, dim = false) {
 // ones stay hover-only so the at-rest map doesn't collapse into a name pile.
 const BUBBLE_LABEL_R_MIN = 12.5;
 
+// Cohort Timeline lane view — activity / session-insights / standing / presence
+// on one shared program-time axis (data: cohort-timeline-tracks.mjs; HTML:
+// cohort-timeline-render.mjs; visuals: cohort-timeline-view.css). Reads the
+// rewind-aware cohort surface so the canonical "As of [Total ▾]" selector scopes
+// it like every other cohort view. The pure data + HTML layers are unit-tested;
+// this only wires them to the canvas. The session-insights lane lights up from
+// the attributed transcript_evidence_cards (empty until those are present).
+function renderCohortTimeline() {
+  loadStylesheetOnce("renderer/cohort-timeline-view.css");
+  const cohort = activeConstellationCohort();
+  const teams = cohort.teams || [];
+  const people = cohort.people || [];
+  const teamNameById = new Map(
+    teams.filter((t) => t && t.record_id).map((t) => [t.record_id, t.name || t.record_id]),
+  );
+  const nowMs = Date.now();
+  const timeline = buildDefaultTimeline(
+    {
+      whatsNew: cohort.whats_new || [],
+      standingWeekly: state.standingWeekly,
+      people,
+      evidenceCards: cohort.transcript_evidence_cards || [],
+      teamNameById,
+    },
+    { startMs: PROGRAM_START_MS, endMs: PROGRAM_END_MS, nowMs },
+  );
+  const points = timeline.lanes.reduce(
+    (n, l) => n + ((l.items || l.points || l.samples || []).length),
+    0,
+  );
+  const sentenceBar = `
+    <div class="ac-sentence" role="group" aria-label="cohort timeline summary">
+      <strong class="ac-sent-fact">${escHtml(String(timeline.lanes.length))} lanes</strong>
+      <span class="ac-sent-word">· activity, session insights, standing &amp; presence on the program axis</span>
+      <span class="ac-sent-word">·</span>
+      <strong class="ac-sent-fact">${escHtml(String(points))}</strong>
+      <span class="ac-sent-word">points · scoped by the “As of” rewind</span>
+    </div>`;
+  state.canvas.innerHTML = `
+    ${cohortPageHead("timeline")}
+    ${sentenceBar}
+    <div class="alch-timeline-view">${renderTimelineLanesHtml(timeline)}</div>`;
+}
+
 function renderConstellation() {
   const cohort = activeConstellationCohort();
   const teams = cohort.teams || [];
@@ -7926,6 +7972,7 @@ function renderConstellation() {
     return;
   }
   if (mode === "shipped") { renderSayDidShipped(); return; }
+  if (mode === "timeline") { renderCohortTimeline(); return; }
 
   const edgeTier = constNormalizeEdgeTier(state.constEdgeTier);
   const networkScope = constNormalizeNetworkScope(state.constellationScope);
