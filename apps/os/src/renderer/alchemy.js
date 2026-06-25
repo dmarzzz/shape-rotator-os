@@ -16105,7 +16105,7 @@ function renderWorkstreamTimeline(recordId) {
   const groups = tl.slice().reverse().map((wk) => {
     const wi = progWeek(wk.week);
     const claims = WK_LANE_ORDER.flatMap((lane) => wk.claims.filter((c) => c.lane === lane))
-      .map((c) => `<li class="ac-evt-claim" data-lane="${escAttr(c.lane)}"><span class="ac-evt-tag">${escHtml(wkLaneLabel(c.lane))}</span><span class="ac-evt-text">${escHtml(constShortText(c.text || c.title, 160))}</span></li>`).join("");
+      .map((c) => `<li class="ac-evt-claim" data-lane="${escAttr(c.lane)}"><span class="ac-evt-tag">${escHtml(wkLaneLabel(c.lane))}</span><span class="ac-evt-text">${escHtml(constShortText(c.text || c.title, 160))}${c.basis === "inferred" ? `<span class="ac-evt-inferred" title="team inferred from the session text, not self-declared">~ inferred</span>` : ""}</span></li>`).join("");
     return `<div class="ac-evt-grp" data-week="${escAttr(wk.week)}"><div class="ac-evt-when">${wi != null ? `week ${wi + 1}` : ""}<span class="ac-evt-date">${escHtml(detailTimelineDate(wk.week))}</span></div><ul class="ac-evt-claims">${claims}</ul></div>`;
   }).join("");
 

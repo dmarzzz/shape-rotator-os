@@ -224,6 +224,9 @@ export function teamTimeline(index, teamId) {
       text: String(card.claim_text || ""),
       title: String(card.title || ""),
       evidence_level: String(card.evidence_level || ""),
+      // "inferred" when attributeInsightCards() attached the team (vs declared in
+      // content_json) — so the dossier can mark it honestly as a derived link.
+      basis: card.content_json && card.content_json.teams_basis === "inferred" ? "inferred" : "declared",
     });
   }
   return [...byWeek.entries()]

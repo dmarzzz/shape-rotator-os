@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { attributeInsightCards, buildTeamMatchers, indexCohortEvidence, teamEvidence } from "../apps/os/src/renderer/cohort-evidence-index.mjs";
+import { attributeInsightCards, buildTeamMatchers, indexCohortEvidence, teamEvidence, teamTimeline } from "../apps/os/src/renderer/cohort-evidence-index.mjs";
 
 const teams = [
   { record_id: "teesql", name: "TeeSQL", skill_areas: ["tee", "postgres", "dstack"], focus: "TEE Postgres on dstack" },
@@ -76,4 +76,15 @@ test("empty / missing inputs never throw", () => {
   assert.deepEqual(attributeInsightCards([], teams), []);
   assert.deepEqual(attributeInsightCards(null, teams), []);
   assert.equal(attributeInsightCards([insight("x", "hello")], []).length, 1, "no teams -> cards pass through");
+});
+
+test("teamTimeline carries basis so the dossier can mark inferred vs declared", () => {
+  const attributed = attributeInsightCards([insight("c1", "TeeSQL shipped a managed TEE Postgres onboarding flow")], teams);
+  const tl = teamTimeline(indexCohortEvidence(attributed), "teesql");
+  const claim = tl.flatMap((w) => w.claims).find(Boolean);
+  assert.equal(claim.basis, "inferred", "inferred-attribution propagates to the timeline claim");
+
+  const declared = [{ id: "d1", claim_type: "decision", claim_text: "shipped", content_json: { teams: ["teesql"], week_start: "2026-06-14" } }];
+  const dtl = teamTimeline(indexCohortEvidence(declared), "teesql");
+  assert.equal(dtl.flatMap((w) => w.claims)[0].basis, "declared");
 });
