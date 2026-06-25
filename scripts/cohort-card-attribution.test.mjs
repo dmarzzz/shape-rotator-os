@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { attributeInsightCards, buildTeamMatchers, indexCohortEvidence, teamEvidence, teamTimeline } from "../apps/os/src/renderer/cohort-evidence-index.mjs";
+import { attributeInsightCards, buildTeamMatchers, indexCohortEvidence, teamEvidence, teamTimeline, dedupeDependencyEdges } from "../apps/os/src/renderer/cohort-evidence-index.mjs";
 
 const teams = [
   { record_id: "teesql", name: "TeeSQL", skill_areas: ["tee", "postgres", "dstack"], focus: "TEE Postgres on dstack" },
@@ -87,4 +87,36 @@ test("teamTimeline carries basis so the dossier can mark inferred vs declared", 
   const declared = [{ id: "d1", claim_type: "decision", claim_text: "shipped", content_json: { teams: ["teesql"], week_start: "2026-06-14" } }];
   const dtl = teamTimeline(indexCohortEvidence(declared), "teesql");
   assert.equal(dtl.flatMap((w) => w.claims)[0].basis, "declared");
+});
+
+test("dedupeDependencyEdges collapses one collaboration to one edge (declared > github > session)", () => {
+  const deps = [
+    { record_id: "abra-teesql", source: "abra", target: "teesql", relation: "depends_on" },        // declared
+    { record_id: "evidence-edge:abra|teesql", source: "abra", target: "teesql", status: "session_observed" }, // dup of declared pair
+    { record_id: "gh-collab-edge:bitrouter|teleport-router", source: "bitrouter", target: "teleport-router", status: "github_observed" },
+    { record_id: "evidence-edge:teleport-router|bitrouter", source: "teleport-router", target: "bitrouter", status: "session_observed" }, // same pair, lower rank
+    { record_id: "collab-edge:conclave|prova", source: "conclave", target: "prova", status: "insight_derived" },
+  ];
+  const out = dedupeDependencyEdges(deps);
+  const ids = out.map((d) => d.record_id).sort();
+  // abra|teesql: declared kept, its derived dropped
+  assert.ok(ids.includes("abra-teesql"));
+  assert.ok(!ids.includes("evidence-edge:abra|teesql"));
+  // bitrouter|teleport-router: github edge beats the session edge (order-independent pair)
+  assert.ok(ids.includes("gh-collab-edge:bitrouter|teleport-router"));
+  assert.ok(!ids.includes("evidence-edge:teleport-router|bitrouter"));
+  // conclave|prova: the only edge for its pair survives
+  assert.ok(ids.includes("collab-edge:conclave|prova"));
+  assert.equal(out.length, 3, "5 records -> 3 (one per pair)");
+});
+
+test("dedupeDependencyEdges keeps all declared records and is idempotent", () => {
+  const deps = [
+    { record_id: "a-b", source: "a", target: "b" },
+    { record_id: "a-b-2", source: "a", target: "b", relation: "blocks" }, // 2nd authored relation, same pair — both real
+    { record_id: "evidence-edge:c|d", source: "c", target: "d", status: "session_observed" },
+  ];
+  const once = dedupeDependencyEdges(deps);
+  assert.equal(once.length, 3, "both declared a-b records kept + the c-d derived");
+  assert.deepEqual(dedupeDependencyEdges(once).map((d) => d.record_id), once.map((d) => d.record_id), "idempotent");
 });

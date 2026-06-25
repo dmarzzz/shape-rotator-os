@@ -26,7 +26,7 @@
 import yaml from "js-yaml";
 import { getManifest, getRecord } from "./sync-client.js";
 import { fetchPublicEvidenceCards, fetchCohortEvidenceCards, COHORT_APP_READER_ENABLED, fetchCohortInsightCards } from "./supabase-evidence.mjs";
-import { evidenceDependencyRecords, insightCollaborationDependencyRecords, collaborationContributionDependencyRecords, attributeInsightCards } from "./cohort-evidence-index.mjs";
+import { evidenceDependencyRecords, insightCollaborationDependencyRecords, collaborationContributionDependencyRecords, attributeInsightCards, dedupeDependencyEdges } from "./cohort-evidence-index.mjs";
 import { fetchCohortArticles } from "./supabase-articles.mjs";
 import { fetchCohortDistillations } from "./supabase-distillations.mjs";
 import { fetchAllSpheres } from "./supabase-sphere.mjs";
@@ -799,6 +799,10 @@ async function applyEvidenceOverlay(surface) {
       surface._cohortInsightCards = insight.cards;
     }
     applyCollaborationEdges(surface);
+    // All three derived collaboration-edge sources (evidence-edge / gh-collab-edge
+    // / collab-edge) are now folded in alongside declared deps; collapse same-pair
+    // duplicates so one collaboration renders as ONE edge, not up to three.
+    surface.dependencies = dedupeDependencyEdges(surface.dependencies);
   } catch {
     // keep whatever the surface already carries
   }

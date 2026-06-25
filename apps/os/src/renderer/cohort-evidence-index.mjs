@@ -308,7 +308,8 @@ export function evidenceDependencyRecords(cards = [], existingDeps = []) {
 // MERGE-UNION NOTE: this directional builder (branch) and collaborationContribution-
 // DependencyRecords (main, clique-from-live-cards) BOTH ship — they feed two distinct
 // call sites in cohort-source.js (the committed-bundle path and the live-insight path).
-// Owner follow-up: dedupe the two sources downstream if both populate the same pair.
+// Both sources are now collapsed downstream by dedupeDependencyEdges() (called at
+// the end of applyEvidenceOverlay), so a pair populated by both renders once.
 function collaborationEdgeCards(cohortInsights) {
   const ci = cohortInsights && typeof cohortInsights === "object" ? cohortInsights : {};
   const fromReadModel = ci.read_models && Array.isArray(ci.read_models.collaboration_edges)
@@ -445,6 +446,47 @@ export function collaborationContributionDependencyRecords(cards = [], existingD
     }
   }
   return out;
+}
+
+// Collapse the THREE derived collaboration-edge producers down to ONE record per
+// unordered team pair, so a single real collaboration can't render as up to three
+// overlapping edges on the relationship / ecosystem map. The producers:
+//   evidence-edge:  (session_observed, transcript evidence) — rank 1
+//   gh-collab-edge: (github_observed, committed cohort_insights) — rank 2
+//   collab-edge:    (insight_derived, live cohort-insight cards) — rank 2
+// Precedence: a DECLARED dependency always wins for its pair (and every declared
+// record is kept — two authored relations for one pair are both real); among
+// derived edges, github/insight (rank 2) beats session (rank 1). Pure + idempotent.
+// Resolves the owner follow-up noted on insightCollaborationDependencyRecords.
+const DERIVED_EDGE_RE = /^(evidence-edge|gh-collab-edge|collab-edge):/;
+function depPairKey(d) {
+  const a = String((d && d.source) || "").trim();
+  const b = String((d && d.target) || "").trim();
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
+}
+function derivedRank(d) {
+  return String((d && d.record_id) || "").startsWith("evidence-edge:") ? 1 : 2;
+}
+export function dedupeDependencyEdges(deps) {
+  const list = Array.isArray(deps) ? deps : [];
+  const declaredPairs = new Set();
+  const kept = [];
+  for (const d of list) {
+    if (!d) continue;
+    if (DERIVED_EDGE_RE.test(String(d.record_id || ""))) continue;
+    kept.push(d); // keep every declared / non-derived record as-is
+    if (d.source && d.target) declaredPairs.add(depPairKey(d));
+  }
+  const byPair = new Map();
+  for (const d of list) {
+    if (!d || !d.source || !d.target) continue;
+    if (!DERIVED_EDGE_RE.test(String(d.record_id || ""))) continue;
+    const key = depPairKey(d);
+    if (declaredPairs.has(key)) continue; // a declared dependency already covers it
+    const cur = byPair.get(key);
+    if (!cur || derivedRank(d) > derivedRank(cur)) byPair.set(key, d);
+  }
+  return [...kept, ...byPair.values()];
 }
 
 export const __claimBuckets = { DID, PMF, ASK, RISK, EDGE };
