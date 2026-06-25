@@ -17,10 +17,13 @@ const { spawn, spawnSync } = require("node:child_process");
 
 const { digestFromRawFiles } = require("./daybook/transcripts");
 
-// Resolve the member's own local AI CLI — same convention as the cohort-chat
-// supervisor, kept self-contained here so the self-report doesn't depend on that
-// module. First match wins: explicit chatCmd → COHORT_CHAT_CMD/COHORT_LLM_CMD env
-// → auto-detect on PATH (claude → codex → ollama). No API key either way.
+// Resolve the member's own local AI CLI the robust, cross-platform way (same as the
+// Router/daybook does): NO hardcoded install paths — resolve by NAME on PATH
+// (platform-aware where/which) and spawn, with overrides for non-standard installs.
+// First match wins: explicit chatCmd → COHORT_CHAT_CMD/COHORT_LLM_CMD env → auto-
+// detect on PATH (claude → codex → ollama). The target is a CAPABLE coding agent —
+// claude -p (print mode, text→JSON) or codex — which follows the prompt's JSON
+// instruction directly; ollama is a last-resort fallback only. No API key either way.
 const DETECT = [
   { bin: "claude", args: ["-p"] },
   { bin: "codex", args: ["exec"] },
