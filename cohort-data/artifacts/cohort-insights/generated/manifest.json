@@ -2552,7 +2552,7 @@
         "say": "re-architected for outside contributions — hunting real user stories for product-driven development",
         "did": "other, feature, fix, maintenance — chore(os/hermes): rename the user-facing feature to \"Bot Brain\"; Merge pull request #426 from dmarzzz/feat/cohort-venn-polish; Merge remote-tracking branch 'origin/main' into HEAD",
         "did_basis": "github_progress",
-        "shipped": "0.3.10-rc.1; 0.3.9; 0.3.8-rc.1",
+        "shipped": "0.3.11; 0.3.10-rc.1; 0.3.9",
         "shipped_basis": "github_release",
         "observed_status": "public_signal_observed",
         "claim_basis": "observed",
@@ -2569,7 +2569,7 @@
           "latest_week_start": "2026-06-15",
           "progress_artifact_count": 4,
           "release_artifact_count": 1,
-          "release_count": 82,
+          "release_count": 83,
           "useful_commit_count": 378,
           "change_types": [
             {
@@ -2619,7 +2619,7 @@
           "version": 1,
           "basis": "observed",
           "confidence": "medium",
-          "confidence_basis": "did from 4 github-progress artifact(s) (378 useful commits), 82 release(s)",
+          "confidence_basis": "did from 4 github-progress artifact(s) (378 useful commits), 83 release(s)",
           "signals": [
             {
               "name": "say",
@@ -2670,7 +2670,7 @@
             },
             {
               "name": "shipped",
-              "value": "0.3.10-rc.1; 0.3.9; 0.3.8-rc.1",
+              "value": "0.3.11; 0.3.10-rc.1; 0.3.9",
               "detail": "basis: github_release",
               "source_refs": [
                 {
@@ -14936,7 +14936,7 @@
         "signalstack"
       ],
       "title": "Award nomination — Shipped the Most (public releases)",
-      "claim_text": "Public-signal candidates for \"Shipped the Most (public releases)\": Shape Rotator OS (82), searxng-wth-frnds (16), SignalStack (1). Candidate list from public data only, not a verdict.",
+      "claim_text": "Public-signal candidates for \"Shipped the Most (public releases)\": Shape Rotator OS (83), searxng-wth-frnds (16), SignalStack (1). Candidate list from public data only, not a verdict.",
       "summary": "Ranked by public_release_count from public GitHub/cohort metadata. Awaiting reviewed judgment before any winner is named.",
       "evidence_level": "observed_public_metadata",
       "confidence": "low",
@@ -14980,7 +14980,7 @@
           {
             "record_id": "shape-rotator-os",
             "name": "Shape Rotator OS",
-            "value": 82
+            "value": 83
           },
           {
             "record_id": "searxng-wth-frnds",
@@ -15005,7 +15005,7 @@
           "signals": [
             {
               "name": "shape-rotator-os",
-              "value": 82,
+              "value": 83,
               "detail": "public_release_count",
               "source_refs": [
                 {
@@ -18558,7 +18558,7 @@
           "say": "re-architected for outside contributions — hunting real user stories for product-driven development",
           "did": "other, feature, fix, maintenance — chore(os/hermes): rename the user-facing feature to \"Bot Brain\"; Merge pull request #426 from dmarzzz/feat/cohort-venn-polish; Merge remote-tracking branch 'origin/main' into HEAD",
           "did_basis": "github_progress",
-          "shipped": "0.3.10-rc.1; 0.3.9; 0.3.8-rc.1",
+          "shipped": "0.3.11; 0.3.10-rc.1; 0.3.9",
           "shipped_basis": "github_release",
           "observed_status": "public_signal_observed",
           "claim_basis": "observed",
@@ -18575,7 +18575,7 @@
             "latest_week_start": "2026-06-15",
             "progress_artifact_count": 4,
             "release_artifact_count": 1,
-            "release_count": 82,
+            "release_count": 83,
             "useful_commit_count": 378,
             "change_types": [
               {
@@ -18625,7 +18625,7 @@
             "version": 1,
             "basis": "observed",
             "confidence": "medium",
-            "confidence_basis": "did from 4 github-progress artifact(s) (378 useful commits), 82 release(s)",
+            "confidence_basis": "did from 4 github-progress artifact(s) (378 useful commits), 83 release(s)",
             "signals": [
               {
                 "name": "say",
@@ -18676,7 +18676,7 @@
               },
               {
                 "name": "shipped",
-                "value": "0.3.10-rc.1; 0.3.9; 0.3.8-rc.1",
+                "value": "0.3.11; 0.3.10-rc.1; 0.3.9",
                 "detail": "basis: github_release",
                 "source_refs": [
                   {
@@ -30947,7 +30947,7 @@
           "signalstack"
         ],
         "title": "Award nomination — Shipped the Most (public releases)",
-        "claim_text": "Public-signal candidates for \"Shipped the Most (public releases)\": Shape Rotator OS (82), searxng-wth-frnds (16), SignalStack (1). Candidate list from public data only, not a verdict.",
+        "claim_text": "Public-signal candidates for \"Shipped the Most (public releases)\": Shape Rotator OS (83), searxng-wth-frnds (16), SignalStack (1). Candidate list from public data only, not a verdict.",
         "summary": "Ranked by public_release_count from public GitHub/cohort metadata. Awaiting reviewed judgment before any winner is named.",
         "evidence_level": "observed_public_metadata",
         "confidence": "low",
@@ -30991,7 +30991,7 @@
             {
               "record_id": "shape-rotator-os",
               "name": "Shape Rotator OS",
-              "value": 82
+              "value": 83
             },
             {
               "record_id": "searxng-wth-frnds",
@@ -31016,7 +31016,7 @@
             "signals": [
               {
                 "name": "shape-rotator-os",
-                "value": 82,
+                "value": 83,
                 "detail": "public_release_count",
                 "source_refs": [
                   {

@@ -24,10 +24,11 @@ import { CALENDAR_TRANSCRIPT_MATCHES } from "../content/context/calendar-transcr
 
 const PRIMARY_TAB = "May 18 Start";
 const WEEK_COUNT  = 10;
-// Public read-only mirror that cohort members/guests subscribe to (guest calendar mirror, PR #361).
-// This is the only calendar a public subscribe/link should target; the admin/source calendar
-// (GOOGLE_CALENDAR_ID) is intentionally NOT referenced in this public renderer.
-const GUEST_GOOGLE_CALENDAR_ID = "c_230102e62c5e01faa500a92c44251088210cd1f1949dfa9aff3ab11280261d8c@group.calendar.google.com";
+// The single shared cohort calendar (GOOGLE_CALENDAR_ID) — the one admins edit
+// directly (granted "Make changes to events") and cohort members subscribe to
+// read-only. Cube owns it, so it stays the Meet/transcription organizer. This
+// replaced the old admin-source + guest-mirror split (the mirror was removed).
+const SHARED_GOOGLE_CALENDAR_ID = "c_d3c51f9ef28351bd0e92449a9d0fa7f4bf27c8a2866309f96c6e2176a50b03ed@group.calendar.google.com";
 
 const DAY_NAMES_FULL = {
   mon: "monday", tue: "tuesday", wed: "wednesday", thu: "thursday",
@@ -59,7 +60,7 @@ function calendarShapeKey(baseUid, blockIndex) {
   return baseUid && blockIndex ? `${baseUid}#${blockIndex}` : "";
 }
 
-export function managedGoogleCalendarUrl(calendarId = GUEST_GOOGLE_CALENDAR_ID) {
+export function managedGoogleCalendarUrl(calendarId = SHARED_GOOGLE_CALENDAR_ID) {
   return `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(calendarId)}`;
 }
 
@@ -263,19 +264,38 @@ function c2SplitLeadingTime(line) {
   };
 }
 
-// Parse one cell block into { time, title, details[] } for cards + modal.
+// Google Meet join link from a `Meet:`/`join:` marker line (or a bare Meet URL).
+// Kept local because the OS-vendored shape-ui copy predates shape-ui's
+// extractJoinLink; mirrors that parser so the web + OS behave identically.
+function extractJoinLink(blockText) {
+  const text = String(blockText || "");
+  const clean = (u) => u.replace(/[.,);\]]+$/, "");
+  const marker = text.match(/(?:^|\n)\s*(?:meet|join)\s*:\s*(https:\/\/meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}[^\s<]*)/i);
+  if (marker) return clean(marker[1]);
+  const anyMeet = text.match(/https:\/\/meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}[^\s<]*/i);
+  return anyMeet ? clean(anyMeet[0]) : null;
+}
+
+// Parse one cell block into { time, title, details[], meetUrl } for cards + modal.
 function c2ParseBlock(block) {
+  // The Google Meet join link rides in a `Meet:`/`join:` marker line; surface it
+  // as a join action rather than raw detail text.
+  const meetUrl = extractJoinLink(block) || "";
+  const isJoinLine = (l) => /^\s*(?:[-•*]\s*)?(?:meet|join)\s*:/i.test(l);
   const lines = (block || "").split("\n").map(l => l.replace(/\s+$/, "")).filter(l => l.trim());
   const first = (lines[0] || "").trim();
   let { time, rest } = c2SplitLeadingTime(first);
   let title = rest;
-  const details = lines.slice(1).map(l => l.replace(/^\s*[-•]\s*/, "").trim()).filter(Boolean);
+  const details = lines.slice(1)
+    .filter(l => !isJoinLine(l))
+    .map(l => l.replace(/^\s*[-•]\s*/, "").trim())
+    .filter(Boolean);
   // First line was JUST a time ("12:00 - 14:00") — the real title is the
   // next line. Never show the time twice (the card renders time separately).
   if (!title && details.length) title = details.shift();
   if (!title && time) { title = time; time = ""; }
   if (!title) title = first.replace(/^[-•*]\s+/, "");
-  return { time, title, details };
+  return { time, title, details, meetUrl };
 }
 
 function fmtMin(min) {
@@ -523,9 +543,9 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
   // panel), so the page no longer renders its own in-page tab strip.
   const viewTabs = "";
   const subscribeAction = `
-    <a class="c2-subscribe" href="${escAttr(managedGoogleCalendarUrl(GUEST_GOOGLE_CALENDAR_ID))}" data-external
-       aria-label="Subscribe to the read-only Shape Rotator Google Calendar"
-       title="Subscribe — opens the read-only Shape Rotator Google Calendar">
+    <a class="c2-subscribe" href="${escAttr(managedGoogleCalendarUrl(SHARED_GOOGLE_CALENDAR_ID))}" data-external
+       aria-label="Subscribe to the Shape Rotator Google Calendar"
+       title="Subscribe — opens the Shape Rotator Google Calendar">
       <svg class="c2-subscribe-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M12 14v5"/><path d="M9.5 16.5h5"/></svg>
       <span class="c2-subscribe-label">subscribe</span>
       <svg class="c2-subscribe-hook" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8"/></svg>
@@ -1059,6 +1079,8 @@ export function openCalendarEvent(ref, { anchor = null, anchorRect = null } = {}
   const details = isAnchor
     ? (item.subtitle ? [item.subtitle] : [])
     : item.content.details;
+  // Google Meet join link surfaced from the event's `Meet:` marker (events only).
+  const joinHref = isAnchor ? "" : (item.content.meetUrl || "");
   const googleLink = calendarGoogleEventLinkForItem(item, _model.calendarGoogleEvents);
   // Universal "add to your calendar" link (Google TEMPLATE) — works for any subscriber,
   // unlike the admin event html_link above which needs source-calendar access.
@@ -1088,8 +1110,16 @@ export function openCalendarEvent(ref, { anchor = null, anchorRect = null } = {}
       <h3 class="c2-modal-title"><em>${escHtml(title)}</em></h3>
       ${details.length ? `<ul class="c2-modal-details">${details.map(d => `<li>${escHtml(d)}</li>`).join("")}</ul>` : ""}
       ${sessionRecordHtml(day, title)}
-      ${(addEventHref || googleLink) ? `
+      ${(joinHref || addEventHref || googleLink) ? `
         <div class="c2-modal-actions">
+          ${joinHref ? `<a class="c2-modal-google c2-modal-join" href="${escAttr(joinHref)}" data-external>
+            <span class="c2-action-glyph" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2"/>
+              </svg>
+            </span>
+            <span class="c2-action-copy"><strong>join event</strong><small>Google Meet</small></span>
+          </a>` : ""}
           ${addEventHref ? `<a class="c2-modal-google" href="${escAttr(addEventHref)}" data-external>
             <span class="c2-action-glyph" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
