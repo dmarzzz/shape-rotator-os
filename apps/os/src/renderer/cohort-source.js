@@ -286,7 +286,14 @@ function normalize(data) {
   // constellationDependencyEdges' per-pair dedupe keeps the harder commit evidence.
   const declaredDeps = out.dependencies.filter((d) => {
     const id = String((d && d.record_id) || "");
-    return !id.startsWith("gh-collab-edge:") && !id.startsWith("evidence-edge:");
+    // Strip ALL three derived-edge families so a persisted LS snapshot never bakes a
+    // stale one into declaredDeps: gh-collab-edge: (re-derived below from insights),
+    // evidence-edge: (kept as transcriptEdges from the snapshot), and collab-edge:
+    // (re-derived LIVE by applyCollaborationEdges each tick — it skips already-present
+    // ids, so a leaked declared copy would otherwise never refresh or revert).
+    return !id.startsWith("gh-collab-edge:")
+      && !id.startsWith("evidence-edge:")
+      && !id.startsWith("collab-edge:");
   });
   const transcriptEdges = out.dependencies.filter((d) => String((d && d.record_id) || "").startsWith("evidence-edge:"));
   const githubEdges = insightCollaborationDependencyRecords(out.cohort_insights, declaredDeps);

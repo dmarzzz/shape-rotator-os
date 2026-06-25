@@ -16,6 +16,7 @@
 // only), so raw transcripts can never flow through it, and it NEVER reads with anon.
 
 import { readSupabaseConfig } from "./supabase-evidence.mjs";
+import { fetchAnon } from "./supabase-anon-write.mjs";
 
 // Columns the gated distillation view exposes (must match the migration's select
 // list). content_md is the distilled readout body; content_json carries the
@@ -24,11 +25,10 @@ const DISTILLATION_COLUMNS = [
   "id", "artifact_kind", "surface_tier", "confidence", "content_json", "content_md", "created_at",
 ].join(",");
 
+const DISTILL_PATH = `cohort_app_transcript_distillations?select=${DISTILLATION_COLUMNS}&order=created_at.desc`;
+
 export function cohortDistillationsUrl(baseUrl) {
-  const url = new URL(`${baseUrl}/rest/v1/cohort_app_transcript_distillations`);
-  url.searchParams.set("select", DISTILLATION_COLUMNS);
-  url.searchParams.set("order", "created_at.desc");
-  return url.toString();
+  return `${String(baseUrl || "").replace(/\/+$/, "")}/rest/v1/${DISTILL_PATH}`;
 }
 
 function clean(value) {
@@ -98,26 +98,17 @@ export function normalizeDistillation(row) {
 // source:"unconfigured") when no cohort key is set — the public web bundle and
 // un-provisioned builds, which then show only the local raw vault. Always resolves
 // (never throws) so a Supabase outage degrades to "no distilled transcripts".
-export async function fetchCohortDistillations({ storage, fetchImpl, config } = {}) {
-  const doFetch = fetchImpl || globalThis.fetch;
-  const { url, anonKey, cohortKey } = config || readSupabaseConfig(storage);
+export async function fetchCohortDistillations(opts = {}) {
+  const doFetch = opts.fetchImpl || globalThis.fetch;
+  const { url, anonKey, cohortKey } = opts.config || readSupabaseConfig(opts.storage);
   if (!url || !anonKey || !cohortKey || typeof doFetch !== "function") {
     return { artifacts: [], source: "unconfigured" };
   }
-  let res;
-  try {
-    // Same gateway discipline as the evidence reader: apikey MUST be the anon key
-    // (Kong validates it before PostgREST), the cohort_app role rides in Bearer.
-    res = await doFetch(cohortDistillationsUrl(url), {
-      headers: { apikey: anonKey, authorization: `Bearer ${cohortKey}`, accept: "application/json" },
-      cache: "no-store",
-    });
-  } catch (error) {
-    return { artifacts: [], source: "error", error: String(error && error.message ? error.message : error) };
-  }
-  if (!res || !res.ok) return { artifacts: [], source: "error", error: `HTTP ${res ? res.status : "no response"}` };
-  let rows;
-  try { rows = await res.json(); } catch { return { artifacts: [], source: "error", error: "invalid JSON from Supabase" }; }
-  const artifacts = Array.isArray(rows) ? rows.map(normalizeDistillation).filter(Boolean) : [];
+  // Same gateway discipline as the evidence reader: apikey is the anon key (Kong
+  // validates it before PostgREST), the cohort_app role rides in Bearer via fetchAnon's
+  // bearer override. On success we relabel the generic "supabase" to "supabase-cohort".
+  const { rows, source, error } = await fetchAnon(DISTILL_PATH, { ...opts, bearer: cohortKey });
+  if (source !== "supabase") return { artifacts: [], source, error };
+  const artifacts = rows.map(normalizeDistillation).filter(Boolean);
   return { artifacts, source: "supabase-cohort" };
 }

@@ -14,7 +14,7 @@
 // (headers, `Prefer: return=minimal`, never-throw contract) and means a new door
 // into Supabase is a one-liner, not another copy.
 
-import { readSupabaseConfig } from "./supabase-evidence.mjs";
+import { readSupabaseConfig } from "./supabase-config.mjs";
 
 // Trim + bound a small field; null (not "") when empty so the column stays NULL
 // rather than storing an empty string. The single definition every box shares.
@@ -61,26 +61,45 @@ export async function postAnonRow(table, body, { storage, fetchImpl, config } = 
 // GET rows from an anon-readable view (a recent-/approved-only `security_barrier`
 // view, never a raw write-only table). `pathWithQuery` is the view + PostgREST
 // query, e.g. "app_cohort_feed?select=*&order=created_at.desc&limit=500".
-// Returns { rows, source }: source is "supabase" on a clean read, "none"
-// otherwise — so an outage keeps the caller's committed baseline rather than
-// blanking it. Never throws.
-export async function getAnonRows(pathWithQuery, { storage, fetchImpl, config } = {}) {
+//
+// fetchAnon is the granular primitive every anon reader shares. Returns
+// { rows, source, error } where source is:
+//   "supabase"     — clean read (rows may be empty)
+//   "unconfigured" — no url/anonKey/fetch/path (a no-op, never reached the network)
+//   "error"        — network throw, non-ok HTTP, or invalid JSON (error string set)
+// so a reader keeps its committed/cached baseline on any non-"supabase" result and
+// can phrase the failure. Never throws. `bearer` overrides the Authorization token
+// (the gated cohort_app readers pass the cohort JWT; default is the anon key);
+// `accept` overrides the Accept header (default application/json; pass null to omit).
+export async function fetchAnon(pathWithQuery, { storage, fetchImpl, config, bearer, accept } = {}) {
   const doFetch = fetchImpl || globalThis.fetch;
   const { url, anonKey } = config || readSupabaseConfig(storage);
   if (!url || !anonKey || typeof doFetch !== "function" || !pathWithQuery) {
-    return { rows: [], source: "none" };
+    return { rows: [], source: "unconfigured", error: null };
   }
+  const headers = {
+    apikey: anonKey,
+    authorization: `Bearer ${bearer || anonKey}`,
+    ...(accept !== null ? { accept: accept || "application/json" } : {}),
+  };
   let res;
   try {
-    res = await doFetch(`${url}/rest/v1/${pathWithQuery}`, {
-      headers: { apikey: anonKey, authorization: `Bearer ${anonKey}` },
-      cache: "no-store",
-    });
-  } catch {
-    return { rows: [], source: "none" };
+    res = await doFetch(`${url}/rest/v1/${pathWithQuery}`, { headers, cache: "no-store" });
+  } catch (err) {
+    return { rows: [], source: "error", error: String(err && err.message ? err.message : err) };
   }
-  if (!res || !res.ok) return { rows: [], source: "none" };
+  if (!res || !res.ok) {
+    return { rows: [], source: "error", error: `HTTP ${res ? res.status : "no response"}` };
+  }
   let rows;
-  try { rows = await res.json(); } catch { return { rows: [], source: "none" }; }
-  return { rows: Array.isArray(rows) ? rows : [], source: "supabase" };
+  try { rows = await res.json(); } catch { return { rows: [], source: "error", error: "invalid JSON from Supabase" }; }
+  return { rows: Array.isArray(rows) ? rows : [], source: "supabase", error: null };
+}
+
+// Thin back-compat wrapper: the original 2-value contract { rows, source } with
+// source "supabase"|"none" (collapsing unconfigured/error → none, dropping the
+// error string). Used by fetchCohortFeed + fetchApprovedProfileUpdates.
+export async function getAnonRows(pathWithQuery, opts = {}) {
+  const r = await fetchAnon(pathWithQuery, opts);
+  return { rows: r.rows, source: r.source === "supabase" ? "supabase" : "none" };
 }

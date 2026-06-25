@@ -13,15 +13,14 @@
 // read here exposes nothing the membrane feed didn't already show. RLS grants
 // anon only SELECT on this one row.
 
-import { readSupabaseConfig } from "./supabase-evidence.mjs";
+import { fetchAnon } from "./supabase-anon-write.mjs";
 
-// PostgREST URL for the single public feed row.
+// PostgREST path (view + query) for the single public feed row.
+const RELEASES_PATH = "public_releases_feed?select=payload,source,updated_at&id=eq.current&limit=1";
+
+// PostgREST URL for the single public feed row (kept for callers/tests).
 export function publicReleasesFeedUrl(baseUrl) {
-  const url = new URL(`${baseUrl}/rest/v1/public_releases_feed`);
-  url.searchParams.set("select", "payload,source,updated_at");
-  url.searchParams.set("id", "eq.current");
-  url.searchParams.set("limit", "1");
-  return url.toString();
+  return `${String(baseUrl || "").replace(/\/+$/, "")}/rest/v1/${RELEASES_PATH}`;
 }
 
 // Only pass through well-formed feed items so a malformed row can't poison the
@@ -50,35 +49,11 @@ export function normalizeReleasesPayload(row) {
 // outage degrades to the committed bundle. Returns { whatsNew, githubReleases,
 // source }: source is "supabase" on success, "unconfigured" with no anon key,
 // "empty" when the row is missing/malformed, or "error" with an `error` string.
-export async function fetchReleasesFeed({ storage, fetchImpl, config } = {}) {
-  const doFetch = fetchImpl || globalThis.fetch;
-  const { url, anonKey } = config || readSupabaseConfig(storage);
-  if (!url || !anonKey || typeof doFetch !== "function") {
-    return { whatsNew: [], githubReleases: [], source: "unconfigured" };
-  }
-  let res;
-  try {
-    res = await doFetch(publicReleasesFeedUrl(url), {
-      headers: {
-        apikey: anonKey,
-        authorization: `Bearer ${anonKey}`,
-        accept: "application/json",
-      },
-      cache: "no-store",
-    });
-  } catch (error) {
-    return { whatsNew: [], githubReleases: [], source: "error", error: String(error && error.message ? error.message : error) };
-  }
-  if (!res || !res.ok) {
-    return { whatsNew: [], githubReleases: [], source: "error", error: `HTTP ${res ? res.status : "no response"}` };
-  }
-  let rows;
-  try {
-    rows = await res.json();
-  } catch {
-    return { whatsNew: [], githubReleases: [], source: "error", error: "invalid JSON from Supabase" };
-  }
-  const payload = normalizeReleasesPayload(Array.isArray(rows) ? rows[0] : rows);
+export async function fetchReleasesFeed(opts = {}) {
+  const { rows, source, error } = await fetchAnon(RELEASES_PATH, opts);
+  if (source === "unconfigured") return { whatsNew: [], githubReleases: [], source: "unconfigured" };
+  if (source === "error") return { whatsNew: [], githubReleases: [], source: "error", error };
+  const payload = normalizeReleasesPayload(rows[0]);
   if (!payload) return { whatsNew: [], githubReleases: [], source: "empty" };
   return { whatsNew: payload.whatsNew, githubReleases: payload.githubReleases, source: "supabase" };
 }
