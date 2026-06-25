@@ -26,8 +26,17 @@
 -- project_identity / project_narrative / rotation / say_did_shipped — which
 -- INCLUDES private-repo kinds this repo never declared and OMITS collaboration_edge
 -- this repo's 20260620000000 migration added. So the list below is the union of
--- the live kinds + the three new ones, to avoid orphaning any existing row. If the
--- private repo adds further kinds, widen this list (or re-derive it) before re-run.
+-- the live kinds + collaboration_edge (re-added) + the three new ones, to avoid
+-- orphaning any existing row. If the private repo adds further kinds, widen this
+-- list (or re-derive it) before re-run.
+--
+-- collaboration_edge MUST stay in this list: 20260620000000 added it and this
+-- repo still emits it (scripts/lib/cohort-insight-engine.cjs emits a
+-- collaboration_edge card, publish-cohort-insights-supabase.mjs upserts it).
+-- Dropping it here would make the next publish hit a CHECK violation and would
+-- fail this ADD CONSTRAINT outright if any collaboration_edge row already exists.
+-- Widening is strictly safe (it can never orphan a row), so re-running this
+-- migration with collaboration_edge included is a no-op risk against production.
 alter table public.cohort_insight_cards
   drop constraint if exists cohort_insight_cards_kind_check;
 
@@ -36,5 +45,6 @@ alter table public.cohort_insight_cards
   check (kind in (
     'award', 'collaboration_contribution', 'latent_overlap', 'progress_drift',
     'project_identity', 'project_narrative', 'rotation', 'say_did_shipped',
+    'collaboration_edge',
     'connection_edge', 'card_attribution', 'cluster_summary'
   ));
