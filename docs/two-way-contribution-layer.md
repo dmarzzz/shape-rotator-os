@@ -110,14 +110,19 @@ An upload is not a file drop — it's a contribution with context:
 
 ## What this reuses (already in the codebase)
 
-- The overlay / read-back pattern (`cohort-source.js` `apply*Overlay`).
-- The anon write-only table + approved-only view pattern (`os_profile_updates`, `public_card_contests`).
-- The self-report modal and the member's-own-AI seam (`window.__srwkOpenSelfReport`).
-- The identity / profile-claim concept (`identity.js`).
+- The overlay / read-back pattern (`apps/os/src/renderer/cohort-source.js` `apply*Overlay`).
+- The anon write-only table + approved-only view pattern — `os_feedback` is the existing
+  instance; the self-report build (#504) adds `os_profile_updates` / `public_card_contests`
+  the same way (anon write-only inbox + operator-approved read view).
+- The self-report modal and the member's-own-AI seam — `window.__srwkOpenSelfReport` is the
+  hook #504 introduces, mirroring the existing `srwkOpenProfile` / `srwkOpenApp` globals.
+- The identity / profile-claim concept (`apps/os/src/renderer/identity.js`).
 
 ## Build order
 
-1. **Spine + safety net** — `cohort_events` table, the `app_cohort_feed` view, the daily snapshot job.
+1. **Spine + safety net** — the `cohort_events` spine (the existing table is `cohort_events_v1`;
+   extend it rather than creating a parallel un-versioned table), the `app_cohort_feed` view, the
+   daily snapshot job.
 2. **Direct self-edit** — write events from the profile editor; mint + carry the claim-token.
 3. **Global feed surface** — render the raw recent stream.
 4. **"For you" ranking** — the on-device re-rank (additive).
