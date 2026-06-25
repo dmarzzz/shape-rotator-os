@@ -7449,8 +7449,9 @@ function renderMirrorTop(vm, cardByTeam) {
   }) : "");
   let body = "";
   if (mode === "browse") {
+    // Browse = the whole-cohort grid below; this just frames it (no redundant picker).
     body = subjects.length
-      ? `<div class="ac-mirror-pickrow"><span>whose mirror</span>${mirrorSubjectSelect("focus", vm.focus, subjects, selfTeamId)}</div>${panel(vm.focus, true)}`
+      ? `<p class="ac-mirror-hint">Every team’s say → did → shipped. Click any card to open it.</p>`
       : `<p class="ac-mirror-hint">No say / did / shipped cards yet.</p>`;
   } else if (mode === "compare") {
     const a = vm.compare && vm.compare.a;
@@ -7701,7 +7702,7 @@ function renderSayDidShipped() {
       ${cohortPageHead("shipped")}
       <div class="alch-view-controls" data-shape-occluder>${sentenceBar}${programScrubberHtml({ needsSnapshots: true })}</div>
       ${mirrorHtml}
-      <div class="alch-constellation" data-constellation-view="shipped">
+      ${mirrorVm.mode === "browse" ? `<div class="alch-constellation" data-constellation-view="shipped">
         <div class="alch-const-workbench is-single">
           <div class="alch-const-main">
             <div class="alch-constellation-stage ac-sds-stage" data-view="shipped" tabindex="0" aria-label="say did shipped cards">
@@ -7713,7 +7714,7 @@ function renderSayDidShipped() {
             </div>
           </div>
         </div>
-      </div>
+      </div>` : ""}
       ${mirrorContextBandHtml()}
     </div>`;
   wireMirrorPanel();
