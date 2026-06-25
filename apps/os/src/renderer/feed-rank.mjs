@@ -20,8 +20,9 @@ function ts(ev) {
 }
 
 // Is this event the viewer's own? Prefer the actor (who did it); fall back to the
-// subject when the event carries no actor (an unclaimed self-write).
-function isOwn(ev, myId) {
+// subject when the event carries no actor (an unclaimed self-write). Exported so
+// the global-mode path (activity-feed buildFeedView) shares the exact rule.
+export function isOwn(ev, myId) {
   if (!myId) return false;
   return ev.actor ? ev.actor === myId : ev.record_id === myId;
 }

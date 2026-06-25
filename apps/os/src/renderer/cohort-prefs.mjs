@@ -37,15 +37,10 @@ function asStringArray(value) {
   return Array.isArray(value) ? value.filter((v) => typeof v === "string" && v) : [];
 }
 
-// Read the merged prefs (stored over defaults). Always returns a complete,
-// well-typed object — a corrupt/missing store falls back to DEFAULT_PREFS.
-export function getPrefs(storage) {
-  const ls = store(storage);
-  let raw = null;
-  try { raw = ls && ls.getItem(PREFS_LS_KEY); } catch { raw = null; }
-  let parsed = null;
-  try { parsed = raw ? JSON.parse(raw) : null; } catch { parsed = null; }
-  const p = parsed && typeof parsed === "object" ? parsed : {};
+// The single prefs schema/coercion — one source of truth for getPrefs (after
+// parse) and setPrefs (after merge), so a new knob is added in one place.
+function normalizePrefs(obj) {
+  const p = obj && typeof obj === "object" ? obj : {};
   return {
     muted_authors: asStringArray(p.muted_authors),
     muted_event_types: asStringArray(p.muted_event_types),
@@ -55,26 +50,28 @@ export function getPrefs(storage) {
   };
 }
 
-// `prefs ?? default` for a single knob.
-export function resolvePref(key, fallback, storage) {
-  const prefs = getPrefs(storage);
-  return key in prefs && prefs[key] != null ? prefs[key] : fallback;
+// Read the merged prefs (stored over defaults). Always returns a complete,
+// well-typed object — a corrupt/missing store falls back to DEFAULT_PREFS.
+export function getPrefs(storage) {
+  const ls = store(storage);
+  let raw = null;
+  try { raw = ls && ls.getItem(PREFS_LS_KEY); } catch { raw = null; }
+  let parsed = null;
+  try { parsed = raw ? JSON.parse(raw) : null; } catch { parsed = null; }
+  return normalizePrefs(parsed);
 }
 
 // Persist a partial update (merged over current) and echo a `prefs` event so the
 // change is timelined + portable. The echo is fire-and-forget; the local store is
 // authoritative for on-device ranking. Returns the new merged prefs.
+//
+// NOTE (v0): the only in-app caller — the for-you/everyone toggle — passes
+// { emit: false } and no actor, so the `prefs`-event echo is a DORMANT write path.
+// It goes live when the member's agent (the deferred chat seam) sets a pref with
+// the member's actor id; until then no `prefs` event is ever written.
 export function setPrefs(patch, { storage, actor = null, claimTokenHash = null, emit = true } = {}) {
   const ls = store(storage);
-  const next = { ...getPrefs(storage), ...(patch && typeof patch === "object" ? patch : {}) };
-  // Re-validate through getPrefs' typing by writing then reading back.
-  const clean = {
-    muted_authors: asStringArray(next.muted_authors),
-    muted_event_types: asStringArray(next.muted_event_types),
-    interest_tags: asStringArray(next.interest_tags),
-    emit_policy: EMIT_POLICIES.has(next.emit_policy) ? next.emit_policy : DEFAULT_PREFS.emit_policy,
-    feed_mode: FEED_MODES.has(next.feed_mode) ? next.feed_mode : DEFAULT_PREFS.feed_mode,
-  };
+  const clean = normalizePrefs({ ...getPrefs(storage), ...(patch && typeof patch === "object" ? patch : {}) });
   try { ls && ls.setItem(PREFS_LS_KEY, JSON.stringify(clean)); } catch { /* private mode */ }
   if (emit && actor) {
     appendCohortEvent({

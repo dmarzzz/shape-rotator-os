@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  buildAuthorMeta, buildViewer, buildFeedView, feedItemLabel, humanField,
+  buildAuthorMeta, buildViewer, buildFeedView, feedItemLabel,
 } from "./activity-feed.mjs";
 import { DEFAULT_PREFS } from "./cohort-prefs.mjs";
 
@@ -94,5 +94,7 @@ test("feedItemLabel renders a human line per event type", () => {
   assert.equal(feedItemLabel(ev({ actor: "ben", event_type: "transcript", value: { title: "Call" } }), nameOf),
     "Ben shared a transcript: “Call”");
   assert.equal(feedItemLabel(ev({ actor: "ada", event_type: "contest" }), nameOf), "Ada contested a claim");
-  assert.equal(humanField("seeking"), "what they're seeking");
+  // field-phrase coverage (humanField is module-private; exercised via the label):
+  assert.equal(feedItemLabel(ev({ actor: "ben", event_type: "profile_edit", field: "seeking", value: { fields: ["seeking"] } }), nameOf),
+    "Ben updated what they're seeking");
 });

@@ -74,6 +74,7 @@ import {
 } from "./asks.js";
 import { submitContest } from "./supabase-contest.mjs";
 import { emitProfileEdit, emitContest, emitTranscript } from "./cohort-emit.mjs";
+import { getAppContext } from "./app-context.mjs";
 import { getPrefs, setPrefs } from "./cohort-prefs.mjs";
 import { buildViewer, buildAuthorMeta, buildFeedView, feedItemLabel, getLastSeen, markSeen } from "./activity-feed.mjs";
 import { openSelfReport } from "./self-report.js";
@@ -7416,16 +7417,6 @@ function mirrorPanelHtml(myPerson, cardByTeam) {
     </section>`;
 }
 
-// Coarse, non-identifying app context for the contest write (same source the
-// membrane feedback box uses); both columns are nullable, so a miss is harmless.
-async function mirrorAppContext() {
-  try {
-    const info = await window.api?.getAppInfo?.();
-    if (info && typeof info === "object") return { appVersion: info.version || null, platform: info.platform || null };
-  } catch {}
-  return { appVersion: null, platform: null };
-}
-
 // Post-render wiring for the mirror panel (the asks-board idiom: query the freshly
 // rendered canvas, attach listeners). The optimistic chip is persisted in
 // state.mirrorContests so it survives a later full re-render (e.g. tab switch).
@@ -7453,7 +7444,7 @@ function wireMirrorPanel() {
       const note = noteEl ? noteEl.value : "";
       sendBtn.disabled = true;
       if (statusEl) statusEl.textContent = "sending…";
-      const ctx = await mirrorAppContext();
+      const ctx = await getAppContext();
       const res = await submitContest({
         subjectId,
         cardKind: "say_did_shipped",
@@ -14706,10 +14697,11 @@ async function submitContextCompose(form) {
     if (form.elements.title) form.elements.title.value = "";
     if (form.elements.contact) form.elements.contact.value = "";
     // Spine: a transcript upload is a provenance-stamped contribution. Emit the
-    // feed event (title + a with_whom hint); the raw body still goes to the
-    // context_submissions inbox for distillation. with_whom builds the graph.
+    // feed event (title); the raw body + free-text `contact` still go to the
+    // context_submissions inbox. with_whom is omitted — it expects cohort
+    // record_ids for the graph, which this free-text form doesn't capture.
     if (input.source_kind === "transcript") {
-      emitTranscript({ title: input.title, withWhom: input.contact ? [input.contact] : [] });
+      emitTranscript({ title: input.title });
     }
     return;
   }

@@ -1,4 +1,4 @@
-// activity-feed.js — the view-model behind the cohort activity feed (the visible
+// activity-feed.mjs — the view-model behind the cohort activity feed (the visible
 // surface of the two-way contribution layer). Pure + node-testable: it takes the
 // cohort surface + the viewer's identity and returns a ranked view-model. The DOM
 // rendering lives in alchemy.js (renderActivityMode), which owns escaping; this
@@ -9,7 +9,7 @@
 // leaves the device. Quiet edits (cosmetic tweaks) are rolled up into one
 // "tidied profile" count rather than given their own lines.
 
-import { rankFeed } from "./feed-rank.mjs";
+import { rankFeed, isOwn } from "./feed-rank.mjs";
 import { filterByPrefs, DEFAULT_PREFS } from "./cohort-prefs.mjs";
 
 const LAST_SEEN_LS_KEY = "srwk:activity_last_seen_v1";
@@ -80,8 +80,7 @@ export function buildFeedView(events, viewer = {}, prefs = DEFAULT_PREFS, opts =
   let quietCount = 0;
   for (const ev of filtered) {
     if (!ev || !ev.record_id) continue;
-    const own = myId && (ev.actor ? ev.actor === myId : ev.record_id === myId);
-    if (own) { mine.push(ev); continue; }
+    if (isOwn(ev, myId)) { mine.push(ev); continue; }
     if (ev.weight === "quiet") { quietCount += 1; continue; }
     others.push(ev);
   }
@@ -104,8 +103,9 @@ export function buildFeedView(events, viewer = {}, prefs = DEFAULT_PREFS, opts =
   return { items, mine, quietCount, newCount, mode: prefs.feed_mode || "for_you" };
 }
 
-// Map a surface field key to a human phrase for the feed label.
-export function humanField(field) {
+// Map a surface field key to a human phrase for the feed label. Module-private —
+// only feedItemLabel uses it (and feedItemLabel's tests cover the phrasing).
+function humanField(field) {
   switch (field) {
     case "now": return "their focus";
     case "weekly_intention": return "their weekly intention";

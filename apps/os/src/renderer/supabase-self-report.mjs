@@ -11,8 +11,7 @@
 // no PR (see cohort-source.js applyProfileUpdateOverlay) — the os_spheres pattern,
 // but gated to approved rows because profile text isn't anon-mutable.
 
-import { readSupabaseConfig } from "./supabase-evidence.mjs";
-import { postAnonRow } from "./supabase-anon-write.mjs";
+import { postAnonRow, getAnonRows } from "./supabase-anon-write.mjs";
 import { sanitizeDelta } from "./self-report-synth.mjs";
 
 const WRITE_TABLE = "os_profile_updates";
@@ -52,25 +51,17 @@ export async function saveSelfReportUpdate(
 // Read APPROVED deltas (newest per record_id). Returns { updates, source }.
 // source: "supabase" on a clean read, "none" otherwise (so an outage keeps the
 // committed baseline rather than blanking overlays).
-export async function fetchApprovedProfileUpdates({ storage, fetchImpl, config } = {}) {
-  const doFetch = fetchImpl || globalThis.fetch;
-  const { url, anonKey } = config || readSupabaseConfig(storage);
-  if (!url || !anonKey || typeof doFetch !== "function") return { updates: {}, source: "none" };
-  let res;
-  try {
-    res = await doFetch(
-      `${url}/rest/v1/${READ_VIEW}?select=record_id,delta,created_at&order=created_at.desc&limit=${APPROVED_READ_LIMIT}`,
-      { headers: { apikey: anonKey, authorization: `Bearer ${anonKey}` }, cache: "no-store" },
-    );
-  } catch {
-    return { updates: {}, source: "none" };
-  }
-  if (!res || !res.ok) return { updates: {}, source: "none" };
-  let rows;
-  try { rows = await res.json(); } catch { return { updates: {}, source: "none" }; }
+export async function fetchApprovedProfileUpdates(opts = {}) {
+  // Route through the shared anon-read primitive, bounded by APPROVED_READ_LIMIT
+  // so the approved-overlay read can't grow unboundedly as approved rows pile up.
+  const { rows, source } = await getAnonRows(
+    `${READ_VIEW}?select=record_id,delta,created_at&order=created_at.desc&limit=${APPROVED_READ_LIMIT}`,
+    opts,
+  );
+  if (source !== "supabase") return { updates: {}, source: "none" };
   const updates = {};
   const newestAt = {};
-  for (const row of Array.isArray(rows) ? rows : []) {
+  for (const row of rows) {
     const id = row && row.record_id ? String(row.record_id) : "";
     if (!id || !row.delta || typeof row.delta !== "object") continue;
     // Keep newest-per-record by created_at — order-independent, so the result is
@@ -78,5 +69,5 @@ export async function fetchApprovedProfileUpdates({ storage, fetchImpl, config }
     const at = Date.parse(row.created_at || "") || 0;
     if (!(id in updates) || at >= newestAt[id]) { updates[id] = row.delta; newestAt[id] = at; }
   }
-  return { updates, source: "supabase" };
+  return { updates, source };
 }

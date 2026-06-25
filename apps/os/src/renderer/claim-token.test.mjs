@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  ensureClaimToken, getClaimToken, getClaimTokenHash, clearClaimToken,
+  ensureClaimToken, getClaimTokenHash, clearClaimToken,
 } from "./claim-token.mjs";
 
 function fakeStorage(init = {}) {
@@ -34,15 +34,12 @@ test("the hash is a real sha-256 of the token (stable, 64 hex)", async () => {
   assert.equal(hash, expected);
 });
 
-test("getClaimToken/getClaimTokenHash read back the minted values; clear wipes them", async () => {
+test("getClaimTokenHash reads back the minted hash; clear wipes it", async () => {
   const ls = fakeStorage();
   assert.equal(getClaimTokenHash(ls), "");
-  assert.equal(getClaimToken(ls), "");
-  const { token, hash } = await ensureClaimToken(ls);
-  assert.equal(getClaimToken(ls), token);
+  const { hash } = await ensureClaimToken(ls);
   assert.equal(getClaimTokenHash(ls), hash);
   clearClaimToken(ls);
-  assert.equal(getClaimToken(ls), "");
   assert.equal(getClaimTokenHash(ls), "");
 });
 

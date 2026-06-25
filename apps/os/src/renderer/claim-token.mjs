@@ -87,16 +87,11 @@ export async function ensureClaimToken(storage) {
 
 // The hash to stamp on writes (sync). "" if not yet minted (unclaimed) so the
 // emit path degrades to an anonymous, unverified event rather than breaking.
+// (The raw token is persisted by ensureClaimToken as the member's future-agent
+// credential; a getter for it is added when that wiring lands — YAGNI for now.)
 export function getClaimTokenHash(storage) {
   const rec = readToken(store(storage));
   return rec ? rec.hash : "";
-}
-
-// The raw token — a device-local credential for the member's future agent. Never
-// sent over the wire. "" if not yet minted.
-export function getClaimToken(storage) {
-  const rec = readToken(store(storage));
-  return rec ? rec.token : "";
 }
 
 export function clearClaimToken(storage) {

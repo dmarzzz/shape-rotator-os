@@ -35,10 +35,23 @@ The spec says "a profile field's live value = the latest non-superseded event." 
 
 **Why:** the `os_profile_updates` migration deliberately chose an approval gate because "anon-mutable would be anyone-overwrites-anyone." The spec's answer is the claim-token — but claim-token *enforcement* is deferred (feed-side scoring, no server gate). Letting raw `cohort_events` overwrite identity fields live, with no enforcement, would reintroduce exactly that hole. This is the spec's eventual model minus the part that isn't safe until enforcement lands. When claim-token enforcement ships (an edge function or RLS predicate), the value-overlay can be turned on.
 
+## Consolidation pass (post-build)
+
+A code-grounded audit (dead edges / duplication / routes) drove a tightening pass:
+
+- **Route connected:** the `activity` mode had no nav entry — added its `.alchemy-rail-btn` to `index.html` (the rail click loop + dispatch already handled it). It's now reachable.
+- **Shared `app-context.mjs`** (`getAppContext`) replaces the duplicated `appContext`/`mirrorAppContext` in cohort-emit + alchemy.
+- **Single identity read:** cohort-emit now uses `getIdentity()` instead of re-parsing `srwk:identity_v1` (no import cycle; one bundle, so no weight cost).
+- **`getAnonRows` now feeds the profile-update reader too** (`fetchApprovedProfileUpdates`), not just the feed.
+- **De-duped within the layer:** `isOwn` single-sourced from `feed-rank`; `normalizePrefs` shared by `getPrefs`/`setPrefs`; `humanField` demoted to module-private.
+- **Removed dead exports:** `getClaimToken` (the token is still minted/stored), `resolvePref` (redundant with `getPrefs`).
+- **Reconciled half-connected shapes:** `emitTranscript` dropped its always-`me` `recordId` param and no longer feeds free-text `contact` as `with_whom` record_ids. The `connection` event type + the `prefs` echo are annotated as deliberate forward-scaffolding (no emit door / dormant until the agent seam).
+- **Deferred (noted, out of this layer's scope):** route the three sibling readers (`releases`/`calendar`/`standing`) through `getAnonRows` as a set; fold `postContextSubmission` onto `postAnonRow` with an error-classify mode; extract the repo-wide FNV-1a hash. Each is pre-existing and best done as its own pass.
+
 ## Verification
 
 - **~50 new node tests** + the refactored modules' tests pass: `supabase-anon-write`, `supabase-cohort-events`, `claim-token`, `feed-rank`, `cohort-prefs`, `activity-feed`, `cohort-events-snapshot`. Full suite: 669/671 (the 2 failures are a pre-existing missing `apps/web/cohort-surface.json` artifact, unrelated).
-- **Bundle check passes** (`npm --workspace @shape-rotator/os run bundle:check`) — the whole renderer graph incl. the `alchemy.js`/`tabs.js` edits resolves (104 modules).
+- **Bundle check passes** (`npm --workspace @shape-rotator/os run bundle:check`) — the whole renderer graph incl. the `alchemy.js`/`tabs.js`/`index.html` edits resolves (105 modules).
 - **Engine:** 11 tests pass; migration + trigger validated offline against PGlite.
 - **Not yet done:** a full Electron run (the UI is bundle-checked only, same ceiling as #504) and any live-DB write.
 

@@ -22,8 +22,8 @@ export const COHORT_EVENT_TYPES = Object.freeze([
   "transcript",   // a provenance-stamped transcript upload
   "contest",      // a push-back on a public claim (also lands in public_card_contests)
   "self_report",  // an AI self-report refresh applied (a batch)
-  "connection",   // a named collaboration (e.g. a transcript's with_whom)
-  "prefs",        // the agent-override seam: feed/broadcast preferences
+  "connection",   // RESERVED — no emit door yet; v0 carries collaboration as a transcript's with_whom
+  "prefs",        // the agent-override seam: feed/broadcast preferences (echo is dormant until the agent seam, see cohort-prefs.setPrefs)
 ]);
 
 export const COHORT_EVENT_WEIGHTS = Object.freeze(["loud", "medium", "quiet"]);

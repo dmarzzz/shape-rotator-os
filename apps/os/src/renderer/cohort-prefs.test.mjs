@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  DEFAULT_PREFS, getPrefs, setPrefs, resolvePref, filterByPrefs, shouldEmit,
+  DEFAULT_PREFS, getPrefs, setPrefs, filterByPrefs, shouldEmit,
 } from "./cohort-prefs.mjs";
 
 function fakeStorage(init = {}) {
@@ -30,12 +30,6 @@ test("getPrefs merges stored knobs over defaults and rejects bad enum values", (
   assert.deepEqual(p.interest_tags, ["ai"]);
   assert.equal(p.emit_policy, "all");            // bad enum ⇒ default
   assert.equal(p.feed_mode, "global");           // valid enum kept
-});
-
-test("resolvePref is prefs ?? default", () => {
-  const ls = fakeStorage({ "srwk:cohort_prefs_v1": JSON.stringify({ feed_mode: "global" }) });
-  assert.equal(resolvePref("feed_mode", "for_you", ls), "global");
-  assert.equal(resolvePref("emit_policy", "all", ls), "all");
 });
 
 test("setPrefs persists a merged, validated patch without emitting when emit=false", () => {

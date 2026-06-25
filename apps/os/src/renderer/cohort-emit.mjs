@@ -16,31 +16,16 @@
 import { appendCohortEvent, defaultWeightFor } from "./supabase-cohort-events.mjs";
 import { getClaimTokenHash } from "./claim-token.mjs";
 import { getPrefs, shouldEmit } from "./cohort-prefs.mjs";
+import { getIdentity } from "./identity.js";
+import { getAppContext } from "./app-context.mjs";
 
-const IDENTITY_LS_KEY = "srwk:identity_v1";
 const META_KEYS = new Set(["record_id", "record_type", "schema_version"]);
 const WEIGHT_RANK = { loud: 3, medium: 2, quiet: 1 };
 
-// Read the claimed record_id straight from localStorage (no heavy identity.js
-// import) so this glue module stays light.
+// The claimed record_id of whoever is acting (the single identity accessor).
 function myRecordId() {
-  try {
-    const raw = globalThis.localStorage?.getItem(IDENTITY_LS_KEY);
-    const v = raw ? JSON.parse(raw) : null;
-    return v && v.record_id ? String(v.record_id) : null;
-  } catch {
-    return null;
-  }
-}
-
-async function appContext() {
-  try {
-    const info = await globalThis.window?.api?.getAppInfo?.();
-    if (info && typeof info === "object") {
-      return { appVersion: info.version || null, platform: info.platform || null };
-    }
-  } catch { /* nullable columns — a miss is harmless */ }
-  return { appVersion: null, platform: null };
+  const id = getIdentity();
+  return id && id.record_id ? String(id.record_id) : null;
 }
 
 // The loudest-weight changed field leads the feed line (drives the row's weight).
@@ -77,7 +62,7 @@ async function emit(eventType, { recordId, field = null, value = {}, weight = nu
     // The override seam doing real work: respect the member's emit_policy
     // (e.g. "loud_only" suppresses cosmetic broadcasts; "none" goes silent).
     if (!shouldEmit(w, getPrefs())) return;
-    const { appVersion, platform } = await appContext();
+    const { appVersion, platform } = await getAppContext();
     await appendCohortEvent({
       recordId: subject,
       actor: myRecordId(),
@@ -117,11 +102,12 @@ export function emitContest({ subjectId, contestKind, cardKind = null, cardId = 
   });
 }
 
-// A provenance-stamped transcript was contributed. with_whom quietly builds the
-// connection/contribution graph.
-export function emitTranscript({ recordId, title = "", withWhom = [] } = {}) {
+// A provenance-stamped transcript was contributed (always by the claimed member).
+// `withWhom` is the connection graph and expects cohort RECORD_IDS — the v0
+// context-vault door has only a free-text contact, so it passes none; a structured
+// participant-picker door fills this later (buildViewer reads value.with_whom).
+export function emitTranscript({ title = "", withWhom = [] } = {}) {
   void emit("transcript", {
-    recordId,
     value: {
       title: String(title || "").slice(0, 200),
       with_whom: (Array.isArray(withWhom) ? withWhom : []).slice(0, 20).map(String),
