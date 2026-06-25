@@ -33,11 +33,11 @@ create table if not exists public.os_profile_updates (
   constraint os_profile_updates_delta_is_object check (jsonb_typeof(delta) = 'object'),
   constraint os_profile_updates_delta_size      check (pg_column_size(delta) <= 8000),
   -- Hard whitelist: delta may carry ONLY the seven self-declared surface fields.
+  -- A CHECK constraint cannot contain a subquery (Postgres 0A000), so instead of
+  -- iterating jsonb_object_keys we SUBTRACT the allowed keys with the jsonb
+  -- key-deletion operator: if anything remains, an off-whitelist key was present.
   constraint os_profile_updates_delta_whitelist check (
-    not exists (
-      select 1 from jsonb_object_keys(delta) k
-      where k not in ('now', 'weekly_intention', 'skills', 'skill_areas', 'seeking', 'offering', 'prior_work')
-    )
+    (delta - array['now', 'weekly_intention', 'skills', 'skill_areas', 'seeking', 'offering', 'prior_work']::text[]) = '{}'::jsonb
   )
 );
 

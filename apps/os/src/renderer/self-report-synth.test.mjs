@@ -178,10 +178,10 @@ test("the 7-field whitelist agrees across SELF_REPORT_FIELDS, the migration, and
   const fields = Object.keys(SELF_REPORT_FIELDS).sort();
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
   const sql = fs.readFileSync(path.join(root, "supabase/migrations/20260625000000_os_profile_updates.sql"), "utf8");
-  const marker = "k not in (";
+  const marker = "delta - array[";
   const at = sql.indexOf(marker);
-  assert.ok(at >= 0, "migration whitelist CHECK not found");
-  const list = sql.slice(at + marker.length, sql.indexOf(")", at));
+  assert.ok(at >= 0, "migration whitelist array not found");
+  const list = sql.slice(at + marker.length, sql.indexOf("]", at));
   const sqlFields = list.split("'").filter((_, i) => i % 2 === 1).sort(); // odd splits = quoted values
   assert.deepEqual(sqlFields, fields, "migration whitelist CHECK drifted from SELF_REPORT_FIELDS");
   const schema = fs.readFileSync(path.join(root, "cohort-data/schema.yml"), "utf8");
