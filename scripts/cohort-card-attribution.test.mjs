@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { attributeInsightCards, buildTeamMatchers, indexCohortEvidence, teamEvidence, teamTimeline, dedupeDependencyEdges, connectionEdgesFromInsightCards, frozenAttributionFromInsightCards } from "../apps/os/src/renderer/cohort-evidence-index.mjs";
+import { attributeInsightCards, buildTeamMatchers, indexCohortEvidence, teamEvidence, teamTimeline, dedupeDependencyEdges, connectionEdgesFromInsightCards, frozenAttributionFromInsightCards, teamProgressRollup } from "../apps/os/src/renderer/cohort-evidence-index.mjs";
 
 const teams = [
   { record_id: "teesql", name: "TeeSQL", skill_areas: ["tee", "postgres", "dstack"], focus: "TEE Postgres on dstack" },
@@ -156,4 +156,29 @@ test("attributeInsightCards PREFERS the frozen snapshot over a live recompute", 
   // Without the frozen map, the live match attributes to teesql.
   const live = attributeInsightCards([insight("live-card-7", "TeeSQL onboarded teams to TEE Postgres")], teams);
   assert.deepEqual(live[0].content_json.teams, ["teesql"]);
+});
+
+test("teamProgressRollup sets declared plan beside live observed signal", () => {
+  const team = { record_id: "teesql", name: "TeeSQL", now: "onboarding cohort teams",
+    journey: { stage: 4, primary_bottleneck: "Distribution", next_milestone: "10 teams on the beta" } };
+  // live attributed evidence: 2 sessions for teesql across 2 weeks
+  const cards = attributeInsightCards([
+    insight("s1", "TeeSQL shipped a managed TEE Postgres onboarding flow", { week_start: "2026-06-08" }),
+    insight("s2", "TeeSQL postgres dstack tee adoption grew", { week_start: "2026-06-14" }),
+  ], teams);
+  const roll = teamProgressRollup(indexCohortEvidence(cards), team);
+  assert.equal(roll.declared.stage, 4);
+  assert.equal(roll.declared.bottleneck, "Distribution");
+  assert.equal(roll.observed.sessions, 2);
+  assert.equal(roll.observed.weeksActive, 2);
+  assert.equal(roll.observed.latestWeek, "2026-06-14");
+  assert.equal(roll.status, "observed-active");
+});
+
+test("teamProgressRollup is 'declared-only' with a plan but no observed signal, 'quiet' with neither", () => {
+  const planned = teamProgressRollup(indexCohortEvidence([]), { record_id: "x", journey: { primary_bottleneck: "Solution Quality" } });
+  assert.equal(planned.status, "declared-only");
+  assert.equal(planned.observed.sessions, 0);
+  const quiet = teamProgressRollup(indexCohortEvidence([]), { record_id: "y" });
+  assert.equal(quiet.status, "quiet");
 });

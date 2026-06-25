@@ -556,4 +556,45 @@ export function frozenAttributionFromInsightCards(cards) {
   return map;
 }
 
+// ─── live progress rollup (declared vs observed) ─────────────────────────────
+// The build-time cohort_intel engine computes a rich project_progress model but
+// over EMPTY transcript inputs (the OS bundle ships transcript_evidence_cards=[])
+// and no view reads it. This is the LIVE replacement: a per-team rollup computed
+// at runtime from the now-attributed live evidence index — the team's DECLARED
+// plan (journey stage / bottleneck / next milestone / now) set beside what's
+// actually OBSERVED in its distilled sessions (did / pmf / asks / risks counts,
+// weeks active, most-recent week). It is the "declared vs observed" attribution
+// read the cohort is steering toward, sourced from real data instead of a seed.
+// Pure ⇒ unit-tested. Empty evidence ⇒ observed counts are 0 and the dossier
+// section can hide itself; declared always reflects the team record.
+export function teamProgressRollup(index, team) {
+  const ev = teamEvidence(index, team && team.record_id);
+  const j = (team && team.journey && typeof team.journey === "object") ? team.journey : {};
+  const weeks = [...ev.weeks.keys()].filter((w) => w && w !== "undated").sort();
+  const observed = {
+    sessions: ev.all.length,
+    did: ev.did.length,
+    pmf: ev.pmf.length,
+    asks: ev.asks.length,
+    risks: ev.risks.length,
+    weeksActive: weeks.length,
+    latestWeek: weeks[weeks.length - 1] || "",
+  };
+  const declared = {
+    stage: Number.isFinite(Number(j.stage)) ? Number(j.stage) : null,
+    bottleneck: String(j.primary_bottleneck || ""),
+    nextMilestone: String(j.next_milestone || ""),
+    now: String((team && team.now) || ""),
+  };
+  // A coarse legibility read: does the OBSERVED record back the DECLARED plan?
+  //   "observed-active": real recent session/progress signal
+  //   "declared-only":   a plan + bottleneck on file but nothing observed yet
+  //   "quiet":           neither — no plan, no signal
+  const observedSignal = observed.did + observed.pmf + observed.sessions;
+  const status = observedSignal > 0
+    ? "observed-active"
+    : (declared.bottleneck || declared.nextMilestone || declared.stage != null ? "declared-only" : "quiet");
+  return { recordId: team && team.record_id, declared, observed, status };
+}
+
 export const __claimBuckets = { DID, PMF, ASK, RISK, EDGE };
