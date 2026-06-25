@@ -3,6 +3,15 @@
 
 .ctl {
   --ctl-row-h: 46px;
+  /* Categorical marker palette: no semantic --ds-* role distinguishes
+     "release vs commit vs insight vs ask vs event", so this is an intentional
+     local categorical scale in the muted DS family — declared once here and
+     referenced by both the dots and the legend swatches (no raw hex in rules). */
+  --ctl-cat-release: #6f9f6a;
+  --ctl-cat-commit:  #7d93b8;
+  --ctl-cat-insight: #b48bb0;
+  --ctl-cat-ask:     #c2a872;
+  --ctl-cat-event:   #6fa8a0;
   position: relative;
   width: 100%;
   padding: 8px 18px 18px;
@@ -110,13 +119,13 @@
 .ctl-dot:hover, .ctl-dot:focus-visible { transform: scale(1.5); outline: none; z-index: 3; }
 .ctl-dot.is-future { opacity: 0.5; border-style: dashed; }
 /* category tints — kept in the muted DS family */
-.ctl-dot[data-cat="release"] { background: #6f9f6a; }
-.ctl-dot[data-cat="commit"]  { background: #7d93b8; }
-.ctl-dot[data-cat="insight"] { background: #b48bb0; }
-.ctl-dot[data-cat="ask"]     { background: #c2a872; }
-.ctl-dot[data-cat="event"]   { background: #6fa8a0; }
+.ctl-dot[data-cat="release"] { background: var(--ctl-cat-release); }
+.ctl-dot[data-cat="commit"]  { background: var(--ctl-cat-commit); }
+.ctl-dot[data-cat="insight"] { background: var(--ctl-cat-insight); }
+.ctl-dot[data-cat="ask"]     { background: var(--ctl-cat-ask); }
+.ctl-dot[data-cat="event"]   { background: var(--ctl-cat-event); }
 /* inferred attribution reads as a hollow dot */
-.ctl-dot[data-basis="inferred"] { background: transparent; border-color: #b48bb0; }
+.ctl-dot[data-basis="inferred"] { background: transparent; border-color: var(--ctl-cat-insight); }
 
 /* Standing bars (mean PMF stage per week) */
 .ctl-bar {
@@ -156,9 +165,9 @@
   border-radius: 50%;
   background: var(--ds-ink-3);
 }
-.ctl-legend span[data-cat="release"]::before { background: #6f9f6a; }
-.ctl-legend span[data-cat="commit"]::before  { background: #7d93b8; }
-.ctl-legend span[data-cat="insight"]::before  { background: #b48bb0; }
-.ctl-legend span[data-cat="ask"]::before      { background: #c2a872; }
-.ctl-legend span[data-cat="event"]::before    { background: #6fa8a0; }
+.ctl-legend span[data-cat="release"]::before { background: var(--ctl-cat-release); }
+.ctl-legend span[data-cat="commit"]::before  { background: var(--ctl-cat-commit); }
+.ctl-legend span[data-cat="insight"]::before  { background: var(--ctl-cat-insight); }
+.ctl-legend span[data-cat="ask"]::before      { background: var(--ctl-cat-ask); }
+.ctl-legend span[data-cat="event"]::before    { background: var(--ctl-cat-event); }
 .ctl-legend-inferred { color: var(--ds-ink-4); }

@@ -7947,6 +7947,27 @@ function renderCohortTimeline() {
     ${cohortPageHead("timeline")}
     ${sentenceBar}
     <div class="alch-timeline-view">${renderTimelineLanesHtml(timeline)}</div>`;
+  wireCohortTimelineActions();
+}
+
+// The timeline writes straight into state.canvas with no .ac-inspector panel,
+// so neither the inspector's [data-const-team] delegate nor the persistent map
+// canvas handler (which doesn't handle teams, and isn't even bound on a cold
+// deep-link into timeline mode) ever reaches its dots. Bind ONE idempotent
+// canvas delegate, scoped to the timeline markers, so a team/insight dot opens
+// that team's dossier with Back returning to the constellation (this view) —
+// mirroring how say/did/shipped project cards open. The .ctl-dot markers are
+// native <button>s, so Enter/Space fire this click handler for free.
+function wireCohortTimelineActions() {
+  if (state.cohortTimelineActionsBound) return;
+  state.cohortTimelineActionsBound = true;
+  state.canvas.addEventListener("click", (e) => {
+    if (state.mode !== "constellation" || state.detailRecordId) return;
+    const dot = e.target.closest(".alch-timeline-view [data-const-team]");
+    if (!dot) return;
+    const rid = dot.getAttribute("data-const-team");
+    if (rid) openDetail(rid, "constellation");
+  });
 }
 
 function renderConstellation() {
@@ -12987,6 +13008,7 @@ function wireCollab() {
   const collabRoot = state.canvas.querySelector(".alch-collab");
   wireConstellationModeNav();
   wireConstellationScrubber();
+  wireCollabRailResize();   // draggable help-rail width (matrix | rail workbench)
   wireCollabCohortLinks(state.canvas);
   wireCollabTrailerLinks(state.canvas);
   for (const btn of state.canvas.querySelectorAll("[data-collab-intake-open]")) {
@@ -13133,6 +13155,31 @@ function wireCollab() {
     if (!grid.contains(document.activeElement)) clearHL();
   });
   if (grid.contains(document.activeElement)) highlightFromTarget(document.activeElement);
+  // Pan the matrix to the focused team: center its row+column header inside the
+  // scroll viewport (.cb-grid-wrap) so a pick "moves the board" to them, pairing
+  // with the is-spotlight dimming. We use getBoundingClientRect deltas (not
+  // scrollIntoView, which would also yank the whole page) and only touch the
+  // matrix's own scroll. Runs after layout settles; no-op when nothing's focused.
+  if (state.collabFocus) {
+    requestAnimationFrame(() => {
+      const wrap = state.canvas.querySelector(".cb-grid-wrap");
+      const focusCol = state.canvas.querySelector(".cb-colhead.is-focus");
+      const focusRow = state.canvas.querySelector(".cb-rowhead.is-focus");
+      if (!wrap || (!focusCol && !focusRow)) return;
+      const wr = wrap.getBoundingClientRect();
+      const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+      const opts = { behavior: reduce ? "auto" : "smooth" };
+      if (focusCol) {
+        const cr = focusCol.getBoundingClientRect();
+        opts.left = Math.max(0, wrap.scrollLeft + (cr.left - wr.left) - (wrap.clientWidth - cr.width) / 2);
+      }
+      if (focusRow) {
+        const rr = focusRow.getBoundingClientRect();
+        opts.top = Math.max(0, wrap.scrollTop + (rr.top - wr.top) - (wrap.clientHeight - rr.height) / 2);
+      }
+      try { wrap.scrollTo(opts); } catch { wrap.scrollLeft = opts.left ?? wrap.scrollLeft; wrap.scrollTop = opts.top ?? wrap.scrollTop; }
+    });
+  }
   // Escape clears the focused team — the surface returns to the cohort-wide view
   // (strongest intros), the universal "get me out" affordance for the one gesture.
   collabRoot?.addEventListener("keydown", (event) => {
