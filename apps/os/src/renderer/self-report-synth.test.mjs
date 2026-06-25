@@ -177,7 +177,7 @@ test("sanitize rejects nested objects/arrays (no '[object Object]') + trims lone
 test("the 7-field whitelist agrees across SELF_REPORT_FIELDS, the migration, and schema.yml (drift guard)", () => {
   const fields = Object.keys(SELF_REPORT_FIELDS).sort();
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-  const sql = fs.readFileSync(path.join(root, "supabase/migrations/20260625000000_os_profile_updates.sql"), "utf8");
+  const sql = fs.readFileSync(path.join(root, "supabase/migrations/20260625010000_os_profile_updates.sql"), "utf8");
   const marker = "delta - array[";
   const at = sql.indexOf(marker);
   assert.ok(at >= 0, "migration whitelist array not found");

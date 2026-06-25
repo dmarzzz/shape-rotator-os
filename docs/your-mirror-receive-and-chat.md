@@ -25,7 +25,7 @@ in ~43s through `runSynthesis`; parse/sanitize/merge produced 6 changed fields. 
 
 ## Receive side (committed)
 
-- `supabase/migrations/20260625000000_os_profile_updates.sql` — anon **write-only** inbox (`status` defaults
+- `supabase/migrations/20260625010000_os_profile_updates.sql` — anon **write-only** inbox (`status` defaults
   `pending`, ungranted; DB CHECK whitelists the 7 fields) + an **approved-only** `app_profile_updates` view for read-back.
 - `apps/os/src/renderer/supabase-self-report.mjs` — `saveSelfReportUpdate` (append) + `fetchApprovedProfileUpdates` (read).
 - `self-report.js` fires the receive on apply (additive); `cohort-source.js` `applyProfileUpdateOverlay` overlays approved rows.
@@ -80,7 +80,7 @@ real machine (codex/gpt-5.5). Robustness review done (commit 7680bc2). What rema
 
 ### A. Go live (needs Supabase / Engine access — can't be done from the OS repo alone)
 1. **Apply migrations** to Supabase `txjntzwksiluvqcpccpc` via the Engine path: `20260624120000_public_card_contests.sql`
-   and `20260625000000_os_profile_updates.sql` (like `os_feedback`/`os_spheres`).
+   and `20260625010000_os_profile_updates.sql` (like `os_feedback`/`os_spheres`).
 2. **Operator approve UI/step.** Flip `os_profile_updates.status` `pending→approved` (dashboard, or a tiny CLI). The
    read-back overlay then surfaces it cohort-wide on the next refresh — no PR.
 3. **Engine `scripts/promote-profile-updates.mjs`** (Part 4): service_role read of approved rows → re-whitelist vs
