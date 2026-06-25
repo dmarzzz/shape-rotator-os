@@ -30,6 +30,8 @@ const path = require("node:path");
 const ROOT = path.resolve(__dirname, "..");
 const META_PATH = path.join(ROOT, "cohort-data", "calendar-meta.json");
 const OUT = path.join(ROOT, "cohort-data", "calendar.json");
+// Live grid (with Meet markers) for the Supabase publish only; gitignored, never committed.
+const LIVE_OUT = path.join(ROOT, "cohort-data", "calendar.live-grid.json");
 const TIME_ZONE = "America/New_York";
 // Cohort week 0 = Mon May 18 2026 (matches COHORT_START_MS in shape-ui).
 const COHORT_START = Date.UTC(2026, 4, 18);
@@ -148,15 +150,36 @@ function normalizeDescription(value) {
     .trim();
 }
 
+// A well-formed Google Meet join link (xxx-xxxx-xxx) for an event, if any —
+// from hangoutLink or the conferenceData video entry point.
+function eventMeetUrl(event) {
+  const direct = String(event.hangoutLink || "").trim();
+  const fromConf = String(
+    (event.conferenceData?.entryPoints || []).find((e) => e?.entryPointType === "video")?.uri || "",
+  ).trim();
+  const url = direct || fromConf;
+  return /^https:\/\/meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}/i.test(url) ? url : "";
+}
+
 // Block text for one event: prefer the rich description (it carries time +
-// title + bullets verbatim from the schedule); else synthesize a line.
-function eventBlock(event) {
+// title + bullets verbatim from the schedule); else synthesize a line. The
+// Google Meet join link is appended as a `Meet: <url>` marker the OS + web
+// renderers turn into a "join event" action; the publish leak-gate exempts
+// only this exact marker form. Private sessions never reach here
+// (visibility=private is dropped at fetch; the leak-gate still hard-fails on
+// private routing markers).
+function eventBlock(event, includeMeet = false) {
   const desc = normalizeDescription(event.description);
-  if (desc) return desc;
   const start = fmtTime(event.start?.dateTime);
   const end = fmtTime(event.end?.dateTime);
   const time = start && end ? `${start}–${end} ` : start ? `${start} ` : "";
-  return `${time}${String(event.summary || "").trim()}`.trim();
+  const base = desc || `${time}${String(event.summary || "").trim()}`.trim();
+  // Meet markers are added ONLY for the live grid (includeMeet=true), never the
+  // committed calendar.json — see LIVE_OUT in main(). Keeps the GitHub bundle
+  // free of Meet join links.
+  if (!includeMeet) return base;
+  const meet = eventMeetUrl(event);
+  return meet && !base.includes(meet) ? `${base}\nMeet: ${meet}` : base;
 }
 
 function dayHeader(dayName, dayMs) {
@@ -164,7 +187,7 @@ function dayHeader(dayName, dayMs) {
   return `${dayName} ${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}:`;
 }
 
-function buildTab(meta, events) {
+function buildTab(meta, events, includeMeet = false) {
   // Bucket events into [week][day] using local calendar date.
   const grid = Array.from({ length: WEEK_COUNT }, () => Array.from({ length: 7 }, () => []));
   let placed = 0;
@@ -191,7 +214,7 @@ function buildTab(meta, events) {
       const dayMs = weekStartMs + i * 86400000;
       const dayEvents = grid[w][i];
       if (!dayEvents.length) return "";
-      const parts = dayEvents.map(eventBlock).filter(Boolean);
+      const parts = dayEvents.map((e) => eventBlock(e, includeMeet)).filter(Boolean);
       return `${dayHeader(name, dayMs)}\n${parts.join("\n\n")}`;
     });
     rows.push([
@@ -263,6 +286,16 @@ async function main() {
   if (existingCells >= 10 && newCells < existingCells * 0.5) {
     console.error(`[build-calendar-from-google] refusing: schedule would shrink from ${existingCells} to ${newCells} populated days — likely a partial/failed fetch`);
     process.exit(2);
+  }
+
+  // Live grid for the Supabase publish (the app/website's live source) carries
+  // the Google Meet join link as a `Meet:` marker. Written to a SEPARATE,
+  // gitignored file so Meet links reach the app but NEVER the committed GitHub
+  // bundle — calendar.json / calendar.ics / cohort-surface.json stay Meet-free.
+  // publish-calendar-grid-to-supabase.mjs reads this live file when present.
+  if (!hasFlag("--check")) {
+    const liveRows = buildTab(meta, events, true).rows;
+    fs.writeFileSync(LIVE_OUT, fmt({ last_refresh: next.last_refresh, tabs: { [meta.tab]: liveRows } }));
   }
 
   const drift = !existing || JSON.stringify(strip(existing)) !== JSON.stringify(strip(next));

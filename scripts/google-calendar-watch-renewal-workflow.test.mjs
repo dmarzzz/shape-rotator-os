@@ -20,7 +20,6 @@ test("Google Calendar watch renewal workflow is manual-only operator fallback", 
   const env = workflow.jobs.renew.env;
   for (const secretName of [
     "GOOGLE_CALENDAR_ID",
-    "GOOGLE_GUEST_CALENDAR_ID",
     "GOOGLE_OAUTH_CLIENT_ID",
     "GOOGLE_OAUTH_CLIENT_SECRET",
     "GOOGLE_OAUTH_REFRESH_TOKEN",
@@ -30,10 +29,16 @@ test("Google Calendar watch renewal workflow is manual-only operator fallback", 
     "SUPABASE_SERVICE_ROLE_KEY",
     "ORG_ID",
     "CALENDAR_CONNECTION_ID",
-    "GUEST_CALENDAR_CONNECTION_ID",
   ]) {
     assert.equal(env[secretName], `\${{ secrets.${secretName} }}`);
   }
+
+  // The guest-calendar mirror was removed in favor of a single shared cohort
+  // calendar (admins edit directly; members subscribe read-only), so the
+  // renewal workflow must no longer carry the mirror step or guest secrets.
+  assert.doesNotMatch(workflowText, /calendar:mirror:google/);
+  assert.equal(env.GOOGLE_GUEST_CALENDAR_ID, undefined);
+  assert.equal(env.GUEST_CALENDAR_CONNECTION_ID, undefined);
 
   assert.match(workflowText, /npm run calendar:watch:google -- --apply/);
   assert.match(workflowText, /npm run calendar:meet-links:google -- --apply --time-min/);
@@ -41,6 +46,5 @@ test("Google Calendar watch renewal workflow is manual-only operator fallback", 
   assert.match(workflowText, /npm run calendar:meet-auto-artifacts:google -- --apply --time-min .* --skip-if-missing-scope/);
   assert.doesNotMatch(workflowText, /calendar:meet-auto-artifacts:google.*--fail-on-error/);
   assert.match(workflowText, /npm run calendar:sync:google -- --apply/);
-  assert.match(workflowText, /npm run calendar:mirror:google -- --apply --skip-if-unconfigured --stateless-if-missing/);
   assert.doesNotMatch(workflowText, /GOOGLE_CALENDAR_ACCESS_TOKEN/);
 });

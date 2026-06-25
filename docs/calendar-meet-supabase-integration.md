@@ -21,6 +21,36 @@ The product split is:
 - GitHub remains an export/cache layer for public-safe schedule snapshots,
   reviewed artifacts, and offline app/web bundles.
 
+## Current model (2026-06 — supersedes the guest-mirror split below)
+
+The calendar is consolidated to **one shared calendar** owned by the Cube service
+account (`GOOGLE_CALENDAR_ID` = the "Shape Rotator OS" calendar):
+
+- **Admins edit it directly in their own Google Calendar.** Each admin is granted
+  the calendar ACL **"Make changes to events"** (writer); the calendar then shows
+  up in their own Google Calendar and they create/edit events natively. No in-app
+  editor, no per-admin calendar.
+- **Cube stays the owner/organizer**, so Google Meet conferences and their
+  auto-transcription remain Cube-owned and land in Cube's Drive — an admin editing
+  as a writer does not move that ownership. Cube's reconciler (`calendar:meet-links`
+  + `calendar:meet-auto-artifacts`) ensures every future event has a Meet link with
+  transcription on.
+- **The app + website update automatically** via the hourly `calendar-sync`
+  workflow, which reads this calendar and publishes the `public_calendar_grid` row
+  the OS + web apps read live. The native Meet join link rides through as a
+  `Meet: <url>` marker the renderers turn into a "join event" button.
+- **Cohort members subscribe read-only** to the same calendar (the OS/web
+  "subscribe" link points at `GOOGLE_CALENDAR_ID`).
+- **Sensitive sessions** are marked `visibility=private` in Google — the grid
+  builder drops them and the publish leak-gate hard-fails on private markers, so
+  they never reach the public surface.
+
+The earlier **guest-calendar mirror** (a second calendar kept in sync by
+`mirror-google-calendar-events.js`) has been **removed** — it was the main source
+of over-engineering. The "Calendar Authority" / "Guest Versus Admin Editing"
+sections below describe that retired split and are kept only for history; where
+they call direct Google editing "break-glass," it is now the **primary** admin path.
+
 ## Calendar Authority
 
 Use one organizer calendar for the first implementation:

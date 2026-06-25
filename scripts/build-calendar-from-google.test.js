@@ -81,3 +81,24 @@ test("buildTab places multiple same-day events as separate blocks", () => {
   // blank-line separated so parseWeekRow splits them into two blocks
   assert.match(monday, /12:00 a\n\n15:00 b/);
 });
+
+test("eventBlock adds the Google Meet join link only for the live grid, never the committed bundle", () => {
+  const ev = {
+    start: { dateTime: "2026-05-18T16:00:00-04:00" },
+    end: { dateTime: "2026-05-18T17:00:00-04:00" },
+    summary: "Demo",
+    hangoutLink: "https://meet.google.com/abc-defg-hij",
+  };
+  // Committed path (default includeMeet=false): no Meet link reaches calendar.json.
+  const committed = eventBlock(ev);
+  assert.doesNotMatch(committed, /meet\.google\.com/);
+  assert.doesNotMatch(committed, /Meet:/);
+  // Live path (includeMeet=true): appends the `Meet:` marker the renderers parse.
+  assert.match(eventBlock(ev, true), /\nMeet: https:\/\/meet\.google\.com\/abc-defg-hij$/);
+  // buildTab honors the flag too — default grid stays Meet-free.
+  const { rows } = buildTab(
+    { tab: "t", header_rows: [], weeks: [{ week: 1, date_range: "May 18–23" }], recurring_rows: [] },
+    [ev],
+  );
+  assert.doesNotMatch(rows[0][2], /meet\.google\.com/);
+});

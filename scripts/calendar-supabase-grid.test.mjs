@@ -50,6 +50,28 @@ test("scanGridForLeaks catches emails, video links, private markers, candid note
   assert.deepEqual(scanGridForLeaks({ tabs: { t: [["Goals — Tina: pivot"]] } }), ["candid leadership note"]);
 });
 
+test("scanGridForLeaks exempts a sanctioned `Meet:` join marker, still catches bare/foreign links", () => {
+  // The intentional join marker the renderers parse → allowed.
+  assert.deepEqual(
+    scanGridForLeaks({ tabs: { t: [["16:00-17:00 Demo\nMeet: https://meet.google.com/abc-defg-hij"]] } }),
+    [],
+  );
+  // A bare meet link that is NOT the marker form → still a leak.
+  assert.deepEqual(scanGridForLeaks({ tabs: { t: [["join meet.google.com/xyz"]] } }), ["video-call link"]);
+  // Foreign conferencing in the marker form → still a leak (only meet.google.com is sanctioned).
+  assert.deepEqual(scanGridForLeaks({ tabs: { t: [["Meet: https://zoom.us/j/1"]] } }), ["video-call link"]);
+});
+
+test("publishGrid publishes a grid carrying a sanctioned Meet marker (gate exempts it, marker kept)", async () => {
+  let body;
+  const fetchImpl = async (_u, opts) => { body = JSON.parse(opts.body); return { ok: true, status: 201 }; };
+  const grid = { tabs: { t: [["16:00-17:00 Demo\nMeet: https://meet.google.com/abc-defg-hij"]] } };
+  const res = await publishGrid({ url: "https://x", key: "k", grid, fetchImpl, now: "t" });
+  assert.equal(res.skipped, false);
+  // The marker survives into the published grid (renderers turn it into a join link).
+  assert.match(body.grid.tabs.t[0][0], /Meet: https:\/\/meet\.google\.com\/abc-defg-hij/);
+});
+
 test("sanitizeGrid strips organizer personal-availability lines, keeps the rest", () => {
   const grid = { tabs: { t: [["14:00 tea on roof\nAndrew at half marathon — out for the day\n19:00 dinner"]] } };
   const clean = sanitizeGrid(grid);

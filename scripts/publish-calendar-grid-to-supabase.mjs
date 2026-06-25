@@ -18,6 +18,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GRID_PATH = path.join(ROOT, "cohort-data", "calendar.json");
+// Live grid carries the Google Meet `Meet:` markers for the app; it is gitignored
+// (never committed) so Meet join links reach the live Supabase grid but not the
+// public GitHub bundle. Falls back to the committed (Meet-free) calendar.json.
+const LIVE_GRID_PATH = path.join(ROOT, "cohort-data", "calendar.live-grid.json");
 const ROW_ID = "current";
 
 // Build the PostgREST upsert request for the grid. Pure + deterministic (pass
@@ -54,8 +58,34 @@ const LEAK_PATTERNS = [
   ["candid leadership note", /Goals\s*[—–-]\s*(?:Andrew|Tina|James)|Notion draft/i],
 ];
 
+// A sanctioned Google Meet join link in the `Meet: <url>` / `join: <url>`
+// marker form is intentional public content — the OS + web renderers turn it
+// into a "join event" button. Exempt ONLY that exact line form from the
+// conferencing-link leak check below; every OTHER meet/zoom/teams/webex
+// occurrence (bare links, foreign conferencing, leaked private-call URLs) still
+// fails the publish. The marker stays intact in the PUBLISHED grid — it is only
+// removed from the text the gate scans.
+const SANCTIONED_MEET_LINE =
+  /^\s*(?:[-*•]\s*)?(?:meet|join)\s*:\s*https:\/\/meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}\S*\s*$/i;
+
+function gridScanView(grid) {
+  const scrub = (s) =>
+    s.split("\n").filter((line) => !SANCTIONED_MEET_LINE.test(line)).join("\n");
+  const walk = (v) => {
+    if (typeof v === "string") return scrub(v);
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === "object") {
+      const out = {};
+      for (const [k, val] of Object.entries(v)) out[k] = walk(val);
+      return out;
+    }
+    return v;
+  };
+  return walk(grid);
+}
+
 export function scanGridForLeaks(grid) {
-  const text = JSON.stringify(grid || {});
+  const text = JSON.stringify(gridScanView(grid) || {});
   return LEAK_PATTERNS.filter(([, re]) => re.test(text)).map(([name]) => name);
 }
 
@@ -133,7 +163,8 @@ export async function publishGrid({
 }
 
 function readGrid() {
-  return JSON.parse(fs.readFileSync(GRID_PATH, "utf8"));
+  const src = fs.existsSync(LIVE_GRID_PATH) ? LIVE_GRID_PATH : GRID_PATH;
+  return JSON.parse(fs.readFileSync(src, "utf8"));
 }
 
 const invokedDirectly =

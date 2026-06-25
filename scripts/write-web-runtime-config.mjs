@@ -22,10 +22,13 @@ function existingMemberGoogleHref() {
   }
 }
 
+// Single shared cohort calendar: members subscribe read-only to the same
+// calendar admins edit directly (GOOGLE_CALENDAR_ID). The explicit
+// SHAPE_CALENDAR_MEMBER_SUBSCRIBE_URL override still wins when set.
 const memberGoogleHref = String(
   process.env.SHAPE_CALENDAR_MEMBER_SUBSCRIBE_URL
     || process.env.SHAPE_CALENDAR_AUTHORIZED_SUBSCRIBE_URL
-    || googleCalendarSubscribeUrl(process.env.GOOGLE_GUEST_CALENDAR_ID)
+    || googleCalendarSubscribeUrl(process.env.GOOGLE_CALENDAR_ID)
     || existingMemberGoogleHref()
     || "",
 ).trim();
@@ -33,7 +36,7 @@ const memberGoogleHref = String(
 if (memberGoogleHref) {
   const parsed = new URL(memberGoogleHref);
   if (parsed.origin !== "https://calendar.google.com" || !parsed.pathname.startsWith("/calendar/")) {
-    throw new Error("SHAPE_CALENDAR_MEMBER_SUBSCRIBE_URL or GOOGLE_GUEST_CALENDAR_ID must produce a Google Calendar URL");
+    throw new Error("SHAPE_CALENDAR_MEMBER_SUBSCRIBE_URL or GOOGLE_CALENDAR_ID must produce a Google Calendar URL");
   }
 }
 
