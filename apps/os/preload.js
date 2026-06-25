@@ -137,14 +137,6 @@ contextBridge.exposeInMainWorld("api", {
     return () => ipcRenderer.removeListener("fg:cohort-chat:status-changed", h);
   },
 
-  // ─── self-report (permission-gated scan → local-CLI synth) ──────────
-  // The member opts in; main scans their LOCAL Claude/Codex sessions into a
-  // scrubbed digest and runs their OWN local CLI to draft a profile update.
-  // Raw never leaves the box; only the member-approved delta is written.
-  // See self-report-node.js + apps/os/src/renderer/self-report.js.
-  selfReportScan:       (o) => ipcRenderer.invoke("fg:self-report:scan", o || {}),
-  selfReportSynthesize: (o) => ipcRenderer.invoke("fg:self-report:synthesize", o || {}),
-
   // ─── easel · NDI projection (apps/os/easel-ndi.js) ──────────────────
   // listSources() enumerates screens/windows (main-side desktopCapturer);
   // start() opens an NDI sender; frame() ships one RGBA frame (await for

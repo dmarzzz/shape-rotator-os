@@ -1719,23 +1719,6 @@ ipcMain.handle("fg:cohort-chat:stop", async () => cohortChat.stop());
 cohortChat.onStatus((s) => broadcastSwarm("fg:cohort-chat:status-changed", s));
 cohortChat.onOutput((o) => broadcastSwarm("fg:cohort-chat:output", o));
 
-// ─── self-report IPC (permission-gated scan → local-CLI synth) ───────
-// The member opts in (renderer); we scan their LOCAL Claude/Codex sessions
-// into a scrubbed digest (daybook redaction via digestFromRawFiles) and run
-// their OWN local CLI to draft a profile update. Raw never leaves the box;
-// only the member-approved field delta is written, via the existing editor.
-// See self-report-node.js + apps/os/src/renderer/self-report.js.
-const selfReport = require("./self-report-node");
-ipcMain.handle("fg:self-report:scan", async (_e, opts) => {
-  try { return await selfReport.scanLocalSessions(opts || {}); }
-  catch (e) { return { ok: false, reason: "scan_failed", detail: e.message }; }
-});
-ipcMain.handle("fg:self-report:synthesize", async (_e, opts) => {
-  const o = opts || {};
-  const cfg = readCohortChatConfig();
-  return selfReport.runSynthesis({ prompt: o.prompt, chatCmd: o.chatCmd || cfg.chatCmd || "" });
-});
-
 // ─── easel · NDI projection (apps/os/easel-ndi.js) ───────────────────
 // Renderer lists capture sources, then streams RGBA frames here to be
 // broadcast as an NDI source. Source enumeration must run in main
