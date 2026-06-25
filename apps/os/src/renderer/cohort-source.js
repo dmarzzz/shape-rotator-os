@@ -26,7 +26,7 @@
 import yaml from "js-yaml";
 import { getManifest, getRecord } from "./sync-client.js";
 import { fetchPublicEvidenceCards, fetchCohortEvidenceCards, COHORT_APP_READER_ENABLED, fetchCohortInsightCards } from "./supabase-evidence.mjs";
-import { evidenceDependencyRecords, insightCollaborationDependencyRecords, collaborationContributionDependencyRecords, attributeInsightCards, dedupeDependencyEdges } from "./cohort-evidence-index.mjs";
+import { evidenceDependencyRecords, insightCollaborationDependencyRecords, collaborationContributionDependencyRecords, attributeInsightCards, dedupeDependencyEdges, connectionEdgesFromInsightCards, frozenAttributionFromInsightCards } from "./cohort-evidence-index.mjs";
 import { fetchCohortArticles } from "./supabase-articles.mjs";
 import { fetchCohortDistillations } from "./supabase-distillations.mjs";
 import { fetchAllSpheres } from "./supabase-sphere.mjs";
@@ -777,7 +777,12 @@ async function applyEvidenceOverlay(surface) {
       // text to each team's distinctive vocabulary. Without this the live cards —
       // the real distilled session content — feed NONE of the per-team views.
       // Inferred teams are tagged teams_basis:"inferred"; declared cards untouched.
-      const attributed = attributeInsightCards(merged, Array.isArray(surface.teams) ? surface.teams : []);
+      // Prefer the FROZEN attribution snapshot (card_attribution cohort-insight
+      // cards from the daily local-AI routine) when present, so the inference is
+      // read, not recomputed every refresh; fall back to the live match otherwise.
+      const frozenAttr = (insight && insight.source === "supabase-cohort" && Array.isArray(insight.cards))
+        ? frozenAttributionFromInsightCards(insight.cards) : null;
+      const attributed = attributeInsightCards(merged, Array.isArray(surface.teams) ? surface.teams : [], { frozen: frozenAttr });
       surface.transcript_evidence_cards = attributed;
       surface._evidenceSource = gotCohort ? (gotPublic ? "supabase-cohort+public" : "supabase-cohort") : "supabase-live";
 
@@ -797,6 +802,22 @@ async function applyEvidenceOverlay(surface) {
     // returned. No cards (no key / outage) ⇒ surface keeps whatever it already carries.
     if (insight && insight.source === "supabase-cohort" && Array.isArray(insight.cards)) {
       surface._cohortInsightCards = insight.cards;
+      // Fold the frozen connection-edge snapshot (connection_edge cohort-insight
+      // cards) onto records as `record.connections` — the per-team "who to talk
+      // to" inspector source. This is the cohort-insight-card CONSOLIDATION of the
+      // standalone connections overlay: one stream, one publish path. Absent ⇒
+      // records simply carry no connections and the block hides itself.
+      const nameById = new Map();
+      for (const r of [...(surface.teams || []), ...(surface.people || [])]) {
+        if (r && r.record_id) nameById.set(r.record_id, r.name || r.record_id);
+      }
+      const connByRecord = connectionEdgesFromInsightCards(insight.cards, nameById);
+      if (connByRecord.size) {
+        for (const r of [...(surface.teams || []), ...(surface.people || [])]) {
+          if (r && r.record_id && connByRecord.has(r.record_id)) r.connections = connByRecord.get(r.record_id);
+        }
+        surface._connectionSource = "cohort-insight-cards";
+      }
     }
     applyCollaborationEdges(surface);
     // All three derived collaboration-edge sources (evidence-edge / gh-collab-edge

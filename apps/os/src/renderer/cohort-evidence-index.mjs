@@ -159,14 +159,26 @@ function everyIn(needles, haySet) {
 // Return a new card list where insight cards with no declared teams gain a
 // best-effort `content_json.teams` (+ teams_basis:"inferred"). Declared cards
 // pass through untouched. `minScore`/`minDistinct` gate token-only matches.
-export function attributeInsightCards(cards = [], teams = [], { maxTeams = 2, minScore = 1.2, minDistinct = 2 } = {}) {
+export function attributeInsightCards(cards = [], teams = [], { maxTeams = 2, minScore = 1.2, minDistinct = 2, frozen = null } = {}) {
   const list = Array.isArray(cards) ? cards : [];
+  // Prefer a FROZEN snapshot of the attribution (card_attribution cohort-insight
+  // cards produced once by the daily local-AI routine) over recomputing live: if
+  // the card has no declared teams but the snapshot knows its id, use that.
+  const froze = (card) => {
+    if (!frozen || !card || !card.id || cardTeams(card).length) return null;
+    const f = frozen.get(String(card.id));
+    if (!f || !Array.isArray(f.teams) || !f.teams.length) return null;
+    const cj = card.content_json && typeof card.content_json === "object" ? card.content_json : {};
+    return { ...card, content_json: { ...cj, teams: f.teams, teams_basis: f.basis || "inferred" } };
+  };
   const { matchers, idf } = buildTeamMatchers(teams);
-  if (!matchers.length) return list.slice();
+  if (!matchers.length) return list.map((card) => froze(card) || card);
 
   return list.map((card) => {
     if (!card || typeof card !== "object") return card;
     if (cardTeams(card).length) return card; // declared — leave it
+    const frozenCard = froze(card);
+    if (frozenCard) return frozenCard; // snapshot wins over live recompute
     const haySet = attrTokens(cardSearchText(card));
     if (!haySet.size) return card;
 
@@ -487,6 +499,61 @@ export function dedupeDependencyEdges(deps) {
     if (!cur || derivedRank(d) > derivedRank(cur)) byPair.set(key, d);
   }
   return [...kept, ...byPair.values()];
+}
+
+// ─── LLM-computation SNAPSHOT shapers (cohort-insight card stream) ────────────
+// The daily local-AI routine freezes its output as cohort-insight cards (kinds
+// connection_edge / card_attribution / cluster_summary) so the app READS the
+// precomputed intelligence instead of recomputing it. These pure shapers turn
+// those cards back into the structures the renderer consumes — connection edges
+// into the per-record "who to talk to" adjacency, and the frozen card→team
+// attribution into a Map attributeInsightCards() prefers over a live recompute.
+
+// connection_edge cards → Map(record_id → [{to,toName,score,kind,reason,basis}]),
+// the same shape the per-team inspector renders. content_json =
+// { from_team, to_team, reason, basis, score, kind? }.
+export function connectionEdgesFromInsightCards(cards, nameById, { perRecord = 8 } = {}) {
+  const names = nameById instanceof Map ? nameById : new Map(Object.entries(nameById || {}));
+  const byRecord = new Map();
+  for (const card of (Array.isArray(cards) ? cards : [])) {
+    if (!card || card.kind !== "connection_edge") continue;
+    const cj = card.content_json && typeof card.content_json === "object" ? card.content_json : {};
+    const from = String(cj.from_team || "").trim();
+    const to = String(cj.to_team || "").trim();
+    if (!from || !to || from === to) continue;
+    let score = Number(cj.score);
+    if (!Number.isFinite(score)) score = 0.5;
+    if (!byRecord.has(from)) byRecord.set(from, []);
+    byRecord.get(from).push({
+      to,
+      toName: names.get(to) || to,
+      score: Math.max(0, Math.min(1, score)),
+      kind: typeof cj.kind === "string" ? cj.kind : "",
+      reason: typeof cj.reason === "string" ? cj.reason : String(card.claim_text || ""),
+      basis: typeof cj.basis === "string" ? cj.basis : "inferred",
+    });
+  }
+  for (const [, list] of byRecord) {
+    list.sort((a, b) => b.score - a.score || String(a.to).localeCompare(String(b.to)));
+    if (list.length > perRecord) list.length = perRecord;
+  }
+  return byRecord;
+}
+
+// card_attribution cards → Map(card_id → { teams, basis }) — the frozen
+// attribution attributeInsightCards() prefers. content_json =
+// { card_id, teams, teams_basis }.
+export function frozenAttributionFromInsightCards(cards) {
+  const map = new Map();
+  for (const card of (Array.isArray(cards) ? cards : [])) {
+    if (!card || card.kind !== "card_attribution") continue;
+    const cj = card.content_json && typeof card.content_json === "object" ? card.content_json : {};
+    const cardId = String(cj.card_id || "").trim();
+    const teams = Array.isArray(cj.teams) ? cj.teams.map((t) => String(t || "").trim()).filter(Boolean) : [];
+    if (!cardId || !teams.length) continue;
+    map.set(cardId, { teams, basis: cj.teams_basis === "declared" ? "declared" : "inferred" });
+  }
+  return map;
 }
 
 export const __claimBuckets = { DID, PMF, ASK, RISK, EDGE };

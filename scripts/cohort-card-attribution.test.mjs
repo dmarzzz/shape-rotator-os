@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { attributeInsightCards, buildTeamMatchers, indexCohortEvidence, teamEvidence, teamTimeline, dedupeDependencyEdges } from "../apps/os/src/renderer/cohort-evidence-index.mjs";
+import { attributeInsightCards, buildTeamMatchers, indexCohortEvidence, teamEvidence, teamTimeline, dedupeDependencyEdges, connectionEdgesFromInsightCards, frozenAttributionFromInsightCards } from "../apps/os/src/renderer/cohort-evidence-index.mjs";
 
 const teams = [
   { record_id: "teesql", name: "TeeSQL", skill_areas: ["tee", "postgres", "dstack"], focus: "TEE Postgres on dstack" },
@@ -119,4 +119,41 @@ test("dedupeDependencyEdges keeps all declared records and is idempotent", () =>
   const once = dedupeDependencyEdges(deps);
   assert.equal(once.length, 3, "both declared a-b records kept + the c-d derived");
   assert.deepEqual(dedupeDependencyEdges(once).map((d) => d.record_id), once.map((d) => d.record_id), "idempotent");
+});
+
+// ─── LLM-computation snapshot shapers (cohort-insight card stream) ───────────
+test("connectionEdgesFromInsightCards shapes connection_edge cards into per-record edges", () => {
+  const cards = [
+    { id: "ce1", kind: "connection_edge", subject_type: "team_pair", content_json: { from_team: "abra", to_team: "teesql", reason: "needs TEE Postgres", score: 0.9 } },
+    { id: "ce2", kind: "connection_edge", content_json: { from_team: "abra", to_team: "tinycloud", reason: "skills overlap", score: 0.5 } },
+    { id: "x", kind: "say_did_shipped", content_json: {} }, // ignored
+  ];
+  const by = connectionEdgesFromInsightCards(cards, new Map([["teesql", "TeeSQL"], ["tinycloud", "TinyCloud"]]));
+  const fromAbra = by.get("abra");
+  assert.equal(fromAbra.length, 2);
+  assert.equal(fromAbra[0].to, "teesql", "highest score first");
+  assert.equal(fromAbra[0].toName, "TeeSQL");
+  assert.equal(fromAbra[0].reason, "needs TEE Postgres");
+});
+
+test("frozenAttributionFromInsightCards maps card_id -> teams", () => {
+  const map = frozenAttributionFromInsightCards([
+    { id: "a1", kind: "card_attribution", content_json: { card_id: "live-card-7", teams: ["abra"], teams_basis: "inferred" } },
+    { id: "a2", kind: "card_attribution", content_json: { card_id: "bad", teams: [] } }, // dropped
+    { id: "z", kind: "connection_edge", content_json: {} }, // ignored
+  ]);
+  assert.equal(map.size, 1);
+  assert.deepEqual(map.get("live-card-7"), { teams: ["abra"], basis: "inferred" });
+});
+
+test("attributeInsightCards PREFERS the frozen snapshot over a live recompute", () => {
+  // The live matcher would attribute this to teesql by name; the frozen snapshot
+  // says abra — the snapshot must win (it's the curated, daily result).
+  const card = insight("live-card-7", "TeeSQL onboarded teams to TEE Postgres");
+  const frozen = new Map([["live-card-7", { teams: ["abra"], basis: "inferred" }]]);
+  const out = attributeInsightCards([card], teams, { frozen });
+  assert.deepEqual(out[0].content_json.teams, ["abra"], "frozen snapshot wins");
+  // Without the frozen map, the live match attributes to teesql.
+  const live = attributeInsightCards([insight("live-card-7", "TeeSQL onboarded teams to TEE Postgres")], teams);
+  assert.deepEqual(live[0].content_json.teams, ["teesql"]);
 });
