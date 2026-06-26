@@ -56,7 +56,7 @@ import {
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable, refreshCohortFromGithub } from "./cohort-source.js";
 import { readSupabaseConfig, persistCohortKeyOverride } from "./supabase-evidence.mjs";
 import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
-import { indexCohortEvidence, teamEvidence, recentClaims, teamTimeline, claimLane } from "./cohort-evidence-index.mjs";
+import { indexCohortEvidence, teamEvidence, recentClaims, teamTimeline, claimLane, teamProgressRollup } from "./cohort-evidence-index.mjs";
 import { cardTraceBodyHtml, cardTraceHtml } from "./cohort-trace-view.mjs";
 import { getCohortTimeline } from "./cohort-timeline.js";
 import { isPresent } from "./cohort-timeline-tracks.mjs";
@@ -16432,6 +16432,47 @@ const WK_LANE_META = {
 const WK_LANE_ORDER = ["did", "pmf", "edge", "ask", "risk", "other"];
 function wkLaneLabel(lane) { return (WK_LANE_META[lane] || WK_LANE_META.other).label; }
 
+// "Progress · declared vs observed" — the LIVE replacement for the stranded
+// build-time cohort_intel rollup. Reads teamProgressRollup() over the live
+// attributed evidence index: the team's DECLARED plan (now / stage / bottleneck /
+// next milestone) beside what's OBSERVED in its distilled sessions. "" when a
+// team has neither a plan nor any observed signal ⇒ the section drops.
+function renderTeamProgressRollup(recordId) {
+  const cohort = activeConstellationCohort();
+  const team = (cohort.teams || []).find((t) => t && t.record_id === recordId);
+  if (!team) return "";
+  const r = teamProgressRollup(cohortEvidenceIndex(), team);
+  if (r.status === "quiet" && !r.declared.now) return "";
+  const d = r.declared, o = r.observed;
+  const declaredBits = [
+    d.stage != null ? `stage ${escHtml(String(d.stage))}` : "",
+    d.bottleneck ? `bottleneck: ${escHtml(d.bottleneck)}` : "",
+    d.nextMilestone ? `next: ${escHtml(d.nextMilestone)}` : "",
+  ].filter(Boolean);
+  const observedBits = [
+    o.sessions ? `${o.sessions} session insight${o.sessions === 1 ? "" : "s"}` : "",
+    o.did ? `${o.did} decided/did` : "",
+    o.pmf ? `${o.pmf} pmf signal${o.pmf === 1 ? "" : "s"}` : "",
+    o.asks ? `${o.asks} ask${o.asks === 1 ? "" : "s"}` : "",
+    o.weeksActive ? `${o.weeksActive} week${o.weeksActive === 1 ? "" : "s"} active` : "",
+  ].filter(Boolean).map(escHtml);
+  const body = `
+    <div class="ac-progress" data-status="${escAttr(r.status)}">
+      <div class="ac-progress-col">
+        <span class="ac-progress-h">declared</span>
+        ${d.now ? `<p class="ac-progress-now">${escHtml(d.now)}</p>` : ""}
+        <ul>${declaredBits.map((b) => `<li>${b}</li>`).join("") || "<li>—</li>"}</ul>
+      </div>
+      <div class="ac-progress-col">
+        <span class="ac-progress-h">observed</span>
+        <ul>${observedBits.map((b) => `<li>${b}</li>`).join("") || "<li>no observed session signal yet</li>"}</ul>
+        ${o.latestWeek ? `<span class="ac-progress-latest">latest · ${escHtml(o.latestWeek)}</span>` : ""}
+      </div>
+    </div>`;
+  const preview = r.status === "observed-active" ? "observed signal" : r.status === "declared-only" ? "declared only" : "—";
+  return renderDisclosureSection("progress · declared vs observed", body, false, preview, "alch-detail-progress");
+}
+
 function renderWorkstreamTimeline(recordId) {
   const tl = teamTimeline(cohortEvidenceIndex(), recordId);
   if (!tl.length) return "";
@@ -16470,7 +16511,7 @@ function renderWorkstreamTimeline(recordId) {
   const groups = tl.slice().reverse().map((wk) => {
     const wi = progWeek(wk.week);
     const claims = WK_LANE_ORDER.flatMap((lane) => wk.claims.filter((c) => c.lane === lane))
-      .map((c) => `<li class="ac-evt-claim" data-lane="${escAttr(c.lane)}"><span class="ac-evt-tag">${escHtml(wkLaneLabel(c.lane))}</span><span class="ac-evt-text">${escHtml(constShortText(c.text || c.title, 160))}</span></li>`).join("");
+      .map((c) => `<li class="ac-evt-claim" data-lane="${escAttr(c.lane)}"><span class="ac-evt-tag">${escHtml(wkLaneLabel(c.lane))}</span><span class="ac-evt-text">${escHtml(constShortText(c.text || c.title, 160))}${c.basis === "inferred" ? `<span class="ac-evt-inferred" title="team inferred from the session text, not self-declared">~ inferred</span>` : ""}</span></li>`).join("");
     return `<div class="ac-evt-grp" data-week="${escAttr(wk.week)}"><div class="ac-evt-when">${wi != null ? `week ${wi + 1}` : ""}<span class="ac-evt-date">${escHtml(detailTimelineDate(wk.week))}</span></div><ul class="ac-evt-claims">${claims}</ul></div>`;
   }).join("");
 
@@ -16722,6 +16763,7 @@ function renderTeamDetail(team) {
         <div class="alch-section-stack">
           ${renderDisclosureSection("assessment / plan", detailRows(assessmentRows), false, assessmentPreview)}
           ${renderDisclosureSection("evidence", detailRows(evidenceRows), false, evidencePreview)}
+          ${renderTeamProgressRollup(recordId)}
           ${renderWorkstreamTimeline(recordId)}
           ${renderTeamReleases(recordId)}
           ${renderDisclosureSection("coordination", detailRows(coordinationRows), false, coordinationPreview)}

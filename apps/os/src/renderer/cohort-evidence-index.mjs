@@ -86,6 +86,123 @@ export function indexCohortEvidence(cards = []) {
   return { byTeam, byWeek, edges, teams };
 }
 
+// ─── client-side card → team attribution ─────────────────────────────────────
+// The live public transcript_evidence_cards are anonymized at the SOURCE: they
+// arrive as claim_type "insight" with NO content_json.teams, so cardTeams()
+// returns [] and they feed NONE of the per-team views (dossier timeline,
+// say/did/shipped, PMF, weekly activity). That strands the real distilled
+// session content — the exact "who is doing what" signal the cohort is meant to
+// surface. attributeInsightCards re-attaches a best-effort team by matching a
+// card's text against each team's DISTINCTIVE vocabulary (name, record_id,
+// skill_areas, focus), weighting rare tokens over generic ones via an inverse
+// document frequency: a project name or a single-team token counts a lot; a
+// token shared by half the cohort ("tee", "agent") barely counts. Conservative —
+// a card is attributed only on a NAME/ID match or a strong distinctive-token
+// score, else left unattributed (no regression). Inferred teams are tagged
+// teams_basis:"inferred" so views can mark them derived, never declared. Pure.
+
+const ATTR_STOP = new Set([
+  "the","and","for","with","that","this","from","into","your","you","our","are","team","teams",
+  "project","projects","cohort","build","building","builds","using","based","work","working",
+  "agent","agents","data","app","apps","tool","tools","stack","layer","system","systems","new",
+]);
+
+// Word tokens: lowercase, alnum-split, drop stopwords + short noise; keep a few
+// load-bearing short domain tokens.
+function attrTokens(value) {
+  const text = Array.isArray(value) ? value.join(" ") : String(value == null ? "" : value);
+  const out = new Set();
+  for (const w of text.toLowerCase().split(/[^a-z0-9]+/)) {
+    if (w.length < 3) { if (w === "tee" || w === "rl" || w === "ai") out.add(w); continue; }
+    if (ATTR_STOP.has(w)) continue;
+    out.add(w);
+  }
+  return out;
+}
+
+function cardSearchText(card) {
+  const cj = card && card.content_json && typeof card.content_json === "object" ? card.content_json : {};
+  return [
+    card && card.claim_text, card && card.title, card && card.summary,
+    cj.summary, cj.claim_text, cj.what_it_is, cj.what_it_does, cj.who_it_serves,
+  ].filter(Boolean).join(" ");
+}
+
+// Per-team match vocabulary + the cohort-wide inverse-document-frequency weights.
+// Exposed for tests. `nameTokens`/`idTokens` drive the strong "named" hit; the
+// merged `tokens` (skills/focus/domain) drive the distinctive-token score.
+export function buildTeamMatchers(teams = []) {
+  const matchers = (Array.isArray(teams) ? teams : [])
+    .filter((t) => t && t.record_id)
+    .map((t) => {
+      const nameTokens = attrTokens(t.name);
+      const idTokens = attrTokens(String(t.record_id).replace(/[-_]/g, " "));
+      const tokens = new Set([
+        ...nameTokens, ...idTokens,
+        ...attrTokens(t.skill_areas), ...attrTokens(t.focus), ...attrTokens(t.domain),
+      ]);
+      return { id: String(t.record_id), nameTokens, idTokens, tokens };
+    });
+  const df = new Map();
+  for (const m of matchers) for (const tok of m.tokens) df.set(tok, (df.get(tok) || 0) + 1);
+  const idf = new Map();
+  for (const [tok, n] of df) idf.set(tok, 1 / n);
+  return { matchers, idf };
+}
+
+function everyIn(needles, haySet) {
+  if (!needles || needles.size === 0) return false;
+  for (const n of needles) if (!haySet.has(n)) return false;
+  return true;
+}
+
+// Return a new card list where insight cards with no declared teams gain a
+// best-effort `content_json.teams` (+ teams_basis:"inferred"). Declared cards
+// pass through untouched. `minScore`/`minDistinct` gate token-only matches.
+export function attributeInsightCards(cards = [], teams = [], { maxTeams = 2, minScore = 1.2, minDistinct = 2, frozen = null } = {}) {
+  const list = Array.isArray(cards) ? cards : [];
+  // Prefer a FROZEN snapshot of the attribution (card_attribution cohort-insight
+  // cards produced once by the daily local-AI routine) over recomputing live: if
+  // the card has no declared teams but the snapshot knows its id, use that.
+  const froze = (card) => {
+    if (!frozen || !card || !card.id || cardTeams(card).length) return null;
+    const f = frozen.get(String(card.id));
+    if (!f || !Array.isArray(f.teams) || !f.teams.length) return null;
+    const cj = card.content_json && typeof card.content_json === "object" ? card.content_json : {};
+    return { ...card, content_json: { ...cj, teams: f.teams, teams_basis: f.basis || "inferred" } };
+  };
+  const { matchers, idf } = buildTeamMatchers(teams);
+  if (!matchers.length) return list.map((card) => froze(card) || card);
+
+  return list.map((card) => {
+    if (!card || typeof card !== "object") return card;
+    if (cardTeams(card).length) return card; // declared — leave it
+    const frozenCard = froze(card);
+    if (frozenCard) return frozenCard; // snapshot wins over live recompute
+    const haySet = attrTokens(cardSearchText(card));
+    if (!haySet.size) return card;
+
+    const scored = [];
+    for (const m of matchers) {
+      const named = everyIn(m.nameTokens, haySet) || everyIn(m.idTokens, haySet);
+      let weighted = 0;
+      let distinct = 0;
+      for (const tok of m.tokens) {
+        if (haySet.has(tok)) { weighted += (idf.get(tok) || 0); distinct += 1; }
+      }
+      const score = (named ? 3 : 0) + weighted;
+      if (named || (distinct >= minDistinct && weighted >= minScore)) {
+        scored.push({ id: m.id, score, named });
+      }
+    }
+    if (!scored.length) return card;
+    scored.sort((a, b) => (b.named === a.named ? b.score - a.score : (b.named ? 1 : -1)));
+    const picked = scored.slice(0, maxTeams).map((s) => s.id);
+    const cj = card.content_json && typeof card.content_json === "object" ? card.content_json : {};
+    return { ...card, content_json: { ...cj, teams: picked, teams_basis: "inferred" } };
+  });
+}
+
 // A team's evidence slice (safe on a missing team).
 export function teamEvidence(index, teamId) {
   return (index && index.byTeam && index.byTeam.get(teamId)) || emptyBucket();
@@ -119,6 +236,9 @@ export function teamTimeline(index, teamId) {
       text: String(card.claim_text || ""),
       title: String(card.title || ""),
       evidence_level: String(card.evidence_level || ""),
+      // "inferred" when attributeInsightCards() attached the team (vs declared in
+      // content_json) — so the dossier can mark it honestly as a derived link.
+      basis: card.content_json && card.content_json.teams_basis === "inferred" ? "inferred" : "declared",
     });
   }
   return [...byWeek.entries()]
@@ -200,7 +320,8 @@ export function evidenceDependencyRecords(cards = [], existingDeps = []) {
 // MERGE-UNION NOTE: this directional builder (branch) and collaborationContribution-
 // DependencyRecords (main, clique-from-live-cards) BOTH ship — they feed two distinct
 // call sites in cohort-source.js (the committed-bundle path and the live-insight path).
-// Owner follow-up: dedupe the two sources downstream if both populate the same pair.
+// Both sources are now collapsed downstream by dedupeDependencyEdges() (called at
+// the end of applyEvidenceOverlay), so a pair populated by both renders once.
 function collaborationEdgeCards(cohortInsights) {
   const ci = cohortInsights && typeof cohortInsights === "object" ? cohortInsights : {};
   const fromReadModel = ci.read_models && Array.isArray(ci.read_models.collaboration_edges)
@@ -337,6 +458,143 @@ export function collaborationContributionDependencyRecords(cards = [], existingD
     }
   }
   return out;
+}
+
+// Collapse the THREE derived collaboration-edge producers down to ONE record per
+// unordered team pair, so a single real collaboration can't render as up to three
+// overlapping edges on the relationship / ecosystem map. The producers:
+//   evidence-edge:  (session_observed, transcript evidence) — rank 1
+//   gh-collab-edge: (github_observed, committed cohort_insights) — rank 2
+//   collab-edge:    (insight_derived, live cohort-insight cards) — rank 2
+// Precedence: a DECLARED dependency always wins for its pair (and every declared
+// record is kept — two authored relations for one pair are both real); among
+// derived edges, github/insight (rank 2) beats session (rank 1). Pure + idempotent.
+// Resolves the owner follow-up noted on insightCollaborationDependencyRecords.
+const DERIVED_EDGE_RE = /^(evidence-edge|gh-collab-edge|collab-edge):/;
+function depPairKey(d) {
+  const a = String((d && d.source) || "").trim();
+  const b = String((d && d.target) || "").trim();
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
+}
+function derivedRank(d) {
+  return String((d && d.record_id) || "").startsWith("evidence-edge:") ? 1 : 2;
+}
+export function dedupeDependencyEdges(deps) {
+  const list = Array.isArray(deps) ? deps : [];
+  const declaredPairs = new Set();
+  const kept = [];
+  for (const d of list) {
+    if (!d) continue;
+    if (DERIVED_EDGE_RE.test(String(d.record_id || ""))) continue;
+    kept.push(d); // keep every declared / non-derived record as-is
+    if (d.source && d.target) declaredPairs.add(depPairKey(d));
+  }
+  const byPair = new Map();
+  for (const d of list) {
+    if (!d || !d.source || !d.target) continue;
+    if (!DERIVED_EDGE_RE.test(String(d.record_id || ""))) continue;
+    const key = depPairKey(d);
+    if (declaredPairs.has(key)) continue; // a declared dependency already covers it
+    const cur = byPair.get(key);
+    if (!cur || derivedRank(d) > derivedRank(cur)) byPair.set(key, d);
+  }
+  return [...kept, ...byPair.values()];
+}
+
+// ─── LLM-computation SNAPSHOT shapers (cohort-insight card stream) ────────────
+// The daily local-AI routine freezes its output as cohort-insight cards (kinds
+// connection_edge / card_attribution / cluster_summary) so the app READS the
+// precomputed intelligence instead of recomputing it. These pure shapers turn
+// those cards back into the structures the renderer consumes — connection edges
+// into the per-record "who to talk to" adjacency, and the frozen card→team
+// attribution into a Map attributeInsightCards() prefers over a live recompute.
+
+// connection_edge cards → Map(record_id → [{to,toName,score,kind,reason,basis}]),
+// the same shape the per-team inspector renders. content_json =
+// { from_team, to_team, reason, basis, score, kind? }.
+export function connectionEdgesFromInsightCards(cards, nameById, { perRecord = 8 } = {}) {
+  const names = nameById instanceof Map ? nameById : new Map(Object.entries(nameById || {}));
+  const byRecord = new Map();
+  for (const card of (Array.isArray(cards) ? cards : [])) {
+    if (!card || card.kind !== "connection_edge") continue;
+    const cj = card.content_json && typeof card.content_json === "object" ? card.content_json : {};
+    const from = String(cj.from_team || "").trim();
+    const to = String(cj.to_team || "").trim();
+    if (!from || !to || from === to) continue;
+    let score = Number(cj.score);
+    if (!Number.isFinite(score)) score = 0.5;
+    if (!byRecord.has(from)) byRecord.set(from, []);
+    byRecord.get(from).push({
+      to,
+      toName: names.get(to) || to,
+      score: Math.max(0, Math.min(1, score)),
+      kind: typeof cj.kind === "string" ? cj.kind : "",
+      reason: typeof cj.reason === "string" ? cj.reason : String(card.claim_text || ""),
+      basis: typeof cj.basis === "string" ? cj.basis : "inferred",
+    });
+  }
+  for (const [, list] of byRecord) {
+    list.sort((a, b) => b.score - a.score || String(a.to).localeCompare(String(b.to)));
+    if (list.length > perRecord) list.length = perRecord;
+  }
+  return byRecord;
+}
+
+// card_attribution cards → Map(card_id → { teams, basis }) — the frozen
+// attribution attributeInsightCards() prefers. content_json =
+// { card_id, teams, teams_basis }.
+export function frozenAttributionFromInsightCards(cards) {
+  const map = new Map();
+  for (const card of (Array.isArray(cards) ? cards : [])) {
+    if (!card || card.kind !== "card_attribution") continue;
+    const cj = card.content_json && typeof card.content_json === "object" ? card.content_json : {};
+    const cardId = String(cj.card_id || "").trim();
+    const teams = Array.isArray(cj.teams) ? cj.teams.map((t) => String(t || "").trim()).filter(Boolean) : [];
+    if (!cardId || !teams.length) continue;
+    map.set(cardId, { teams, basis: cj.teams_basis === "declared" ? "declared" : "inferred" });
+  }
+  return map;
+}
+
+// ─── live progress rollup (declared vs observed) ─────────────────────────────
+// The build-time cohort_intel engine computes a rich project_progress model but
+// over EMPTY transcript inputs (the OS bundle ships transcript_evidence_cards=[])
+// and no view reads it. This is the LIVE replacement: a per-team rollup computed
+// at runtime from the now-attributed live evidence index — the team's DECLARED
+// plan (journey stage / bottleneck / next milestone / now) set beside what's
+// actually OBSERVED in its distilled sessions (did / pmf / asks / risks counts,
+// weeks active, most-recent week). It is the "declared vs observed" attribution
+// read the cohort is steering toward, sourced from real data instead of a seed.
+// Pure ⇒ unit-tested. Empty evidence ⇒ observed counts are 0 and the dossier
+// section can hide itself; declared always reflects the team record.
+export function teamProgressRollup(index, team) {
+  const ev = teamEvidence(index, team && team.record_id);
+  const j = (team && team.journey && typeof team.journey === "object") ? team.journey : {};
+  const weeks = [...ev.weeks.keys()].filter((w) => w && w !== "undated").sort();
+  const observed = {
+    sessions: ev.all.length,
+    did: ev.did.length,
+    pmf: ev.pmf.length,
+    asks: ev.asks.length,
+    risks: ev.risks.length,
+    weeksActive: weeks.length,
+    latestWeek: weeks[weeks.length - 1] || "",
+  };
+  const declared = {
+    stage: Number.isFinite(Number(j.stage)) ? Number(j.stage) : null,
+    bottleneck: String(j.primary_bottleneck || ""),
+    nextMilestone: String(j.next_milestone || ""),
+    now: String((team && team.now) || ""),
+  };
+  // A coarse legibility read: does the OBSERVED record back the DECLARED plan?
+  //   "observed-active": real recent session/progress signal
+  //   "declared-only":   a plan + bottleneck on file but nothing observed yet
+  //   "quiet":           neither — no plan, no signal
+  const observedSignal = observed.did + observed.pmf + observed.sessions;
+  const status = observedSignal > 0
+    ? "observed-active"
+    : (declared.bottleneck || declared.nextMilestone || declared.stage != null ? "declared-only" : "quiet");
+  return { recordId: team && team.record_id, declared, observed, status };
 }
 
 export const __claimBuckets = { DID, PMF, ASK, RISK, EDGE };

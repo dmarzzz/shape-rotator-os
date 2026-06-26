@@ -10070,6 +10070,19 @@ html.jweek-vt::view-transition-new(root) {
 .ac-evt-claim { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 9px; align-items: baseline; border-left: 2px solid var(--evt-c, rgba(var(--ink-rgb), 0.3)); padding-left: 9px; }
 .ac-evt-tag { font-family: var(--font-mono); font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--evt-c, rgba(var(--ink-rgb), 0.6)); }
 .ac-evt-text { font-size: 12.5px; line-height: 1.45; color: rgba(var(--ink-rgb), 0.86); overflow-wrap: anywhere; }
+/* Honesty marker: this card's team was inferred from the session text by
+   attributeInsightCards(), not self-declared. A quiet dotted chip, never loud. */
+.ac-evt-inferred { display: inline-block; margin-left: 7px; padding: 0 5px; border: 1px dotted rgba(var(--ink-rgb), 0.4); border-radius: 5px; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.04em; color: rgba(var(--ink-rgb), 0.5); vertical-align: middle; white-space: nowrap; }
+/* Progress · declared vs observed — the live cohort_intel replacement. Two
+   columns: the team's stated plan beside what its distilled sessions show. */
+.ac-progress { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.ac-progress-col { min-width: 0; }
+.ac-progress-h { font-family: var(--font-mono); font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(var(--ink-rgb), 0.5); }
+.ac-progress-now { margin: 4px 0 6px; font-size: 12.5px; line-height: 1.4; color: rgba(var(--ink-rgb), 0.88); }
+.ac-progress-col ul { margin: 4px 0 0; padding-left: 14px; }
+.ac-progress-col li { font-size: 11.5px; line-height: 1.5; color: rgba(var(--ink-rgb), 0.74); }
+.ac-progress-latest { display: inline-block; margin-top: 6px; font-family: var(--font-mono); font-size: 9px; color: rgba(var(--ink-rgb), 0.45); }
+.ac-progress[data-status="declared-only"] .ac-progress-col:last-child li { color: rgba(var(--ink-rgb), 0.45); font-style: italic; }
 /* flash the week an on-ramp (evidence card / transcript) anchored to */
 .ac-evt-grp.is-anchored { animation: acEvtFlash 2.2s var(--ease); border-radius: 6px; }
 @keyframes acEvtFlash { 0%, 100% { background: transparent; } 12% { background: color-mix(in oklch, var(--alchemy-oxide) 16%, transparent); } }
