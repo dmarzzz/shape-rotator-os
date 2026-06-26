@@ -43,7 +43,12 @@ function firstLine(s) { return String(s == null ? "" : s).split("\n")[0].trim();
 function isMerge(msg) { return /^merge\b/i.test(firstLine(msg)); }
 
 // Pure: a GitHub events[] array → a structured summary. No network/storage.
-export function summarizeEvents(events) {
+// `repos` (optional, lowercased "owner/repo" allowlist) scopes the summary to the
+// focused project's repos — events on any other repo are skipped, so a scan never
+// pulls in work unrelated to the project the member is refreshing.
+export function summarizeEvents(events, { repos: repoAllow } = {}) {
+  const allow = repoAllow instanceof Set ? repoAllow
+    : (Array.isArray(repoAllow) && repoAllow.length ? new Set(repoAllow.map((r) => String(r).toLowerCase())) : null);
   const commits = []; // { repo, message }
   const prs = [];      // { repo, number, title, action }
   const releases = []; // { repo, tag }
@@ -53,6 +58,7 @@ export function summarizeEvents(events) {
   for (const ev of Array.isArray(events) ? events : []) {
     if (!ev || typeof ev !== "object") continue;
     const repo = ev.repo && ev.repo.name ? String(ev.repo.name) : "";
+    if (allow && !(repo && allow.has(repo.toLowerCase()))) continue; // out of focus ⇒ skip
     if (repo) repos.add(repo);
     const p = ev.payload || {};
     switch (ev.type) {
@@ -89,7 +95,10 @@ export function summarizeEvents(events) {
 
 // Pure: a summary → a compact plain-text digest. "" when there's nothing useful
 // (so the modal's empty-digest guards fire and don't draft from nothing).
-export function digestFromEvents(handle, data) {
+// `sourceLabel` names the window in the header line — defaults to the public-events
+// wording; the authenticated path passes one that says it includes private repos, so
+// the digest never mislabels private activity as public.
+export function digestFromEvents(handle, data, { sourceLabel = "recent public events" } = {}) {
   if (!data) return "";
   const { commits, prs, releases, created, repos, pushCount } = data;
   if (!(commits.length || prs.length || releases.length || created.length)) return "";
@@ -103,7 +112,7 @@ export function digestFromEvents(handle, data) {
   const newRepos = created.filter((c) => c.refType === "repository").length;
   if (newRepos) counts.push(`${newRepos} new repo${newRepos === 1 ? "" : "s"}`);
 
-  const lines = [`handle: ${handle} · window: recent public events`];
+  const lines = [`handle: ${handle} · window: ${sourceLabel}`];
   if (counts.length) lines.push(`activity: ${counts.join(", ")}`);
   if (commits.length) {
     lines.push("recent commits:");
@@ -140,10 +149,15 @@ function writeCached(handle, entry) {
 
 // Fetch (cached) → { ok, digest } | { ok:false, status }. fetchImpl is injectable
 // for tests; in the app it uses the renderer's fetch (CSP allows the host).
-export async function scanGithubActivity(rawHandle, { maxEvents = 100, fetchImpl } = {}) {
+export async function scanGithubActivity(rawHandle, { maxEvents = 100, fetchImpl, repos } = {}) {
   const handle = normalizeHandle(rawHandle);
   if (!handle) return { ok: false, status: 0, error: "empty_handle" };
-  const cached = readCached(handle);
+  // Cache per (handle × repo-scope) so a project-scoped digest never returns an
+  // earlier unscoped one (or another project's).
+  const scope = Array.isArray(repos) && repos.length
+    ? [...new Set(repos.map((s) => String(s).toLowerCase()))].sort().join(",") : "";
+  const cacheKey = scope ? `${handle} ${scope}` : handle;
+  const cached = readCached(cacheKey);
   if (cached !== undefined) return cached;
   const doFetch = fetchImpl || globalThis.fetch;
   if (typeof doFetch !== "function") return { ok: false, status: 0, error: "no_fetch" };
@@ -155,19 +169,19 @@ export async function scanGithubActivity(rawHandle, { maxEvents = 100, fetchImpl
     );
   } catch (e) {
     const entry = { ok: false, status: 0, error: (e && e.message) || String(e) };
-    writeCached(handle, entry);
+    writeCached(cacheKey, entry);
     return entry;
   }
   if (!r || r.status !== 200) {
     const entry = { ok: false, status: r ? r.status : 0 };
-    writeCached(handle, entry);
+    writeCached(cacheKey, entry);
     return entry;
   }
   let events;
   try { events = await r.json(); }
-  catch { const entry = { ok: false, status: 0, error: "bad_json" }; writeCached(handle, entry); return entry; }
-  const digest = digestFromEvents(handle, summarizeEvents(Array.isArray(events) ? events : []));
+  catch { const entry = { ok: false, status: 0, error: "bad_json" }; writeCached(cacheKey, entry); return entry; }
+  const digest = digestFromEvents(handle, summarizeEvents(Array.isArray(events) ? events : [], { repos }));
   const entry = { ok: true, status: 200, digest };
-  writeCached(handle, entry);
+  writeCached(cacheKey, entry);
   return entry;
 }

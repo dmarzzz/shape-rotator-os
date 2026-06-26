@@ -131,6 +131,9 @@ contextBridge.exposeInMainWorld("api", {
   cohortChatStop:      ()  => ipcRenderer.invoke("fg:cohort-chat:stop"),
   getCohortChatConfig: ()  => ipcRenderer.invoke("fg:cohort-chat:config:get"),
   setCohortChatConfig: (o) => ipcRenderer.invoke("fg:cohort-chat:config:set", o || {}),
+  // Private GitHub via the member's own `gh` login — returns raw events the
+  // renderer scrubs + scopes (nothing leaves the box but a scrubbed digest).
+  scanPrivateGithub:   (o) => ipcRenderer.invoke("fg:gh:scan-private", o || {}),
   onCohortChatOutput: (cb) => {
     const h = (_e, p) => { try { cb(p); } catch {} };
     ipcRenderer.on("fg:cohort-chat:output", h);

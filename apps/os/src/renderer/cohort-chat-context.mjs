@@ -164,6 +164,7 @@ const SYSTEM = [
   "Be concrete and concise. Refer to teams and people by name. When you don't have enough grounded information, say so plainly.",
   "When asked who to connect with / who to talk to, use each team's `seeking`/`offering` and its `suggested connections`, and explain the specific reason for each suggestion (the need met, the shared problem, the dependency).",
   "When asked what's happening or how something is progressing, ground it in the distilled session insights, recent activity, and each team's progress (stage / bottleneck / next milestone).",
+  "The cohort's central lens is its two awards: Best Shape Rotation (a substantiated pivot toward product–market fit — a team that changed shape in response to real feedback and can SHOW it) and Best Team–Product Fit (the right team for this problem, evidenced by how they work, what they ship, and how they take feedback). When you help a member reflect on or refresh their own work, help make THAT evidence legible — the pivot and what triggered it, what they shipped, the team's fit for the problem — never inflate it past what the grounded work supports.",
 ].join("\n");
 
 // The action contract — appended only in agent mode (buildChatPrompt({agent:true})).
@@ -179,13 +180,15 @@ export const ACTION_CONTRACT = [
   '{"actions":[ {"action":"<verb>", ...args} ]}',
   "```",
   "Verbs (use real record_id values from the cohort context above — never invent people):",
-  '- propose_profile_update — {"subject_record_id","fields":{"now"?,"weekly_intention"?,"skills"?[],"skill_areas"?[],"seeking"?[],"offering"?[],"prior_work"?[],"geo"?,"links"?:{"github"?,"repo"?}},"rationale"}',
+  '- propose_profile_update — a PERSON: {"subject_record_id":<person_id>,"fields":{"now"?,"weekly_intention"?,"skills"?[],"skill_areas"?[],"seeking"?[],"offering"?[],"prior_work"?[],"geo"?,"links"?:{"github"?,"repo"?}},"rationale"}',
+  '- propose_profile_update — the FOCUSED TEAM/project: {"subject_record_id":<the focused team id>,"fields":{"journey"?:{"stage"?:1-8,"evidence_quality"?:1-5,"market_upside"?:1-5,"primary_bottleneck"?,"company_type"?,"confidence"?:"Low|Medium|High","icp"?,"problem"?,"solution"?,"evidence_notes"?,"next_milestone"?},"traction"?,"prior_shipping"?[],"success_dimensions"?[]},"rationale"}   (journey = the shape-rotation evidence; traction/shipping = team–product-fit. Propose a team update ONLY for the focused project below, and only grounded in real work.)',
   '- propose_connection — {"from_record_id","to_record_id","reason"}',
   '- file_contest — {"subject_record_id","contest_kind","note"}  (contest_kind ∈ stale_declaration | off_github_work | wrong_attribution | context_missing)',
   '- request_scan — {"sources":["sessions","github"]}   (reads the member\'s OWN recent work, under a consent gate, to refresh THEIR profile — use this instead of guessing their work)',
   '- ask — {"question"}   (ONE clarifying question when you need it before proposing)',
   '- note — {"text"}',
   "Rules: propose a field only when the context supports it; be conservative and truthful; prefer one `ask` over guessing. If the member is just chatting or asking a question, DON'T emit actions — just answer normally.",
+  "When refreshing a member's OWN profile, prefer `request_scan` to ground in their real recent work rather than guessing, and look specifically for award-relevant signal: their shape-rotation (a pivot and the feedback that drove it, with evidence) and their team–product-fit (what they ship, how they work and take feedback). Capture what you find in the fields it supports; raise anything you can't yet ground as a single `ask`.",
 ].join("\n");
 
 // Assemble the final prompt piped to the local CLI: system framing + grounded
@@ -193,16 +196,23 @@ export const ACTION_CONTRACT = [
 // `agent:true` appends the ACTION_CONTRACT so the model may propose structured
 // changes; `toolResults` injects the output of a prior tool step (e.g. a scan
 // digest) for the next loop iteration.
-export function buildChatPrompt({ surface, history = [], question, maxChars = 22000, agent = false, toolResults = "" } = {}) {
+export function buildChatPrompt({ surface, history = [], question, maxChars = 22000, agent = false, toolResults = "", focus = null } = {}) {
   const context = buildCohortContext(surface, { question, maxChars });
   const convo = (Array.isArray(history) ? history : [])
     .filter((m) => m && m.content)
     .slice(-6)
     .map((m) => `${m.role === "assistant" ? "Assistant" : "Member"}: ${m.content}`)
     .join("\n");
+  // The FOCUS is chosen by the MEMBER (an explicit pick or the project they named),
+  // never by the model — so the model can't widen what it reads or writes. Scopes
+  // the answer + any team proposal to the one project in hand.
+  const focusBlock = focus && focus.teamId
+    ? `\n===== FOCUS — the member's current project =====\nThe member is working on ${focus.teamName} (${focus.teamId}). Scope your answer and ANY proposals to THIS project: propose journey/traction/shipping updates only for ${focus.teamId}, and don't pull in their unrelated work. If they clearly mean a different project, ask before proposing.\n===== END FOCUS =====`
+    : "";
   return [
     SYSTEM,
     agent ? ACTION_CONTRACT : "",
+    focusBlock,
     "\n===== COHORT CONTEXT =====",
     context,
     "===== END CONTEXT =====",

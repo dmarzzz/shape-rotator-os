@@ -6,6 +6,7 @@ const crypto = require("node:crypto");
 const swfNode = require("./swf-node");
 const swarm = require("./swarm-node");
 const cohortChat = require("./cohort-chat-node");
+const ghNode = require("./gh-node");
 const easelNdi = require("./easel-ndi");
 const matrix = require("./matrix");
 // Daybook (apps→daybook): registering this module wires every `daybook:*`
@@ -1743,6 +1744,13 @@ ipcMain.handle("fg:cohort-chat:start", async (_e, opts) => {
   });
 });
 ipcMain.handle("fg:cohort-chat:stop", async () => cohortChat.stop());
+
+// Private GitHub via the member's OWN `gh` login (no token stored): returns RAW
+// events the renderer scrubs + scopes (gh-node.js). Authenticated as the member,
+// so private repos are included; the renderer keeps only a scrubbed digest.
+// scanPrivateGithub self-reports gh install/auth state in its result, so the
+// renderer needs no separate status probe.
+ipcMain.handle("fg:gh:scan-private", async (_e, opts) => ghNode.scanPrivateGithub(opts || {}));
 
 cohortChat.onStatus((s) => broadcastSwarm("fg:cohort-chat:status-changed", s));
 cohortChat.onOutput((o) => broadcastSwarm("fg:cohort-chat:output", o));

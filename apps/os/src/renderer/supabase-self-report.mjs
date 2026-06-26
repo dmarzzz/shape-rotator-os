@@ -13,7 +13,7 @@
 
 import { postAnonRow, getAnonRows } from "./supabase-anon-write.mjs";
 import { sanitizeDelta } from "./self-report-synth.mjs";
-import { sanitizeProfileFields } from "./cohort-chat-actions.mjs";
+import { sanitizeProfileFields, sanitizeTeamFields } from "./cohort-chat-actions.mjs";
 
 const WRITE_TABLE = "os_profile_updates";
 const READ_VIEW = "app_profile_updates";
@@ -66,16 +66,27 @@ export async function saveSelfReportUpdate(
 export async function saveProfileProposal(
   subjectRecordId,
   delta,
-  { proposerRecordId = null, proposerClaimHash = null, rationale = "", sourceKinds = [], appVersion = null, platform = null, allowedSkillAreas } = {},
+  { proposerRecordId = null, proposerClaimHash = null, rationale = "", sourceKinds = [], appVersion = null, platform = null, allowedSkillAreas, subjectType = "person" } = {},
   opts = {},
 ) {
   const id = String(subjectRecordId == null ? "" : subjectRecordId).trim();
   if (!id || id.length > 128) return { ok: false, error: "bad_record_id" };
-  const clean = sanitizeProfileFields(delta, { allowedSkillAreas });
+  // Re-whitelist by subject type (defense in depth): a TEAM proposal carries the
+  // award-evidence fields (journey/traction/shipping), a PERSON the personal ones.
+  // A team proposal is never is_self, so it lands pending the operator/daily review.
+  const isTeam = subjectType === "team";
+  const clean = isTeam ? sanitizeTeamFields(delta) : sanitizeProfileFields(delta, { allowedSkillAreas });
   if (!clean || !Object.keys(clean).length) return { ok: false, error: "empty_delta" };
 
   const body = {
     record_id: id,
+    // record_type is sent ONLY for a team proposal. The os_profile_updates anon INSERT
+    // grant is column-scoped and does NOT include record_type yet, so a person proposal
+    // must keep the exact granted column set it always had (else PostgREST 400s the whole
+    // row). The Engine migration that adds + grants record_type also widens the team
+    // whitelist — until it lands, team rows fail server-side by design (staged), but
+    // person proposals keep working exactly as before.
+    ...(isTeam ? { record_type: "team" } : {}),
     delta: clean,
     question: null,
     answer: rationale ? String(rationale).slice(0, 2000) : null,

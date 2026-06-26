@@ -44,6 +44,65 @@ export const PROPOSABLE_PROFILE_FIELDS = Object.freeze({
   links: "links", // object, scoped to { github, repo }
 });
 
+// ── team field whitelist (the award-evidence surface) ─────────────────────────
+// When the proposal subject is a TEAM (the member's focused project), the delta is
+// drawn from the team award-evidence fields instead of the personal ones — this is
+// what makes "Best Shape Rotation" (journey) and "Best Team–Product Fit" (traction /
+// shipping) legible. MUST stay in lockstep with the os_profile_updates whitelist
+// CHECK once the Engine migration widens it to team subjects; until then a team
+// delta is well-formed here but rejected server-side (fail-closed, never silent).
+export const PROPOSABLE_TEAM_FIELDS = Object.freeze({
+  traction: "string",
+  prior_shipping: "list",
+  success_dimensions: "list",
+  journey: "journey", // nested PMF object — sanitized field-by-field below
+});
+
+// The journey sub-schema (cohort-data/schema.yml teams.journey). Bounded numerics,
+// closed enums, and free-text notes — anything off-schema is dropped.
+const JOURNEY_INT = Object.freeze({ stage: [1, 8], evidence_quality: [1, 5], market_upside: [1, 5] });
+const JOURNEY_ENUM = Object.freeze({
+  primary_bottleneck: new Set(["ICP Clarity", "Pain Intensity", "Solution Quality", "Technical Risk", "GTM", "Retention", "Business Model", "Fundraising", "Regulatory", "Team"]),
+  company_type: new Set(["B2B", "Consumer", "Infra", "Marketplace", "Protocol", "AI", "Other"]),
+  confidence: new Set(["Low", "Medium", "High"]),
+});
+const JOURNEY_TEXT = Object.freeze(["icp", "problem", "solution", "evidence_notes", "next_milestone"]);
+
+function clampInt(v, lo, hi) {
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n)) return null;
+  return Math.min(hi, Math.max(lo, n));
+}
+
+// Whitelist + coerce a nested journey object. Returns null when nothing survives.
+export function sanitizeJourney(src) {
+  if (!src || typeof src !== "object" || Array.isArray(src)) return null;
+  const out = {};
+  for (const [k, [lo, hi]] of Object.entries(JOURNEY_INT)) {
+    if (k in src) { const n = clampInt(src[k], lo, hi); if (n != null) out[k] = n; }
+  }
+  for (const [k, set] of Object.entries(JOURNEY_ENUM)) {
+    if (k in src) { const s = clampOne(src[k], 64); if (set.has(s)) out[k] = s; }
+  }
+  for (const k of JOURNEY_TEXT) {
+    if (k in src) { const s = clampStr(src[k]); if (s) out[k] = s; }
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+// Whitelist + coerce a proposed TEAM delta to PROPOSABLE_TEAM_FIELDS.
+export function sanitizeTeamFields(fields) {
+  const clean = {};
+  if (!fields || typeof fields !== "object" || Array.isArray(fields)) return clean;
+  for (const [key, kind] of Object.entries(PROPOSABLE_TEAM_FIELDS)) {
+    if (!(key in fields)) continue;
+    if (kind === "string") { const s = clampStr(fields[key]); if (s) clean[key] = s; }
+    else if (kind === "list") { const l = clampList(fields[key]); if (l.length) clean[key] = l; }
+    else if (kind === "journey") { const j = sanitizeJourney(fields[key]); if (j) clean.journey = j; }
+  }
+  return clean;
+}
+
 // The verbs the agent may emit. Anything else parsed from stdout is discarded.
 export const ACTION_TYPES = Object.freeze([
   "propose_profile_update", // draft a delta for ANY member's profile (provenance-stamped)
@@ -177,11 +236,19 @@ const ACTIONS = {
   propose_profile_update(args, ctx) {
     const subject = clampId(args.subject_record_id || args.record_id);
     if (!subjectOk(subject, ctx.knownRecordIds)) return null;
-    const delta = sanitizeProfileFields(args.fields || args.delta, { allowedSkillAreas: ctx.allowedSkillAreas });
+    // A TEAM subject draws from the award-evidence whitelist (journey/traction/
+    // shipping); a PERSON from the personal one. is_self (stampOrigin) is naturally
+    // false for a team — a person id never equals a team id — so team edits always
+    // land pending the operator/daily review, never auto-applied.
+    const isTeam = ctx.knownTeamIds instanceof Set && ctx.knownTeamIds.has(subject);
+    const delta = isTeam
+      ? sanitizeTeamFields(args.fields || args.delta)
+      : sanitizeProfileFields(args.fields || args.delta, { allowedSkillAreas: ctx.allowedSkillAreas });
     if (!Object.keys(delta).length) return null; // nothing proposable ⇒ no action
     return {
       action: "propose_profile_update",
       subject_record_id: subject,
+      subject_type: isTeam ? "team" : "person",
       delta,
       rationale: clampOne(args.rationale || args.reason, REASON_MAX),
       origin: stampOrigin(subject, ctx),

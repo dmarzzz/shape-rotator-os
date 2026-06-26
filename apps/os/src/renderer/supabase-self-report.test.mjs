@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { saveSelfReportUpdate, fetchApprovedProfileUpdates } from "./supabase-self-report.mjs";
+import { saveSelfReportUpdate, saveProfileProposal, fetchApprovedProfileUpdates } from "./supabase-self-report.mjs";
 
 const CONFIG = { url: "https://example.supabase.co", anonKey: "anon-123" };
 
@@ -53,6 +53,40 @@ test("posts a whitelisted, pending delta with anon headers", async () => {
   assert.ok(!("status" in body));                        // can't preset status — DB defaults pending
   assert.equal(body.question, "emphasize what?");
   assert.deepEqual(body.source_kinds, ["sessions", "github"]);
+});
+
+test("saveProfileProposal (person) posts ONLY the granted columns — no record_type", async () => {
+  const fetchImpl = captureFetch();
+  const r = await saveProfileProposal(
+    "albiona",
+    { now: "shipping", skills: ["zk"], team: "x" },
+    { proposerRecordId: "dmarz", proposerClaimHash: "h", rationale: "saw it in their work" },
+    { config: CONFIG, fetchImpl },
+  );
+  assert.deepEqual(r, { ok: true });
+  const body = JSON.parse(fetchImpl.calls[0].init.body);
+  // The os_profile_updates anon INSERT grant is column-scoped; a person proposal must
+  // NOT carry record_type (the column isn't granted yet) or PostgREST 400s the row.
+  assert.ok(!("record_type" in body), "person body must not include record_type");
+  assert.equal(body.record_id, "albiona");
+  assert.deepEqual(body.delta, { now: "shipping", skills: ["zk"] }); // team stripped
+  assert.equal(body.proposer_record_id, "dmarz");
+});
+
+test("saveProfileProposal (team) carries record_type:team + the team whitelist", async () => {
+  const fetchImpl = captureFetch();
+  const r = await saveProfileProposal(
+    "teesql",
+    { journey: { stage: 5, primary_bottleneck: "GTM" }, traction: "2 pilots", now: "drop me" },
+    { proposerRecordId: "dmarz", subjectType: "team" },
+    { config: CONFIG, fetchImpl },
+  );
+  assert.deepEqual(r, { ok: true });
+  const body = JSON.parse(fetchImpl.calls[0].init.body);
+  assert.equal(body.record_type, "team");
+  assert.equal(body.delta.journey.stage, 5);
+  assert.equal(body.delta.traction, "2 pilots");
+  assert.ok(!("now" in body.delta), "personal field stripped on a team proposal");
 });
 
 test("a non-ok HTTP response is reported as a failure", async () => {
