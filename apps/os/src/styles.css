@@ -8865,7 +8865,7 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
 }
 
 /* ─── collaboration board (ported from dossier Connections) ──────────── */
-.alch-collab { display: flex; flex-direction: column; gap: 40px; }
+.alch-collab { display: flex; flex-direction: column; gap: 26px; }
 
 
 /* Collab's old board header (title/sub/stats) retired 2026-06 — the shared
@@ -12244,8 +12244,16 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 .alch-collab .cb-route-more:hover { color: var(--alchemy-paper-warm); border-color: rgba(var(--ink-rgb), 0.24); }
 .alch-collab .cb-route-more:focus-visible { outline: 1px solid var(--alchemy-oxide-bright); outline-offset: 1px; }
 
-.alch-collab .cb-rule { height: 1px; background: rgba(var(--ink-rgb), 0.07); margin: 26px 0 18px; }
-.alch-collab .cb-maphead { display: flex; align-items: center; justify-content: flex-start; gap: 14px 18px; flex-wrap: wrap; margin-bottom: 12px; }
+.alch-collab .cb-rule { height: 1px; background: rgba(var(--ink-rgb), 0.07); margin: 8px 0; }
+.alch-collab .cb-maphead { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+.alch-collab .cb-maphead-left { display: inline-flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.cb-intake-link {
+  appearance: none; border: 0; background: transparent; cursor: pointer;
+  font-family: var(--ed-mono, var(--font-mono)); font-size: 10px; letter-spacing: 0.05em;
+  text-transform: lowercase; color: rgba(var(--ink-rgb), 0.45);
+  padding: 4px 7px; border-radius: 6px; transition: color 150ms var(--ease), background 150ms var(--ease);
+}
+.cb-intake-link:hover { color: rgba(var(--ink-rgb), 0.82); background: rgba(var(--ink-rgb), 0.05); }
 .alch-collab .cb-map-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--alchemy-ink-mute); }
 
 /* persistent highlight of the picked team's row + column in the map */

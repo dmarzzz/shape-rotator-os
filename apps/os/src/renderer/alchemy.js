@@ -13429,6 +13429,10 @@ function renderCollab() {
   const mapSection = `
     <section class="alch-cb-section cb-matrix-section" data-cb-section="grid" aria-label="cohort map — rows need, columns provide">
       <div class="cb-maphead">
+        <div class="cb-maphead-left">
+          ${collabTeamPickerHtml(m, focusRid)}
+          <button class="cb-intake-link" type="button" data-collab-intake-open>+ seek / offer</button>
+        </div>
         ${collabLensFilterHtml(lens, m)}
       </div>
       <div class="cb-scroll">${matrixBody}</div>
@@ -13487,22 +13491,15 @@ function renderCollab() {
       <div class="cb-cv-list">${convRows || '<p class="cb-empty">no shared areas.</p>'}</div>
     </section>`;
 
-  // The header stays calm and stable: title + the one lead control (team picker)
-  // + intake. The *adaptive* "what to do next" copy moved into the rail's nudge
-  // banner (collabNudgeHtml), right next to the matches it talks about.
+  // The header stays calm: title + a static lead line. The team picker + intake
+  // moved into the filter row (cb-maphead-left); the *adaptive* "what to do next"
+  // copy lives in the rail's nudge banner (collabNudgeHtml), next to the matches.
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="collab">
     ${cohortPageHead("collab")}
     <header class="cb-lead" data-shape-occluder>
       <h2 class="cb-lead-title">Find who can help you</h2>
       <p class="cb-lead-sub">The cohort's needs and offers, matched. Pick your team to make the map — and the panel — about you.</p>
-      <div class="cb-lead-controls">
-        ${collabTeamPickerHtml(m, focusRid)}
-        <button class="cb-intake-open" type="button" data-collab-intake-open>
-          <span class="cb-intake-open-mark" aria-hidden="true">+</span>
-          <span>add seek / offer</span>
-        </button>
-      </div>
     </header>
     <div class="alch-collab">
       <div class="cb-workbench"${collabRailStyleAttr()}>
