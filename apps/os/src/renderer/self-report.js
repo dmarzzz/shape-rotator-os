@@ -176,7 +176,7 @@ async function synthesize(person, digests, answer = "") {
     return {
       ok: false,
       error: synth && synth.reason === "no_local_ai_cli"
-        ? "No local AI tool found. Install Claude Code, Codex, or Ollama (or set the command in chat settings)."
+        ? "No local AI tool found. Install Claude Code or Codex (or set the command in chat settings)."
         : "Your local AI tool didn’t return a draft. Try again.",
     };
   }

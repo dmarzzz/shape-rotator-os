@@ -9,6 +9,7 @@ import {
   teamStageSeries,
   isPresent,
   buildPresenceLane,
+  buildSessionsLane,
   buildDefaultTimeline,
 } from "./cohort-timeline-tracks.mjs";
 
@@ -156,4 +157,34 @@ test("buildDefaultTimeline assembles the v1 lane set with a shared axis", () => 
     out.lanes.map((l) => l.trackKey),
     ["activity", "standing", "presence"],
   );
+});
+
+test("buildSessionsLane places local sessions as tier:'local' points, sorted", () => {
+  const sessions = [
+    { id: "u2", source: "claude", title: "agent loop", project: "Shape OS", ms: Date.UTC(2026, 5, 20) },
+    { id: "u1", source: "codex", project: "Engine", ms: Date.UTC(2026, 5, 10) },
+    { id: "bad", source: "claude", ms: NaN }, // dropped
+  ];
+  const lane = buildSessionsLane(sessions, WINDOW);
+  assert.equal(lane.trackKey, "sessions");
+  assert.equal(lane.label, "my sessions");
+  assert.equal(lane.items.length, 2); // bad ms dropped
+  assert.deepEqual(lane.items.map((i) => i.title), ["Engine", "agent loop"]); // sorted by ms; project as title fallback
+  assert.ok(lane.items.every((i) => i.tier === "local")); // never public
+  assert.equal(lane.items[1].isFuture, true); // jun 20 > now (jun 17)
+  assert.ok(lane.items.every((i) => i.fraction >= 0 && i.fraction <= 1));
+});
+
+test("buildSessionsLane tolerates non-array input", () => {
+  assert.deepEqual(buildSessionsLane(null, WINDOW).items, []);
+});
+
+test("buildDefaultTimeline appends the sessions lane only when local sessions are passed", () => {
+  const base = { whatsNew: [], standingWeekly: STANDING, people: [] };
+  assert.equal(buildDefaultTimeline(base, WINDOW).lanes.some((l) => l.trackKey === "sessions"), false);
+  const withSessions = buildDefaultTimeline(
+    { ...base, localSessions: [{ id: "s", ms: NOW, title: "t" }] },
+    WINDOW,
+  );
+  assert.equal(withSessions.lanes.at(-1).trackKey, "sessions");
 });

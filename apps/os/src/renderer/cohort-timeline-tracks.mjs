@@ -233,13 +233,52 @@ export function buildInsightLane(evidenceCards, teamNameById = {}, { startMs, en
   return { trackKey: "insights", dim: "category", value: "insights", label: "session insights", items };
 }
 
+// ── local sessions lane (the member's OWN coding sessions over time) ─────────
+// LOCAL-ONLY — unlike every other lane here, this is the member's own on-device
+// signal (Claude Code / Codex session METADATA: a title/project + a timestamp,
+// NEVER body prose). It must be rendered ONLY in the member's own private view and
+// NEVER published to the cohort or fed to a remote model — it is tagged tier:'local'
+// so a mount can't mistake it for public. Input shape (from self-report-node
+// listLocalSessions): [{ id, source, title, project, ms }]. Pure: no fs/DOM here.
+export function buildSessionsLane(sessions, { startMs, endMs, nowMs } = {}) {
+  const list = Array.isArray(sessions) ? sessions : [];
+  const items = [];
+  for (const s of list) {
+    if (!s || typeof s !== "object") continue;
+    const ms = Number.isFinite(s.ms) ? s.ms : parseMs(s.ms);
+    if (!Number.isFinite(ms)) continue;
+    const title = String(s.title || s.project || "session");
+    items.push({
+      id: `session:${s.source || "local"}:${slug(s.id || title).slice(0, 32)}:${Math.round(ms)}`,
+      startMs: ms,
+      endMs: null,
+      trackKey: "sessions",
+      category: "session",
+      team: null,
+      person: s.person ? String(s.person) : null,
+      title,
+      detail: String(s.project || s.source || ""),
+      detailRef: null,
+      tier: "local",
+      shape: "point",
+      fraction: axisFraction(ms, startMs, endMs),
+      endFraction: null,
+      isFuture: ms > nowMs,
+    });
+  }
+  items.sort((a, b) => a.startMs - b.startMs);
+  return { trackKey: "sessions", dim: "category", value: "sessions", label: "my sessions", items };
+}
+
 // ── assembler ────────────────────────────────────────────────────────────────
 // The default lane set (activity + standing + presence, plus a session-insights
 // lane when distilled evidence is present) on the shared axis. The renderer
 // injects the canonical program window + nowMs and may pass evidenceCards (the
 // attributed transcript_evidence_cards) + teamNameById for the insights lane.
+// `localSessions` is OPTIONAL and only ever passed in the member's OWN private
+// timeline (never the shared cohort mount) — see buildSessionsLane's tier note.
 export function buildDefaultTimeline(
-  { whatsNew, standingWeekly, people, evidenceCards, teamNameById } = {},
+  { whatsNew, standingWeekly, people, evidenceCards, teamNameById, localSessions } = {},
   { startMs, endMs, nowMs } = {},
 ) {
   const axis = {
@@ -257,5 +296,9 @@ export function buildDefaultTimeline(
   // v1 three-lane default is unchanged when there's no attributed evidence.
   const insights = buildInsightLane(evidenceCards, teamNameById, { startMs, endMs, nowMs });
   if (insights.items.length) lanes.splice(1, 0, insights); // sit it right under activity
+  // The member's own sessions lane is opt-in (private mount only) and likewise
+  // only appears when there's something to place.
+  const sessions = buildSessionsLane(localSessions, { startMs, endMs, nowMs });
+  if (sessions.items.length) lanes.push(sessions);
   return { axis, lanes };
 }
