@@ -37,3 +37,30 @@ test("calendar-sync respects protected main by using a PR sync branch", () => {
   assert.doesNotMatch(workflowText, /git commit[\s\S]{0,400}\[skip ci\]/);
   assert.doesNotMatch(workflowText, /git push origin HEAD:main/);
 });
+
+test("calendar-sync self-arms Meet links + transcription after the live publish", () => {
+  // Every future event must end up with a Meet link AND auto-transcription,
+  // however it was created. These run as the documented reconciler pair.
+  const publishIdx = workflowText.indexOf("publish-calendar-grid-to-supabase");
+  const meetLinksIdx = workflowText.indexOf("calendar:meet-links:google");
+  const armIdx = workflowText.indexOf("calendar:meet-auto-artifacts:google");
+
+  assert.ok(meetLinksIdx !== -1, "calendar-sync should ensure future Meet links");
+  assert.ok(armIdx !== -1, "calendar-sync should arm future Meet transcription");
+
+  // Arming must run AFTER the live Supabase publish so a Google failure can
+  // never block the schedule, and links must precede transcription (a link is
+  // the prerequisite for arming a transcript).
+  assert.ok(publishIdx !== -1 && meetLinksIdx > publishIdx, "Meet-link reconcile must run after the Supabase publish");
+  assert.ok(armIdx > meetLinksIdx, "transcription arming must run after Meet-link reconcile");
+
+  // Safe flags: transcription must no-op cleanly when the Meet settings scope
+  // is absent rather than failing the whole sync.
+  assert.match(workflowText, /calendar:meet-auto-artifacts:google -- --apply --time-min "\$\{\{ steps\.window\.outputs\.time_min \}\}" --skip-if-missing-scope/);
+  assert.match(workflowText, /calendar:meet-links:google -- --apply --time-min "\$\{\{ steps\.window\.outputs\.time_min \}\}"/);
+  assert.match(workflowText, /time_min=\$\(date -u \+%Y-%m-%dT%H:%M:%SZ\)/);
+
+  // The arming steps mutate Google only; they must not introduce a new push
+  // trigger path that could loop the workflow.
+  assert.ok(!workflow.on.push.paths.includes("scripts/ensure-google-calendar-meet-auto-artifacts.js"));
+});
