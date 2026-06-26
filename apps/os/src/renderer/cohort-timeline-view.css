@@ -1,0 +1,173 @@
+/* cohort-timeline-view.css — the cohort Timeline lane view. Lazy-loaded by
+   alchemy's renderCohortTimeline(). Design-system tokens only. */
+
+.ctl {
+  --ctl-row-h: 46px;
+  /* Categorical marker palette: no semantic --ds-* role distinguishes
+     "release vs commit vs insight vs ask vs event", so this is an intentional
+     local categorical scale in the muted DS family — declared once here and
+     referenced by both the dots and the legend swatches (no raw hex in rules). */
+  --ctl-cat-release: #6f9f6a;
+  --ctl-cat-commit:  #7d93b8;
+  --ctl-cat-insight: #b48bb0;
+  --ctl-cat-ask:     #c2a872;
+  --ctl-cat-event:   #6fa8a0;
+  position: relative;
+  width: 100%;
+  padding: 8px 18px 18px;
+  font-family: var(--ds-font-ui);
+  color: var(--ds-ink-1);
+}
+.ctl-empty {
+  padding: 40px;
+  text-align: center;
+  color: var(--ds-ink-3);
+  font-size: var(--ds-text-sm);
+}
+
+/* Axis header — weekly ticks + the now label */
+.ctl-axis {
+  position: relative;
+  height: 22px;
+  margin-left: 92px;
+  border-bottom: 1px solid var(--ds-border);
+}
+.ctl-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px solid var(--ds-border);
+  opacity: 0.5;
+}
+.ctl-tick i {
+  position: absolute;
+  top: 1px;
+  left: 3px;
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  font-style: normal;
+  color: var(--ds-ink-3);
+  white-space: nowrap;
+}
+.ctl-now-head {
+  position: absolute;
+  top: 1px;
+  transform: translateX(-50%);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  color: var(--ds-accent);
+  background: var(--ds-surface-1);
+  padding: 0 3px;
+}
+
+/* Lanes */
+.ctl-lanes { position: relative; }
+.ctl-lane {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  height: var(--ctl-row-h);
+  border-bottom: 1px solid var(--ds-border);
+}
+.ctl-lane-label {
+  flex: 0 0 92px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 10px;
+  font-size: var(--ds-text-2xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ds-ink-3);
+}
+.ctl-lane-count {
+  font-family: var(--ds-font-mono);
+  color: var(--ds-ink-4);
+}
+.ctl-lane-track {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Now line through every lane */
+.ctl-now {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px solid var(--ds-accent);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Point markers (activity + insights) */
+.ctl-dot {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  padding: 0;
+  border: 1px solid var(--ds-surface-1);
+  border-radius: 50%;
+  background: var(--ds-ink-3);
+  cursor: pointer;
+  transition: transform 120ms var(--ds-ease, ease);
+}
+.ctl-dot:hover, .ctl-dot:focus-visible { transform: scale(1.5); outline: none; z-index: 3; }
+.ctl-dot.is-future { opacity: 0.5; border-style: dashed; }
+/* category tints — kept in the muted DS family */
+.ctl-dot[data-cat="release"] { background: var(--ctl-cat-release); }
+.ctl-dot[data-cat="commit"]  { background: var(--ctl-cat-commit); }
+.ctl-dot[data-cat="insight"] { background: var(--ctl-cat-insight); }
+.ctl-dot[data-cat="ask"]     { background: var(--ctl-cat-ask); }
+.ctl-dot[data-cat="event"]   { background: var(--ctl-cat-event); }
+/* inferred attribution reads as a hollow dot */
+.ctl-dot[data-basis="inferred"] { background: transparent; border-color: var(--ctl-cat-insight); }
+
+/* Standing bars (mean PMF stage per week) */
+.ctl-bar {
+  position: absolute;
+  bottom: 4px;
+  width: 6px;
+  margin-left: -3px;
+  background: var(--ds-accent);
+  opacity: 0.55;
+  border-radius: 2px 2px 0 0;
+}
+
+/* Presence occupancy band */
+.ctl-band {
+  position: absolute;
+  bottom: 0;
+  width: 8px;
+  margin-left: -4px;
+  background: var(--ds-ink-3);
+  opacity: 0.22;
+}
+.ctl-band.is-future { opacity: 0.1; }
+
+/* Legend */
+.ctl-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 12px 0 0 92px;
+  font-size: var(--ds-text-2xs);
+  color: var(--ds-ink-3);
+}
+.ctl-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.ctl-legend span[data-cat]::before {
+  content: "";
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--ds-ink-3);
+}
+.ctl-legend span[data-cat="release"]::before { background: var(--ctl-cat-release); }
+.ctl-legend span[data-cat="commit"]::before  { background: var(--ctl-cat-commit); }
+.ctl-legend span[data-cat="insight"]::before  { background: var(--ctl-cat-insight); }
+.ctl-legend span[data-cat="ask"]::before      { background: var(--ctl-cat-ask); }
+.ctl-legend span[data-cat="event"]::before    { background: var(--ctl-cat-event); }
+.ctl-legend-inferred { color: var(--ds-ink-4); }
