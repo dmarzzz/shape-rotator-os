@@ -66,6 +66,18 @@ test("buildChatPrompt frames the system role, embeds context + question, ends on
   assert.match(p, /Assistant:$/);
   // prior turns carried
   assert.match(p, /Conversation so far/);
+  // default (non-agent) mode does NOT carry the action contract
+  assert.doesNotMatch(p, /Proposing changes/);
+});
+
+test("buildChatPrompt agent mode injects the action contract + tool results", () => {
+  const p = buildChatPrompt({ surface, question: "update my profile from my work", agent: true, toolResults: "SESSIONS: shipped the agent loop" });
+  assert.match(p, /Proposing changes/);
+  assert.match(p, /propose_profile_update/);
+  assert.match(p, /TOOL RESULTS/);
+  assert.match(p, /shipped the agent loop/);
+  // still ends ready for the model to answer
+  assert.match(p, /Assistant:$/);
 });
 
 // ── local AI CLI resolver ──────────────────────────────────────────────────

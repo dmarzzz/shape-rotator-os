@@ -5447,6 +5447,16 @@ function openCohortChatFromLauncher(e) {
       toast({ kind: "error", message: `cohort chat failed: ${err?.message || err}` });
     });
 }
+// The corner radial dial toggles the popup (open ↔ close) rather than only opening.
+function toggleCohortChatFromLauncher(e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  loadCohortChat()
+    .then((m) => (m.toggleCohortChat ? m.toggleCohortChat() : m.openCohortChat()))
+    .catch((err) => {
+      console.error("[cohort-chat] panel failed:", err);
+      toast({ kind: "error", message: `cohort chat failed: ${err?.message || err}` });
+    });
+}
 // "Ask the cohort" — its own button in the search controls + a GLOBAL
 // Cmd/Ctrl+Shift+K (unlike the swarm's A, which is search-view-only) since
 // asking the cohort is useful from anywhere in the app.
@@ -5457,9 +5467,18 @@ function wireCohortChatLauncher() {
     btn.addEventListener("focus", warmCohortChat);
     btn.addEventListener("click", openCohortChatFromLauncher);
   }
+  // The always-on corner radial dial — warms the module on hover, toggles the
+  // popup on click. Its CSS is eager-linked in index.html so it's styled at first
+  // paint (no unstyled flash); warming here only preloads the JS module.
+  const dial = document.getElementById("cohort-chat-dial");
+  if (dial) {
+    dial.addEventListener("pointerover", warmCohortChat, { passive: true });
+    dial.addEventListener("focus", warmCohortChat);
+    dial.addEventListener("click", toggleCohortChatFromLauncher);
+  }
   document.addEventListener("keydown", (e) => {
     if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "k" || e.key === "K")) {
-      openCohortChatFromLauncher(e);
+      toggleCohortChatFromLauncher(e);
     }
   });
 }

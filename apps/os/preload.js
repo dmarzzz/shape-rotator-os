@@ -30,6 +30,8 @@ contextBridge.exposeInMainWorld("api", {
   // self-report (permission-gated scan → local-CLI synth); see self-report-node.js
   selfReportScan:       (o) => ipcRenderer.invoke("fg:self-report:scan", o || {}),
   selfReportSynthesize: (o) => ipcRenderer.invoke("fg:self-report:synthesize", o || {}),
+  // metadata-only list of recent local sessions for the private timeline lane
+  listLocalSessions:    (o) => ipcRenderer.invoke("fg:sessions:list", o || {}),
   clipboardWrite: (text) => ipcRenderer.invoke("clipboard:write", text),
   // ─── deep links (sros://xxxxx) ───────────────────────────────────────
   // main forwards a clicked sros:// link here while the app is running;

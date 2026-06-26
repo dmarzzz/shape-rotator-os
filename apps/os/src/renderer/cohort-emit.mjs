@@ -115,3 +115,20 @@ export function emitTranscript({ title = "", withWhom = [] } = {}) {
     weight: "loud",
   });
 }
+
+// A suggested connection "fromId should talk to toId". The event lands on fromId's
+// timeline; `actor` is whoever proposed it (the emit() default = the claimed
+// member), so a connection the member proposes for SOMEONE ELSE (actor !== fromId)
+// is self-vs-other distinguishable in the feed exactly like a third-party profile
+// proposal. The `connection` event type is already in the cohort_events grant.
+export function emitConnection({ fromId, toId, reason = "" } = {}) {
+  if (!fromId || !toId || String(fromId) === String(toId)) return;
+  void emit("connection", {
+    recordId: String(fromId).slice(0, 128),
+    value: {
+      to: String(toId).slice(0, 128),
+      reason: String(reason || "").slice(0, 400),
+    },
+    weight: "medium",
+  });
+}

@@ -13,6 +13,7 @@
 
 import { postAnonRow, getAnonRows } from "./supabase-anon-write.mjs";
 import { sanitizeDelta } from "./self-report-synth.mjs";
+import { sanitizeProfileFields } from "./cohort-chat-actions.mjs";
 
 const WRITE_TABLE = "os_profile_updates";
 const READ_VIEW = "app_profile_updates";
@@ -27,7 +28,7 @@ const APPROVED_READ_LIMIT = 500;
 export async function saveSelfReportUpdate(
   recordId,
   delta,
-  { question = "", answer = "", sourceKinds = [], appVersion = null, platform = null, allowedSkillAreas } = {},
+  { question = "", answer = "", sourceKinds = [], appVersion = null, platform = null, allowedSkillAreas, proposerClaimHash = null } = {},
   opts = {},
 ) {
   const id = String(recordId == null ? "" : recordId).trim();
@@ -44,6 +45,45 @@ export async function saveSelfReportUpdate(
     source_kinds: Array.isArray(sourceKinds) ? sourceKinds.slice(0, 8).map(String) : [],
     app_version: appVersion ? String(appVersion).slice(0, 64) : null,
     platform: platform ? String(platform).slice(0, 64) : null,
+    // A self-report is BY DEFINITION the member editing their own record, so the
+    // proposer is the subject ⇒ is_self=true ⇒ the auto-approve trigger applies it
+    // immediately (no operator gate). The claim hash rides along for audit.
+    proposer_record_id: id,
+    proposer_claim_hash: proposerClaimHash ? String(proposerClaimHash).slice(0, 128) : null,
+  };
+  return postAnonRow(WRITE_TABLE, body, opts);
+}
+
+// Append one AGENT proposal to the inbox — the write door behind the cohort chat's
+// propose_profile_update action. Same pending/operator-approved model as
+// saveSelfReportUpdate, with two differences: (1) the delta may carry the extended
+// agent whitelist (the 7 self fields + geo + links{github,repo}) — sanitized here
+// with sanitizeProfileFields and re-asserted by the DB CHECK; and (2) it carries
+// PROVENANCE — proposer_record_id + proposer_claim_hash — so a proposal about
+// ANOTHER member (is_self computed false server-side) is checkable before approval.
+// Until the provenance migration is applied these columns/fields fail server-side
+// and postAnonRow returns { ok:false } (never throws) — safe degradation.
+export async function saveProfileProposal(
+  subjectRecordId,
+  delta,
+  { proposerRecordId = null, proposerClaimHash = null, rationale = "", sourceKinds = [], appVersion = null, platform = null, allowedSkillAreas } = {},
+  opts = {},
+) {
+  const id = String(subjectRecordId == null ? "" : subjectRecordId).trim();
+  if (!id || id.length > 128) return { ok: false, error: "bad_record_id" };
+  const clean = sanitizeProfileFields(delta, { allowedSkillAreas });
+  if (!clean || !Object.keys(clean).length) return { ok: false, error: "empty_delta" };
+
+  const body = {
+    record_id: id,
+    delta: clean,
+    question: null,
+    answer: rationale ? String(rationale).slice(0, 2000) : null,
+    source_kinds: Array.isArray(sourceKinds) ? sourceKinds.slice(0, 8).map(String) : [],
+    app_version: appVersion ? String(appVersion).slice(0, 64) : null,
+    platform: platform ? String(platform).slice(0, 64) : null,
+    proposer_record_id: proposerRecordId ? String(proposerRecordId).slice(0, 128) : null,
+    proposer_claim_hash: proposerClaimHash ? String(proposerClaimHash).slice(0, 128) : null,
   };
   return postAnonRow(WRITE_TABLE, body, opts);
 }

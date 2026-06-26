@@ -1381,6 +1381,12 @@ ipcMain.handle("fg:self-report:synthesize", async (_e, opts) => {
   const o = opts || {};
   return selfReport.runSynthesis({ prompt: o.prompt, chatCmd: o.chatCmd || "" });
 });
+// Metadata-only list of the member's recent local sessions for their private
+// timeline lane (no body content is read — see listLocalSessions).
+ipcMain.handle("fg:sessions:list", async (_e, opts) => {
+  try { return await selfReport.listLocalSessions(opts || {}); }
+  catch (e) { return { ok: false, sessions: [], reason: "list_failed", detail: e && e.message ? e.message : String(e) }; }
+});
 
 ipcMain.handle("clipboard:write", async (_e, text) => {
   try {
@@ -1729,6 +1735,11 @@ ipcMain.handle("fg:cohort-chat:start", async (_e, opts) => {
     requestId: o.requestId || `chat_${Math.random().toString(36).slice(2, 10)}`,
     prompt: o.prompt,
     chatCmd: o.chatCmd || cfg.chatCmd || "",
+    // Thread the renderer's declared data sensitivity through to the privacy gate
+    // (assertBackendAllowed). Defaults to 'public' when absent, preserving today's
+    // behaviour; an agent step that grounds on private signal passes a stricter
+    // mode so it can only reach a LOCAL backend.
+    dataMode: typeof o.dataMode === "string" ? o.dataMode : "public",
   });
 });
 ipcMain.handle("fg:cohort-chat:stop", async () => cohortChat.stop());
