@@ -129,3 +129,17 @@ test("publishReleasesFeed: throws on a non-ok HTTP response", async () => {
     /Supabase upsert failed: 401/,
   );
 });
+
+test("buildWhatsNew caps releases per project so one prolific repo can't flood the feed", () => {
+  const releaseItems = [];
+  for (let i = 0; i < 10; i++) releaseItems.push({ date: `2026-06-${20 - i}`, kind: "release", label: `os ${i}`, meta: "Shape Rotator OS" });
+  releaseItems.push({ date: "2026-06-12", kind: "release", label: "teesql 1", meta: "TeeSQL" });
+  releaseItems.push({ date: "2026-06-11", kind: "release", label: "abra 1", meta: "Abra" });
+  const feed = buildWhatsNew(releaseItems, [], { perProject: 4 });
+  const osCount = feed.filter((i) => i.meta === "Shape Rotator OS").length;
+  assert.equal(osCount, 4, "OS releases capped to 4 (most recent)");
+  assert.ok(feed.some((i) => i.meta === "TeeSQL"), "other teams still surface");
+  assert.ok(feed.some((i) => i.meta === "Abra"));
+  // the 4 kept OS items are the most recent
+  assert.deepEqual(feed.filter((i) => i.meta === "Shape Rotator OS").map((i) => i.date), ["2026-06-20", "2026-06-19", "2026-06-18", "2026-06-17"]);
+});
