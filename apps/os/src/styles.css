@@ -8865,7 +8865,7 @@ html[data-theme="light"] .ac-ego-svg.is-lit .ac-ego-space.lit { fill: rgba(193,1
 }
 
 /* ─── collaboration board (ported from dossier Connections) ──────────── */
-.alch-collab { display: flex; flex-direction: column; gap: 40px; }
+.alch-collab { display: flex; flex-direction: column; gap: 26px; }
 
 
 /* Collab's old board header (title/sub/stats) retired 2026-06 — the shared
@@ -10983,6 +10983,49 @@ html.jweek-vt .ac-cmp-grid { animation: none; }
    the shipped view. Framed as a self-mirror, not a score: no rank, no red — the
    calibration line is a prompt to update, and a member can push back (move 5).
    Reuses the .ac-sds-cell strip; the rest uses this view's local tokens. ── */
+/* Mirror subject switcher (you · browse · compare) + compare layout. */
+.ac-mirror-wrap { margin: 0 0 14px; }
+.ac-mirror-switch {
+  display: inline-flex; gap: 2px; padding: 2px; margin: 0 0 10px;
+  border: 1px solid rgba(214,189,134,0.30); border-radius: 9px; background: rgba(214,189,134,0.05);
+}
+.ac-mirror-mode {
+  appearance: none; border: 0; background: transparent; cursor: pointer;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em;
+  color: rgba(var(--ink-rgb), 0.6); padding: 5px 13px; border-radius: 7px;
+  transition: background 150ms var(--ease), color 150ms var(--ease);
+}
+.ac-mirror-mode:hover { color: var(--alchemy-paper-warm); }
+.ac-mirror-mode.is-on { background: rgba(214,189,134,0.85); color: rgba(27,20,17,0.92); }
+.ac-mirror-pickrow {
+  display: flex; align-items: center; gap: 9px; margin: 0 0 10px;
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.06em;
+  text-transform: uppercase; color: rgba(var(--ink-rgb), 0.55);
+}
+.ac-mirror-vs { color: rgba(214,189,134,0.9); font-weight: 700; }
+.ac-mirror-pick {
+  font-size: 12px; padding: 5px 9px; border: 1px solid rgba(var(--ink-rgb), 0.18);
+  border-radius: 7px; background: transparent; color: var(--alchemy-paper-warm); cursor: pointer;
+}
+.ac-mirror-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+.ac-mirror-compare .ac-mirror { margin: 0; }
+.ac-mirror-hint { margin: 6px 0 14px; font-size: 12px; line-height: 1.5; color: rgba(var(--ink-rgb), 0.6); }
+@media (max-width: 640px) { .ac-mirror-compare { grid-template-columns: 1fr; } }
+
+/* Phase 2: the cohort-context band folded onto the Mirror page. */
+.ac-mirror-ctx { margin: 18px 0 4px; padding-top: 14px; border-top: 1px solid rgba(var(--ink-rgb), 0.10); }
+.ac-mirror-ctx-eyebrow {
+  font-family: var(--font-mono); font-size: 8.5px; font-weight: 800; letter-spacing: 0.14em;
+  text-transform: uppercase; color: rgba(var(--ink-rgb), 0.45);
+}
+.ac-mirror-ctx-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 10px; }
+.ac-mirror-ctx-tile {
+  display: flex; flex-direction: column; gap: 3px; padding: 9px 12px;
+  border: 1px solid rgba(var(--ink-rgb), 0.12); border-radius: 9px; background: rgba(var(--ink-rgb), 0.02);
+}
+.ac-mirror-ctx-k { font-size: 10.5px; color: rgba(var(--ink-rgb), 0.5); }
+.ac-mirror-ctx-v { font-size: 13px; color: var(--light-1); line-height: 1.35; }
+
 .ac-mirror {
   margin: 0 0 14px;
   padding: 13px 15px;
@@ -12201,8 +12244,16 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 .alch-collab .cb-route-more:hover { color: var(--alchemy-paper-warm); border-color: rgba(var(--ink-rgb), 0.24); }
 .alch-collab .cb-route-more:focus-visible { outline: 1px solid var(--alchemy-oxide-bright); outline-offset: 1px; }
 
-.alch-collab .cb-rule { height: 1px; background: rgba(var(--ink-rgb), 0.07); margin: 26px 0 18px; }
-.alch-collab .cb-maphead { display: flex; align-items: center; justify-content: flex-start; gap: 14px 18px; flex-wrap: wrap; margin-bottom: 12px; }
+.alch-collab .cb-rule { height: 1px; background: rgba(var(--ink-rgb), 0.07); margin: 8px 0; }
+.alch-collab .cb-maphead { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+.alch-collab .cb-maphead-left { display: inline-flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.cb-intake-link {
+  appearance: none; border: 0; background: transparent; cursor: pointer;
+  font-family: var(--ed-mono, var(--font-mono)); font-size: 10px; letter-spacing: 0.05em;
+  text-transform: lowercase; color: rgba(var(--ink-rgb), 0.45);
+  padding: 4px 7px; border-radius: 6px; transition: color 150ms var(--ease), background 150ms var(--ease);
+}
+.cb-intake-link:hover { color: rgba(var(--ink-rgb), 0.82); background: rgba(var(--ink-rgb), 0.05); }
 .alch-collab .cb-map-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--alchemy-ink-mute); }
 
 /* persistent highlight of the picked team's row + column in the map */
@@ -21685,3 +21736,30 @@ html[data-theme="light"] .alch-trailbar .alch-trail-back {
 .alch-ev-sum-list li { font-size: 12px; line-height: 1.45; color: var(--light-1); }
 .alch-ev-sum-who { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
 .alch-ev-who-chip { background: rgba(var(--ink-rgb), 0.09); color: rgba(var(--ink-rgb), 0.85); font-weight: 600; }
+
+/* ── activity feed (two-way contribution layer) ─────────────────────────────
+   Reuses the alchemy screen's legacy tokens (--light-*, --ink-rgb, --accent) so
+   it themes consistently with the rest of this (as-yet-unmigrated) screen. When
+   alchemy is migrated to the --ds-* design system, migrate these rules with it. */
+.alch-activity { max-width: 720px; margin: 0 auto; padding: 8px 4px 40px; }
+.alch-activity-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.alch-activity-title { margin: 0; font-size: 20px; font-weight: 700; line-height: 1.2; color: var(--light-1); }
+.alch-activity-sub { margin: 3px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--light-3); }
+.alch-activity-sub strong { color: var(--accent); }
+.alch-activity-modes { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid rgba(var(--ink-rgb), 0.14); border-radius: 9px; background: rgba(var(--ink-rgb), 0.03); flex: none; }
+.alch-activity-mode { appearance: none; border: 0; background: transparent; color: var(--light-3); font: inherit; font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 7px; cursor: pointer; transition: background .15s, color .15s; }
+.alch-activity-mode:hover { color: var(--light-1); }
+.alch-activity-mode.is-on { background: var(--accent); color: #fff; }
+.alch-activity-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.alch-activity-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 9px; border: 1px solid transparent; transition: background .15s, border-color .15s; }
+.alch-activity-item:hover { background: rgba(var(--ink-rgb), 0.04); border-color: rgba(var(--ink-rgb), 0.10); }
+.alch-activity-item.is-new { background: rgba(var(--ink-rgb), 0.03); }
+.alch-activity-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: rgba(var(--ink-rgb), 0.30); }
+.alch-activity-item.is-new .alch-activity-dot { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft, rgba(var(--ink-rgb), 0.10)); }
+.alch-activity-item[data-weight="loud"] .alch-activity-dot { background: var(--accent); }
+.alch-activity-label { flex: 1; min-width: 0; font-size: 13.5px; line-height: 1.45; color: var(--light-1); }
+.alch-activity-time { flex: none; font-size: 11.5px; color: var(--light-4); font-variant-numeric: tabular-nums; }
+.alch-activity-quiet { padding: 8px 12px; font-size: 12px; color: var(--light-4); font-style: italic; }
+.alch-activity-empty { padding: 28px 16px; text-align: center; font-size: 13px; line-height: 1.5; color: var(--light-3); border: 1px dashed rgba(var(--ink-rgb), 0.16); border-radius: 12px; }
+.alch-activity-yours { margin-top: 22px; padding-top: 16px; border-top: 1px solid rgba(var(--ink-rgb), 0.10); }
+.alch-activity-yours-title { margin: 0 0 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--light-4); }

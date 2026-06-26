@@ -13,36 +13,21 @@
 // (Supabase edge access logs still see the network IP for any HTTP call, as
 // with the read modules — but nothing identifying is written into the row.)
 
-import { readSupabaseConfig } from "./supabase-evidence.mjs";
+import { clampField, postAnonRow } from "./supabase-anon-write.mjs";
 
 export const FEEDBACK_MIN_LENGTH = 6; // "more than 5 characters"
 export const FEEDBACK_MAX_LENGTH = 2000;
 
 const FEEDBACK_TABLE = "os_feedback";
 
-function feedbackUrl(baseUrl) {
-  return `${baseUrl}/rest/v1/${FEEDBACK_TABLE}`;
-}
-
-// Trim + bound a small context field; null (not "") when empty so the column
-// stays NULL rather than storing an empty string.
-function clampField(value, max = 64) {
-  if (value == null) return null;
-  const s = String(value).trim();
-  if (!s) return null;
-  return s.length > max ? s.slice(0, max) : s;
-}
-
 // Submit one anonymous feedback row. Always resolves (never throws): returns
 // { ok: true } on success, or { ok: false, error } so the UI can show a quiet
-// failure and let the user retry. `Prefer: return=minimal` keeps the response
-// body empty and — crucially — means PostgREST does NOT need a SELECT policy to
-// satisfy the request (anon is write-only on this table).
+// failure and let the user retry. The wire shape (write-only POST, never-throw)
+// is shared with the other anon boxes via postAnonRow.
 export async function submitFeedback(
   { message, appVersion = null, platform = null } = {},
-  { storage, fetchImpl, config } = {},
+  opts = {},
 ) {
-  const doFetch = fetchImpl || globalThis.fetch;
   const text = String(message == null ? "" : message).trim();
   if (text.length < FEEDBACK_MIN_LENGTH) {
     return { ok: false, error: "too_short" };
@@ -52,28 +37,5 @@ export async function submitFeedback(
     app_version: clampField(appVersion),
     platform: clampField(platform),
   };
-  const { url, anonKey } = config || readSupabaseConfig(storage);
-  if (!url || !anonKey || typeof doFetch !== "function") {
-    return { ok: false, error: "unconfigured" };
-  }
-  let res;
-  try {
-    res = await doFetch(feedbackUrl(url), {
-      method: "POST",
-      headers: {
-        apikey: anonKey,
-        authorization: `Bearer ${anonKey}`,
-        "content-type": "application/json",
-        prefer: "return=minimal",
-      },
-      body: JSON.stringify(body),
-      cache: "no-store",
-    });
-  } catch (error) {
-    return { ok: false, error: String(error && error.message ? error.message : error) };
-  }
-  if (!res || !res.ok) {
-    return { ok: false, error: `HTTP ${res ? res.status : "no response"}` };
-  }
-  return { ok: true };
+  return postAnonRow(FEEDBACK_TABLE, body, opts);
 }

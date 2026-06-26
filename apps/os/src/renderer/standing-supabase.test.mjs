@@ -12,8 +12,8 @@ const ROWS = [
 test("publicTeamStandingWeeklyUrl targets the public view", () => {
   const u = publicTeamStandingWeeklyUrl("https://x.supabase.co");
   assert.ok(u.startsWith("https://x.supabase.co/rest/v1/public_team_standing_weekly?"));
-  assert.match(u, /select=record_id%2Cprogram_week%2Cstage%2Cconfidence%2Ctarget_stage%2Ctarget_source/);
-  assert.match(u, /order=record_id%2Cprogram_week/);
+  assert.match(u, /select=record_id,program_week,stage,confidence,target_stage,target_source/);
+  assert.match(u, /order=record_id,program_week/);
 });
 
 test("normalizeStandingRows groups by team and labels weeks (lowest=start, highest=Latest)", () => {

@@ -8,6 +8,7 @@
 // modal on subsequent launches.
 
 import { getCohortSurface, subscribeToCohortChanges, refreshCohortFromGithub } from "./cohort-source.js";
+import { ensureClaimToken, clearClaimToken } from "./claim-token.mjs";
 import { mountShape, hashColors, sphereAttrs } from "@shape-rotator/shape-ui";
 import { SPHERE_DEFAULTS, SPHERE_BG_DEFAULT, SPHERE_BG_MIX_DEFAULT, SPHERE_TIME_DEFAULT, normalizeHex } from "./supabase-sphere.mjs";
 import { compileUserExpr } from "./shader-dsl.mjs";
@@ -72,6 +73,10 @@ export function setIdentity(record) {
   _cached = v;
   try { localStorage.setItem(IDENTITY_LS_KEY, JSON.stringify(v)); } catch {}
   setIdentityOnboardingSkipped(false);
+  // Mint the device-local claim-token (soft identity) the first time a member
+  // claims. Fire-and-forget: hashing is async but the token isn't needed until
+  // the first cohort_events write, and the emit path re-ensures it defensively.
+  ensureClaimToken().catch(() => {});
   for (const cb of _listeners) { try { cb(v); } catch {} }
   return v;
 }
@@ -79,6 +84,7 @@ export function setIdentity(record) {
 export function clearIdentity() {
   _cached = null;
   try { localStorage.removeItem(IDENTITY_LS_KEY); } catch {}
+  clearClaimToken();
   for (const cb of _listeners) { try { cb(null); } catch {} }
 }
 

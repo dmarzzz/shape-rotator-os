@@ -12,15 +12,15 @@
 // cannot leak more than the public calendar already did. RLS grants anon only
 // SELECT on this one row.
 
-import { readSupabaseConfig } from "./supabase-evidence.mjs";
+import { fetchAnon } from "./supabase-anon-write.mjs";
 
-// PostgREST URL for the single public grid row.
+// PostgREST path (view + query) for the single public grid row.
+const GRID_PATH = "public_calendar_grid?select=grid,source,last_refresh,updated_at&id=eq.current&limit=1";
+
+// PostgREST URL for the single public grid row (kept for callers/tests that want
+// the absolute URL; fetchPublicCalendarGrid reads via fetchAnon + GRID_PATH).
 export function publicCalendarGridUrl(baseUrl) {
-  const url = new URL(`${baseUrl}/rest/v1/public_calendar_grid`);
-  url.searchParams.set("select", "grid,source,last_refresh,updated_at");
-  url.searchParams.set("id", "eq.current");
-  url.searchParams.set("limit", "1");
-  return url.toString();
+  return `${String(baseUrl || "").replace(/\/+$/, "")}/rest/v1/${GRID_PATH}`;
 }
 
 // Validate the row's grid is the shape the renderer expects ({ tabs: {...} }).
@@ -37,35 +37,11 @@ export function normalizeGrid(row) {
 // outage degrades to the committed bundle. Returns { grid, source }: source is
 // "supabase" on success, "unconfigured" with no anon key, "empty" when the row
 // is missing/malformed, or "error" with an `error` string.
-export async function fetchPublicCalendarGrid({ storage, fetchImpl, config } = {}) {
-  const doFetch = fetchImpl || globalThis.fetch;
-  const { url, anonKey } = config || readSupabaseConfig(storage);
-  if (!url || !anonKey || typeof doFetch !== "function") {
-    return { grid: null, source: "unconfigured" };
-  }
-  let res;
-  try {
-    res = await doFetch(publicCalendarGridUrl(url), {
-      headers: {
-        apikey: anonKey,
-        authorization: `Bearer ${anonKey}`,
-        accept: "application/json",
-      },
-      cache: "no-store",
-    });
-  } catch (error) {
-    return { grid: null, source: "error", error: String(error && error.message ? error.message : error) };
-  }
-  if (!res || !res.ok) {
-    return { grid: null, source: "error", error: `HTTP ${res ? res.status : "no response"}` };
-  }
-  let rows;
-  try {
-    rows = await res.json();
-  } catch {
-    return { grid: null, source: "error", error: "invalid JSON from Supabase" };
-  }
-  const grid = normalizeGrid(Array.isArray(rows) ? rows[0] : rows);
+export async function fetchPublicCalendarGrid(opts = {}) {
+  const { rows, source, error } = await fetchAnon(GRID_PATH, opts);
+  if (source === "unconfigured") return { grid: null, source: "unconfigured" };
+  if (source === "error") return { grid: null, source: "error", error };
+  const grid = normalizeGrid(rows[0]);
   if (!grid) return { grid: null, source: "empty" };
   return { grid, source: "supabase" };
 }

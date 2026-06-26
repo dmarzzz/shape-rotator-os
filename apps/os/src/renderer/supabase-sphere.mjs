@@ -18,6 +18,7 @@
 // See supabase/migrations/20260618010000_os_spheres.sql.
 
 import { readSupabaseConfig } from "./supabase-evidence.mjs";
+import { fetchAnon } from "./supabase-anon-write.mjs";
 
 const SPHERE_TABLE = "os_spheres";
 
@@ -103,11 +104,8 @@ function clamp01(value) {
   return n;
 }
 
-function spheresUrl(baseUrl) {
-  const url = new URL(`${baseUrl}/rest/v1/${SPHERE_TABLE}`);
-  url.searchParams.set("select", SELECT_COLUMNS);
-  return url.toString();
-}
+// View + query for the whole sphere table (read via fetchAnon).
+const SPHERES_PATH = `${SPHERE_TABLE}?select=${SELECT_COLUMNS}`;
 
 // Coerce a raw row into a clean { hue, hue2, phase, intensity, complexity }
 // object with every dial present and in range, or null if any dial is unusable.
@@ -142,41 +140,15 @@ function normalizeSphere(row) {
 // empty map, so spheres just fall back to their hash-derived defaults. Returns
 // { spheres, source }: source is "supabase" on success, "unconfigured" when no
 // anon key is set, or "error" with an `error` string.
-export async function fetchAllSpheres({ storage, fetchImpl, config } = {}) {
-  const doFetch = fetchImpl || globalThis.fetch;
-  const { url, anonKey } = config || readSupabaseConfig(storage);
-  if (!url || !anonKey || typeof doFetch !== "function") {
-    return { spheres: {}, source: "unconfigured" };
-  }
-  let res;
-  try {
-    res = await doFetch(spheresUrl(url), {
-      headers: {
-        apikey: anonKey,
-        authorization: `Bearer ${anonKey}`,
-        accept: "application/json",
-      },
-      cache: "no-store",
-    });
-  } catch (error) {
-    return { spheres: {}, source: "error", error: String(error && error.message ? error.message : error) };
-  }
-  if (!res || !res.ok) {
-    return { spheres: {}, source: "error", error: `HTTP ${res ? res.status : "no response"}` };
-  }
-  let rows;
-  try {
-    rows = await res.json();
-  } catch {
-    return { spheres: {}, source: "error", error: "invalid JSON from Supabase" };
-  }
+export async function fetchAllSpheres(opts = {}) {
+  const { rows, source, error } = await fetchAnon(SPHERES_PATH, opts);
+  if (source === "unconfigured") return { spheres: {}, source: "unconfigured" };
+  if (source === "error") return { spheres: {}, source: "error", error };
   const spheres = {};
-  if (Array.isArray(rows)) {
-    for (const row of rows) {
-      const id = row && row.record_id != null ? String(row.record_id) : "";
-      const dials = normalizeSphere(row);
-      if (id && dials) spheres[id] = dials;
-    }
+  for (const row of rows) {
+    const id = row && row.record_id != null ? String(row.record_id) : "";
+    const dials = normalizeSphere(row);
+    if (id && dials) spheres[id] = dials;
   }
   return { spheres, source: "supabase" };
 }

@@ -15,17 +15,16 @@
 // as_of, or internal ids. Requires the public_team_standing_weekly migration to be
 // deployed to the cohort project; until then this read 404s and degrades to the mirror.
 
-import { readSupabaseConfig } from "./supabase-evidence.mjs";
+import { fetchAnon } from "./supabase-anon-write.mjs";
 
-// PostgREST URL for the curated anon-readable standing projection. anon reads
+// PostgREST path for the curated anon-readable standing projection. anon reads
 // public_* views, never base tables (the base team_standing_weekly has a public
 // RLS policy but NO anon GRANT — see 20260616010000_revoke_stray_anon_grants.sql),
 // so the live read targets the public_team_standing_weekly view.
+const STANDING_PATH = "public_team_standing_weekly?select=record_id,program_week,stage,confidence,target_stage,target_source&order=record_id,program_week";
+
 export function publicTeamStandingWeeklyUrl(baseUrl) {
-  const url = new URL(`${baseUrl}/rest/v1/public_team_standing_weekly`);
-  url.searchParams.set("select", "record_id,program_week,stage,confidence,target_stage,target_source");
-  url.searchParams.set("order", "record_id,program_week");
-  return url.toString();
+  return `${String(baseUrl || "").replace(/\/+$/, "")}/rest/v1/${STANDING_PATH}`;
 }
 
 // Rows → { weeks:[{program_week,label}], byTeam:{rid:{target_stage,target_source,weeks:{n:{stage,confidence}}}} }.
@@ -63,30 +62,10 @@ export function normalizeStandingRows(rows) {
 // to the committed mirror. Returns { data, source }: source is "supabase" on
 // success, "unconfigured" with no anon key, "empty" when there are no rows, or
 // "error" with an `error` string.
-export async function fetchStandingWeekly({ storage, fetchImpl, config } = {}) {
-  const doFetch = fetchImpl || globalThis.fetch;
-  const { url, anonKey } = config || readSupabaseConfig(storage);
-  if (!url || !anonKey || typeof doFetch !== "function") {
-    return { data: null, source: "unconfigured" };
-  }
-  let res;
-  try {
-    res = await doFetch(publicTeamStandingWeeklyUrl(url), {
-      headers: { apikey: anonKey, authorization: `Bearer ${anonKey}`, accept: "application/json" },
-      cache: "no-store",
-    });
-  } catch (error) {
-    return { data: null, source: "error", error: String(error && error.message ? error.message : error) };
-  }
-  if (!res || !res.ok) {
-    return { data: null, source: "error", error: `HTTP ${res ? res.status : "no response"}` };
-  }
-  let rows;
-  try {
-    rows = await res.json();
-  } catch {
-    return { data: null, source: "error", error: "invalid JSON from Supabase" };
-  }
+export async function fetchStandingWeekly(opts = {}) {
+  const { rows, source, error } = await fetchAnon(STANDING_PATH, opts);
+  if (source === "unconfigured") return { data: null, source: "unconfigured" };
+  if (source === "error") return { data: null, source: "error", error };
   const data = normalizeStandingRows(rows);
   if (!data) return { data: null, source: "empty" };
   return { data, source: "supabase" };

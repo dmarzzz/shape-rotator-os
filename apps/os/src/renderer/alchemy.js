@@ -73,6 +73,11 @@ import {
   askVerbVars, askVerbIconSvg,
 } from "./asks.js";
 import { submitContest } from "./supabase-contest.mjs";
+import { emitProfileEdit, emitContest, emitTranscript } from "./cohort-emit.mjs";
+import { getAppContext } from "./app-context.mjs";
+import { getPrefs, setPrefs } from "./cohort-prefs.mjs";
+import { buildViewer, buildAuthorMeta, buildFeedView, feedItemLabel, getLastSeen, markSeen } from "./activity-feed.mjs";
+import { mirrorViewModel, subjectEyebrow, isSelfSubject } from "./mirror-view.mjs";
 import { openSelfReport } from "./self-report.js";
 import { createLazyModule } from "./lazy-module.js";
 import { loadStylesheetOnce } from "./stylesheet-loader.js";
@@ -169,7 +174,7 @@ function normalizeDirCols(stored, defaultKeys) {
 // section below this constant for the disabled hooks.
 // `collab` is a Constellation sub-view, not a standalone OS mode. Legacy
 // saved locations that still say "collab" are normalized on restore.
-const ALCHEMY_MODES   = ["membrane", "shapes", "constellation", "calendar", "profile", "onboarding", "program", "asks", "context"];
+const ALCHEMY_MODES   = ["membrane", "shapes", "constellation", "calendar", "profile", "onboarding", "program", "asks", "context", "activity"];
 const MEMBRANE_INTRO_LS_KEY = "srwk:membrane_seen_v1";
 const membraneLazy = createLazyModule(() =>
   Promise.all([
@@ -1313,6 +1318,88 @@ function render(opts = {}) {
   renderModeContent();
 }
 
+// ── activity feed (the two-way contribution layer's visible surface) ─────────
+// Reads the cohort_events spine (surface.cohort_events, hydrated by
+// applyCohortEventsOverlay) and renders the on-device-ranked feed. All ranking +
+// labelling lives in activity-feed.mjs (node-tested); this owns the DOM + escaping.
+function activityRelTime(iso) {
+  const t = Date.parse(iso || "");
+  if (!Number.isFinite(t)) return "";
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  if (s < 60) return "now";
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h`;
+  return `${Math.floor(s / 86400)}d`;
+}
+
+function renderActivityMode() {
+  const canvas = state.canvas;
+  if (!canvas) return;
+  const cohort = state.cohort || {};
+  const events = Array.isArray(cohort.cohort_events) ? cohort.cohort_events : [];
+  const identity = getIdentity();
+  const prefs = getPrefs();
+  const authorMeta = buildAuthorMeta(cohort);
+  const viewer = buildViewer(cohort, identity);
+  let view;
+  try {
+    view = buildFeedView(events, viewer, prefs, { now: Date.now(), lastSeen: getLastSeen(), authorMeta });
+  } catch {
+    view = { items: [], mine: [], quietCount: 0, newCount: 0, mode: prefs.feed_mode || "for_you" };
+  }
+  const nameOf = (id) => (authorMeta[id] && authorMeta[id].name) || id;
+  const itemRow = (ev) => `
+    <li class="alch-activity-item${ev._isNew ? " is-new" : ""}" data-kind="${escAttr(ev.event_type)}" data-weight="${escAttr(ev.weight)}">
+      <span class="alch-activity-dot" aria-hidden="true"></span>
+      <span class="alch-activity-label">${escHtml(feedItemLabel(ev, nameOf))}</span>
+      <time class="alch-activity-time">${escHtml(activityRelTime(ev.created_at))}</time>
+    </li>`;
+  const empty = events.length === 0;
+  const newBadge = view.newCount ? ` · <strong>${view.newCount} new</strong>` : "";
+  canvas.innerHTML = `
+    <section class="alch-activity" data-activity>
+      <header class="alch-activity-head">
+        <div>
+          <h2 class="alch-activity-title">activity</h2>
+          <p class="alch-activity-sub">what the cohort is contributing${newBadge}</p>
+        </div>
+        <div class="alch-activity-modes" role="group" aria-label="feed mode">
+          <button type="button" class="alch-activity-mode${view.mode === "for_you" ? " is-on" : ""}" data-activity-mode="for_you">for you</button>
+          <button type="button" class="alch-activity-mode${view.mode === "global" ? " is-on" : ""}" data-activity-mode="global">everyone</button>
+        </div>
+      </header>
+      ${empty
+        ? `<div class="alch-activity-empty">No activity yet. Edit your profile, share a transcript, or contest a claim — it shows up here for the whole cohort.</div>`
+        : `<ul class="alch-activity-list">
+            ${view.items.map(itemRow).join("")}
+            ${view.quietCount ? `<li class="alch-activity-quiet">+ ${view.quietCount} quiet profile ${view.quietCount === 1 ? "tidy" : "tidies"}</li>` : ""}
+          </ul>`}
+      ${view.mine.length
+        ? `<div class="alch-activity-yours">
+            <h3 class="alch-activity-yours-title">your activity</h3>
+            <ul class="alch-activity-list">${view.mine.map(itemRow).join("")}</ul>
+          </div>`
+        : ""}
+    </section>`;
+  markSeen(Date.now());
+}
+
+function wireActivityMode() {
+  const root = state.canvas && state.canvas.querySelector("[data-activity]");
+  if (!root) return;
+  for (const btn of root.querySelectorAll("[data-activity-mode]")) {
+    btn.addEventListener("click", () => {
+      const mode = btn.getAttribute("data-activity-mode");
+      if (mode !== "for_you" && mode !== "global") return;
+      // Persist the view preference locally (emit:false — a UI toggle shouldn't
+      // spam the prefs timeline; the agent seam emits when IT sets a pref).
+      setPrefs({ feed_mode: mode }, { emit: false });
+      renderActivityMode();
+      wireActivityMode();
+    });
+  }
+}
+
 // The actual content swap — mode dispatch + per-mode wiring + WebGL mount.
 // Split out of render() so it can run either inside the cross-fade or
 // synchronously (instant) for tab switches.
@@ -1336,6 +1423,7 @@ function renderModeContent() {
     else if (state.mode === "program") renderProgram();
     else if (state.mode === "asks") renderAsks();
     else if (state.mode === "context") renderContextVault();
+    else if (state.mode === "activity") renderActivityMode();
     // Index cards for the staggered entrance.
     const cards = canvas.querySelectorAll(".alch-card, .alch-legend-card, .alch-feed-item");
     cards.forEach((c, i) => c.style.setProperty("--alch-i", String(i)));
@@ -1358,6 +1446,7 @@ function renderModeContent() {
       if (state.mode === "program") wireProgram();
       if (state.mode === "asks") wireAsks();
       if (state.mode === "context") wireContextVault();
+      if (state.mode === "activity") wireActivityMode();
     }
     // Mount shape shaders LAST — every <canvas data-shape-fam> emitted by the
     // renderers above gets one WebGL2 context here.
@@ -7274,10 +7363,10 @@ function mirrorGithubDigest(card) {
 
 // The panel HTML, or "" when there is no resolved member, no team, or no card —
 // in every empty case the shipped grid below renders unchanged.
-function mirrorPanelHtml(myPerson, cardByTeam) {
-  if (!myPerson) return "";
-  const teamId = myPerson.team ? String(myPerson.team) : "";
-  const card = teamId ? cardByTeam.get(teamId) : null;
+function mirrorPanelHtml(subjectTeamId, cardByTeam, { eyebrow = "your mirror", readOnly = false } = {}) {
+  const teamId = subjectTeamId ? String(subjectTeamId) : "";
+  if (!teamId) return "";
+  const card = cardByTeam.get(teamId);
   if (!card) return "";
   const cohort = activeConstellationCohort();
   const team = (cohort.teams || []).find(t => t && t.record_id === teamId) || { record_id: teamId, name: teamId };
@@ -7314,7 +7403,7 @@ function mirrorPanelHtml(myPerson, cardByTeam) {
   return `
     <section class="ac-mirror" data-mirror data-mirror-subject="${escAttr(teamId)}" data-mirror-card="${escAttr(card.id || "")}">
       <div class="ac-mirror-head">
-        <span class="ac-mirror-eyebrow">your mirror</span>
+        <span class="ac-mirror-eyebrow">${escHtml(eyebrow)}</span>
         <span class="ac-mirror-team">${escHtml(team.name || teamId)}</span>
       </div>
       <div class="ac-mirror-strip">
@@ -7323,20 +7412,124 @@ function mirrorPanelHtml(myPerson, cardByTeam) {
         <span class="ac-sds-cell${observedClass}"><b>shipped</b><span>${escHtml(constShortText(content.shipped || "not observed", 160))}</span>${chips ? `<span class="ac-sds-chips">${chips}</span>` : ""}${releasedHtml}</span>
       </div>
       <p class="ac-mirror-cal" data-tone="${escAttr(cal.tone)}">${escHtml(cal.text)}</p>
-      <div class="ac-mirror-actions-row"><button type="button" class="ac-mirror-update" data-mirror-update>✨ update from my recent work</button></div>
+      ${readOnly ? "" : `<div class="ac-mirror-actions-row"><button type="button" class="ac-mirror-update" data-mirror-update>✨ update from my recent work</button></div>`}
       ${traceBody ? `<details class="ac-mirror-trace"><summary>how this reads</summary><div class="ac-mirror-trace-body">${traceBody}</div></details>` : ""}
-      ${tail}
+      ${readOnly ? "" : tail}
     </section>`;
 }
 
-// Coarse, non-identifying app context for the contest write (same source the
-// membrane feedback box uses); both columns are nullable, so a miss is harmless.
-async function mirrorAppContext() {
+// ── Mirror subject switcher (you · browse · compare) ─────────────────────────
+// Renders the top of the say/did/shipped page: a mode switcher, plus the focused
+// subject's mirror panel(s). "you" = your editable mirror; "browse"/"compare" =
+// read-only panels for any subject (the say/did/shipped cards are cohort-wide).
+// All selection logic is in mirror-view.mjs (node-tested); this owns the DOM.
+function mirrorSubjectName(teamId, subjects) {
+  const s = subjects.find((x) => x.teamId === String(teamId || ""));
+  return s ? s.name : String(teamId || "");
+}
+
+function mirrorSubjectSelect(key, selectedId, subjects, selfTeamId) {
+  const opts = subjects.map((s) =>
+    `<option value="${escAttr(s.teamId)}"${s.teamId === String(selectedId || "") ? " selected" : ""}>${escHtml(s.name)}${isSelfSubject(s.teamId, selfTeamId) ? " (you)" : ""}</option>`,
+  ).join("");
+  return `<select class="ac-mirror-pick" data-mirror-pick="${escAttr(key)}" aria-label="mirror subject">${opts}</select>`;
+}
+
+function renderMirrorTop(vm, cardByTeam) {
+  const { mode, selfTeamId, subjects } = vm;
+  const switcher = `
+    <div class="ac-mirror-switch" role="group" aria-label="mirror subject mode">
+      ${["self", "browse", "compare"].map((m) =>
+        `<button type="button" class="ac-mirror-mode${mode === m ? " is-on" : ""}" data-mirror-mode="${m}" aria-pressed="${mode === m}">${m === "self" ? "you" : m}</button>`,
+      ).join("")}
+    </div>`;
+  const panel = (teamId, readOnly) => (teamId ? mirrorPanelHtml(teamId, cardByTeam, {
+    eyebrow: subjectEyebrow(teamId, selfTeamId, mirrorSubjectName(teamId, subjects)),
+    readOnly,
+  }) : "");
+  let body = "";
+  if (mode === "browse") {
+    // Browse = the whole-cohort grid below; this just frames it (no redundant picker).
+    body = subjects.length
+      ? `<p class="ac-mirror-hint">Every team’s say → did → shipped. Click any card to open it.</p>`
+      : `<p class="ac-mirror-hint">No say / did / shipped cards yet.</p>`;
+  } else if (mode === "compare") {
+    const a = vm.compare && vm.compare.a;
+    const b = vm.compare && vm.compare.b;
+    body = subjects.length >= 2
+      ? `<div class="ac-mirror-pickrow ac-mirror-pickrow-compare">${mirrorSubjectSelect("compare-a", a, subjects, selfTeamId)}<span class="ac-mirror-vs">vs</span>${mirrorSubjectSelect("compare-b", b, subjects, selfTeamId)}</div>
+         <div class="ac-mirror-compare">${panel(a, true)}${panel(b, true)}</div>`
+      : `<p class="ac-mirror-hint">Need at least two say / did / shipped cards to compare.</p>`;
+  } else { // self
+    const selfPanel = panel(selfTeamId, false);
+    body = selfPanel || `<p class="ac-mirror-hint">${selfTeamId ? "No say / did / shipped card for your team yet — " : "Claim your identity to see your mirror — "}browse the cohort’s below.</p>`;
+  }
+  return `<div class="ac-mirror-wrap" data-mirror-wrap>${switcher}${body}</div>`;
+}
+
+function wireMirrorSwitch() {
+  const canvas = state.canvas;
+  if (!canvas) return;
+  for (const btn of canvas.querySelectorAll("[data-mirror-mode]")) {
+    btn.addEventListener("click", () => {
+      const m = btn.getAttribute("data-mirror-mode");
+      if (!m || state.mirrorMode === m) return;
+      state.mirrorMode = m;
+      renderSayDidShipped();
+    });
+  }
+  const onPick = (key, attr) => {
+    const sel = canvas.querySelector(`[data-mirror-pick="${key}"]`);
+    if (sel) sel.addEventListener("change", () => { state[attr] = sel.value; renderSayDidShipped(); });
+  };
+  onPick("focus", "mirrorFocusId");
+  onPick("compare-a", "mirrorCompareA");
+  onPick("compare-b", "mirrorCompareB");
+}
+
+// Phase 2: the "one page" merge — a compact cohort-context band folded onto the
+// Mirror page, reusing the membrane's own aggregate (computeMembraneData) + the
+// activity feed. Fully defensive: every field guarded, and the band collapses to
+// nothing if there's no data, so it never breaks the page.
+function mirrorContextBandHtml() {
+  let m;
+  try { m = computeMembraneData(); } catch { return ""; }
+  if (!m || typeof m !== "object") return "";
+  const cohort = m.cohort || {};
+  const events = m.events || {};
+  const asks = m.asks || {};
+  let activityLine = "";
   try {
-    const info = await window.api?.getAppInfo?.();
-    if (info && typeof info === "object") return { appVersion: info.version || null, platform: info.platform || null };
-  } catch {}
-  return { appVersion: null, platform: null };
+    const evs = Array.isArray(state.cohort && state.cohort.cohort_events) ? state.cohort.cohort_events : [];
+    const recent = evs
+      .filter((e) => e && e.event_type !== "prefs")
+      .sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")))[0];
+    if (recent) {
+      const authorMeta = buildAuthorMeta(state.cohort || {});
+      activityLine = feedItemLabel(recent, (id) => (authorMeta[id] && authorMeta[id].name) || id);
+    }
+  } catch { /* fall through to the build-time feed */ }
+  if (!activityLine) {
+    const feed = Array.isArray(m.feed) ? m.feed : [];
+    activityLine = feed.length ? String(feed[0].label || feed[0].title || "") : "";
+  }
+  const openAsks = String(asks.openAskCount || "0");
+  const myAsks = String(asks.myAskCount || "0");
+  const tile = (label, value) => (value
+    ? `<div class="ac-mirror-ctx-tile"><span class="ac-mirror-ctx-k">${escHtml(label)}</span><span class="ac-mirror-ctx-v">${escHtml(value)}</span></div>`
+    : "");
+  const tiles = [
+    tile("cohort", `${cohort.peerCount || "0"} peers · ${cohort.onlineCount || "idle"}`),
+    tile("next", events.nextEventLabel || ""),
+    tile("open asks", openAsks !== "0" ? `${openAsks}${myAsks !== "0" ? ` · ${myAsks} yours` : ""}` : ""),
+    tile("activity", activityLine ? constShortText(activityLine, 42) : ""),
+  ].filter(Boolean).join("");
+  if (!tiles) return "";
+  return `
+    <div class="ac-mirror-ctx" aria-label="your cohort context">
+      <span class="ac-mirror-ctx-eyebrow">your cohort context</span>
+      <div class="ac-mirror-ctx-tiles">${tiles}</div>
+    </div>`;
 }
 
 // Post-render wiring for the mirror panel (the asks-board idiom: query the freshly
@@ -7366,7 +7559,7 @@ function wireMirrorPanel() {
       const note = noteEl ? noteEl.value : "";
       sendBtn.disabled = true;
       if (statusEl) statusEl.textContent = "sending…";
-      const ctx = await mirrorAppContext();
+      const ctx = await getAppContext();
       const res = await submitContest({
         subjectId,
         cardKind: "say_did_shipped",
@@ -7379,6 +7572,9 @@ function wireMirrorPanel() {
       if (res && res.ok) {
         state.mirrorContests = state.mirrorContests || {};
         state.mirrorContests[subjectId] = { kind: contestKind, note };
+        // Spine: a contest is also a loud feed event. The durable rebuttal lives
+        // in public_card_contests; this surfaces "X contested a claim" in the feed.
+        emitContest({ subjectId, contestKind, cardKind: "say_did_shipped", cardId: root.getAttribute("data-mirror-card") || null });
         renderSayDidShipped(); // re-render so the rebuttal travels with the claim
       } else {
         sendBtn.disabled = false;
@@ -7406,7 +7602,17 @@ function renderSayDidShipped() {
   const teams = (cohort.teams || []).filter(t => t && t.record_id && teamKind(t) !== "person");
   const cardByTeam = cohortInsightSubjectMap("say_did_shipped");
   const { myPerson } = currentAskContext();
-  const mirrorHtml = mirrorPanelHtml(myPerson, cardByTeam);
+  const selfTeamId = myPerson && myPerson.team ? String(myPerson.team) : "";
+  const mirrorVm = mirrorViewModel({
+    mode: state.mirrorMode,
+    focusId: state.mirrorFocusId,
+    compareA: state.mirrorCompareA,
+    compareB: state.mirrorCompareB,
+    selfTeamId,
+    teams,
+    hasCard: (id) => !!cardByTeam.get(String(id)),
+  });
+  const mirrorHtml = renderMirrorTop(mirrorVm, cardByTeam);
   const rows = teams
     .map(team => ({ team, card: cardByTeam.get(team.record_id) || null }))
     .filter(row => row.card)
@@ -7496,7 +7702,7 @@ function renderSayDidShipped() {
       ${cohortPageHead("shipped")}
       <div class="alch-view-controls" data-shape-occluder>${sentenceBar}${programScrubberHtml({ needsSnapshots: true })}</div>
       ${mirrorHtml}
-      <div class="alch-constellation" data-constellation-view="shipped">
+      ${mirrorVm.mode === "browse" ? `<div class="alch-constellation" data-constellation-view="shipped">
         <div class="alch-const-workbench is-single">
           <div class="alch-const-main">
             <div class="alch-constellation-stage ac-sds-stage" data-view="shipped" tabindex="0" aria-label="say did shipped cards">
@@ -7508,9 +7714,11 @@ function renderSayDidShipped() {
             </div>
           </div>
         </div>
-      </div>
+      </div>` : ""}
+      ${mirrorContextBandHtml()}
     </div>`;
   wireMirrorPanel();
+  wireMirrorSwitch();
 }
 
 function renderProductStack() {
@@ -13221,6 +13429,10 @@ function renderCollab() {
   const mapSection = `
     <section class="alch-cb-section cb-matrix-section" data-cb-section="grid" aria-label="cohort map — rows need, columns provide">
       <div class="cb-maphead">
+        <div class="cb-maphead-left">
+          ${collabTeamPickerHtml(m, focusRid)}
+          <button class="cb-intake-link" type="button" data-collab-intake-open>+ seek / offer</button>
+        </div>
         ${collabLensFilterHtml(lens, m)}
       </div>
       <div class="cb-scroll">${matrixBody}</div>
@@ -13279,22 +13491,15 @@ function renderCollab() {
       <div class="cb-cv-list">${convRows || '<p class="cb-empty">no shared areas.</p>'}</div>
     </section>`;
 
-  // The header stays calm and stable: title + the one lead control (team picker)
-  // + intake. The *adaptive* "what to do next" copy moved into the rail's nudge
-  // banner (collabNudgeHtml), right next to the matches it talks about.
+  // The header stays calm: title + a static lead line. The team picker + intake
+  // moved into the filter row (cb-maphead-left); the *adaptive* "what to do next"
+  // copy lives in the rail's nudge banner (collabNudgeHtml), next to the matches.
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="collab">
     ${cohortPageHead("collab")}
     <header class="cb-lead" data-shape-occluder>
       <h2 class="cb-lead-title">Find who can help you</h2>
       <p class="cb-lead-sub">The cohort's needs and offers, matched. Pick your team to make the map — and the panel — about you.</p>
-      <div class="cb-lead-controls">
-        ${collabTeamPickerHtml(m, focusRid)}
-        <button class="cb-intake-open" type="button" data-collab-intake-open>
-          <span class="cb-intake-open-mark" aria-hidden="true">+</span>
-          <span>add seek / offer</span>
-        </button>
-      </div>
     </header>
     <div class="alch-collab">
       <div class="cb-workbench"${collabRailStyleAttr()}>
@@ -14615,6 +14820,13 @@ async function submitContextCompose(form) {
     if (form.elements.body) form.elements.body.value = "";
     if (form.elements.title) form.elements.title.value = "";
     if (form.elements.contact) form.elements.contact.value = "";
+    // Spine: a transcript upload is a provenance-stamped contribution. Emit the
+    // feed event (title); the raw body + free-text `contact` still go to the
+    // context_submissions inbox. with_whom is omitted — it expects cohort
+    // record_ids for the graph, which this free-text form doesn't capture.
+    if (input.source_kind === "transcript") {
+      emitTranscript({ title: input.title });
+    }
     return;
   }
   const msg = res.reason === "unconfigured"
@@ -19000,6 +19212,10 @@ async function submitEditAsLocalSync() {
   if (synced.routed === "sync") {
     const recordId = synced.recordId;
     applyEnvelopeToCohort(synced.envelope, recordId, "person");
+    // Spine: emit a feed/provenance signal of this self-edit (the changed field
+    // NAMES, not the values — see cohort-emit.mjs). Fire-and-forget; must run
+    // BEFORE we snap editBaseline below so the diff is still available.
+    emitProfileEdit(recordId, p.editBaseline, p.editDraft);
     // Snap the editor's baseline to the new content so a follow-up EDIT
     // diffs from the just-saved state.
     if (p.editMode === "edit") {
