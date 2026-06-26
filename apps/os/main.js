@@ -1364,6 +1364,23 @@ ipcMain.handle("context-vault:reveal-corpus", async () => {
     return { ok: false, error: e && e.message ? e.message : String(e) };
   }
 });
+
+// ─── self-report IPC (permission-gated scan → local-CLI synth) ───────
+// The member opts in (renderer); we scan their LOCAL Claude/Codex sessions into a
+// scrubbed digest (daybook redaction via digestFromRawFiles) and run their OWN
+// local CLI to draft a profile update. Raw never leaves the box; only the
+// member-approved field delta is written, via the existing profile editor.
+// See self-report-node.js + apps/os/src/renderer/self-report.js.
+const selfReport = require("./self-report-node");
+ipcMain.handle("fg:self-report:scan", async (_e, opts) => {
+  try { return await selfReport.scanLocalSessions(opts || {}); }
+  catch (e) { return { ok: false, reason: "scan_failed", detail: e && e.message ? e.message : String(e) }; }
+});
+ipcMain.handle("fg:self-report:synthesize", async (_e, opts) => {
+  const o = opts || {};
+  return selfReport.runSynthesis({ prompt: o.prompt, chatCmd: o.chatCmd || "" });
+});
+
 ipcMain.handle("clipboard:write", async (_e, text) => {
   try {
     clipboard.writeText(String(text || ""));

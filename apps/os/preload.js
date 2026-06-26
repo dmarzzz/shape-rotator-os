@@ -27,6 +27,9 @@ contextBridge.exposeInMainWorld("api", {
   readContextVaultRawBundle: () => ipcRenderer.invoke("context-vault:read-raw-bundle"),
   revealContextVaultSource: (id) => ipcRenderer.invoke("context-vault:reveal-source", id),
   revealContextVaultCorpus: () => ipcRenderer.invoke("context-vault:reveal-corpus"),
+  // self-report (permission-gated scan → local-CLI synth); see self-report-node.js
+  selfReportScan:       (o) => ipcRenderer.invoke("fg:self-report:scan", o || {}),
+  selfReportSynthesize: (o) => ipcRenderer.invoke("fg:self-report:synthesize", o || {}),
   clipboardWrite: (text) => ipcRenderer.invoke("clipboard:write", text),
   // ─── deep links (sros://xxxxx) ───────────────────────────────────────
   // main forwards a clicked sros:// link here while the app is running;

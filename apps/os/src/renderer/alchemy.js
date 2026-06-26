@@ -71,6 +71,8 @@ import {
   isAskMine, normalizeAskIdentity, resolveAskAuthor, resolveAskIdentityPerson,
   askVerbVars, askVerbIconSvg,
 } from "./asks.js";
+import { submitContest } from "./supabase-contest.mjs";
+import { openSelfReport } from "./self-report.js";
 import { createLazyModule } from "./lazy-module.js";
 import { loadStylesheetOnce } from "./stylesheet-loader.js";
 
@@ -703,11 +705,25 @@ export function getRecordTitle(recordId) {
 //                              record_id: "<slug>",
 //                              mode: "edit"|"add" })
 // Switches to the alchemy tab + profile mode, sets editor state, renders.
+// A one-shot prefill (e.g. from the self-report modal) merged onto a freshly
+// seeded person editDraft. The caller has already whitelisted the fields; here we
+// just merge them and clear the patch so it applies exactly once.
+function applyPendingDraftPatch(p) {
+  const patch = p && p.pendingDraftPatch;
+  if (p) p.pendingDraftPatch = null;
+  if (!patch || !p.editDraft) return;
+  if (patch.record_id && String(patch.record_id) !== String(p.editTargetId)) return;
+  const fields = patch.fields && typeof patch.fields === "object" ? patch.fields : {};
+  for (const [k, v] of Object.entries(fields)) p.editDraft[k] = v;
+}
+
 window.__srwkOpenProfile = function openProfileExternal(opts = {}) {
   const kind = (opts.kind === "team" || opts.kind === "project" || opts.kind === "person") ? opts.kind : "person";
   const mode = (opts.mode === "add") ? "add" : "edit";
   // Make sure profile state exists (may be called before alchemy mounts).
   if (!state.profile) loadProfile();
+  // A one-shot prefill merged into the edit draft when it's seeded (loadEditTarget).
+  state.profile.pendingDraftPatch = (opts.draftPatch && typeof opts.draftPatch === "object") ? opts.draftPatch : null;
   state.profile.editKind = kind;
   state.profile.editMode = mode;
   if (mode === "edit" && opts.record_id) {
@@ -7163,10 +7179,204 @@ function detailEvidenceSignals(recordId) {
   return items.length ? `<ul class="ac-detail-evidence" style="margin:.2em 0 0;padding-left:1.1em;opacity:.85">${items.join("")}</ul>` : "";
 }
 
+// ── "Your Mirror" — the member's own say → did → shipped, with a contest. ─────
+// The public, member-facing face of the coordination-OS framework: a member sees
+// what THEY declared vs what their team's public repo shows, and can push back
+// (move 5). Framed as a self-mirror, never a score — the only ask is "update your
+// declaration / add the missing context". Everything rendered here is the same
+// public_bundle data already on the surface; the contest write is the
+// os_feedback-style anon box (supabase-contest.mjs). Sits atop the shipped view.
+
+const MIRROR_KIND_LABELS = {
+  stale_declaration: "my declared focus is out of date",
+  off_github_work: "I shipped it — just not on public GitHub",
+  wrong_attribution: "those commits aren’t mine",
+  context_missing: "the number reads wrong without context",
+};
+function mirrorKindLabel(kind) { return MIRROR_KIND_LABELS[kind] || String(kind || ""); }
+
+// The calibration line (framework move 7), surfaced TO the member as a prompt,
+// never a rank. Pure function over the card's content_json — declared `say` vs the
+// observed public_activity topics. It never expresses a deficiency or a score; the
+// only call to action is for the member to make the public record more accurate.
+function mirrorCalibrationLine(card) {
+  const content = insightContent(card);
+  const act = sdsActivity(card);
+  if (!sdsObserved(card)) {
+    return {
+      tone: "unobserved",
+      text: "Your public trace here is just your declared fields — the cohort can’t see GitHub build activity for you. That’s expected if your repo is private or off-platform. If you’re shipping elsewhere, flag it so the record reflects it.",
+    };
+  }
+  const say = String(content.say || "").toLowerCase();
+  const topics = (Array.isArray(act.topics) ? act.topics : [])
+    .map(t => String(t?.key || "").trim()).filter(Boolean);
+  const fresh = topics.filter(t => t && !say.includes(t.toLowerCase()));
+  if (topics.length && fresh.length === topics.length) {
+    return {
+      tone: "drift",
+      text: `Your repo shows ${fresh.slice(0, 2).join(" / ")} activity your declared focus doesn’t mention. If your focus has moved, update your “now” so the cohort sees what you’re actually building.`,
+    };
+  }
+  return {
+    tone: "aligned",
+    text: "Your declared focus and your observed public work line up — nothing to update.",
+  };
+}
+
+// A plain-text GitHub signal for the self-report, derived from the member's own
+// say/did/shipped card (already public) — so the github side needs no new scan.
+function mirrorGithubDigest(card) {
+  if (!card) return "";
+  const c = insightContent(card);
+  const act = sdsActivity(card);
+  const parts = [];
+  if (c.did) parts.push(`did: ${constShortText(c.did, 200)}`);
+  if (c.shipped) parts.push(`shipped: ${constShortText(c.shipped, 200)}`);
+  const topics = (Array.isArray(act.topics) ? act.topics : [])
+    .map((t) => String(t?.key || "").trim()).filter(Boolean).slice(0, 6);
+  if (topics.length) parts.push(`topics: ${topics.join(", ")}`);
+  const rc = sdsNumber(act, "release_count");
+  const cc = sdsNumber(act, "useful_commit_count");
+  if (rc || cc) parts.push(`activity: ${cc} useful commits, ${rc} releases`);
+  return parts.join("\n");
+}
+
+// The panel HTML, or "" when there is no resolved member, no team, or no card —
+// in every empty case the shipped grid below renders unchanged.
+function mirrorPanelHtml(myPerson, cardByTeam) {
+  if (!myPerson) return "";
+  const teamId = myPerson.team ? String(myPerson.team) : "";
+  const card = teamId ? cardByTeam.get(teamId) : null;
+  if (!card) return "";
+  const cohort = activeConstellationCohort();
+  const team = (cohort.teams || []).find(t => t && t.record_id === teamId) || { record_id: teamId, name: teamId };
+  const content = insightContent(card);
+  const observedClass = sdsObserved(card) ? " is-observed" : " is-declared";
+  const cal = mirrorCalibrationLine(card);
+  // The concrete numbers behind "did"/"shipped" — the same chips + activity mix the
+  // grid rows show, so the member sees the actual metrics, not just prose — plus the
+  // card's reasoning trace (move 8) for a "how this reads" disclosure.
+  const act = sdsActivity(card);
+  const relCount = sdsNumber(act, "release_count");
+  const commitCount = sdsNumber(act, "useful_commit_count");
+  const releasedHtml = sdsShippedReleasesHtml(teamId);
+  const mixHtml = sdsActivityMixHtml(act);
+  const chips = [
+    (relCount && !releasedHtml) ? `<span class="ac-sds-chip"><strong>${relCount}</strong> rel</span>` : "",
+    commitCount ? `<span class="ac-sds-chip"><strong>${commitCount}</strong> commits</span>` : "",
+  ].filter(Boolean).join("");
+  const traceBody = cardTraceBodyHtml(card);
+  const contested = (state.mirrorContests && state.mirrorContests[teamId]) || null;
+  const kindOpts = Object.keys(MIRROR_KIND_LABELS)
+    .map(k => `<option value="${escAttr(k)}">${escHtml(mirrorKindLabel(k))}</option>`).join("");
+  const tail = contested
+    ? `<p class="ac-mirror-contested">✓ you flagged this — “${escHtml(mirrorKindLabel(contested.kind))}”. It’ll be reviewed; update your profile so the public record matches.</p>`
+    : `<button type="button" class="ac-mirror-flag" data-mirror-flag>this doesn’t look right →</button>
+       <div class="ac-mirror-contest" data-mirror-contest hidden>
+         <select data-mirror-kind-sel aria-label="what’s off">${kindOpts}</select>
+         <textarea data-mirror-note maxlength="2000" placeholder="optional: what should it say instead? (e.g. the repo is private, or your focus moved to X)"></textarea>
+         <div class="ac-mirror-actions">
+           <button type="button" class="ac-mirror-send" data-mirror-send>send correction</button>
+           <span class="ac-mirror-status" data-mirror-status aria-live="polite"></span>
+         </div>
+       </div>`;
+  return `
+    <section class="ac-mirror" data-mirror data-mirror-subject="${escAttr(teamId)}" data-mirror-card="${escAttr(card.id || "")}">
+      <div class="ac-mirror-head">
+        <span class="ac-mirror-eyebrow">your mirror</span>
+        <span class="ac-mirror-team">${escHtml(team.name || teamId)}</span>
+      </div>
+      <div class="ac-mirror-strip">
+        <span class="ac-sds-cell"><b>you said</b><span>${escHtml(constShortText(content.say || team.now || team.focus || "not declared", 160))}</span></span>
+        <span class="ac-sds-cell${observedClass}"><b>repo shows</b><span>${escHtml(constShortText(content.did || "not observed", 160))}</span>${mixHtml}</span>
+        <span class="ac-sds-cell${observedClass}"><b>shipped</b><span>${escHtml(constShortText(content.shipped || "not observed", 160))}</span>${chips ? `<span class="ac-sds-chips">${chips}</span>` : ""}${releasedHtml}</span>
+      </div>
+      <p class="ac-mirror-cal" data-tone="${escAttr(cal.tone)}">${escHtml(cal.text)}</p>
+      <div class="ac-mirror-actions-row"><button type="button" class="ac-mirror-update" data-mirror-update>✨ update from my recent work</button></div>
+      ${traceBody ? `<details class="ac-mirror-trace"><summary>how this reads</summary><div class="ac-mirror-trace-body">${traceBody}</div></details>` : ""}
+      ${tail}
+    </section>`;
+}
+
+// Coarse, non-identifying app context for the contest write (same source the
+// membrane feedback box uses); both columns are nullable, so a miss is harmless.
+async function mirrorAppContext() {
+  try {
+    const info = await window.api?.getAppInfo?.();
+    if (info && typeof info === "object") return { appVersion: info.version || null, platform: info.platform || null };
+  } catch {}
+  return { appVersion: null, platform: null };
+}
+
+// Post-render wiring for the mirror panel (the asks-board idiom: query the freshly
+// rendered canvas, attach listeners). The optimistic chip is persisted in
+// state.mirrorContests so it survives a later full re-render (e.g. tab switch).
+function wireMirrorPanel() {
+  const root = state.canvas.querySelector("[data-mirror]");
+  if (!root) return;
+  const flagBtn = root.querySelector("[data-mirror-flag]");
+  const form = root.querySelector("[data-mirror-contest]");
+  const sendBtn = root.querySelector("[data-mirror-send]");
+  const kindSel = root.querySelector("[data-mirror-kind-sel]");
+  const noteEl = root.querySelector("[data-mirror-note]");
+  const statusEl = root.querySelector("[data-mirror-status]");
+  if (flagBtn && form) {
+    flagBtn.addEventListener("click", () => {
+      form.hidden = false;
+      flagBtn.hidden = true;
+      try { noteEl?.focus(); } catch {}
+    });
+  }
+  if (sendBtn) {
+    sendBtn.addEventListener("click", async () => {
+      if (sendBtn.disabled) return;
+      const subjectId = root.getAttribute("data-mirror-subject");
+      const contestKind = (kindSel && kindSel.value) || "stale_declaration";
+      const note = noteEl ? noteEl.value : "";
+      sendBtn.disabled = true;
+      if (statusEl) statusEl.textContent = "sending…";
+      const ctx = await mirrorAppContext();
+      const res = await submitContest({
+        subjectId,
+        cardKind: "say_did_shipped",
+        cardId: root.getAttribute("data-mirror-card") || null,
+        contestKind,
+        note,
+        appVersion: ctx.appVersion,
+        platform: ctx.platform,
+      });
+      if (res && res.ok) {
+        state.mirrorContests = state.mirrorContests || {};
+        state.mirrorContests[subjectId] = { kind: contestKind, note };
+        renderSayDidShipped(); // re-render so the rebuttal travels with the claim
+      } else {
+        sendBtn.disabled = false;
+        if (statusEl) {
+          statusEl.textContent = res && res.error === "unconfigured"
+            ? "contest isn’t set up here."
+            : "couldn’t send — try again.";
+        }
+      }
+    });
+  }
+  const updateBtn = root.querySelector("[data-mirror-update]");
+  if (updateBtn) {
+    updateBtn.addEventListener("click", () => {
+      const { myPerson } = currentAskContext();
+      if (!myPerson) return;
+      const card = cohortInsightSubjectMap("say_did_shipped").get(myPerson.team);
+      openSelfReport({ person: myPerson, githubDigest: mirrorGithubDigest(card) });
+    });
+  }
+}
+
 function renderSayDidShipped() {
   const cohort = activeConstellationCohort();
   const teams = (cohort.teams || []).filter(t => t && t.record_id && teamKind(t) !== "person");
   const cardByTeam = cohortInsightSubjectMap("say_did_shipped");
+  const { myPerson } = currentAskContext();
+  const mirrorHtml = mirrorPanelHtml(myPerson, cardByTeam);
   const rows = teams
     .map(team => ({ team, card: cardByTeam.get(team.record_id) || null }))
     .filter(row => row.card)
@@ -7255,6 +7465,7 @@ function renderSayDidShipped() {
     <div class="alch-cohort-page" data-cohort-view="shipped">
       ${cohortPageHead("shipped")}
       <div class="alch-view-controls" data-shape-occluder>${sentenceBar}${programScrubberHtml({ needsSnapshots: true })}</div>
+      ${mirrorHtml}
       <div class="alch-constellation" data-constellation-view="shipped">
         <div class="alch-const-workbench is-single">
           <div class="alch-const-main">
@@ -7269,6 +7480,7 @@ function renderSayDidShipped() {
         </div>
       </div>
     </div>`;
+  wireMirrorPanel();
 }
 
 function renderProductStack() {
@@ -17433,6 +17645,7 @@ function loadEditTarget() {
     if (person) {
       p.editDraft = JSON.parse(JSON.stringify(person));
       p.editBaseline = JSON.parse(JSON.stringify(person));
+      applyPendingDraftPatch(p);
     } else {
       p.editDraft = null;
       p.editBaseline = null;
