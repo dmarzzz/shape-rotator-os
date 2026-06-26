@@ -1,6 +1,6 @@
 // cohort-chat-node.js
 //
-// Supervises the operator's OWN local AI CLI (Claude Code, Codex, Ollama, …) as
+// Supervises the operator's OWN local AI CLI (Claude Code / Codex) as
 // a one-shot subprocess for the in-app "chat with the cohort" panel. Mirrors
 // swarm-node.js's spawn-and-stream shape, with two differences:
 //   * it runs whatever local agent the member ALREADY has installed and
@@ -11,19 +11,54 @@
 //     the renderer and PIPED to the CLI's stdin; tokens stream back on stdout.
 //
 // CLI resolution (first match wins):
-//   1. an explicit configured command (chatCmd) — e.g. `claude -p`,
-//      `codex exec`, `ollama run qwen2.5`.
+//   1. an explicit configured command (chatCmd) — e.g. `claude -p`, `codex exec`.
 //   2. the COHORT_CHAT_CMD / COHORT_LLM_CMD env override.
-//   3. auto-detect on PATH: claude -> codex -> ollama.
+//   3. auto-detect on PATH: claude -> codex.
 // The prompt always arrives on stdin, so the configured command should be the
 // agent's NON-interactive / print form.
 
 const { spawn, spawnSync } = require("node:child_process");
+const os = require("node:os");
+const path = require("node:path");
 
+// Packaged Electron apps inherit a MINIMAL PATH that often omits where the
+// member's `claude` / `codex` CLI actually lives, so `where claude` finds nothing
+// even when it IS installed. Augment the process PATH once (idempotent) with the
+// usual install dirs — mirrors the Router/daybook ensureClaudeOnPath(), and adds
+// the WINDOWS spots Router's macOS-oriented list omits (npm-global → claude.cmd,
+// the native installer's ~/.local/bin, winget shims). Done module-wide so both
+// detectAvailable() and start() benefit.
+(function ensureLocalAiOnPath() {
+  const home = os.homedir();
+  const extra = [
+    path.join(home, ".local", "bin"),       // native installer (claude.ai/install)
+    path.join(home, ".bun", "bin"),
+    path.join(home, ".npm-global", "bin"),
+  ];
+  if (process.platform === "win32") {
+    if (process.env.APPDATA) extra.push(path.join(process.env.APPDATA, "npm"));            // npm i -g → claude.cmd
+    if (process.env.LOCALAPPDATA) extra.push(path.join(process.env.LOCALAPPDATA, "Microsoft", "WinGet", "Links"));
+  } else {
+    extra.push("/opt/homebrew/bin", "/usr/local/bin");
+  }
+  const parts = (process.env.PATH || "").split(path.delimiter).filter(Boolean);
+  let changed = false;
+  for (const p of extra) { if (p && !parts.includes(p)) { parts.push(p); changed = true; } }
+  if (changed) process.env.PATH = parts.join(path.delimiter);
+})();
+
+// Auto-detect order: the capable coding agents the cohort actually runs.
+// ollama is intentionally NOT here — almost no member has it, and small local
+// models ignore the action/JSON schema the agentic flow depends on (see
+// docs/your-mirror-receive-and-chat.md). It's still recognized as a LOCAL backend
+// by the privacy gate below if someone hand-configures `ollama run …` as their
+// chat command, but the app never auto-picks or suggests it.
 const DETECT = [
-  { bin: "claude", args: ["-p"] },
-  { bin: "codex", args: ["exec"] },
-  { bin: "ollama", args: ["run", process.env.OLLAMA_MODEL || "qwen2.5"] },
+  // claude -p BUFFERS by default (one chunk at the end — a long dead wait); the
+  // stream-json flags emit incremental text deltas so the answer types out live
+  // (cohort-chat-stream.mjs parses them). --verbose is required for -p stream-json.
+  { bin: "claude", args: () => ["-p", "--output-format", "stream-json", "--include-partial-messages", "--verbose"] },
+  { bin: "codex", args: () => ["exec"] },
 ];
 
 // ── data-sensitivity gate + credential hygiene (harvested from the Hermes
@@ -106,7 +141,7 @@ function resolveCommand(configuredCmd) {
     const argv = splitCommand(explicit);
     if (argv.length) return argv;
   }
-  for (const d of DETECT) if (onPath(d.bin)) return [d.bin, ...d.args];
+  for (const d of DETECT) if (onPath(d.bin)) return [d.bin, ...d.args()];
   return null;
 }
 
@@ -135,7 +170,7 @@ function start({ requestId, prompt, chatCmd, dataMode = "public" }) {
     return {
       ok: false,
       reason: "no_local_ai_cli",
-      detail: "No local AI CLI found. Install Claude Code (`claude`), Codex (`codex`), or Ollama (`ollama`) and make sure it's on PATH — or set the command in chat settings.",
+      detail: "No local AI CLI found. Install Claude Code (`claude`) or Codex (`codex`) and make sure it's on PATH — or set the command in chat settings.",
     };
   }
 
@@ -151,28 +186,59 @@ function start({ requestId, prompt, chatCmd, dataMode = "public" }) {
     NO_COLOR: "1",
   });
 
+  // Windows: `claude` / `codex` are usually .cmd / .ps1 npm shims, NOT a bare .exe
+  // on PATH, so a no-shell spawn ENOENTs. Run through the shell there so PATHEXT
+  // resolves the shim — passing ONE command string (not a shell+args array, which
+  // trips Node's DEP0190). The prompt arrives on stdin, so args carry no untrusted
+  // data; only the static flags + the member's own configured command are joined.
+  const onWin = process.platform === "win32";
+  const winQuote = (s) => (/[\s"]/.test(s) ? `"${String(s).replace(/"/g, '""')}"` : String(s));
   let child;
   try {
-    child = spawn(argv[0], argv.slice(1), { env, stdio: ["pipe", "pipe", "pipe"] });
+    child = onWin
+      ? spawn(argv.map(winQuote).join(" "), [], { env, stdio: ["pipe", "pipe", "pipe"], shell: true, windowsHide: true })
+      : spawn(argv[0], argv.slice(1), { env, stdio: ["pipe", "pipe", "pipe"] });
   } catch (e) {
     return { ok: false, reason: "spawn_failed", detail: e.message };
   }
 
-  _current = { child, requestId, startedAt: Date.now() };
+  _current = { child, requestId, startedAt: Date.now(), timer: null };
   emitStatus({ state: "running", requestId, startedAt: _current.startedAt, cmd: argv });
 
+  // Watchdog: if the CLI emits no stdout for IDLE_TIMEOUT_MS it's effectively
+  // hung (auth prompt swallowed, model still pulling, network stall) — SIGTERM it
+  // so the panel never sits in "thinking…" forever. Reset on every stdout chunk;
+  // a cold local model load (tens of seconds before the first token) is fine.
+  const IDLE_TIMEOUT_MS = Number(process.env.COHORT_CHAT_IDLE_TIMEOUT_MS) || 90000;
+  let timedOut = false;
+  function armWatchdog() {
+    if (!_current || _current.child !== child) return;
+    clearTimeout(_current.timer);
+    _current.timer = setTimeout(() => { timedOut = true; try { child.kill("SIGTERM"); } catch {} }, IDLE_TIMEOUT_MS);
+  }
+  armWatchdog();
+
   // Stream raw chunks (not line-buffered) so partial tokens render live.
-  child.stdout.on("data", (buf) => emitOutput({ requestId, stream: "stdout", chunk: buf.toString("utf8") }));
+  child.stdout.on("data", (buf) => { armWatchdog(); emitOutput({ requestId, stream: "stdout", chunk: buf.toString("utf8") }); });
   child.stderr.on("data", (buf) => emitOutput({ requestId, stream: "stderr", chunk: buf.toString("utf8") }));
 
+  // Settle to idle exactly once — whether the child exits cleanly OR errors before
+  // it ever starts. A spawn 'error' (e.g. ENOENT) fires WITHOUT a following 'exit',
+  // so without this an errored spawn would leave the panel stuck in "thinking…".
+  let settled = false;
+  const startedAt = _current.startedAt;
+  function settle(extra) {
+    if (settled) return;
+    settled = true;
+    if (_current && _current.child === child) { clearTimeout(_current.timer); _current = null; }
+    emitStatus({ state: "idle", requestId, durationMs: Date.now() - startedAt, ...extra });
+  }
   child.on("error", (err) => {
     emitOutput({ requestId, stream: "stderr", chunk: `[cohort-chat] ${err.message}\n` });
+    settle({ exitCode: null, error: err.message });
   });
   child.on("exit", (code, signal) => {
-    const wasOurs = _current && _current.child === child;
-    const startedAt = wasOurs ? _current.startedAt : Date.now();
-    if (wasOurs) _current = null;
-    emitStatus({ state: "idle", requestId, exitCode: code, signal, durationMs: Date.now() - startedAt });
+    settle({ exitCode: code, signal, reason: timedOut ? "timeout" : undefined });
   });
 
   try { child.stdin.write(String(prompt)); child.stdin.end(); } catch {}

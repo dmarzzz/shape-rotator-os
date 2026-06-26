@@ -21,16 +21,17 @@ const { digestFromRawFiles } = require("./daybook/transcripts");
 // Router/daybook does): NO hardcoded install paths — resolve by NAME on PATH
 // (platform-aware where/which) and spawn, with overrides for non-standard installs.
 // First match wins: explicit chatCmd → COHORT_CHAT_CMD/COHORT_LLM_CMD env → auto-
-// detect on PATH (claude → codex → ollama). The target is a CAPABLE coding agent —
+// detect on PATH (claude → codex). The target is a CAPABLE coding agent —
 // claude -p (print mode, text→JSON) or codex — which follows the prompt's JSON
-// instruction directly; ollama is a last-resort fallback only. No API key either way.
+// instruction directly. No API key either way.
 const DETECT = [
   { bin: "claude", args: ["-p"] },
   // Live test: codex refuses outside a git repo (the app's cwd) without
   // --skip-git-repo-check; --sandbox read-only keeps the synth from writing
   // anything (it may still read gh/git); `-` reads the prompt from stdin.
   { bin: "codex", args: ["exec", "--sandbox", "read-only", "--skip-git-repo-check", "-"] },
-  { bin: "ollama", args: ["run", process.env.OLLAMA_MODEL || "qwen2.5"] },
+  // ollama intentionally omitted — the cohort runs Claude Code / Codex, and small
+  // local models ignore the strict-JSON delta schema the self-report relies on.
 ];
 function onPath(bin) {
   const probe = process.platform === "win32" ? "where" : "which";
@@ -127,6 +128,37 @@ async function scanLocalSessions({ days = 14 } = {}) {
   };
 }
 
+// Decode a Claude project dir name (an encoded cwd, separators → '-') into a short
+// readable label, e.g. "C--Users-micha-…-Shape-OS" → "Shape OS".
+function decodeClaudeProject(dirName) {
+  const segs = String(dirName || "").split("-").filter(Boolean);
+  return segs.length ? segs.slice(-2).join(" ") : "";
+}
+
+// List the member's recent local AI sessions as TIMELINE METADATA only — a
+// title/project + a timestamp per session file. It NEVER reads a single byte of
+// session BODY (unlike scanLocalSessions, which scrubs content into a digest): a
+// timeline placement needs only when-and-roughly-what, so nothing sensitive is
+// read. Stays on-device; the renderer mounts it in the member's OWN private
+// timeline lane (buildSessionsLane, tier:'local'). Always resolves.
+async function listLocalSessions({ days = 30, max = 200 } = {}) {
+  const window = Math.max(1, Math.min(120, Number(days) || 30));
+  const sinceMs = Date.now() - window * DAY_MS;
+  let found = [];
+  try { found = [...recentClaudeFiles(sinceMs), ...recentCodexFiles(sinceMs)]; } catch { found = []; }
+  const sessions = found.map((f) => {
+    const project = f.source === "claude" ? decodeClaudeProject(path.basename(path.dirname(f.path))) : "";
+    return {
+      source: f.source,
+      id: String(f.name || "").replace(/\.jsonl$/, ""),
+      title: project || (f.source === "codex" ? "codex session" : "session"),
+      project,
+      ms: f.mtimeMs,
+    };
+  }).sort((a, b) => b.ms - a.ms).slice(0, Math.max(1, Math.min(1000, Number(max) || 200)));
+  return { ok: true, sessions, count: sessions.length };
+}
+
 // Run the member's own local CLI on a prompt (one-shot; collect stdout). Reuses
 // the cohort-chat resolver so it inherits the no-API-key guarantee and the saved
 // command override. Always resolves (never throws).
@@ -142,7 +174,16 @@ function runSynthesis({ prompt, chatCmd, timeoutMs = 120000 } = {}) {
       // happen to have set in their environment.
       const env = { ...process.env, CI: process.env.CI || "1", NO_COLOR: "1", PYTHONUNBUFFERED: "1" };
       delete env.ANTHROPIC_API_KEY;
-      child = spawn(argv[0], argv.slice(1), { env, stdio: ["pipe", "pipe", "pipe"] });
+      // Windows: `claude`/`codex` are .cmd/.ps1 npm shims, not bare .exe on PATH — a
+      // no-shell spawn ENOENTs. Run through the shell there (one command string to
+      // avoid Node's DEP0190); the prompt rides on stdin, so args carry no untrusted
+      // data. Mirrors the cohort-chat-node fix.
+      if (process.platform === "win32") {
+        const q = (s) => (/[\s"]/.test(s) ? `"${String(s).replace(/"/g, '""')}"` : String(s));
+        child = spawn(argv.map(q).join(" "), [], { env, stdio: ["pipe", "pipe", "pipe"], shell: true, windowsHide: true });
+      } else {
+        child = spawn(argv[0], argv.slice(1), { env, stdio: ["pipe", "pipe", "pipe"] });
+      }
     } catch (e) { return resolve({ ok: false, reason: "spawn_failed", detail: e.message }); }
     let out = "", err = "", timedOut = false;
     const timer = setTimeout(() => {
@@ -173,4 +214,4 @@ function runSynthesis({ prompt, chatCmd, timeoutMs = 120000 } = {}) {
   });
 }
 
-module.exports = { scanLocalSessions, runSynthesis, resolveCommand, splitCommand };
+module.exports = { scanLocalSessions, listLocalSessions, runSynthesis, resolveCommand, splitCommand };
