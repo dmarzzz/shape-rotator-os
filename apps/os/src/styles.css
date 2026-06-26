@@ -6535,6 +6535,14 @@ html[data-ds] .alch-zoom-ctl .azc-btn { height: 24px !important; min-height: 24p
   border-top-style: dotted;
   border-top-color: rgba(var(--ink-rgb),0.22);
 }
+/* Precomputed, reasoned connection edges (daily connection routine). A solid
+   warm-accent top border + a thin left rail marks them as the high-signal,
+   already-reasoned "who to talk to" suggestions vs the client-side heuristic. */
+.ac-action-row.is-connection {
+  padding-left: 9px;
+  border-top-color: rgba(193,168,114,0.42);
+  border-left: 2px solid rgba(193,168,114,0.55);
+}
 .ac-action-row span,
 .ac-action-row small,
 .ac-action-facts dt {

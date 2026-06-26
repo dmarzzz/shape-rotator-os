@@ -2327,6 +2327,21 @@ function build() {
   const program_start = readProgramStart();
   const release_feed_items = releaseFeedItems(github_release_artifacts, teams, program_start);
 
+  // Precomputed connection graph (the daily connection routine writes this
+  // artifact; scripts/build-cohort-connections.mjs). Folded in as the OFFLINE /
+  // first-paint baseline for the per-team "who to talk to" block; the live
+  // public_cohort_connections Supabase overlay overrides it at runtime (same
+  // live-source / committed-fallback split as the release feed). Absent ⇒ null,
+  // and applyConnectionsOverlay simply has no bundle fallback.
+  const cohort_connections = (() => {
+    const p = path.join(COHORT_DIR, "artifacts", "connections", "generated", "connections.json");
+    if (!fs.existsSync(p)) return null;
+    let obj;
+    try { obj = JSON.parse(fs.readFileSync(p, "utf8")); } catch { return null; }
+    const edges = Array.isArray(obj?.edges) ? obj.edges : [];
+    return edges.length ? { edges, generated_at: obj.generated_at || null, generator: obj.generator || "" } : null;
+  })();
+
   // Cohort-wide controlled vocab + UI configuration the renderer needs at
   // boot. Shipped alongside records so the atlas / constellation / asks UIs
   // have a stable filter set even when offline.
@@ -2359,6 +2374,9 @@ function build() {
     // runtime fallback (alchemy.js buildWhatsNewFeed) can rebuild the feed
     // without re-deriving releases.
     github_releases: release_feed_items,
+    // Offline baseline for the per-team "who to talk to" connection edges; the
+    // live public_cohort_connections overlay overrides at runtime.
+    cohort_connections,
   };
   return out;
 }

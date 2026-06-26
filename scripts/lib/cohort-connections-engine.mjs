@@ -1,0 +1,282 @@
+// cohort-connections-engine.mjs — the PURE brain of the cohort connection graph.
+//
+// Given the cohort records (teams + people) plus their clusters, declared
+// dependencies, and recent activity, it produces directional "A should talk to
+// B" edges with a transparent score and a human reason. It is deterministic and
+// dependency-free so it can (a) stand alone as the reliable fallback when no
+// local AI CLI is available, and (b) hand the LLM a focused candidate set + a
+// grounded corpus instead of the whole repo. Unit-tested in
+// scripts/cohort-connections-engine.test.mjs.
+//
+// The signal model normalizes every record to three token bags:
+//   seeks  — what this record is looking for / working on (implied needs)
+//   offers — what this record can give others
+//   skills — shared expertise (peer signal)
+// Teams carry explicit seeking/offering; people use `go_to_them_for` +
+// `best_contexts` as offers and `now` as their current focus (implied seeks).
+
+const STOPWORDS = new Set([
+  "the","and","for","with","that","this","from","into","your","you","our","are","but","not",
+  "has","have","had","was","were","will","can","could","would","should","其","a","an","of","to",
+  "in","on","at","by","or","as","is","it","be","we","i","my","me","us","they","them","their",
+  "via","per","use","using","build","building","builds","built","make","making","want","wants",
+  "need","needs","needed","help","helps","helping","work","working","works","team","teams",
+  "project","projects","cohort","accelerator","program","other","others","more","most","some",
+  "any","all","one","two","new","get","getting","like","around","about","over","under","across",
+]);
+
+// Lowercase, split on non-alphanumerics, drop stopwords and short tokens. Keeps
+// alnum tokens > 2 chars so "tee", "rl", "ai" survive but noise doesn't.
+export function tokenize(value) {
+  const text = Array.isArray(value) ? value.join(" ") : String(value == null ? "" : value);
+  const out = new Set();
+  for (const raw of text.toLowerCase().split(/[^a-z0-9]+/)) {
+    if (raw.length < 3) {
+      if (raw === "tee" || raw === "rl" || raw === "ai" || raw === "id") out.add(raw);
+      continue;
+    }
+    if (STOPWORDS.has(raw)) continue;
+    out.add(raw);
+  }
+  return out;
+}
+
+function asList(value) {
+  if (Array.isArray(value)) return value.filter((x) => x != null).map(String);
+  if (value == null || value === "") return [];
+  return [String(value)];
+}
+
+function intersect(a, b) {
+  const out = [];
+  for (const x of a) if (b.has(x)) out.push(x);
+  return out;
+}
+
+// Normalize a record (team or person) into { id, name, type, seekPhrases,
+// offerPhrases, seeks, offers, skills, focus, now }.
+export function recordSignals(record) {
+  const r = record || {};
+  const id = String(r.record_id || "");
+  const type = r.record_type || r.kind || (r.team ? "person" : "team");
+  const isPerson = type === "person";
+
+  const seekPhrases = isPerson
+    ? asList(r.now)
+    : [...asList(r.seeking), ...asList(r.now)];
+  const offerPhrases = isPerson
+    ? [...asList(r.go_to_them_for), ...asList(r.best_contexts)]
+    : [...asList(r.offering)];
+  const skillSrc = [...asList(r.skill_areas), ...asList(r.best_contexts), ...asList(r.recurring_themes)];
+
+  const focusText = [r.focus, r.domain, ...asList(r.paper_basis)].filter(Boolean).join(" ");
+
+  const seeks = tokenize(seekPhrases.join(" "));
+  const offers = new Set([...tokenize(offerPhrases.join(" ")), ...tokenize(focusText)]);
+  const skills = tokenize(skillSrc.join(" "));
+
+  return {
+    id,
+    name: r.name || id,
+    type,
+    seekPhrases,
+    offerPhrases,
+    seeks,
+    offers,
+    skills,
+    focus: r.focus || "",
+    now: isPerson ? asList(r.now)[0] || "" : asList(r.now)[0] || "",
+  };
+}
+
+// Pick the (seek phrase, offer phrase) pair sharing the most tokens, so the
+// reason cites the actual declared text rather than bare tokens.
+function bestPhrasePair(aSig, bSig, matched) {
+  const want = new Set(matched);
+  let best = null;
+  let bestHits = 0;
+  for (const sp of aSig.seekPhrases) {
+    const st = tokenize(sp);
+    for (const op of bSig.offerPhrases) {
+      const ot = tokenize(op);
+      let hits = 0;
+      for (const t of want) if (st.has(t) && ot.has(t)) hits++;
+      if (hits > bestHits) { bestHits = hits; best = { seek: sp, offer: op }; }
+    }
+  }
+  return best;
+}
+
+function saturate(n, k) {
+  return Math.min(1, n / k);
+}
+
+const MIN_SCORE = 0.18;
+
+// Score a single directional edge A -> B ("A should talk to B"). Returns the
+// scored edge or null when there's no meaningful signal. `ctx` carries
+// depByPair (Map "src::tgt" -> dependency record), clusterPairs (Set of
+// "id::id" co-membership), and activityById (Map id -> 0..1 recency).
+export function scoreEdge(aSig, bSig, ctx = {}) {
+  if (!aSig.id || !bSig.id || aSig.id === bSig.id) return null;
+
+  const matchedOffer = intersect(aSig.seeks, bSig.offers);
+  const matchedSkill = intersect(aSig.skills, bSig.skills);
+  const sharedCluster = !!(ctx.clusterPairs && ctx.clusterPairs.has(`${aSig.id}::${bSig.id}`));
+  const activity = (ctx.activityById && ctx.activityById.get(bSig.id)) || 0;
+
+  let raw = 0;
+  raw += 0.5 * saturate(matchedOffer.length, 2);
+  raw += 0.25 * saturate(matchedSkill.length, 3);
+  if (sharedCluster) raw += 0.1;
+  raw += 0.1 * activity;
+  let score = Math.min(0.88, raw); // leave headroom above non-dependency matches for declared deps
+
+  // A declared dependency is a known, human-reasoned link — it dominates.
+  const dep = ctx.depByPair && (ctx.depByPair.get(`${aSig.id}::${bSig.id}`) || ctx.depByPair.get(`${bSig.id}::${aSig.id}`));
+
+  let kind, reason, basis, evidence;
+  if (dep) {
+    kind = "dependency";
+    basis = "declared";
+    reason = dep.reason || `${aSig.name} and ${bSig.name} have a declared ${dep.relation || "dependency"} link.`;
+    evidence = [`dependency:${dep.record_id || `${aSig.id}-${bSig.id}`}`];
+    score = Math.max(score, 0.9);
+  } else if (matchedOffer.length) {
+    kind = "seeking-offering";
+    basis = "declared";
+    const pair = bestPhrasePair(aSig, bSig, matchedOffer);
+    reason = pair
+      ? `${aSig.name} is seeking "${pair.seek}"; ${bSig.name} offers "${pair.offer}".`
+      : `${aSig.name}'s needs (${matchedOffer.slice(0, 3).join(", ")}) line up with what ${bSig.name} offers.`;
+    evidence = [`${aSig.id}.seeks:${matchedOffer.slice(0, 4).join(",")}`];
+  } else if (matchedSkill.length >= 2) {
+    kind = "skill-overlap";
+    basis = "declared";
+    reason = `${aSig.name} and ${bSig.name} both work in ${matchedSkill.slice(0, 3).join(", ")} — peers worth comparing notes.`;
+    evidence = [`skills:${matchedSkill.slice(0, 4).join(",")}`];
+  } else if (sharedCluster) {
+    kind = "shared-cluster";
+    basis = "declared";
+    reason = `${aSig.name} and ${bSig.name} sit in the same neighbourhood of the cohort.`;
+    evidence = [`cluster:${aSig.id}+${bSig.id}`];
+  } else {
+    return null;
+  }
+
+  if (score < MIN_SCORE) return null;
+  return { from: aSig.id, to: bSig.id, score: Number(score.toFixed(3)), kind, reason, basis, evidence };
+}
+
+// Build the lookup context (declared dependencies, cluster co-membership,
+// activity recency) the scorer needs.
+export function buildContext({ dependencies = [], clusters = [], activityById = null } = {}) {
+  const depByPair = new Map();
+  for (const d of dependencies) {
+    const src = String(d.source || d.from || "");
+    const tgt = String(d.target || d.to || "");
+    if (src && tgt) depByPair.set(`${src}::${tgt}`, d);
+  }
+  const clusterPairs = new Set();
+  for (const c of clusters) {
+    const ids = (c.teams || []).map(String);
+    for (const x of ids) for (const y of ids) if (x !== y) clusterPairs.add(`${x}::${y}`);
+  }
+  return { depByPair, clusterPairs, activityById: activityById || new Map() };
+}
+
+// The full deterministic pass: score every ordered pair, keep the top `perRecord`
+// edges per source, drop weak ones. Returns a flat, newest-strongest-first edge
+// list. `perRecord` bounds fan-out so a hub doesn't dominate.
+export function deterministicEdges(records, { dependencies = [], clusters = [], activityById = null, perRecord = 6 } = {}) {
+  const sigs = (records || []).map(recordSignals).filter((s) => s.id);
+  const ctx = buildContext({ dependencies, clusters, activityById });
+  const bySource = new Map();
+  for (const a of sigs) {
+    const edges = [];
+    for (const b of sigs) {
+      const e = scoreEdge(a, b, ctx);
+      if (e) edges.push(e);
+    }
+    edges.sort((x, y) => y.score - x.score || String(x.to).localeCompare(String(y.to)));
+    bySource.set(a.id, edges.slice(0, perRecord));
+  }
+  const out = [];
+  for (const edges of bySource.values()) out.push(...edges);
+  return out;
+}
+
+// Merge an LLM-produced edge list over the deterministic one. LLM edges win on a
+// (from,to) collision (richer reasons), deterministic edges fill the gaps so the
+// graph is never thinner than the reliable baseline. Invalid LLM edges (unknown
+// ids, self-loops, junk scores) are dropped. Returns the merged flat list capped
+// per source.
+export function mergeEdges(llmEdges, deterministic, { validIds = null, perRecord = 6 } = {}) {
+  const ok = (id) => !validIds || validIds.has(id);
+  const key = (e) => `${e.from}::${e.to}`;
+  const merged = new Map();
+  for (const e of (Array.isArray(deterministic) ? deterministic : [])) {
+    if (e && e.from && e.to && e.from !== e.to && ok(e.from) && ok(e.to)) merged.set(key(e), e);
+  }
+  for (const raw of (Array.isArray(llmEdges) ? llmEdges : [])) {
+    if (!raw || typeof raw !== "object") continue;
+    const from = String(raw.from || "").trim();
+    const to = String(raw.to || "").trim();
+    if (!from || !to || from === to || !ok(from) || !ok(to)) continue;
+    let score = Number(raw.score);
+    if (!Number.isFinite(score)) score = 0.5;
+    score = Math.max(0, Math.min(1, score));
+    merged.set(key({ from, to }), {
+      from,
+      to,
+      score: Number(score.toFixed(3)),
+      kind: typeof raw.kind === "string" && raw.kind ? raw.kind : "llm",
+      reason: typeof raw.reason === "string" ? raw.reason.slice(0, 400) : "",
+      basis: "llm",
+      ...(Array.isArray(raw.evidence) ? { evidence: raw.evidence.filter((x) => typeof x === "string").slice(0, 6) } : {}),
+    });
+  }
+  // Cap per source.
+  const bySource = new Map();
+  for (const e of merged.values()) {
+    if (!bySource.has(e.from)) bySource.set(e.from, []);
+    bySource.get(e.from).push(e);
+  }
+  const out = [];
+  for (const edges of bySource.values()) {
+    edges.sort((x, y) => y.score - x.score || String(x.to).localeCompare(String(y.to)));
+    out.push(...edges.slice(0, perRecord));
+  }
+  return out;
+}
+
+// Robustly extract a JSON edge array from raw LLM stdout. Local CLIs wrap output
+// in prose / code fences / status lines, so we scan for the first balanced JSON
+// array or object containing an `edges` array. Never throws — returns [] on any
+// failure so the caller falls back to the deterministic graph.
+export function parseLlmEdges(text) {
+  if (!text || typeof text !== "string") return [];
+  const tryParse = (s) => { try { return JSON.parse(s); } catch { return null; } };
+
+  // 1) A fenced ```json ... ``` block.
+  const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidates = [];
+  if (fence) candidates.push(fence[1]);
+
+  // 2) The largest {...} or [...] span.
+  const firstObj = text.indexOf("{");
+  const lastObj = text.lastIndexOf("}");
+  if (firstObj !== -1 && lastObj > firstObj) candidates.push(text.slice(firstObj, lastObj + 1));
+  const firstArr = text.indexOf("[");
+  const lastArr = text.lastIndexOf("]");
+  if (firstArr !== -1 && lastArr > firstArr) candidates.push(text.slice(firstArr, lastArr + 1));
+
+  for (const c of candidates) {
+    const parsed = tryParse(c.trim());
+    if (!parsed) continue;
+    if (Array.isArray(parsed)) return parsed;
+    if (Array.isArray(parsed.edges)) return parsed.edges;
+    if (Array.isArray(parsed.connections)) return parsed.connections;
+  }
+  return [];
+}

@@ -119,6 +119,27 @@ contextBridge.exposeInMainWorld("api", {
     return () => ipcRenderer.removeListener("fg:swarm:status-changed", h);
   },
 
+  // ─── cohort chat (local AI CLI, no API key) ─────────────────────────
+  // Lifecycle: getCohortChatConfig (readiness) → cohortChatStart({prompt})
+  // → consume cohortChatOutput stream (chunks) → wait for
+  // fg:cohort-chat:status-changed { state:"idle", exitCode }. See
+  // cohort-chat-node.js + apps/os/src/renderer/cohort-chat.js.
+  cohortChatStatus:    ()  => ipcRenderer.invoke("fg:cohort-chat:status"),
+  cohortChatStart:     (o) => ipcRenderer.invoke("fg:cohort-chat:start", o || {}),
+  cohortChatStop:      ()  => ipcRenderer.invoke("fg:cohort-chat:stop"),
+  getCohortChatConfig: ()  => ipcRenderer.invoke("fg:cohort-chat:config:get"),
+  setCohortChatConfig: (o) => ipcRenderer.invoke("fg:cohort-chat:config:set", o || {}),
+  onCohortChatOutput: (cb) => {
+    const h = (_e, p) => { try { cb(p); } catch {} };
+    ipcRenderer.on("fg:cohort-chat:output", h);
+    return () => ipcRenderer.removeListener("fg:cohort-chat:output", h);
+  },
+  onCohortChatStatus: (cb) => {
+    const h = (_e, p) => { try { cb(p); } catch {} };
+    ipcRenderer.on("fg:cohort-chat:status-changed", h);
+    return () => ipcRenderer.removeListener("fg:cohort-chat:status-changed", h);
+  },
+
   // ─── easel · NDI projection (apps/os/easel-ndi.js) ──────────────────
   // listSources() enumerates screens/windows (main-side desktopCapturer);
   // start() opens an NDI sender; frame() ships one RGBA frame (await for

@@ -4973,6 +4973,30 @@ function constTeamTalkCandidates(team, ctx, max = 3) {
     candidates.push(row);
   };
 
+  // Precomputed, reasoned connection edges from the daily connection routine
+  // (applyConnectionsOverlay hangs them on `record.connections`). These are the
+  // highest-quality "who to talk to" signal — an LLM (or the deterministic
+  // engine) already ranked them with a written reason — so they go FIRST and win
+  // the per-team dedup slot over the client-side heuristic below. Absent (no
+  // overlay / offline) ⇒ this loop no-ops and the heuristic still runs, so the
+  // card never regresses. The target may be a team OR a person; resolve its name
+  // from the edge's carried toName when teamById can't (people aren't in it).
+  for (const c of (Array.isArray(team.connections) ? team.connections : [])) {
+    if (!c || !c.to) continue;
+    const other = teamById.get(c.to) || { record_id: c.to, name: c.toName || c.to };
+    const basisLabel = c.basis === "llm" ? "ai connector" : c.basis === "declared" ? "declared" : (c.basis || "connection");
+    addCandidate({
+      team: other,
+      edge: null,
+      score: 1000 + Math.round((Number(c.score) || 0) * 100),
+      basis: basisLabel,
+      action: constText(c.reason) || `Talk to ${other.name || other.record_id}.`,
+      detail: [c.kind ? String(c.kind).replace(/-/g, " ") : "", basisLabel].filter(Boolean).join(" · "),
+      sourceBacked: c.basis === "declared" || c.basis === "llm",
+      connection: true,
+    });
+  }
+
   for (const edge of edges) {
     const otherId = edge.from === team.record_id ? edge.to : edge.from;
     const other = teamById.get(otherId);
@@ -5020,7 +5044,10 @@ function constTeamTalkCandidates(team, ctx, max = 3) {
 }
 
 function constTeamActionCardHtml(team, ctx) {
-  const rows = constTeamTalkCandidates(team, ctx, 3);
+  // Show up to 4 when the precomputed connection graph has reasoned edges for
+  // this team (they're high-signal); otherwise the heuristic's usual 3.
+  const hasConn = Array.isArray(team?.connections) && team.connections.length > 0;
+  const rows = constTeamTalkCandidates(team, ctx, hasConn ? 4 : 3);
   return `
     <section class="ac-inspector-section ac-action-card is-talk-next">
       <h4>who should talk next</h4>
@@ -5030,10 +5057,11 @@ function constTeamActionCardHtml(team, ctx) {
             const dataAttrs = row.edge
               ? `data-const-edge-from="${escAttr(row.edge.from)}" data-const-edge-to="${escAttr(row.edge.to)}"`
               : `data-const-team="${escAttr(row.team.record_id)}"`;
+            const cls = row.connection ? " is-connection" : (row.sourceBacked ? " is-source-backed" : " is-profile-link");
             return `
-              <button type="button" class="ac-action-row${row.sourceBacked ? " is-source-backed" : " is-profile-link"}" ${dataAttrs}>
+              <button type="button" class="ac-action-row${cls}" ${dataAttrs}>
                 <strong>${escHtml(row.team.name || row.team.record_id)}</strong>
-                <p>${escHtml(constShortText(row.action, 170))}</p>
+                <p>${escHtml(constShortText(row.action, 200))}</p>
                 ${row.detail ? `<small>${escHtml(constShortText(row.detail, 140))}</small>` : ""}
               </button>`;
           }).join("")}
