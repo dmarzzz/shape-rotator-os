@@ -109,6 +109,46 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: node scripts/publish-calendar-grid-to-supabase.mjs
 
+      # ----------------------------------------------------------------------
+      # Self-arm capture on EVERY future cohort event, however it was created
+      # (Shape OS app, or an admin editing the shared calendar natively in
+      # Google). Neither creation path arms transcription at creation time, so
+      # without this the only events that ever capture a transcript are the ones
+      # a manual `watch-renewal` dispatch happened to cover. These two steps are
+      # the documented reconciler pair (calendar:meet-links + meet-auto-artifacts)
+      # and run AFTER the live Supabase publish above, so an arming failure can
+      # never block the schedule. They mutate Google only — no repo files are
+      # written, no push paths are added — so they cannot cause a drift commit,
+      # a Vercel build, or a workflow loop. In-progress meetings are excluded
+      # (selection requires start >= now), so a live session is never disturbed.
+      - name: compute reconciliation window
+        id: window
+        run: echo "time_min=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: ensure future Google Meet links
+        # Attach a Meet link to every future event that lacks one (a link is the
+        # prerequisite for arming transcription). Idempotent: events that already
+        # have a Meet link are skipped. sendUpdates=none, so guests get no email.
+        env:
+          GOOGLE_CALENDAR_ID: ${{ secrets.GOOGLE_CALENDAR_ID }}
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
+        run: npm run calendar:meet-links:google -- --apply --time-min "${{ steps.window.outputs.time_min }}"
+
+      - name: ensure future Meet transcription
+        # Arm Google Meet auto-transcription (transcript ON; recording and smart
+        # notes left untouched) on every future event. --skip-if-missing-scope
+        # makes this a clean no-op if Cube's token lacks meetings.space.settings,
+        # rather than failing the run.
+        env:
+          GOOGLE_CALENDAR_ID: ${{ secrets.GOOGLE_CALENDAR_ID }}
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
+          GOOGLE_OAUTH_SCOPES: ${{ secrets.GOOGLE_OAUTH_SCOPES }}
+        run: npm run calendar:meet-auto-artifacts:google -- --apply --time-min "${{ steps.window.outputs.time_min }}" --skip-if-missing-scope
+
       - name: rebuild apps/os/src/cohort-surface.json
         # cohort-surface.json is the bundled snapshot the web mirror reads
         # at /cohort-surface.json (vendor:web copies it at Vercel build).
