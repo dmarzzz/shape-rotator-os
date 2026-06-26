@@ -184,22 +184,78 @@ export function buildPresenceLane(people, { startMs, endMs, nowMs, sampleDays = 
   return { trackKey: "presence", dim: "people", value: "in town", label: "people · in town", samples, total };
 }
 
+// ── session-insights lane (distilled transcript evidence over time) ──────────
+// Each distilled session-insight card placed on the axis at its week, anchored to
+// the team it's attributed to (declared content_json.teams, or the inferred
+// teams attributeInsightCards() attaches). This is what makes the live transcript
+// content legible AS PROGRESS — the dossier's "events over time" shown cohort-wide
+// on the shared axis. Empty (no cards / none team-attributed) ⇒ no lane, so the
+// timeline degrades to the v1 activity/standing/presence set with no change.
+function cardWeekMs(card, startMs) {
+  const cj = card && card.content_json && typeof card.content_json === "object" ? card.content_json : {};
+  const raw = String(cj.week_start || cj.date || "").slice(0, 10);
+  const ms = parseMs(raw);
+  return Number.isFinite(ms) ? ms : NaN;
+}
+export function buildInsightLane(evidenceCards, teamNameById = {}, { startMs, endMs, nowMs } = {}) {
+  const names = teamNameById instanceof Map ? teamNameById : new Map(Object.entries(teamNameById || {}));
+  const list = Array.isArray(evidenceCards) ? evidenceCards : [];
+  const items = [];
+  for (const card of list) {
+    if (!card || typeof card !== "object") continue;
+    const cj = card.content_json && typeof card.content_json === "object" ? card.content_json : {};
+    const teams = Array.isArray(cj.teams) ? cj.teams.map((t) => String(t || "").trim()).filter(Boolean) : [];
+    if (!teams.length) continue; // unattributed cards have no place on a per-team axis
+    const ms = cardWeekMs(card, startMs);
+    if (!Number.isFinite(ms)) continue;
+    const team = teams[0];
+    const title = String(card.claim_text || card.title || "session insight");
+    items.push({
+      id: `insight:${cj.week_start || cj.date || ""}:${team}:${slug(title).slice(0, 24)}`,
+      startMs: ms,
+      endMs: null,
+      trackKey: "insights",
+      category: "insight",
+      team,
+      person: null,
+      title,
+      detail: (names.get(team) || team) + (teams.length > 1 ? ` +${teams.length - 1}` : ""),
+      detailRef: { nav: { mode: "shapes", recordId: team } },
+      tier: "public",
+      basis: cj.teams_basis === "inferred" ? "inferred" : "declared",
+      shape: "point",
+      fraction: axisFraction(ms, startMs, endMs),
+      endFraction: null,
+      isFuture: ms > nowMs,
+    });
+  }
+  items.sort((a, b) => a.startMs - b.startMs);
+  return { trackKey: "insights", dim: "category", value: "insights", label: "session insights", items };
+}
+
 // ── assembler ────────────────────────────────────────────────────────────────
-// The v1 default lane set (activity + standing + presence) plus the shared axis
-// descriptor. The renderer injects the canonical program window and nowMs.
-export function buildDefaultTimeline({ whatsNew, standingWeekly, people } = {}, { startMs, endMs, nowMs } = {}) {
+// The default lane set (activity + standing + presence, plus a session-insights
+// lane when distilled evidence is present) on the shared axis. The renderer
+// injects the canonical program window + nowMs and may pass evidenceCards (the
+// attributed transcript_evidence_cards) + teamNameById for the insights lane.
+export function buildDefaultTimeline(
+  { whatsNew, standingWeekly, people, evidenceCards, teamNameById } = {},
+  { startMs, endMs, nowMs } = {},
+) {
   const axis = {
     startMs,
     endMs,
     nowMs,
     nowFraction: axisFraction(nowMs, startMs, endMs),
   };
-  return {
-    axis,
-    lanes: [
-      buildActivityLane(whatsNew, { startMs, endMs, nowMs }),
-      buildStandingLane(standingWeekly, { startMs, endMs }),
-      buildPresenceLane(people, { startMs, endMs, nowMs }),
-    ],
-  };
+  const lanes = [
+    buildActivityLane(whatsNew, { startMs, endMs, nowMs }),
+    buildStandingLane(standingWeekly, { startMs, endMs }),
+    buildPresenceLane(people, { startMs, endMs, nowMs }),
+  ];
+  // Only surface the insights lane when it actually has placeable items, so the
+  // v1 three-lane default is unchanged when there's no attributed evidence.
+  const insights = buildInsightLane(evidenceCards, teamNameById, { startMs, endMs, nowMs });
+  if (insights.items.length) lanes.splice(1, 0, insights); // sit it right under activity
+  return { axis, lanes };
 }

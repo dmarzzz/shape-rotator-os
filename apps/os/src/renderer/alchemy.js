@@ -56,10 +56,11 @@ import {
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable, refreshCohortFromGithub } from "./cohort-source.js";
 import { readSupabaseConfig, persistCohortKeyOverride } from "./supabase-evidence.mjs";
 import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
-import { indexCohortEvidence, teamEvidence, recentClaims, teamTimeline, claimLane } from "./cohort-evidence-index.mjs";
+import { indexCohortEvidence, teamEvidence, recentClaims, teamTimeline, claimLane, teamProgressRollup } from "./cohort-evidence-index.mjs";
 import { cardTraceBodyHtml, cardTraceHtml } from "./cohort-trace-view.mjs";
 import { getCohortTimeline } from "./cohort-timeline.js";
-import { isPresent } from "./cohort-timeline-tracks.mjs";
+import { isPresent, buildDefaultTimeline } from "./cohort-timeline-tracks.mjs";
+import { renderTimelineLanesHtml } from "./cohort-timeline-render.mjs";
 import { getStandingWeekly } from "./cohort-standing-weekly.js";
 import { periodScrubberHtml, wireScrubber, weekStopsFrom, snapshotStopsFrom } from "./cohort-period-scrubber.mjs";
 import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
@@ -71,6 +72,8 @@ import {
   isAskMine, normalizeAskIdentity, resolveAskAuthor, resolveAskIdentityPerson,
   askVerbVars, askVerbIconSvg,
 } from "./asks.js";
+import { submitContest } from "./supabase-contest.mjs";
+import { openSelfReport } from "./self-report.js";
 import { createLazyModule } from "./lazy-module.js";
 import { loadStylesheetOnce } from "./stylesheet-loader.js";
 
@@ -87,12 +90,18 @@ const CONST_SIZE_LS_KEY = "srwk:const_size"; // bubble map size channel: "maturi
 const CONST_DOMAIN_FILTER_LS_KEY = "srwk:const_domain"; // bubble map colour isolate: "all" | "tee" | "ai" | "crypto" | "app-ux"
 const CONST_RAIL_LS_KEY = "srwk:const_rail_w"; // user-dragged inspector rail width (px); null = default clamp
 const CONST_RAIL_MIN = 220, CONST_RAIL_MAX = 480;
-function clampConstRail(v) {
-  if (v == null || v === "") return null; // no stored width → use the CSS clamp default
+const COLLAB_RAIL_LS_KEY = "srwk:collab_rail_w"; // collab board help-rail width (px); null = default clamp
+const COLLAB_RAIL_MIN = 280, COLLAB_RAIL_MAX = 520;
+// Shared clamp for both draggable rails (constellation inspector + collab help-rail).
+// null = no stored width → fall back to the CSS clamp default.
+function clampRail(v, min, max) {
+  if (v == null || v === "") return null;
   const n = Number(v);
   if (!Number.isFinite(n)) return null;
-  return Math.max(CONST_RAIL_MIN, Math.min(CONST_RAIL_MAX, Math.round(n)));
+  return Math.max(min, Math.min(max, Math.round(n)));
 }
+function clampConstRail(v) { return clampRail(v, CONST_RAIL_MIN, CONST_RAIL_MAX); }
+function clampCollabRail(v) { return clampRail(v, COLLAB_RAIL_MIN, COLLAB_RAIL_MAX); }
 const PROFILE_LS_KEY  = "srwk:profile_v1";
 const EVENTS_LS_KEY   = "srwk:cohort_events_v1";
 const DETAIL_LS_KEY   = "srwk:alchemy_detail_v1";
@@ -290,6 +299,7 @@ const state = {
   constellationSizeBy: "maturity", // bubble map size channel; persisted to CONST_SIZE_LS_KEY
   constDomainFilter: "all", // bubble map: isolate one domain colour; persisted to CONST_DOMAIN_FILTER_LS_KEY
   constRailW: null, // user-dragged inspector rail width in px (null = default clamp); CONST_RAIL_LS_KEY
+  collabRailW: null, // user-dragged collab help-rail width in px (null = default clamp); COLLAB_RAIL_LS_KEY
   constGrainDeep: false,   // clusters grain, deepest zoom band: reveal ALL team labels at rest
   constGrainManual: false, // user picked a band-less grain ("skills"); zoom won't fight it until the next zoom gesture
   constSelection: null,       // persistent constellation inspector selection: { type:"team"|"person", rid } | { type:"edge", from, to }
@@ -358,6 +368,7 @@ export function mount(container) {
     state.constellationSizeBy = constNormalizeSizeBy(localStorage.getItem(CONST_SIZE_LS_KEY));
     state.constDomainFilter = constNormalizeDomainFilter(localStorage.getItem(CONST_DOMAIN_FILTER_LS_KEY));
     state.constRailW = clampConstRail(localStorage.getItem(CONST_RAIL_LS_KEY));
+    state.collabRailW = clampCollabRail(localStorage.getItem(COLLAB_RAIL_LS_KEY));
     const savedInterest = localStorage.getItem(CONST_INTEREST_LS_KEY);
     if (savedInterest) state.constInterest = savedInterest;
     const savedProgramPage = localStorage.getItem(PROGRAM_PAGE_LS_KEY);
@@ -695,11 +706,25 @@ export function getRecordTitle(recordId) {
 //                              record_id: "<slug>",
 //                              mode: "edit"|"add" })
 // Switches to the alchemy tab + profile mode, sets editor state, renders.
+// A one-shot prefill (e.g. from the self-report modal) merged onto a freshly
+// seeded person editDraft. The caller has already whitelisted the fields; here we
+// just merge them and clear the patch so it applies exactly once.
+function applyPendingDraftPatch(p) {
+  const patch = p && p.pendingDraftPatch;
+  if (p) p.pendingDraftPatch = null;
+  if (!patch || !p.editDraft) return;
+  if (patch.record_id && String(patch.record_id) !== String(p.editTargetId)) return;
+  const fields = patch.fields && typeof patch.fields === "object" ? patch.fields : {};
+  for (const [k, v] of Object.entries(fields)) p.editDraft[k] = v;
+}
+
 window.__srwkOpenProfile = function openProfileExternal(opts = {}) {
   const kind = (opts.kind === "team" || opts.kind === "project" || opts.kind === "person") ? opts.kind : "person";
   const mode = (opts.mode === "add") ? "add" : "edit";
   // Make sure profile state exists (may be called before alchemy mounts).
   if (!state.profile) loadProfile();
+  // A one-shot prefill merged into the edit draft when it's seeded (loadEditTarget).
+  state.profile.pendingDraftPatch = (opts.draftPatch && typeof opts.draftPatch === "object") ? opts.draftPatch : null;
   state.profile.editKind = kind;
   state.profile.editMode = mode;
   if (mode === "edit" && opts.record_id) {
@@ -3130,13 +3155,14 @@ const CONST_VIEWS = [
   // is now the "gap to target" toggle inside standing. Mode kept valid in
   // constNormalizeConstellationMode so old deep-links still resolve.
   { mode: "shipped", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>', label: "say / did / shipped", hint: "intent vs public proof" },
+  { mode: "timeline", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" x2="21" y1="6" y2="6"/><line x1="3" x2="21" y1="12" y2="12"/><line x1="3" x2="21" y1="18" y2="18"/><circle cx="8" cy="6" r="1.4" fill="currentColor"/><circle cx="15" cy="12" r="1.4" fill="currentColor"/><circle cx="11" cy="18" r="1.4" fill="currentColor"/></svg>', label: "timeline", hint: "activity, insights, standing & presence on one axis" },
 ];
 function constNormalizeConstellationMode(raw) {
   const mode = String(raw || "").toLowerCase();
   // The node-link "ring"/"map" layouts are retired in favour of the nested
   // bubble map; old saved state and deep-links resolve to the relationship map.
   if (mode === "circle" || mode === "ring" || mode === "wells" || mode === "clusters" || mode === "dependencies" || mode === "source") return "map";
-  if (mode === "journey" || mode === "stack" || mode === "targets" || mode === "shipped" || mode === "collab") return mode;
+  if (mode === "journey" || mode === "stack" || mode === "targets" || mode === "shipped" || mode === "collab" || mode === "timeline") return mode;
   return "map";
 }
 // The cohort views used to render as an in-page tab strip here
@@ -4949,6 +4975,30 @@ function constTeamTalkCandidates(team, ctx, max = 3) {
     candidates.push(row);
   };
 
+  // Precomputed, reasoned connection edges from the daily connection routine
+  // (applyConnectionsOverlay hangs them on `record.connections`). These are the
+  // highest-quality "who to talk to" signal — an LLM (or the deterministic
+  // engine) already ranked them with a written reason — so they go FIRST and win
+  // the per-team dedup slot over the client-side heuristic below. Absent (no
+  // overlay / offline) ⇒ this loop no-ops and the heuristic still runs, so the
+  // card never regresses. The target may be a team OR a person; resolve its name
+  // from the edge's carried toName when teamById can't (people aren't in it).
+  for (const c of (Array.isArray(team.connections) ? team.connections : [])) {
+    if (!c || !c.to) continue;
+    const other = teamById.get(c.to) || { record_id: c.to, name: c.toName || c.to };
+    const basisLabel = c.basis === "llm" ? "ai connector" : c.basis === "declared" ? "declared" : (c.basis || "connection");
+    addCandidate({
+      team: other,
+      edge: null,
+      score: 1000 + Math.round((Number(c.score) || 0) * 100),
+      basis: basisLabel,
+      action: constText(c.reason) || `Talk to ${other.name || other.record_id}.`,
+      detail: [c.kind ? String(c.kind).replace(/-/g, " ") : "", basisLabel].filter(Boolean).join(" · "),
+      sourceBacked: c.basis === "declared" || c.basis === "llm",
+      connection: true,
+    });
+  }
+
   for (const edge of edges) {
     const otherId = edge.from === team.record_id ? edge.to : edge.from;
     const other = teamById.get(otherId);
@@ -4996,7 +5046,10 @@ function constTeamTalkCandidates(team, ctx, max = 3) {
 }
 
 function constTeamActionCardHtml(team, ctx) {
-  const rows = constTeamTalkCandidates(team, ctx, 3);
+  // Show up to 4 when the precomputed connection graph has reasoned edges for
+  // this team (they're high-signal); otherwise the heuristic's usual 3.
+  const hasConn = Array.isArray(team?.connections) && team.connections.length > 0;
+  const rows = constTeamTalkCandidates(team, ctx, hasConn ? 4 : 3);
   return `
     <section class="ac-inspector-section ac-action-card is-talk-next">
       <h4>who should talk next</h4>
@@ -5006,10 +5059,11 @@ function constTeamActionCardHtml(team, ctx) {
             const dataAttrs = row.edge
               ? `data-const-edge-from="${escAttr(row.edge.from)}" data-const-edge-to="${escAttr(row.edge.to)}"`
               : `data-const-team="${escAttr(row.team.record_id)}"`;
+            const cls = row.connection ? " is-connection" : (row.sourceBacked ? " is-source-backed" : " is-profile-link");
             return `
-              <button type="button" class="ac-action-row${row.sourceBacked ? " is-source-backed" : " is-profile-link"}" ${dataAttrs}>
+              <button type="button" class="ac-action-row${cls}" ${dataAttrs}>
                 <strong>${escHtml(row.team.name || row.team.record_id)}</strong>
-                <p>${escHtml(constShortText(row.action, 170))}</p>
+                <p>${escHtml(constShortText(row.action, 200))}</p>
                 ${row.detail ? `<small>${escHtml(constShortText(row.detail, 140))}</small>` : ""}
               </button>`;
           }).join("")}
@@ -5992,34 +6046,42 @@ function constRailStyleAttr() {
   const w = clampConstRail(state.constRailW);
   return w == null ? "" : ` style="--const-rail-w:${w}px"`;
 }
+// Collab help-rail equivalents — same mechanic, its own width var + clamp so the
+// board's rail width persists independently of the constellation inspector.
+function collabRailStyleAttr() {
+  const w = clampCollabRail(state.collabRailW);
+  return w == null ? "" : ` style="--collab-rail-w:${w}px"`;
+}
 // Drag handle living in the workbench column gap (NOT inside the scrolling
 // inspector, which would clip it): pointer-drag — or ←/→ keys — resizes the
 // inspector against the map. Width persists; wired in wireConstellationHover.
 function constRailHandleHtml() {
   return `<div class="ac-rail-resize" role="separator" aria-orientation="vertical" aria-label="Resize inspector — drag, or use arrow keys" tabindex="0"></div>`;
 }
-// Pointer + keyboard controller for the inspector rail handle. The rail sits on
-// the RIGHT, so dragging the handle LEFT widens it (deltaX is negated). Commits
-// to state + localStorage on release so the width survives re-renders.
-function wireConstRailResize() {
+function collabRailHandleHtml() {
+  return `<div class="cb-rail-resize" role="separator" aria-orientation="vertical" aria-label="Resize help panel — drag, or use arrow keys" tabindex="0"></div>`;
+}
+// Pointer + keyboard controller for a draggable rail handle, shared by the
+// constellation inspector and the collab help-rail. The rail sits on the RIGHT,
+// so dragging the handle LEFT widens it (deltaX is negated). Commits to state +
+// localStorage on release so the width survives re-renders. Each caller supplies
+// its own selectors, CSS width var, clamp, and commit (state field + LS key).
+function wireRailResize({ handleSel, workbenchSel, railSel, cssVar, clamp, commit }) {
   if (!state.canvas) return;
-  const handle = state.canvas.querySelector(".ac-rail-resize");
+  const handle = state.canvas.querySelector(handleSel);
   if (!handle) return;
-  const workbench = handle.closest(".alch-const-workbench");
-  const railEl = workbench?.querySelector(".ac-inspector");
+  const workbench = handle.closest(workbenchSel);
+  const railEl = workbench?.querySelector(railSel);
   if (!workbench || !railEl) return;
-  const commit = (w) => {
-    const cw = clampConstRail(w);
+  const doCommit = (w) => {
+    const cw = clamp(w);
     if (cw == null) return;
-    state.constRailW = cw;
-    workbench.style.setProperty("--const-rail-w", `${cw}px`);
-    try { localStorage.setItem(CONST_RAIL_LS_KEY, String(cw)); } catch {}
+    commit(cw, workbench);
   };
   let startX = 0, startW = 0, pid = null;
   const onMove = (e) => {
-    // Live preview while dragging — set the var without persisting every frame.
-    const next = clampConstRail(startW + (startX - e.clientX));
-    if (next != null) workbench.style.setProperty("--const-rail-w", `${next}px`);
+    const next = clamp(startW + (startX - e.clientX));
+    if (next != null) workbench.style.setProperty(cssVar, `${next}px`);
   };
   const onUp = (e) => {
     workbench.classList.remove("is-rail-dragging");
@@ -6027,7 +6089,7 @@ function wireConstRailResize() {
     handle.removeEventListener("pointermove", onMove);
     handle.removeEventListener("pointerup", onUp);
     handle.removeEventListener("pointercancel", onUp);
-    commit(startW + (startX - e.clientX));
+    doCommit(startW + (startX - e.clientX));
     pid = null;
   };
   handle.addEventListener("pointerdown", (e) => {
@@ -6035,7 +6097,7 @@ function wireConstRailResize() {
     e.preventDefault();
     pid = e.pointerId;
     startX = e.clientX;
-    startW = railEl.getBoundingClientRect().width; // actual rendered width (clamp or var)
+    startW = railEl.getBoundingClientRect().width;
     workbench.classList.add("is-rail-dragging");
     try { handle.setPointerCapture(pid); } catch {}
     handle.addEventListener("pointermove", onMove);
@@ -6051,7 +6113,35 @@ function wireConstRailResize() {
     e.preventDefault();
     e.stopPropagation(); // don't let ←/→ bubble to the global view-tab cycler
     const cur = railEl.getBoundingClientRect().width;
-    commit(cur + dir * step);
+    doCommit(cur + dir * step);
+  });
+}
+function wireConstRailResize() {
+  wireRailResize({
+    handleSel: ".ac-rail-resize",
+    workbenchSel: ".alch-const-workbench",
+    railSel: ".ac-inspector",
+    cssVar: "--const-rail-w",
+    clamp: clampConstRail,
+    commit: (cw, workbench) => {
+      state.constRailW = cw;
+      workbench.style.setProperty("--const-rail-w", `${cw}px`);
+      try { localStorage.setItem(CONST_RAIL_LS_KEY, String(cw)); } catch {}
+    },
+  });
+}
+function wireCollabRailResize() {
+  wireRailResize({
+    handleSel: ".cb-rail-resize",
+    workbenchSel: ".cb-workbench",
+    railSel: ".cb-rail",
+    cssVar: "--collab-rail-w",
+    clamp: clampCollabRail,
+    commit: (cw, workbench) => {
+      state.collabRailW = cw;
+      workbench.style.setProperty("--collab-rail-w", `${cw}px`);
+      try { localStorage.setItem(COLLAB_RAIL_LS_KEY, String(cw)); } catch {}
+    },
   });
 }
 
@@ -7119,10 +7209,204 @@ function detailEvidenceSignals(recordId) {
   return items.length ? `<ul class="ac-detail-evidence" style="margin:.2em 0 0;padding-left:1.1em;opacity:.85">${items.join("")}</ul>` : "";
 }
 
+// ── "Your Mirror" — the member's own say → did → shipped, with a contest. ─────
+// The public, member-facing face of the coordination-OS framework: a member sees
+// what THEY declared vs what their team's public repo shows, and can push back
+// (move 5). Framed as a self-mirror, never a score — the only ask is "update your
+// declaration / add the missing context". Everything rendered here is the same
+// public_bundle data already on the surface; the contest write is the
+// os_feedback-style anon box (supabase-contest.mjs). Sits atop the shipped view.
+
+const MIRROR_KIND_LABELS = {
+  stale_declaration: "my declared focus is out of date",
+  off_github_work: "I shipped it — just not on public GitHub",
+  wrong_attribution: "those commits aren’t mine",
+  context_missing: "the number reads wrong without context",
+};
+function mirrorKindLabel(kind) { return MIRROR_KIND_LABELS[kind] || String(kind || ""); }
+
+// The calibration line (framework move 7), surfaced TO the member as a prompt,
+// never a rank. Pure function over the card's content_json — declared `say` vs the
+// observed public_activity topics. It never expresses a deficiency or a score; the
+// only call to action is for the member to make the public record more accurate.
+function mirrorCalibrationLine(card) {
+  const content = insightContent(card);
+  const act = sdsActivity(card);
+  if (!sdsObserved(card)) {
+    return {
+      tone: "unobserved",
+      text: "Your public trace here is just your declared fields — the cohort can’t see GitHub build activity for you. That’s expected if your repo is private or off-platform. If you’re shipping elsewhere, flag it so the record reflects it.",
+    };
+  }
+  const say = String(content.say || "").toLowerCase();
+  const topics = (Array.isArray(act.topics) ? act.topics : [])
+    .map(t => String(t?.key || "").trim()).filter(Boolean);
+  const fresh = topics.filter(t => t && !say.includes(t.toLowerCase()));
+  if (topics.length && fresh.length === topics.length) {
+    return {
+      tone: "drift",
+      text: `Your repo shows ${fresh.slice(0, 2).join(" / ")} activity your declared focus doesn’t mention. If your focus has moved, update your “now” so the cohort sees what you’re actually building.`,
+    };
+  }
+  return {
+    tone: "aligned",
+    text: "Your declared focus and your observed public work line up — nothing to update.",
+  };
+}
+
+// A plain-text GitHub signal for the self-report, derived from the member's own
+// say/did/shipped card (already public) — so the github side needs no new scan.
+function mirrorGithubDigest(card) {
+  if (!card) return "";
+  const c = insightContent(card);
+  const act = sdsActivity(card);
+  const parts = [];
+  if (c.did) parts.push(`did: ${constShortText(c.did, 200)}`);
+  if (c.shipped) parts.push(`shipped: ${constShortText(c.shipped, 200)}`);
+  const topics = (Array.isArray(act.topics) ? act.topics : [])
+    .map((t) => String(t?.key || "").trim()).filter(Boolean).slice(0, 6);
+  if (topics.length) parts.push(`topics: ${topics.join(", ")}`);
+  const rc = sdsNumber(act, "release_count");
+  const cc = sdsNumber(act, "useful_commit_count");
+  if (rc || cc) parts.push(`activity: ${cc} useful commits, ${rc} releases`);
+  return parts.join("\n");
+}
+
+// The panel HTML, or "" when there is no resolved member, no team, or no card —
+// in every empty case the shipped grid below renders unchanged.
+function mirrorPanelHtml(myPerson, cardByTeam) {
+  if (!myPerson) return "";
+  const teamId = myPerson.team ? String(myPerson.team) : "";
+  const card = teamId ? cardByTeam.get(teamId) : null;
+  if (!card) return "";
+  const cohort = activeConstellationCohort();
+  const team = (cohort.teams || []).find(t => t && t.record_id === teamId) || { record_id: teamId, name: teamId };
+  const content = insightContent(card);
+  const observedClass = sdsObserved(card) ? " is-observed" : " is-declared";
+  const cal = mirrorCalibrationLine(card);
+  // The concrete numbers behind "did"/"shipped" — the same chips + activity mix the
+  // grid rows show, so the member sees the actual metrics, not just prose — plus the
+  // card's reasoning trace (move 8) for a "how this reads" disclosure.
+  const act = sdsActivity(card);
+  const relCount = sdsNumber(act, "release_count");
+  const commitCount = sdsNumber(act, "useful_commit_count");
+  const releasedHtml = sdsShippedReleasesHtml(teamId);
+  const mixHtml = sdsActivityMixHtml(act);
+  const chips = [
+    (relCount && !releasedHtml) ? `<span class="ac-sds-chip"><strong>${relCount}</strong> rel</span>` : "",
+    commitCount ? `<span class="ac-sds-chip"><strong>${commitCount}</strong> commits</span>` : "",
+  ].filter(Boolean).join("");
+  const traceBody = cardTraceBodyHtml(card);
+  const contested = (state.mirrorContests && state.mirrorContests[teamId]) || null;
+  const kindOpts = Object.keys(MIRROR_KIND_LABELS)
+    .map(k => `<option value="${escAttr(k)}">${escHtml(mirrorKindLabel(k))}</option>`).join("");
+  const tail = contested
+    ? `<p class="ac-mirror-contested">✓ you flagged this — “${escHtml(mirrorKindLabel(contested.kind))}”. It’ll be reviewed; update your profile so the public record matches.</p>`
+    : `<button type="button" class="ac-mirror-flag" data-mirror-flag>this doesn’t look right →</button>
+       <div class="ac-mirror-contest" data-mirror-contest hidden>
+         <select data-mirror-kind-sel aria-label="what’s off">${kindOpts}</select>
+         <textarea data-mirror-note maxlength="2000" placeholder="optional: what should it say instead? (e.g. the repo is private, or your focus moved to X)"></textarea>
+         <div class="ac-mirror-actions">
+           <button type="button" class="ac-mirror-send" data-mirror-send>send correction</button>
+           <span class="ac-mirror-status" data-mirror-status aria-live="polite"></span>
+         </div>
+       </div>`;
+  return `
+    <section class="ac-mirror" data-mirror data-mirror-subject="${escAttr(teamId)}" data-mirror-card="${escAttr(card.id || "")}">
+      <div class="ac-mirror-head">
+        <span class="ac-mirror-eyebrow">your mirror</span>
+        <span class="ac-mirror-team">${escHtml(team.name || teamId)}</span>
+      </div>
+      <div class="ac-mirror-strip">
+        <span class="ac-sds-cell"><b>you said</b><span>${escHtml(constShortText(content.say || team.now || team.focus || "not declared", 160))}</span></span>
+        <span class="ac-sds-cell${observedClass}"><b>repo shows</b><span>${escHtml(constShortText(content.did || "not observed", 160))}</span>${mixHtml}</span>
+        <span class="ac-sds-cell${observedClass}"><b>shipped</b><span>${escHtml(constShortText(content.shipped || "not observed", 160))}</span>${chips ? `<span class="ac-sds-chips">${chips}</span>` : ""}${releasedHtml}</span>
+      </div>
+      <p class="ac-mirror-cal" data-tone="${escAttr(cal.tone)}">${escHtml(cal.text)}</p>
+      <div class="ac-mirror-actions-row"><button type="button" class="ac-mirror-update" data-mirror-update>✨ update from my recent work</button></div>
+      ${traceBody ? `<details class="ac-mirror-trace"><summary>how this reads</summary><div class="ac-mirror-trace-body">${traceBody}</div></details>` : ""}
+      ${tail}
+    </section>`;
+}
+
+// Coarse, non-identifying app context for the contest write (same source the
+// membrane feedback box uses); both columns are nullable, so a miss is harmless.
+async function mirrorAppContext() {
+  try {
+    const info = await window.api?.getAppInfo?.();
+    if (info && typeof info === "object") return { appVersion: info.version || null, platform: info.platform || null };
+  } catch {}
+  return { appVersion: null, platform: null };
+}
+
+// Post-render wiring for the mirror panel (the asks-board idiom: query the freshly
+// rendered canvas, attach listeners). The optimistic chip is persisted in
+// state.mirrorContests so it survives a later full re-render (e.g. tab switch).
+function wireMirrorPanel() {
+  const root = state.canvas.querySelector("[data-mirror]");
+  if (!root) return;
+  const flagBtn = root.querySelector("[data-mirror-flag]");
+  const form = root.querySelector("[data-mirror-contest]");
+  const sendBtn = root.querySelector("[data-mirror-send]");
+  const kindSel = root.querySelector("[data-mirror-kind-sel]");
+  const noteEl = root.querySelector("[data-mirror-note]");
+  const statusEl = root.querySelector("[data-mirror-status]");
+  if (flagBtn && form) {
+    flagBtn.addEventListener("click", () => {
+      form.hidden = false;
+      flagBtn.hidden = true;
+      try { noteEl?.focus(); } catch {}
+    });
+  }
+  if (sendBtn) {
+    sendBtn.addEventListener("click", async () => {
+      if (sendBtn.disabled) return;
+      const subjectId = root.getAttribute("data-mirror-subject");
+      const contestKind = (kindSel && kindSel.value) || "stale_declaration";
+      const note = noteEl ? noteEl.value : "";
+      sendBtn.disabled = true;
+      if (statusEl) statusEl.textContent = "sending…";
+      const ctx = await mirrorAppContext();
+      const res = await submitContest({
+        subjectId,
+        cardKind: "say_did_shipped",
+        cardId: root.getAttribute("data-mirror-card") || null,
+        contestKind,
+        note,
+        appVersion: ctx.appVersion,
+        platform: ctx.platform,
+      });
+      if (res && res.ok) {
+        state.mirrorContests = state.mirrorContests || {};
+        state.mirrorContests[subjectId] = { kind: contestKind, note };
+        renderSayDidShipped(); // re-render so the rebuttal travels with the claim
+      } else {
+        sendBtn.disabled = false;
+        if (statusEl) {
+          statusEl.textContent = res && res.error === "unconfigured"
+            ? "contest isn’t set up here."
+            : "couldn’t send — try again.";
+        }
+      }
+    });
+  }
+  const updateBtn = root.querySelector("[data-mirror-update]");
+  if (updateBtn) {
+    updateBtn.addEventListener("click", () => {
+      const { myPerson } = currentAskContext();
+      if (!myPerson) return;
+      const card = cohortInsightSubjectMap("say_did_shipped").get(myPerson.team);
+      openSelfReport({ person: myPerson, githubDigest: mirrorGithubDigest(card) });
+    });
+  }
+}
+
 function renderSayDidShipped() {
   const cohort = activeConstellationCohort();
   const teams = (cohort.teams || []).filter(t => t && t.record_id && teamKind(t) !== "person");
   const cardByTeam = cohortInsightSubjectMap("say_did_shipped");
+  const { myPerson } = currentAskContext();
+  const mirrorHtml = mirrorPanelHtml(myPerson, cardByTeam);
   const rows = teams
     .map(team => ({ team, card: cardByTeam.get(team.record_id) || null }))
     .filter(row => row.card)
@@ -7211,6 +7495,7 @@ function renderSayDidShipped() {
     <div class="alch-cohort-page" data-cohort-view="shipped">
       ${cohortPageHead("shipped")}
       <div class="alch-view-controls" data-shape-occluder>${sentenceBar}${programScrubberHtml({ needsSnapshots: true })}</div>
+      ${mirrorHtml}
       <div class="alch-constellation" data-constellation-view="shipped">
         <div class="alch-const-workbench is-single">
           <div class="alch-const-main">
@@ -7225,6 +7510,7 @@ function renderSayDidShipped() {
         </div>
       </div>
     </div>`;
+  wireMirrorPanel();
 }
 
 function renderProductStack() {
@@ -7903,6 +8189,71 @@ function constBubbleContainerSvg(c, accentStyle, dim = false) {
 // ones stay hover-only so the at-rest map doesn't collapse into a name pile.
 const BUBBLE_LABEL_R_MIN = 12.5;
 
+// Cohort Timeline lane view — activity / session-insights / standing / presence
+// on one shared program-time axis (data: cohort-timeline-tracks.mjs; HTML:
+// cohort-timeline-render.mjs; visuals: cohort-timeline-view.css). Reads the
+// rewind-aware cohort surface so the canonical "As of [Total ▾]" selector scopes
+// it like every other cohort view. The pure data + HTML layers are unit-tested;
+// this only wires them to the canvas. The session-insights lane lights up from
+// the attributed transcript_evidence_cards (empty until those are present).
+function renderCohortTimeline() {
+  loadStylesheetOnce("renderer/cohort-timeline-view.css");
+  const cohort = activeConstellationCohort();
+  const teams = cohort.teams || [];
+  const people = cohort.people || [];
+  const teamNameById = new Map(
+    teams.filter((t) => t && t.record_id).map((t) => [t.record_id, t.name || t.record_id]),
+  );
+  const nowMs = Date.now();
+  const timeline = buildDefaultTimeline(
+    {
+      whatsNew: cohort.whats_new || [],
+      standingWeekly: state.standingWeekly,
+      people,
+      evidenceCards: cohort.transcript_evidence_cards || [],
+      teamNameById,
+    },
+    { startMs: PROGRAM_START_MS, endMs: PROGRAM_END_MS, nowMs },
+  );
+  const points = timeline.lanes.reduce(
+    (n, l) => n + ((l.items || l.points || l.samples || []).length),
+    0,
+  );
+  const sentenceBar = `
+    <div class="ac-sentence" role="group" aria-label="cohort timeline summary">
+      <strong class="ac-sent-fact">${escHtml(String(timeline.lanes.length))} lanes</strong>
+      <span class="ac-sent-word">· activity, session insights, standing &amp; presence on the program axis</span>
+      <span class="ac-sent-word">·</span>
+      <strong class="ac-sent-fact">${escHtml(String(points))}</strong>
+      <span class="ac-sent-word">points · scoped by the “As of” rewind</span>
+    </div>`;
+  state.canvas.innerHTML = `
+    ${cohortPageHead("timeline")}
+    ${sentenceBar}
+    <div class="alch-timeline-view">${renderTimelineLanesHtml(timeline)}</div>`;
+  wireCohortTimelineActions();
+}
+
+// The timeline writes straight into state.canvas with no .ac-inspector panel,
+// so neither the inspector's [data-const-team] delegate nor the persistent map
+// canvas handler (which doesn't handle teams, and isn't even bound on a cold
+// deep-link into timeline mode) ever reaches its dots. Bind ONE idempotent
+// canvas delegate, scoped to the timeline markers, so a team/insight dot opens
+// that team's dossier with Back returning to the constellation (this view) —
+// mirroring how say/did/shipped project cards open. The .ctl-dot markers are
+// native <button>s, so Enter/Space fire this click handler for free.
+function wireCohortTimelineActions() {
+  if (state.cohortTimelineActionsBound) return;
+  state.cohortTimelineActionsBound = true;
+  state.canvas.addEventListener("click", (e) => {
+    if (state.mode !== "constellation" || state.detailRecordId) return;
+    const dot = e.target.closest(".alch-timeline-view [data-const-team]");
+    if (!dot) return;
+    const rid = dot.getAttribute("data-const-team");
+    if (rid) openDetail(rid, "constellation");
+  });
+}
+
 function renderConstellation() {
   const cohort = activeConstellationCohort();
   const teams = cohort.teams || [];
@@ -7926,6 +8277,7 @@ function renderConstellation() {
     return;
   }
   if (mode === "shipped") { renderSayDidShipped(); return; }
+  if (mode === "timeline") { renderCohortTimeline(); return; }
 
   const edgeTier = constNormalizeEdgeTier(state.constEdgeTier);
   const networkScope = constNormalizeNetworkScope(state.constellationScope);
@@ -11795,21 +12147,26 @@ function collabTeamByRecordId(rid, m = collabCurrentModel()) {
 
 
 
-// Merged legend + lens filter — one control (replaces the separate legend box
-// and the redundant lens dropdown). The two directed signals (dependency,
-// seek/offer) are clickable lens filters carrying the key mark + a live count;
-// hovering previews/isolates those cells (CSS :has on .alch-cohort-page). The
-// two scales (strength, most-depended-on) are non-clickable key annotations.
+// Merged legend + lens filter — ONE control (the ecosystem map's "the token IS
+// the legend AND the filter"). The two directed signals (dependency, seek/offer)
+// are clickable lens segments carrying their painted cell swatch + a live count;
+// hovering previews/isolates those cells (CSS :has on .alch-cohort-page). mutual
+// (a brighter match) and both (the split) are emergent cell states, not separate
+// lenses — shown as a small non-clickable key tail so the legend has no own box.
 function collabLensFilterHtml(lens = "all", m) {
   const lensKey = COLLAB_LENSES.has(lens) ? lens : "all";
   const seg = ({ key, cell, mark, label, count }) => `
       <button type="button" class="cb-lens-seg" data-collab-lens="${escAttr(key)}"${cell ? ` data-legend-cell="${escAttr(cell)}" data-collab-legend-lens="${escAttr(key)}"` : ""} aria-pressed="${lensKey === key ? "true" : "false"}" aria-label="${escAttr(`${label}${typeof count === "number" ? `, ${count}` : ""} — ${cell ? "filter the board to this signal" : "show all signals"}`)}">${mark ? `<i class="cb-legend-mark ${escAttr(mark)}"></i>` : ""}<b>${escHtml(label)}</b>${typeof count === "number" ? `<em class="cb-lens-count">${count}</em>` : ""}</button>`;
   return `
-    <div class="cb-lensfilter" role="group" aria-label="signal filter — hover to preview, click to filter">
+    <div class="cb-lensfilter" role="group" aria-label="signal filter — hover to preview, click to filter; brighter swatch = mutual, split = both">
       ${seg({ key: "all", cell: "", mark: "", label: "all", count: m.deps.size + m.seekOffer.length })}
       ${seg({ key: "deps", cell: "dep", mark: "dep", label: "dependencies", count: m.deps.size })}
       ${seg({ key: "needs", cell: "so", mark: "so", label: "seek / offer", count: m.seekOffer.length })}
-    </div>`;
+    </div>
+    <span class="cb-lens-key" aria-hidden="true">
+      <span class="cb-lens-keyitem"><i class="cb-legend-mark so is-mutual"></i>mutual</span>
+      <span class="cb-lens-keyitem"><i class="cb-legend-mark both"></i>both</span>
+    </span>`;
 }
 
 function collabLatentOverlapCards() {
@@ -12575,15 +12932,9 @@ function collabCell(R, C, ri, ci, m, lens = "all", detail = false, extraCls = ""
 // The map legend, built from the grid's OWN cell fills so the eye calibrates the
 // two colours it then reads in the field: cool slate = a match, brighter = mutual,
 // warm clay = a dependency, a diagonal split = both.
-function collabReadKeyHtml() {
-  return `
-    <div class="cb-readkey" aria-hidden="true">
-      <span class="cb-rk"><i class="cb-rk-sw cb-rk-match"></i>match</span>
-      <span class="cb-rk"><i class="cb-rk-sw cb-rk-mutual"></i>mutual</span>
-      <span class="cb-rk"><i class="cb-rk-sw cb-rk-dep"></i>dependency</span>
-      <span class="cb-rk"><i class="cb-rk-sw cb-rk-both"></i>both</span>
-    </div>`;
-}
+// collabReadKeyHtml was removed (2026-06): the legend folded INTO the lens filter
+// (collabLensFilterHtml) so filter + legend are one control — like the ecosystem
+// map. The two derived cell states (mutual, both) ride a small key tail there.
 
 // The single control that leads the surface: "i'm <team>". Choosing a team
 // personalises the route sheet and lights that team's row + column in the map.
@@ -12625,9 +12976,9 @@ function collabRouteSheetHtml(m, focusRid) {
     }).slice(0, 6);
     const rows = top.map(s => row({
       team: s.offerer, from: s.seeker, to: s.offerer, cls: s.mutual ? " is-mut" : "",
-      body: `<span class="cb-route-nm">${escHtml(s.seekerName)}</span><span class="cb-route-arrow" aria-hidden="true">⇄</span><span class="cb-route-nm">${escHtml(s.offererName)}</span><span class="cb-route-tg">${tagOf(s)}</span>${s.mutual ? `<span class="cb-route-badge">mutual</span>` : ""}${bar(s.score)}`,
+      body: `<span class="cb-route-nm">${escHtml(s.seekerName)}</span><span class="cb-route-arrow" aria-hidden="true">⇄</span><span class="cb-route-nm">${escHtml(s.offererName)}</span><span class="cb-route-tg">${tagOf(s)}</span>${s.mutual ? `<span class="cb-route-badge">mutual</span>` : ""}`,
     })).join("");
-    return `<div class="cb-route">${sec("strongest intros across the cohort", "is-match", rows || empty("no overlaps yet — teams declare seeks and offers in their profile"))}</div>`;
+    return `<div class="cb-route">${sec("while you decide — the cohort's strongest intros", "is-match", rows || empty("no overlaps yet — teams declare seeks and offers in their profile"))}</div>`;
   }
 
   // Mutual matches sort to the TOP of "who can help you" (they're the intro-worthy
@@ -12672,12 +13023,13 @@ function collabRouteSheetHtml(m, focusRid) {
   // A disclosure row: a compact head (name · why-tag) that toggles an in-place
   // panel (full why + contacts). It carries NO data-collab-focus-team —
   // clicking EXPANDS, it never pivots the whole surface (the old broken behavior).
-  const discRow = ({ rid, from, to, section, cls = "", tag = "", badge = "", why }) => {
+  const discRow = ({ rid, from, to, section, cls = "", tag = "", badge = "", why, lead = "" }) => {
     const pid = `cbr-${section}-${escAttr(String(rid))}`;
     return `<div class="cb-route-row cb-route-disc${cls}" data-route-from="${escAttr(from)}" data-route-to="${escAttr(to)}">
       <button type="button" class="cb-route-dh" aria-expanded="false" aria-controls="${pid}" data-route-toggle>
         <span class="cb-route-nm">${nameOf(rid)}</span>
         ${tag ? `<span class="cb-route-tg">${tag}</span>` : ""}
+        ${lead ? `<span class="cb-route-via">via ${escHtml(lead)}</span>` : ""}
         ${badge}
         <span class="cb-route-chev" aria-hidden="true"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></span>
       </button>
@@ -12688,11 +13040,13 @@ function collabRouteSheetHtml(m, focusRid) {
   const whyMatch = (lead, s) => `<div class="cb-route-why"><p class="cb-route-whyline">${lead}</p>${(s.shared && s.shared.length) ? `<div class="cb-route-chips">${chips(s.shared)}</div>` : ""}</div>`;
   const helpRows = help.map(s => discRow({
     rid: s.offerer, from: focusRid, to: s.offerer, section: "help", cls: s.mutual ? " is-mut" : "",
+    lead: (cohortRosterForTeam(state.cohort?.people || [], s.offerer)[0]?.name) || "",
     tag: tagOf(s), badge: s.mutual ? `<span class="cb-route-badge">mutual</span>` : "",
     why: whyMatch(`they offer <b>${escHtml(s.offering || "—")}</b> · you seek <b>${escHtml(s.seeking || "—")}</b>`, s),
   }));
   const giveRows = give.map(s => discRow({
     rid: s.seeker, from: s.seeker, to: focusRid, section: "give", tag: tagOf(s),
+    lead: (cohortRosterForTeam(state.cohort?.people || [], s.seeker)[0]?.name) || "",
     why: whyMatch(`you offer <b>${escHtml(s.offering || "—")}</b> · they seek <b>${escHtml(s.seeking || "—")}</b>`, s),
   }));
   const depRowsHtml = depList.map(d => {
@@ -12707,21 +13061,57 @@ function collabRouteSheetHtml(m, focusRid) {
   // Cap each list at 5 visible; the rest hide behind a "show N more" toggle so the
   // section stays small at rest even when the match list is long.
   const CAP = 5;
-  const capSec = (title, pip, rowsArr, emptyMsg) => {
-    if (!rowsArr.length) return sec(title, pip, empty(emptyMsg));
+  const capInner = (rowsArr) => {
     const headHtml = rowsArr.slice(0, CAP).join("");
     const rest = rowsArr.slice(CAP);
     const restHtml = rest.length
       ? `<div class="cb-route-extra" hidden>${rest.join("")}</div><button type="button" class="cb-route-more" data-route-more aria-expanded="false">show ${rest.length} more</button>`
       : "";
-    return sec(title, pip, headHtml + restHtml);
+    return headHtml + restHtml;
+  };
+  // The rail leads with the ONE answer — "who can help you", always open. The two
+  // secondary lists ("who you can help", "you depend on") collapse behind native
+  // <details> with their count on the summary, so the narrow rail stays short and
+  // the eye lands on inbound help first.
+  const capLead = (title, rowsArr, emptyMsg) =>
+    sec(title, "is-match", rowsArr.length ? capInner(rowsArr) : empty(emptyMsg));
+  const capFold = (title, rowsArr, emptyMsg) => {
+    const n = rowsArr.length;
+    const inner = n ? capInner(rowsArr) : empty(emptyMsg);
+    return `<details class="cb-route-fold">
+      <summary class="cb-route-foldsum"><span class="cb-route-sh">${escHtml(title)}</span>${n ? `<span class="cb-route-count">${n}</span>` : ""}<span class="cb-route-foldchev" aria-hidden="true"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4l4 4-4 4"/></svg></span></summary>
+      <div class="cb-route-foldbody">${inner}</div>
+    </details>`;
   };
 
   let html = "";
-  html += capSec("who can help you", "is-match", helpRows, "no matches yet — add what you're seeking with “add seek / offer” above.");
-  html += capSec("who you can help", "is-give", giveRows, "nobody's seeking your offer yet — add what you offer above.");
-  html += capSec("you depend on", "is-dep", depRowsHtml, "no declared dependencies yet.");
+  html += capLead("who can help you", helpRows, "no matches yet — add what you're seeking with “add seek / offer” above.");
+  html += capFold("who you can help", giveRows, "nobody's seeking your offer yet — add what you offer above.");
+  html += capFold("you depend on", depRowsHtml, "no declared dependencies yet.");
   return `<div class="cb-route">${html}</div>`;
+}
+
+// The rail's adaptive nudge banner — the "what do I do next" voice that used to
+// live in the page header. State-aware: prompt the pick when nothing's focused;
+// once a team is focused, name the inbound-help count and point at the rows. Pure
+// copy off the model already computed in renderCollab — no new data, no fetch.
+function collabNudgeHtml(m, focusRid) {
+  if (!focusRid) {
+    return `<div class="cb-nudge" data-nudge="pick">
+      <span class="cb-nudge-kicker">Start here</span>
+      <p class="cb-nudge-line">Pick your team in the selector above — the map pans to you and this panel fills with who can help.</p>
+      <p class="cb-nudge-sub">No team on the board yet? Add what you're seeking with “add seek / offer”.</p>
+    </div>`;
+  }
+  const name = escHtml(m.byRecordId.get(focusRid)?.name || "your team");
+  const helpN = m.seekOffer.filter(s => s.seeker === focusRid).length;
+  const line = helpN
+    ? `<b>${helpN}</b> team${helpN === 1 ? "" : "s"} can help <b>${name}</b>. Expand a row to see the shared work and who to message.`
+    : `No inbound matches for <b>${name}</b> yet — add what you're seeking with “add seek / offer”, or see who you can help below.`;
+  return `<div class="cb-nudge" data-nudge="${helpN ? "matches" : "empty"}">
+    <span class="cb-nudge-kicker">For ${name}</span>
+    <p class="cb-nudge-line">${line}</p>
+  </div>`;
 }
 
 // Resolve "my team" for the collab board from the LOCAL identity — the same
@@ -12819,7 +13209,10 @@ function renderCollab() {
     });
     rows += `<div class="cb-row" style="${colN}">${line}</div>`;
   });
-  const matrixBody = `<div class="cb-grid-wrap" tabindex="0"><div class="cb-grid" data-lens="${escAttr(lens)}">${rows}</div></div>`;
+  // is-spotlight dims every cell except the focused team's row+column band, so a
+  // pick reads as "the board moved to them". Driven purely by focusRid + the
+  // is-focus-band class already set on those cells above — no new data attrs.
+  const matrixBody = `<div class="cb-grid-wrap" tabindex="0"><div class="cb-grid${focusRid ? " is-spotlight" : ""}" data-lens="${escAttr(lens)}">${rows}</div></div>`;
   const matrixNote = hiddenN
     ? `<p class="cb-hint cb-grid-hidden">${hiddenN} team${hiddenN === 1 ? "" : "s"} with no declared signal yet — find them in the directory.</p>`
     : "";
@@ -12830,7 +13223,6 @@ function renderCollab() {
       <div class="cb-maphead">
         ${collabLensFilterHtml(lens, m)}
       </div>
-      ${collabReadKeyHtml()}
       <div class="cb-scroll">${matrixBody}</div>
       ${matrixNote}
     </section>`;
@@ -12862,13 +13254,23 @@ function renderCollab() {
 
   // convergence — skill areas shared by 3+ teams
   const maxConv = m.convergence.reduce((mx, c) => Math.max(mx, c.count), 1);
+  // Resolve shared-focus team NAMES → record_ids so each chip can open that team
+  // in the directory (m.convergence carries names; m.ordered has the rid map).
+  // Non-resolving names fall back to a plain, non-clickable span.
+  const convRidByName = new Map(m.ordered.map(o => [o.team?.name, o.rid]));
   const convRows = m.convergence.map(c => {
     const pct = Math.round((c.count / maxConv) * 100);
     const weight = c.count >= 8 ? " heavy" : c.count >= 5 ? " mid" : "";
+    const teamChips = c.teams.map(t => {
+      const rid = convRidByName.get(t);
+      return rid
+        ? `<button type="button" class="cb-cv-team" data-collab-cohort-open="${escAttr(rid)}" title="${escAttr("open " + t + " in the directory")}">${escHtml(t)}</button>`
+        : `<span class="cb-cv-team">${escHtml(t)}</span>`;
+    }).join("");
     return `<article class="cb-cv${weight}">
       <div class="cb-cv-head"><span class="cb-cv-skill">${escHtml(c.skill)}</span><span class="cb-cv-count">${c.count} teams</span></div>
       <div class="cb-cv-bar"><i style="width:${pct}%"></i></div>
-      <div class="cb-cv-teams">${c.teams.map(t => `<span class="cb-cv-team">${escHtml(t)}</span>`).join("")}</div>
+      <div class="cb-cv-teams">${teamChips}</div>
     </article>`;
   }).join("");
   const convSection = `
@@ -12877,19 +13279,15 @@ function renderCollab() {
       <div class="cb-cv-list">${convRows || '<p class="cb-empty">no shared areas.</p>'}</div>
     </section>`;
 
-  // Lead copy adapts to the auto-detected focus: once we know your team it names
-  // it and teaches the new expand-for-contact gesture; unfocused, it prompts the
-  // pick. Keeps the header honest about the state the surface is actually in.
-  const focusName = focusRid ? escHtml(m.byRecordId.get(focusRid)?.name || "your team") : "";
-  const leadSub = focusRid
-    ? `Matches for <b>${focusName}</b> — expand any row for the shared work and who to message. Switch teams above, or clear to browse the whole cohort.`
-    : `Pick your team above to see who can help you — or browse the cohort's strongest intros below.`;
+  // The header stays calm and stable: title + the one lead control (team picker)
+  // + intake. The *adaptive* "what to do next" copy moved into the rail's nudge
+  // banner (collabNudgeHtml), right next to the matches it talks about.
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="collab">
     ${cohortPageHead("collab")}
     <header class="cb-lead" data-shape-occluder>
       <h2 class="cb-lead-title">Find who can help you</h2>
-      <p class="cb-lead-sub">${leadSub}</p>
+      <p class="cb-lead-sub">The cohort's needs and offers, matched. Pick your team to make the map — and the panel — about you.</p>
       <div class="cb-lead-controls">
         ${collabTeamPickerHtml(m, focusRid)}
         <button class="cb-intake-open" type="button" data-collab-intake-open>
@@ -12899,15 +13297,24 @@ function renderCollab() {
       </div>
     </header>
     <div class="alch-collab">
-      ${collabRouteSheetHtml(m, focusRid)}
-      <div class="cb-rule" role="separator"></div>
-      ${mapSection}
-      ${latentSection}
-      <div class="cb-cohort-shape">
-        ${convSection}
-        ${underusedSection}
+      <div class="cb-workbench"${collabRailStyleAttr()}>
+        <div class="cb-board-main">
+          ${mapSection}
+        </div>
+        ${collabRailHandleHtml()}
+        <aside class="cb-rail" aria-label="who can help you" tabindex="-1">
+          ${collabNudgeHtml(m, focusRid)}
+          ${collabRouteSheetHtml(m, focusRid)}
+        </aside>
       </div>
-      <p class="alch-callout">Matches, intros, and offers are self-declared by teams. Latent overlaps are public prompts to verify before routing; no private scoring is shown.</p>
+      <div class="cb-cohort-extras">
+        ${latentSection}
+        <div class="cb-cohort-shape">
+          ${convSection}
+          ${underusedSection}
+        </div>
+        <p class="alch-callout">Matches, intros, and offers are self-declared by teams. Latent overlaps are public prompts to verify before routing; no private scoring is shown.</p>
+      </div>
     </div>
     </div>`;
 }
@@ -12940,6 +13347,7 @@ function wireCollab() {
   const collabRoot = state.canvas.querySelector(".alch-collab");
   wireConstellationModeNav();
   wireConstellationScrubber();
+  wireCollabRailResize();   // draggable help-rail width (matrix | rail workbench)
   wireCollabCohortLinks(state.canvas);
   wireCollabTrailerLinks(state.canvas);
   for (const btn of state.canvas.querySelectorAll("[data-collab-intake-open]")) {
@@ -13086,6 +13494,31 @@ function wireCollab() {
     if (!grid.contains(document.activeElement)) clearHL();
   });
   if (grid.contains(document.activeElement)) highlightFromTarget(document.activeElement);
+  // Pan the matrix to the focused team: center its row+column header inside the
+  // scroll viewport (.cb-grid-wrap) so a pick "moves the board" to them, pairing
+  // with the is-spotlight dimming. We use getBoundingClientRect deltas (not
+  // scrollIntoView, which would also yank the whole page) and only touch the
+  // matrix's own scroll. Runs after layout settles; no-op when nothing's focused.
+  if (state.collabFocus) {
+    requestAnimationFrame(() => {
+      const wrap = state.canvas.querySelector(".cb-grid-wrap");
+      const focusCol = state.canvas.querySelector(".cb-colhead.is-focus");
+      const focusRow = state.canvas.querySelector(".cb-rowhead.is-focus");
+      if (!wrap || (!focusCol && !focusRow)) return;
+      const wr = wrap.getBoundingClientRect();
+      const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+      const opts = { behavior: reduce ? "auto" : "smooth" };
+      if (focusCol) {
+        const cr = focusCol.getBoundingClientRect();
+        opts.left = Math.max(0, wrap.scrollLeft + (cr.left - wr.left) - (wrap.clientWidth - cr.width) / 2);
+      }
+      if (focusRow) {
+        const rr = focusRow.getBoundingClientRect();
+        opts.top = Math.max(0, wrap.scrollTop + (rr.top - wr.top) - (wrap.clientHeight - rr.height) / 2);
+      }
+      try { wrap.scrollTo(opts); } catch { wrap.scrollLeft = opts.left ?? wrap.scrollLeft; wrap.scrollTop = opts.top ?? wrap.scrollTop; }
+    });
+  }
   // Escape clears the focused team — the surface returns to the cohort-wide view
   // (strongest intros), the universal "get me out" affordance for the one gesture.
   collabRoot?.addEventListener("keydown", (event) => {
@@ -16067,6 +16500,47 @@ const WK_LANE_META = {
 const WK_LANE_ORDER = ["did", "pmf", "edge", "ask", "risk", "other"];
 function wkLaneLabel(lane) { return (WK_LANE_META[lane] || WK_LANE_META.other).label; }
 
+// "Progress · declared vs observed" — the LIVE replacement for the stranded
+// build-time cohort_intel rollup. Reads teamProgressRollup() over the live
+// attributed evidence index: the team's DECLARED plan (now / stage / bottleneck /
+// next milestone) beside what's OBSERVED in its distilled sessions. "" when a
+// team has neither a plan nor any observed signal ⇒ the section drops.
+function renderTeamProgressRollup(recordId) {
+  const cohort = activeConstellationCohort();
+  const team = (cohort.teams || []).find((t) => t && t.record_id === recordId);
+  if (!team) return "";
+  const r = teamProgressRollup(cohortEvidenceIndex(), team);
+  if (r.status === "quiet" && !r.declared.now) return "";
+  const d = r.declared, o = r.observed;
+  const declaredBits = [
+    d.stage != null ? `stage ${escHtml(String(d.stage))}` : "",
+    d.bottleneck ? `bottleneck: ${escHtml(d.bottleneck)}` : "",
+    d.nextMilestone ? `next: ${escHtml(d.nextMilestone)}` : "",
+  ].filter(Boolean);
+  const observedBits = [
+    o.sessions ? `${o.sessions} session insight${o.sessions === 1 ? "" : "s"}` : "",
+    o.did ? `${o.did} decided/did` : "",
+    o.pmf ? `${o.pmf} pmf signal${o.pmf === 1 ? "" : "s"}` : "",
+    o.asks ? `${o.asks} ask${o.asks === 1 ? "" : "s"}` : "",
+    o.weeksActive ? `${o.weeksActive} week${o.weeksActive === 1 ? "" : "s"} active` : "",
+  ].filter(Boolean).map(escHtml);
+  const body = `
+    <div class="ac-progress" data-status="${escAttr(r.status)}">
+      <div class="ac-progress-col">
+        <span class="ac-progress-h">declared</span>
+        ${d.now ? `<p class="ac-progress-now">${escHtml(d.now)}</p>` : ""}
+        <ul>${declaredBits.map((b) => `<li>${b}</li>`).join("") || "<li>—</li>"}</ul>
+      </div>
+      <div class="ac-progress-col">
+        <span class="ac-progress-h">observed</span>
+        <ul>${observedBits.map((b) => `<li>${b}</li>`).join("") || "<li>no observed session signal yet</li>"}</ul>
+        ${o.latestWeek ? `<span class="ac-progress-latest">latest · ${escHtml(o.latestWeek)}</span>` : ""}
+      </div>
+    </div>`;
+  const preview = r.status === "observed-active" ? "observed signal" : r.status === "declared-only" ? "declared only" : "—";
+  return renderDisclosureSection("progress · declared vs observed", body, false, preview, "alch-detail-progress");
+}
+
 function renderWorkstreamTimeline(recordId) {
   const tl = teamTimeline(cohortEvidenceIndex(), recordId);
   if (!tl.length) return "";
@@ -16105,7 +16579,7 @@ function renderWorkstreamTimeline(recordId) {
   const groups = tl.slice().reverse().map((wk) => {
     const wi = progWeek(wk.week);
     const claims = WK_LANE_ORDER.flatMap((lane) => wk.claims.filter((c) => c.lane === lane))
-      .map((c) => `<li class="ac-evt-claim" data-lane="${escAttr(c.lane)}"><span class="ac-evt-tag">${escHtml(wkLaneLabel(c.lane))}</span><span class="ac-evt-text">${escHtml(constShortText(c.text || c.title, 160))}</span></li>`).join("");
+      .map((c) => `<li class="ac-evt-claim" data-lane="${escAttr(c.lane)}"><span class="ac-evt-tag">${escHtml(wkLaneLabel(c.lane))}</span><span class="ac-evt-text">${escHtml(constShortText(c.text || c.title, 160))}${c.basis === "inferred" ? `<span class="ac-evt-inferred" title="team inferred from the session text, not self-declared">~ inferred</span>` : ""}</span></li>`).join("");
     return `<div class="ac-evt-grp" data-week="${escAttr(wk.week)}"><div class="ac-evt-when">${wi != null ? `week ${wi + 1}` : ""}<span class="ac-evt-date">${escHtml(detailTimelineDate(wk.week))}</span></div><ul class="ac-evt-claims">${claims}</ul></div>`;
   }).join("");
 
@@ -16357,6 +16831,7 @@ function renderTeamDetail(team) {
         <div class="alch-section-stack">
           ${renderDisclosureSection("assessment / plan", detailRows(assessmentRows), false, assessmentPreview)}
           ${renderDisclosureSection("evidence", detailRows(evidenceRows), false, evidencePreview)}
+          ${renderTeamProgressRollup(recordId)}
           ${renderWorkstreamTimeline(recordId)}
           ${renderTeamReleases(recordId)}
           ${renderDisclosureSection("coordination", detailRows(coordinationRows), false, coordinationPreview)}
@@ -17308,6 +17783,7 @@ function loadEditTarget() {
     if (person) {
       p.editDraft = JSON.parse(JSON.stringify(person));
       p.editBaseline = JSON.parse(JSON.stringify(person));
+      applyPendingDraftPatch(p);
     } else {
       p.editDraft = null;
       p.editBaseline = null;

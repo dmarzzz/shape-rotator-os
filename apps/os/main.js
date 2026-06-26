@@ -5,6 +5,7 @@ const os = require("node:os");
 const crypto = require("node:crypto");
 const swfNode = require("./swf-node");
 const swarm = require("./swarm-node");
+const cohortChat = require("./cohort-chat-node");
 const easelNdi = require("./easel-ndi");
 const matrix = require("./matrix");
 // Daybook (apps→daybook): registering this module wires every `daybook:*`
@@ -1364,6 +1365,23 @@ ipcMain.handle("context-vault:reveal-corpus", async () => {
     return { ok: false, error: e && e.message ? e.message : String(e) };
   }
 });
+
+// ─── self-report IPC (permission-gated scan → local-CLI synth) ───────
+// The member opts in (renderer); we scan their LOCAL Claude/Codex sessions into a
+// scrubbed digest (daybook redaction via digestFromRawFiles) and run their OWN
+// local CLI to draft a profile update. Raw never leaves the box; only the
+// member-approved field delta is written, via the existing profile editor.
+// See self-report-node.js + apps/os/src/renderer/self-report.js.
+const selfReport = require("./self-report-node");
+ipcMain.handle("fg:self-report:scan", async (_e, opts) => {
+  try { return await selfReport.scanLocalSessions(opts || {}); }
+  catch (e) { return { ok: false, reason: "scan_failed", detail: e && e.message ? e.message : String(e) }; }
+});
+ipcMain.handle("fg:self-report:synthesize", async (_e, opts) => {
+  const o = opts || {};
+  return selfReport.runSynthesis({ prompt: o.prompt, chatCmd: o.chatCmd || "" });
+});
+
 ipcMain.handle("clipboard:write", async (_e, text) => {
   try {
     clipboard.writeText(String(text || ""));
@@ -1662,6 +1680,61 @@ function broadcastSwarm(channel, payload) {
 }
 swarm.onStatus((s) => broadcastSwarm("fg:swarm:status-changed", s));
 swarm.onOutput((o) => broadcastSwarm("fg:swarm:output", o));
+
+// ─── cohort-chat IPC ─────────────────────────────────────────────────
+//
+// "Chat with the cohort" runs the member's OWN local AI CLI (Claude Code /
+// Codex / Ollama — see cohort-chat-node.js). No API key: it shells out to
+// whatever agent they already have. The renderer builds the grounded prompt
+// (cohort context + connection edges + history + question) and pipes it to the
+// CLI's stdin; tokens stream back. Config persists only the optional command
+// override (no secrets) under userData.
+//
+// Renderer surface:
+//   fg:cohort-chat:status        → current run state
+//   fg:cohort-chat:config:get    → { chatCmd, resolved, available, ready }
+//   fg:cohort-chat:config:set    → persist the command override
+//   fg:cohort-chat:start (p)     → spawn the CLI; emits fg:cohort-chat:output
+//   fg:cohort-chat:stop          → SIGTERM the running child
+// Streamed events: fg:cohort-chat:output {requestId, stream, chunk};
+//                  fg:cohort-chat:status-changed {state, ...}
+
+const COHORT_CHAT_CONFIG_FILE = path.join(app.getPath("userData"), "cohort-chat-config.json");
+function readCohortChatConfig() {
+  try { return JSON.parse(fs.readFileSync(COHORT_CHAT_CONFIG_FILE, "utf8")); }
+  catch { return {}; }
+}
+function writeCohortChatConfig(obj) {
+  try { fs.writeFileSync(COHORT_CHAT_CONFIG_FILE, JSON.stringify(obj, null, 2)); return true; }
+  catch (e) { process.stderr.write(`[cohort-chat] config write failed: ${e.message}\n`); return false; }
+}
+
+ipcMain.handle("fg:cohort-chat:status", async () => cohortChat.getStatus());
+ipcMain.handle("fg:cohort-chat:config:get", async () => {
+  const cfg = readCohortChatConfig();
+  const info = cohortChat.getInfo(cfg.chatCmd || "");
+  return { chatCmd: cfg.chatCmd || "", resolved: info.resolved, available: info.available, ready: info.ready };
+});
+ipcMain.handle("fg:cohort-chat:config:set", async (_e, opts) => {
+  const o = opts || {};
+  const cfg = readCohortChatConfig();
+  if (typeof o.chatCmd === "string") cfg.chatCmd = o.chatCmd.trim();
+  writeCohortChatConfig(cfg);
+  return { ok: true };
+});
+ipcMain.handle("fg:cohort-chat:start", async (_e, opts) => {
+  const o = opts || {};
+  const cfg = readCohortChatConfig();
+  return cohortChat.start({
+    requestId: o.requestId || `chat_${Math.random().toString(36).slice(2, 10)}`,
+    prompt: o.prompt,
+    chatCmd: o.chatCmd || cfg.chatCmd || "",
+  });
+});
+ipcMain.handle("fg:cohort-chat:stop", async () => cohortChat.stop());
+
+cohortChat.onStatus((s) => broadcastSwarm("fg:cohort-chat:status-changed", s));
+cohortChat.onOutput((o) => broadcastSwarm("fg:cohort-chat:output", o));
 
 // ─── easel · NDI projection (apps/os/easel-ndi.js) ───────────────────
 // Renderer lists capture sources, then streams RGBA frames here to be

@@ -26,11 +26,14 @@
 import yaml from "js-yaml";
 import { getManifest, getRecord } from "./sync-client.js";
 import { fetchPublicEvidenceCards, fetchCohortEvidenceCards, COHORT_APP_READER_ENABLED, fetchCohortInsightCards } from "./supabase-evidence.mjs";
-import { evidenceDependencyRecords, insightCollaborationDependencyRecords, collaborationContributionDependencyRecords } from "./cohort-evidence-index.mjs";
+import { evidenceDependencyRecords, insightCollaborationDependencyRecords, collaborationContributionDependencyRecords, attributeInsightCards, dedupeDependencyEdges, connectionEdgesFromInsightCards, frozenAttributionFromInsightCards } from "./cohort-evidence-index.mjs";
 import { fetchCohortArticles } from "./supabase-articles.mjs";
 import { fetchCohortDistillations } from "./supabase-distillations.mjs";
 import { fetchAllSpheres } from "./supabase-sphere.mjs";
+import { fetchApprovedProfileUpdates } from "./supabase-self-report.mjs";
+import { sanitizeDelta } from "./self-report-synth.mjs";
 import { fetchReleasesFeed } from "./supabase-releases.mjs";
+import { fetchConnections, connectionsByRecord } from "./supabase-connections.mjs";
 
 const GH_REPO     = "dmarzzz/shape-rotator-os";
 const GH_BRANCH   = "main";
@@ -772,7 +775,18 @@ async function applyEvidenceOverlay(surface) {
       for (const card of [...(gotCohort ? cohort.cards : []), ...(gotPublic ? pub.cards : [])]) {
         if (card && card.id && !seen.has(card.id)) { seen.add(card.id); merged.push(card); }
       }
-      surface.transcript_evidence_cards = merged;
+      // Re-attach a best-effort team to the anonymized public insight cards
+      // (claim_type "insight", no declared content_json.teams) by matching their
+      // text to each team's distinctive vocabulary. Without this the live cards —
+      // the real distilled session content — feed NONE of the per-team views.
+      // Inferred teams are tagged teams_basis:"inferred"; declared cards untouched.
+      // Prefer the FROZEN attribution snapshot (card_attribution cohort-insight
+      // cards from the daily local-AI routine) when present, so the inference is
+      // read, not recomputed every refresh; fall back to the live match otherwise.
+      const frozenAttr = (insight && insight.source === "supabase-cohort" && Array.isArray(insight.cards))
+        ? frozenAttributionFromInsightCards(insight.cards) : null;
+      const attributed = attributeInsightCards(merged, Array.isArray(surface.teams) ? surface.teams : [], { frozen: frozenAttr });
+      surface.transcript_evidence_cards = attributed;
       surface._evidenceSource = gotCohort ? (gotPublic ? "supabase-cohort+public" : "supabase-cohort") : "supabase-live";
 
       // Shape collaboration-edge evidence into dependency records so the relationship
@@ -780,7 +794,7 @@ async function applyEvidenceOverlay(surface) {
       // surface already carries, provenance-tagged (status=session_observed). Additive
       // + idempotent (skip any evidence-edge id already present on re-overlay).
       const baseDeps = Array.isArray(surface.dependencies) ? surface.dependencies : [];
-      const edgeRecords = evidenceDependencyRecords(merged, baseDeps);
+      const edgeRecords = evidenceDependencyRecords(attributed, baseDeps);
       if (edgeRecords.length) {
         const have = new Set(baseDeps.map((d) => d && d.record_id).filter(Boolean));
         surface.dependencies = [...baseDeps, ...edgeRecords.filter((r) => !have.has(r.record_id))];
@@ -791,8 +805,28 @@ async function applyEvidenceOverlay(surface) {
     // returned. No cards (no key / outage) ⇒ surface keeps whatever it already carries.
     if (insight && insight.source === "supabase-cohort" && Array.isArray(insight.cards)) {
       surface._cohortInsightCards = insight.cards;
+      // Fold the frozen connection-edge snapshot (connection_edge cohort-insight
+      // cards) onto records as `record.connections` — the per-team "who to talk
+      // to" inspector source. This is the cohort-insight-card CONSOLIDATION of the
+      // standalone connections overlay: one stream, one publish path. Absent ⇒
+      // records simply carry no connections and the block hides itself.
+      const nameById = new Map();
+      for (const r of [...(surface.teams || []), ...(surface.people || [])]) {
+        if (r && r.record_id) nameById.set(r.record_id, r.name || r.record_id);
+      }
+      const connByRecord = connectionEdgesFromInsightCards(insight.cards, nameById);
+      if (connByRecord.size) {
+        for (const r of [...(surface.teams || []), ...(surface.people || [])]) {
+          if (r && r.record_id && connByRecord.has(r.record_id)) r.connections = connByRecord.get(r.record_id);
+        }
+        surface._connectionSource = "cohort-insight-cards";
+      }
     }
     applyCollaborationEdges(surface);
+    // All three derived collaboration-edge sources (evidence-edge / gh-collab-edge
+    // / collab-edge) are now folded in alongside declared deps; collapse same-pair
+    // duplicates so one collaboration renders as ONE edge, not up to three.
+    surface.dependencies = dedupeDependencyEdges(surface.dependencies);
   } catch {
     // keep whatever the surface already carries
   }
@@ -875,6 +909,43 @@ async function applySphereOverlay(surface) {
   return surface;
 }
 
+// Apply the live Supabase profile-update overlay: APPROVED self-report deltas
+// ("Your Mirror") read from the app_profile_updates view, merged onto the matching
+// person records so the rendered profile "updates off it" with no PR. Unlike the
+// sphere overlay (a side map read at render), profile FIELDS merge into the person
+// object itself because the card/detail/editor renderers read person.now,
+// person.skills, etc. directly. Approved-only by design (the raw inbox is anon
+// write-only); on a Supabase outage the surface keeps its committed/synced baseline.
+async function applyProfileUpdateOverlay(surface) {
+  try {
+    const { updates, source } = await fetchApprovedProfileUpdates();
+    if (source !== "supabase") return surface;
+    const people = Array.isArray(surface.people) ? surface.people : [];
+    let touched = false;
+    // CLONE, never mutate: the baseline person objects are shared/persisted, so
+    // mutating them would bake an approved delta in permanently (un-revertible if
+    // the row is later un-approved, and masking newer markdown/sync edits). Build
+    // NEW objects each tick so the overlay is derived-not-accumulated. Re-whitelist
+    // the row (sanitizeDelta) so the read path holds the same "only 7 fields move"
+    // invariant as the write — never trust a key that lands in the view.
+    surface.people = people.map((person) => {
+      const delta = person && person.record_id ? updates[person.record_id] : null;
+      if (!delta || typeof delta !== "object") return person;
+      const clean = sanitizeDelta(delta);
+      if (!Object.keys(clean).length) return person;
+      touched = true;
+      return { ...person, ...clean };
+    });
+    // Approved self-reports intentionally win over the markdown/sync baseline (they
+    // are the latest member-approved value, operator-gated). Because we re-derive
+    // from the baseline each tick, dropping the approved row reverts cleanly.
+    if (touched) surface._profileUpdateSource = "supabase-live";
+  } catch {
+    // keep whatever the surface already carries
+  }
+  return surface;
+}
+
 // Apply the live Supabase release-feed overlay. The membrane "what's new" feed
 // (whats_new + github_releases) is published to public_releases_feed by the
 // github-releases-sync workflow, so a new release shows up live — no git PR into
@@ -893,6 +964,46 @@ async function applyReleaseOverlay(surface) {
       if (Array.isArray(githubReleases) && githubReleases.length) surface.github_releases = githubReleases;
       surface._releaseSource = "supabase-live";
     }
+  } catch {
+    // keep whatever the surface already carries
+  }
+  return surface;
+}
+
+// Apply the precomputed cohort connection graph onto the surface. The daily
+// connection routine publishes ranked, reasoned "who should talk to whom" edges
+// to public_cohort_connections; we read that row LIVE and hang the per-record
+// adjacency on each team/person as `record.connections` so detail pages can show
+// a "who to talk to" block and cohort chat can ground its answers in the same
+// edges. The APP never calls an LLM here — it only reads precomputed edges.
+//
+// Live row wins; on a Supabase outage — or before the table exists — we fall
+// back to the committed `surface.cohort_connections` bundle (offline / first
+// paint), and if neither has edges every record just carries connections:[] and
+// the "who to talk to" block hides itself. Never throws.
+async function applyConnectionsOverlay(surface) {
+  try {
+    let edges = [];
+    let source = "";
+    const live = await fetchConnections();
+    if (live.source === "supabase" && Array.isArray(live.edges) && live.edges.length) {
+      edges = live.edges;
+      source = "supabase-live";
+    } else if (surface.cohort_connections && Array.isArray(surface.cohort_connections.edges)) {
+      edges = surface.cohort_connections.edges;
+      source = surface._connectionSource || "bundle";
+    }
+    const teams = Array.isArray(surface.teams) ? surface.teams : [];
+    const people = Array.isArray(surface.people) ? surface.people : [];
+    const nameById = new Map();
+    for (const r of [...teams, ...people]) {
+      if (r && r.record_id) nameById.set(r.record_id, r.name || r.record_id);
+    }
+    const byRecord = connectionsByRecord(edges, nameById);
+    for (const r of [...teams, ...people]) {
+      if (r && r.record_id) r.connections = byRecord.get(r.record_id) || [];
+    }
+    if (source) surface._connectionSource = source;
   } catch {
     // keep whatever the surface already carries
   }
@@ -1081,7 +1192,9 @@ function _startBackgroundRefresh({ forceGithub = false } = {}) {
       await applyArticleOverlay(merged);
       await applyDistillationOverlay(merged);
       await applySphereOverlay(merged);
+      await applyProfileUpdateOverlay(merged);
       await applyReleaseOverlay(merged);
+      await applyConnectionsOverlay(merged);
       merged._sig = signatureOf(merged);
       // Did anything actually change? If not, no subscriber notify.
       const prevSig = _cache?._sig;

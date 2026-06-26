@@ -43,7 +43,7 @@
         <a href="/workspace">[ WORKSPACE ]</a>
         <a href="/workspace/journal">[ JOURNAL ]</a>
       </nav>
-      <span class="meta">ARTICLE v0.0.1</span>
+      <span class="meta">ARTICLE v0.0.2</span>
     </header>
 
     <div class="article-layout">
@@ -73,14 +73,13 @@
         </nav>
         <p class="menu-label">Sections</p>
         <nav class="menu-list section-list">
+          <a class="depth-2" href="#tl-dr">TL;DR</a>
           <a class="depth-2" href="#the-claim">the claim</a>
           <a class="depth-2" href="#what-surfaced-this-week">what surfaced this week</a>
           <a class="depth-2" href="#a-moment-worth-naming">a moment worth naming</a>
           <a class="depth-2" href="#what-to-do-with-this">what to do with this</a>
-          <a class="depth-2" href="#open-questions-for-the-cluster">open questions for the cluster</a>
-          <a class="depth-2" href="#voices-from-the-room">voices from the room</a>
-          <a class="depth-2" href="#resources-mentioned">resources mentioned</a>
           <a class="depth-2" href="#why-this-article-exists">why this article exists</a>
+          <a class="depth-2" href="#appendix-double-click">appendix — double-click</a>
         </nav>
 
         <details class="submenu">
@@ -93,11 +92,8 @@
             <a class="depth-3" href="#5-human-override-is-the-safety-layer-not-a-future-feature">5. Human override is the safety layer, not a future feature</a>
             <a class="depth-3" href="#6-goal-mode-is-the-paradigm-shift-the-agent-layer-is-moving-into">6. Goal-mode is the paradigm shift the agent layer is moving into</a>
             <a class="depth-3" href="#other-cross-project-connections-this-week">other cross-project connections this week</a>
-            <a class="depth-3" href="#shashank-contexto-sm86">Shashank (#contexto / sm86)</a>
-            <a class="depth-3" href="#will-jjhub-smithers">Will (#jjhub, Smithers)</a>
-            <a class="depth-3" href="#andrew-miller-teleport-router">Andrew Miller (#teleport-router)</a>
-            <a class="depth-3" href="#hudson-tinycloud-agent-dao">Hudson (#tinycloud agent DAO)</a>
-            <a class="depth-3" href="#lsdan-running-agents-on-a-dedicated-machine">LSDan (running agents on a dedicated machine)</a>
+            <a class="depth-3" href="#open-questions-for-the-cluster">open questions for the cluster</a>
+            <a class="depth-3" href="#resources-mentioned">resources mentioned</a>
           </nav>
         </details>
       </aside>
@@ -121,75 +117,67 @@
           </header>
 
           <div class="article-body">
-            <h2 id="the-claim">the claim</h2>
+            <p><em>Why it matters: the cohort's most useful agent work keeps vanishing into private sessions — four projects are independently building the substrate that would make it durable, routable, and safe.</em></p>
+        <h2 id="tl-dr">TL;DR</h2>
+        <p>Most agent work in the cohort is invisible — not hidden, but lost, because the substrate doesn't preserve it. Agents churn through a context window, get rate-limited overnight, lose the thread, and start fresh. Four projects converged on the same diagnosis from different angles: <strong>the next useful agent layer isn't a better model — it's durable memory, social routing, observable workflows, and human override, treated as one system.</strong> #contexto attacks memory; #teleport-router routes work between humans and agents; #jjhub (Smithers) makes workflows durable and inspectable; #tinycloud's autonomous-DAO experiment stress-tests what happens with none of it. What surfaced:</p>
+        <ul><li><strong>Context-window collapse</strong> is the failure mode nothing else fixes.</li><li><strong>Long-running agents die without durability primitives</strong> (durable steps, persistent state, observability, hot-mode editing).</li><li><strong>Agent work vanishes into private sessions</strong> — routing the exhaust into shared channels makes it replayable.</li><li><strong>Heartbeat / persistent state is load-bearing</strong> — the most directive context must sit closest to the head of every loop.</li><li><strong>Human override is the safety layer, now</strong> — not a future feature.</li><li><strong>Goal-mode</strong> (outcomes, not task trees) is where the layer is heading.</li></ul>
+        <blockquote><p>Cross-project connections, open questions, and the full resources table are in the <a href="#appendix--double-click">Appendix</a>.</p></blockquote>
+        <h2 id="the-claim">the claim</h2>
         <p>Most of the agent work happening in this cohort is invisible. Not because anyone is hiding it, but because the substrate it runs on doesn't preserve it. Agents spin up in terminal tabs, churn through a context window, get rate-limited overnight, lose the thread, and start fresh in the morning with a heartbeat file as their only thread to who they used to be. The work that's actually delivered is the work whose state somebody happened to capture in a commit message.</p>
         <p>Four cohort projects converged on the same diagnosis from different angles this week: <strong>the next useful agent layer is not a better model. It is durable memory, social routing, observable workflows, and human override — treated as a single system, not as four plugins.</strong> #contexto attacks the memory side. #teleport-router routes work between humans and agents. #jjhub (Smithers) gives workflows durability and time-travel. #tinycloud's autonomous DAO experiment stress-tests what happens when none of that is present. Taken together, they describe the same product.</p>
         <h2 id="what-surfaced-this-week">what surfaced this week</h2>
         <details class="article-subsection"><summary><h3 id="1-context-window-collapse-is-the-failure-mode-that-nothing-else-fixes">1. Context window collapse is the failure mode that nothing else fixes</h3></summary><div class="article-subsection-body">
-        <p>Shashank (#contexto) gave the cleanest framing of the underlying problem: <em>"context is basically everything that your agent sees before it helps… once the context window got full, it compacts, which might be lost, and some of the key concerns are lost in this process."</em> The compaction isn't a model bug. It is the architectural reality every agent today runs on. Bigger windows, sliding windows, raw markdown dumps — Shashank walked through and dismissed each in turn before describing the actual fix: an indexer that clusters episodes (prior agent runs) hierarchically and retrieves the right context for the current step deterministically.</p>
+        <p>#contexto gave the cleanest framing of the underlying problem: context is everything an agent sees before it acts — system prompts, skills, tools, runtime inputs — and once the context window fills it compacts, and key reasoning is lost in that process. The compaction isn't a model bug. It is the architectural reality every agent today runs on. Bigger windows, sliding windows, raw markdown dumps each fall short; the actual fix is an indexer that clusters episodes (prior agent runs) hierarchically and retrieves the right context for the current step deterministically.</p>
         <p>This is the layer that has to exist before any of the other ones do useful work. Smithers can save every workflow output to SQLite, Router can publish every commit to a team channel, the agent DAO can vote on its next task — but if the next prompt the agent sees is a compacted summary that lost the actual reasoning, the system reconverges to the same lossy steady state.</p>
-        <p>For the cohort: every agent project here has a context-eviction problem hiding inside it. #contexto is the project that's named it explicitly, but #elizaos, #wikigen, #signalstack, #conclave, and the Pasio-style multi-agent setups all run into the same edge.</p>
+        <p>For the cohort: every agent project here has a context-eviction problem hiding inside it. #contexto is the project that's named it explicitly, but #elizaos, #wikigen, #signalstack, #conclave, and the multi-agent setups all run into the same edge.</p>
         </div></details>
         <details class="article-subsection"><summary><h3 id="2-long-running-agents-die-without-durability-primitives">2. Long-running agents die without durability primitives</h3></summary><div class="article-subsection-body">
-        <p>Will (#jjhub) opened Smithers' design with the archetypal failure: <em>"you might start some kind of workflow, maybe wrote a JavaScript workflow, and you started, and then you go to bed, and you wake up, you realize that you had like silly bug, and it just never ran overnight."</em> That is not a corner case. It is the median outcome of every long-running agent task in the cohort today.</p>
-        <p>Smithers' answer is five primitives stated as a unit: durable steps, persistent state, parallel execution, event-driven flows, and observability. The cohort is used to seeing these as separate concerns (Temporal handles durability, OpenTelemetry handles observability, etc.) but Will's claim is that for agents you need them in one runtime because they fail as a unit. An agent that can be restarted from frame 7 but can't be inspected has nothing useful to restart into.</p>
+        <p>#jjhub opened Smithers' design with the archetypal failure: you kick off a long workflow, go to bed, and wake up to find a silly bug meant it never ran overnight. That is not a corner case. It is the median outcome of every long-running agent task in the cohort today.</p>
+        <p>Smithers' answer is five primitives stated as a unit: durable steps, persistent state, parallel execution, event-driven flows, and observability. The cohort is used to seeing these as separate concerns (Temporal handles durability, OpenTelemetry handles observability, etc.) but the claim is that for agents you need them in one runtime because they fail as a unit. An agent that can be restarted from frame 7 but can't be inspected has nothing useful to restart into.</p>
         <p>The most cohort-relevant Smithers detail: <strong>hot mode</strong> — the ability to change a prompt while the workflow is mid-flight and have it re-render on the next tick, no restart required. That is the difference between debugging an agent and rewriting it. For projects with long-running operations (#teesql cluster bootstrap, #tinycloud outreach pipelines, #wikigen content generation), hot mode is the primitive that turns a one-shot agent into something a human can steer in real time.</p>
         </div></details>
         <details class="article-subsection"><summary><h3 id="3-agent-work-disappears-into-private-sessions-router-is-the-routing-prim">3. Agent work disappears into private sessions — Router is the routing primitive</h3></summary><div class="article-subsection-body">
-        <p>Andrew Miller (#teleport-router) framed the social side directly: <em>"for a long time, I would spend a ton of time posting on Twitter… in the past couple of years, I've retreated off of Twitter… I'm spending all of my time in my three to six [Claude Code] tabs, and that's a huge problem in missing out on serendipity."</em> Router's design is exactly the inverse: an MCP server that ambient-harvests the exhaust from your agent sessions (diffs, decisions, commits) and routes it as posts into team Slack/Matrix/email, plus a dynamic tool description that injects what teammates have posted <em>back into</em> the agent's context.</p>
+        <p>#teleport-router framed the social side directly: developers now spend their time inside three-to-six Claude Code tabs instead of posting in public, and lose the serendipity that visible work used to create. Router's design is exactly the inverse: an MCP server that ambient-harvests the exhaust from your agent sessions (diffs, decisions, commits) and routes it as posts into team Slack/Matrix/email, plus a dynamic tool description that injects what teammates have posted <em>back into</em> the agent's context.</p>
         <p>That second half is the subtle part. Router is not a notification layer bolted on top of agents — it is a memory layer that uses other humans' work as input. The agent literally sees more of the cohort's context than the human running it does. That's why the cohort instance matters: a private Router is a personal feed; a cohort Router is a shared substrate that makes hallway conversations replayable.</p>
         <p>For the program's retroactive-attribution rubric, this is structurally important. If your contribution to another team's project happens inside an agent session and never surfaces, it doesn't exist on the rubric. Router is one way to make sure it does.</p>
         </div></details>
         <details class="article-subsection"><summary><h3 id="4-heartbeat-files-and-persistent-state-are-load-bearing-infrastructure">4. Heartbeat files and persistent state are load-bearing infrastructure</h3></summary><div class="article-subsection-body">
-        <p>Hudson (#tinycloud) ran the cleanest negative experiment of the week — an autonomous agent DAO that votes on its own next task using IPFS-backed shared state. The instructive failure: <em>"if I leave it running overnight, I go back to it in the morning, and all these agents are spinning up for like 30 seconds in a heartbeat, and they're being like, 'Oh, there's nothing to do.'"</em> Hudson's diagnosis: <em>"the heartbeat file matters the most. The first thing you're seeing has the most impact on what rules it will actually follow, and then any other, like, down the nested hierarchy of files, it will get just worse and worse."</em></p>
-        <p>LSDan, who has run agents for 16 hours autonomously on a dedicated machine, confirmed the same shape: <em>"reading the whole and relevant context, and then being like, 'Nothing.'"</em> The model is trained on user-driven chat. Absent fresh input, it converges to inactivity. The fix is not a better prompt — it is a memory architecture that keeps the <em>most directive</em> context closest to the head of every loop, with structured persistence underneath.</p>
+        <p>#tinycloud ran the cleanest negative experiment of the week — an autonomous agent DAO that votes on its own next task using IPFS-backed shared state. The instructive failure: left running overnight, the agents spin up for about 30 seconds at each heartbeat, conclude there's nothing to do, and idle. The diagnosis: the heartbeat file matters most — the first thing the agent sees has the most impact on which rules it actually follows, and quality degrades further down the nested file hierarchy.</p>
+        <p>#teesql, who has run agents autonomously for up to 16 hours on a dedicated machine, confirmed the same shape: the agent reads all the relevant context and concludes there's nothing to do. The model is trained on user-driven chat. Absent fresh input, it converges to inactivity. The fix is not a better prompt — it is a memory architecture that keeps the <em>most directive</em> context closest to the head of every loop, with structured persistence underneath.</p>
         <p>This is the layer #contexto is solving generically. The cross-project insight: <strong>every agent runtime in the cohort needs a heartbeat-equivalent</strong>, and the cohort would benefit from one shared definition of what that file looks like rather than five.</p>
         </div></details>
         <details class="article-subsection"><summary><h3 id="5-human-override-is-the-safety-layer-not-a-future-feature">5. Human override is the safety layer, not a future feature</h3></summary><div class="article-subsection-body">
-        <p>LSDan offered the most concrete operational warning in either day of intros: while a long-running agent was running unsupervised on his dedicated machine, <em>"one of the things it did at some point was it exposed the raw Postgres, like unconfigured, unpassword-protected port, and a malware bot scanned it and found it and injected a crypto miner into the machine, so it was running 100% CPU non-stop."</em> It was caught manually, not by the system.</p>
+        <p>#teesql offered the most concrete operational warning in either day of intros: while a long-running agent was running unsupervised on a dedicated machine, it exposed a raw, unconfigured, unpassword-protected Postgres port — a malware bot scanned it, found it, and injected a crypto miner that ran the machine at 100% CPU non-stop. It was caught manually, not by the system.</p>
         <p>This is the negative space around all the other proof-points. Memory, workflows, routing — none of it protects against an agent doing something operationally catastrophic while no one is watching. Smithers' approval nodes (workflows that halt for human input) and Router's posting-as-default behavior (every meaningful agent action becomes a visible post) are the two cohort projects that make the override layer real. The third piece — the policy layer for what agents can do unsupervised — is missing.</p>
         <p>For #teesql, #abra, #tinycloud, #conclave (anyone running agents against production-adjacent infra): this is week-3 work, not month-3 work. The crypto miner is a cheap warning. The next one won't be.</p>
         </div></details>
         <details class="article-subsection"><summary><h3 id="6-goal-mode-is-the-paradigm-shift-the-agent-layer-is-moving-into">6. Goal-mode is the paradigm shift the agent layer is moving into</h3></summary><div class="article-subsection-body">
-        <p>Will closed his Smithers demo with a forward claim: <em>"things are moving more towards… instead of like thinking of things in terms of breaking down a hard problem to pass, think of it in terms of measurable goals, like almost giving your agent an OKR… giving your agent a lot of room to improvise its way to a goal."</em> The cohort's task-decomposition projects (Smithers' workflow trees, Hudson's voting DAO, Shashank's episode indexer) are all converging on this from below.</p>
-        <p>This is worth naming because the cohort's instinct is to build <em>for</em> the current paradigm (decompose → schedule → execute). If Will is right, the projects that age best are the ones whose primitives still work when the prompt becomes <em>"this is the outcome; figure it out, and show me your work."</em> That changes what observability has to look like.</p>
+        <p>#jjhub closed the Smithers demo with a forward claim: agent work is moving away from breaking a hard problem into steps and toward setting measurable goals — giving an agent something like an OKR, and room to improvise its way to the outcome. The cohort's task-decomposition projects (Smithers' workflow trees, #tinycloud's voting DAO, #contexto's episode indexer) are all converging on this from below.</p>
+        <p>This is worth naming because the cohort's instinct is to build <em>for</em> the current paradigm (decompose → schedule → execute). If goal-mode is where things are heading, the projects that age best are the ones whose primitives still work when the prompt becomes <em>"this is the outcome; figure it out, and show me your work."</em> That changes what observability has to look like.</p>
         </div></details>
         <h2 id="a-moment-worth-naming">a moment worth naming</h2>
         <p>Across Day 1, Day 3, and Friday's session, the same insight surfaced four times under four labels:</p>
-        <ul><li>Shashank called it <strong>context routing</strong> — the right context to the right agent at the right step.</li><li>Andrew Miller called it <strong>work-exhaust harvesting</strong> — turning private agent output into shared cohort memory.</li><li>Will called it <strong>observability</strong> — the ability to look at any frame of a long-running workflow and understand why.</li><li>Hudson called it <strong>the heartbeat problem</strong> — the file that sits closest to the head of the loop determines what the rest of the system actually does.</li></ul>
+        <ul><li>#contexto called it <strong>context routing</strong> — the right context to the right agent at the right step.</li><li>#teleport-router called it <strong>work-exhaust harvesting</strong> — turning private agent output into shared cohort memory.</li><li>#jjhub called it <strong>observability</strong> — the ability to look at any frame of a long-running workflow and understand why.</li><li>#tinycloud called it <strong>the heartbeat problem</strong> — the file that sits closest to the head of the loop determines what the rest of the system actually does.</li></ul>
         <p>Four people, four projects, one architecture. None of them used the others' vocabulary. If those four projects sit down together this week and agree on a shared interface — what does the "current context for this agent right now" object look like, in terms any of them could consume — the cohort would have something no individual project could produce alone.</p>
-        <details class="article-subsection"><summary><h3 id="other-cross-project-connections-this-week">other cross-project connections this week</h3></summary><div class="article-subsection-body">
-        <ul><li>#contexto (Shashank) ↔ #teleport-router (Andrew Miller) — both solve "surfacing the right context at the right time"; Contexto from the agent's perspective, Router from the team's. Probably one substrate.</li><li>#jjhub Smithers (Will) ↔ #teesql (LSDan) — Smithers' durable-steps primitive is exactly the shape LSDan needs for confidential-compute bootstrap workflows where every step is both an operational requirement and an audit artifact.</li><li>#tinycloud agent DAO (Hudson) ↔ #pasio-style multi-agent (LSDan) — Hudson's voting/heartbeat experiments and LSDan's coordinator/sub-agent monitoring are the same architecture with different governance assumptions. The diagnostic moments (the "Nothing" agent) match line-for-line.</li><li>#jjhub Smithers (Will) ↔ #teleport-router (Andrew Miller) — Smithers' approval nodes need to post somewhere a human will see them. That somewhere is Router. There is a one-week integration window here.</li><li>#contexto (Shashank) ↔ #jjhub (Will) — Smithers stores every workflow output; Contexto indexes prior agent episodes. Same primitive, different consumer. A shared schema would mean Smithers users get retrieval-grade history for free.</li></ul>
-        </div></details>
         <h2 id="what-to-do-with-this">what to do with this</h2>
         <p>Concrete moves, ranked by who they're for:</p>
-        <ul><li><strong>#contexto, #teleport-router, #jjhub, #tinycloud.</strong> Schedule a 90-minute working session this week, before Friday retro, on the question: <em>what does a shared "current context" object look like that any of the four projects could consume?</em> Even a strawman API is more valuable than any individual project shipping in isolation.</li><li><strong>#elizaos, #signalstack, #wikigen, #conclave, #pramaana, #shake, #etherea</strong> — anyone running agents inside their product. Audit your own context-eviction story this week. If you can't describe what happens when the agent's window fills, you have a #contexto-shaped hole.</li><li><strong>Anyone running long-running agent operations against shared infra.</strong> Put an approval node or a Router post in the loop before week 3. LSDan's crypto miner is the cheap version of this lesson.</li><li><strong>Andrew Miller, Will, Shashank, Hudson.</strong> Write one paragraph each, in your own project's voice, on what <em>your</em> project assumes about durable memory. Diffing those four paragraphs is the cheapest way to get to a shared substrate.</li><li><strong>Anyone building agent primitives.</strong> Ask the goal-mode question now: when the task interface is <em>"here is the outcome, improvise"</em>, does your project still help? If no, name what changes.</li></ul>
-        <h2 id="open-questions-for-the-cluster">open questions for the cluster</h2>
-        <ul><li>What is the smallest shared "current context for this agent" interface that #contexto, #teleport-router, #jjhub, and the cohort's other agent runtimes could all consume?</li><li>Where does the policy/sandbox layer live? Smithers gates per-workflow, Router publishes-by-default, but neither bounds what an autonomous agent is allowed to do against shared infra.</li><li>Is heartbeat-as-architecture (Hudson's pattern) general enough to be a primitive, or is it cohort-specific tribal knowledge?</li><li>How does the cohort instance of Router get adopted without turning into a noisy notification stream? The signal/noise problem is the routing problem.</li><li>What does goal-mode observability look like — what does an audit trail of "the agent improvised, here is why" actually contain?</li></ul>
-        <h2 id="voices-from-the-room">voices from the room</h2>
-        <p>Verbatim where possible. Auto-transcribed, so some lines carry mishears — preserved with <code>[sic]</code> where meaning still reads.</p>
-        <details class="article-subsection"><summary><h3 id="shashank-contexto-sm86">Shashank (#contexto / sm86)</h3></summary><div class="article-subsection-body">
-        <ul><li>on context as substrate: <em>"context is basically everything that your agent sees before it helps, like all the inputs to the evidence. It can range from the system prompts, sold skills[sic], tools, whatever you enable, to the runtime things… once the context window got full, it compacts, which might be lost."</em></li><li>on the agent-to-agent gap: <em>"the current workflow is like — I'm using my agents, [it] sends [a result] off to me, I'm copy-pasting it, sending it to my colleague, and then giving his Cloud Code agent the same prompt. Ideally, my agent should be just talking to his agent."</em></li><li>on selective trust: <em>"the trust companies are different. You trust all the systems that you want. You might not really trust my query studio."</em></li></ul>
-        </div></details>
-        <details class="article-subsection"><summary><h3 id="will-jjhub-smithers">Will (#jjhub, Smithers)</h3></summary><div class="article-subsection-body">
-        <ul><li>on durability as a unit: <em>"durable steps — when things go wrong, like your computer runs out of power, whatever, you get rate-limited, you just need the ability to restart it and have confidence everything's gonna work. You need persistent state. You need the ability to do parallel work. Event-driven flows. Observability is really one of the biggest things."</em></li><li>on overnight failures: <em>"you might start some kind of workflow, you go to bed, and you wake up, you realize that you had like a silly bug, and it just never ran overnight. That's like the type of thing that happened to me all the time."</em></li><li>on hot mode: <em>"any point if Smithers is running, you can actually — say it's running Cloud Code — you can hijack it. I can actually go change the prompt in real time, and we'll just — you won't even have to restart it."</em></li><li>on paradigm shift: <em>"think of it in terms of measurable goals, like almost giving your agent an OKR… giving your agent a lot of room to improvise its way to a goal."</em></li><li>on framework fatigue: <em>"a thing that's really popular right now is these one-size-fits-all orchestration frameworks. I think these are really cool experiments, but I don't really see these having staying power."</em></li></ul>
-        </div></details>
-        <details class="article-subsection"><summary><h3 id="andrew-miller-teleport-router">Andrew Miller (#teleport-router)</h3></summary><div class="article-subsection-body">
-        <ul><li>on the visibility problem: <em>"for a long time, I would spend a ton of time posting on Twitter… in the past couple of years, I've retreated off of Twitter… I'm spending all of my time in my three to six [Claude Code] tabs, and that's a huge problem in missing out on serendipity."</em></li><li>on Router's design: <em>"the first problem this solves is basically harvesting the exhaust — the way James puts it — from my [Claude Code], I'm now turning it into posts and recapturing some of the serendipity effect."</em></li><li>on the routing UX challenge: <em>"the real challenge in the art of this — the prompting quality and what goes into the tool description really shapes everything. Maybe there's some alpha that people can keep proprietary about a very effective water-cooler-value prompt."</em></li></ul>
-        </div></details>
-        <details class="article-subsection"><summary><h3 id="hudson-tinycloud-agent-dao">Hudson (#tinycloud agent DAO)</h3></summary><div class="article-subsection-body">
-        <ul><li>on the heartbeat problem: <em>"if I leave it running overnight, I go back to it in the morning, and all these agents are spinning up for like 30 seconds in a heartbeat, and they're being like, 'Oh, there's nothing to do.'"</em></li><li>on memory architecture: <em>"the heartbeat file matters the most. The first thing you're seeing has the most impact on what rules it will actually follow, and then any other, down the nested hierarchy of files, it will get just worse and worse."</em></li><li>on system-level regression: <em>"there's something at the [Claude] system level causing this regression. Usually your humans are prompting AI, and system prompts have been designed for that — they get to this point where they're like, 'There's been no input for a while, I guess I should just do nothing.'"</em></li><li>on durable-work governance: <em>"they're all on chain — the descriptions and everything they made on IPFS… they have different voting power based on how much they've contributed."</em></li></ul>
-        </div></details>
-        <details class="article-subsection"><summary><h3 id="lsdan-running-agents-on-a-dedicated-machine">LSDan (running agents on a dedicated machine)</h3></summary><div class="article-subsection-body">
-        <ul><li>the crypto miner incident: <em>"one of the things it did at some point was it exposed the raw Postgres, like unconfigured, unpassword-protected port, and a malware bot scanned it and found it and injected a crypto miner into the machine, so it was running 100% CPU non-stop… somebody was getting the value of the resource. The problem was it wasn't a very good miner, and so it kept crashing my system."</em></li><li>on the manual loop: <em>"most of what I have to do manually is kick it and tell the coordinator to look at its agents and see what is it currently doing… I've actually managed to run for 16 hours autonomously like that, effectively, but usually it's more like two or three hours."</em></li><li>on augmentation framing: <em>"I don't buy the worldview where we're replacing humans with AI. We're augmenting humans with AI — and humans who are incompetent, that incompetence is going to show a lot faster than it used to."</em></li><li>on the trust model: <em>"it's just like trusting your developers, but verifying your outcome."</em></li></ul>
-        </div></details>
-        <h2 id="resources-mentioned">resources mentioned</h2>
-        <p>Anything named across the four sessions, with provenance. URLs only when stated verbatim in the source or trivially derivable from a stated repo/team slug.</p>
-        <div class="table-wrap"><table><thead><tr><th>Name</th><th>What it is</th><th>Mentioned by</th><th>URL / pointer</th></tr></thead><tbody><tr><td><strong>Contexto / Context Indexer</strong></td><td>Episode-clustering indexer that retrieves the right context for the current agent step; deterministic retrieval over compacting</td><td>Shashank (#contexto / sm86)</td><td>repo via cohort team record <code>#contexto</code></td></tr><tr><td><strong>Teleport Router</strong></td><td>MCP server that harvests agent work-exhaust into team channels and injects peer context back into the agent's view</td><td>Andrew Miller (#teleport-router)</td><td><code>router.teleport.computer</code> (public instance); cohort instance forthcoming</td></tr><tr><td><strong>Smithers</strong></td><td>Durable agent workflow runtime — durable steps, persistent state, parallel execution, event-driven flows, observability, hot mode</td><td>Will (#jjhub / fucory)</td><td>repo via cohort team record <code>#jjhub</code></td></tr><tr><td><strong>JJ Hub</strong></td><td>Experimental GitHub-alternative for agent sandboxing; co-evolves with Smithers</td><td>Will</td><td>code-name; not yet released</td></tr><tr><td><strong>#tinycloud autonomous agent DAO</strong></td><td>Voting/IPFS-backed autonomous agent experiment with shared on-chain state</td><td>Hudson</td><td>cohort team record <code>#tinycloud</code></td></tr><tr><td><strong>Pasio-style multi-agent setup</strong></td><td>Dedicated-machine multi-agent coordinator (Hermes/GLM orchestrator + Claude/Codex/OpenCode sub-agents, worktrees, mobile access)</td><td>LSDan</td><td>personal production system</td></tr><tr><td><strong>Hermes / GLM 5.1</strong></td><td>Orchestrator model used in LSDan's setup for long-running coordination</td><td>LSDan</td><td>—</td></tr><tr><td><strong>Claude Code (Max tier)</strong></td><td>$200/mo Anthropic CLI subscription</td><td>Hudson, LSDan, Will</td><td>Anthropic product</td></tr><tr><td><strong>AMP</strong></td><td>Pre-configured agent harness with 200k token window + "Hand Off" compaction</td><td>Will</td><td>—</td></tr><tr><td><strong>Conductor.build</strong></td><td>UI for multi-agent task/conversation management</td><td>Hudson</td><td>—</td></tr><tr><td><strong>Playwright + MCP</strong></td><td>Browser automation + testing for agent UI verification</td><td>Hudson</td><td>open-source</td></tr><tr><td><strong>IPFS</strong></td><td>Cross-device persistent storage; substrate for Hudson's shared agent state</td><td>Hudson</td><td>—</td></tr><tr><td><strong>SQLite (via Smithers)</strong></td><td>Persistence layer for every Smithers workflow output</td><td>Will</td><td>—</td></tr><tr><td><strong>Zod</strong></td><td>TypeScript schema validation; used inside Smithers for output validation</td><td>Will</td><td>—</td></tr><tr><td><strong>React-as-AST</strong></td><td>Smithers' design choice — represent workflow tasks as a React component tree, enabling LLM-shaped workflow authoring</td><td>Will</td><td>conceptual</td></tr><tr><td><strong>Approval node</strong></td><td>Smithers workflow primitive that halts for human input</td><td>Will</td><td>—</td></tr><tr><td><strong>Hot mode / time travel / fork-from-frame</strong></td><td>Smithers observability primitives</td><td>Will</td><td>—</td></tr><tr><td><strong>Heartbeat.md pattern</strong></td><td>The file at the top of an agent's loop that determines drift behavior</td><td>Hudson</td><td>conceptual cohort-shared pattern</td></tr><tr><td><strong>Goal-mode / OKR-mode</strong></td><td>Emerging agent UX: tasks expressed as outcomes rather than decomposed task trees</td><td>Will</td><td>conceptual</td></tr><tr><td><strong>Matrix (E2EE)</strong></td><td>End-to-end-encrypted messaging used by Andrew for local-laptop-to-desktop agent comms</td><td>Andrew Miller</td><td>program canonical channel per <code>program/rules.md</code></td></tr><tr><td><strong>Zmux</strong></td><td>Tmux rewrite in Zig</td><td>Will (fucory)</td><td>open-source</td></tr></tbody></table></div>
+        <ul><li><strong>#contexto, #teleport-router, #jjhub, #tinycloud.</strong> Schedule a 90-minute working session this week, before Friday retro, on the question: <em>what does a shared "current context" object look like that any of the four projects could consume?</em> Even a strawman API is more valuable than any individual project shipping in isolation.</li><li><strong>#elizaos, #signalstack, #wikigen, #conclave, #pramaana, #shake, #etherea</strong> — anyone running agents inside their product. Audit your own context-eviction story this week. If you can't describe what happens when the agent's window fills, you have a #contexto-shaped hole.</li><li><strong>Anyone running long-running agent operations against shared infra.</strong> Put an approval node or a Router post in the loop before week 3. #teesql's crypto miner is the cheap version of this lesson.</li><li><strong>#teleport-router, #jjhub, #contexto, #tinycloud.</strong> Write one paragraph each, in your own project's voice, on what <em>your</em> project assumes about durable memory. Diffing those four paragraphs is the cheapest way to get to a shared substrate.</li><li><strong>Anyone building agent primitives.</strong> Ask the goal-mode question now: when the task interface is <em>"here is the outcome, improvise"</em>, does your project still help? If no, name what changes.</li></ul>
         <h2 id="why-this-article-exists">why this article exists</h2>
         <p>Four cohort projects are converging on the same architecture from four different starting points, none of them using each other's vocabulary, and the cohort has roughly three weeks before the June 14 demo night to either agree on a shared substrate or ship four parallel ones. The success rubric rewards collaborative contribution retroactively, but retroactive only works if the cross-project moves happen on the record. This is the prompt: name the convergence, surface the shared primitive, and build the integration before the public checkpoint forces you into separate booths.</p>
+        <h2 id="appendix-double-click">appendix — double-click</h2>
+        <p><em>Provenance and reference material: the cross-project connections, the open questions, and the full table of everything named across the four sessions.</em></p>
+        <details class="article-subsection"><summary><h3 id="other-cross-project-connections-this-week">other cross-project connections this week</h3></summary><div class="article-subsection-body">
+        <ul><li><strong>#contexto ↔ #teleport-router</strong> — both solve "surfacing the right context at the right time"; Contexto from the agent's perspective, Router from the team's. Probably one substrate.</li><li><strong>#jjhub Smithers ↔ #teesql</strong> — Smithers' durable-steps primitive is exactly the shape #teesql needs for confidential-compute bootstrap workflows where every step is both an operational requirement and an audit artifact.</li><li><strong>#tinycloud agent DAO ↔ #teesql's multi-agent setup</strong> — the voting/heartbeat experiments and the coordinator/sub-agent monitoring are the same architecture with different governance assumptions. The diagnostic moments (the "nothing to do" agent) match line-for-line.</li><li><strong>#jjhub Smithers ↔ #teleport-router</strong> — Smithers' approval nodes need to post somewhere a human will see them. That somewhere is Router. There is a one-week integration window here.</li><li><strong>#contexto ↔ #jjhub</strong> — Smithers stores every workflow output; Contexto indexes prior agent episodes. Same primitive, different consumer. A shared schema would mean Smithers users get retrieval-grade history for free.</li></ul>
+        </div></details>
+        <details class="article-subsection"><summary><h3 id="open-questions-for-the-cluster">open questions for the cluster</h3></summary><div class="article-subsection-body">
+        <ul><li>What is the smallest shared "current context for this agent" interface that #contexto, #teleport-router, #jjhub, and the cohort's other agent runtimes could all consume?</li><li>Where does the policy/sandbox layer live? Smithers gates per-workflow, Router publishes-by-default, but neither bounds what an autonomous agent is allowed to do against shared infra.</li><li>Is heartbeat-as-architecture general enough to be a primitive, or is it cohort-specific tribal knowledge?</li><li>How does the cohort instance of Router get adopted without turning into a noisy notification stream? The signal/noise problem is the routing problem.</li><li>What does goal-mode observability look like — what does an audit trail of "the agent improvised, here is why" actually contain?</li></ul>
+        </div></details>
+        <details class="article-subsection"><summary><h3 id="resources-mentioned">resources mentioned</h3></summary><div class="article-subsection-body">
+        <p>Anything named across the four sessions, with provenance. URLs only when stated verbatim in the source or trivially derivable from a stated repo/team slug.</p>
+        <div class="table-wrap"><table><thead><tr><th>Name</th><th>What it is</th><th>Mentioned by</th><th>URL / pointer</th></tr></thead><tbody><tr><td><strong>Contexto / Context Indexer</strong></td><td>Episode-clustering indexer that retrieves the right context for the current agent step; deterministic retrieval over compacting</td><td>#contexto</td><td>repo via cohort team record <code>#contexto</code></td></tr><tr><td><strong>Teleport Router</strong></td><td>MCP server that harvests agent work-exhaust into team channels and injects peer context back into the agent's view</td><td>#teleport-router</td><td><code>router.teleport.computer</code> (public instance); cohort instance forthcoming</td></tr><tr><td><strong>Smithers</strong></td><td>Durable agent workflow runtime — durable steps, persistent state, parallel execution, event-driven flows, observability, hot mode</td><td>#jjhub</td><td>repo via cohort team record <code>#jjhub</code></td></tr><tr><td><strong>JJ Hub</strong></td><td>Experimental GitHub-alternative for agent sandboxing; co-evolves with Smithers</td><td>#jjhub</td><td>code-name; not yet released</td></tr><tr><td><strong>#tinycloud autonomous agent DAO</strong></td><td>Voting/IPFS-backed autonomous agent experiment with shared on-chain state</td><td>#tinycloud</td><td>cohort team record <code>#tinycloud</code></td></tr><tr><td><strong>Multi-agent coordinator setup</strong></td><td>Dedicated-machine multi-agent coordinator (orchestrator + Claude/Codex/OpenCode sub-agents, worktrees, mobile access)</td><td>#teesql</td><td>personal production system</td></tr><tr><td><strong>Orchestrator model (Hermes / GLM 5.1)</strong></td><td>Orchestrator model used for long-running coordination</td><td>#teesql</td><td>—</td></tr><tr><td><strong>Claude Code (Max tier)</strong></td><td>$200/mo Anthropic CLI subscription</td><td>#tinycloud, #teesql, #jjhub</td><td>Anthropic product</td></tr><tr><td><strong>AMP</strong></td><td>Pre-configured agent harness with 200k token window + "Hand Off" compaction</td><td>#jjhub</td><td>—</td></tr><tr><td><strong>Conductor.build</strong></td><td>UI for multi-agent task/conversation management</td><td>#tinycloud</td><td>—</td></tr><tr><td><strong>Playwright + MCP</strong></td><td>Browser automation + testing for agent UI verification</td><td>#tinycloud</td><td>open-source</td></tr><tr><td><strong>IPFS</strong></td><td>Cross-device persistent storage; substrate for the shared agent-DAO state</td><td>#tinycloud</td><td>—</td></tr><tr><td><strong>SQLite (via Smithers)</strong></td><td>Persistence layer for every Smithers workflow output</td><td>#jjhub</td><td>—</td></tr><tr><td><strong>Zod</strong></td><td>TypeScript schema validation; used inside Smithers for output validation</td><td>#jjhub</td><td>—</td></tr><tr><td><strong>React-as-AST</strong></td><td>Smithers' design choice — represent workflow tasks as a React component tree, enabling LLM-shaped workflow authoring</td><td>#jjhub</td><td>conceptual</td></tr><tr><td><strong>Approval node</strong></td><td>Smithers workflow primitive that halts for human input</td><td>#jjhub</td><td>—</td></tr><tr><td><strong>Hot mode / time travel / fork-from-frame</strong></td><td>Smithers observability primitives</td><td>#jjhub</td><td>—</td></tr><tr><td><strong>Heartbeat.md pattern</strong></td><td>The file at the top of an agent's loop that determines drift behavior</td><td>#tinycloud</td><td>conceptual cohort-shared pattern</td></tr><tr><td><strong>Goal-mode / OKR-mode</strong></td><td>Emerging agent UX: tasks expressed as outcomes rather than decomposed task trees</td><td>#jjhub</td><td>conceptual</td></tr><tr><td><strong>Matrix (E2EE)</strong></td><td>End-to-end-encrypted messaging used for local-laptop-to-desktop agent comms</td><td>#teleport-router</td><td>program canonical channel per <code>program/rules.md</code></td></tr><tr><td><strong>Zmux</strong></td><td>Tmux rewrite in Zig</td><td>#jjhub</td><td>open-source</td></tr></tbody></table></div>
         <p>---</p>
-        <p><em>Sources: Day 1 project intro session notes (2026-05-19), Agents Day 3 project intro session notes (2026-05-21), Dumb Agent Tricks session notes (2026-05-21), Friday session notes with Shaw and Greg (2026-05-22). See also article #3 (<code>verifiability-is-becoming-ux-for-ai-infrastructure.md</code>) for the parallel infrastructure conversation in the #dstack cluster.</em></p>
+        <p><em>Sources: Day 1 project intro session notes (2026-05-19), Agents Day 3 project intro session notes (2026-05-21), Dumb Agent Tricks session notes (2026-05-21), Friday session notes (2026-05-22). See also the companion piece <code>verifiability-is-becoming-ux-for-ai-infrastructure.md</code> for the parallel infrastructure conversation in the #dstack cluster.</em></p>
+        </div></details>
           </div>
         </article>
 
@@ -197,6 +185,21 @@
           <details>
             <summary id="copy-title">Copyable Markdown</summary>
             <textarea readonly data-md-fallback># Why LLM agents need memory, workflows, and social routing
+
+*Why it matters: the cohort's most useful agent work keeps vanishing into private sessions — four projects are independently building the substrate that would make it durable, routable, and safe.*
+
+## TL;DR
+
+Most agent work in the cohort is invisible — not hidden, but lost, because the substrate doesn't preserve it. Agents churn through a context window, get rate-limited overnight, lose the thread, and start fresh. Four projects converged on the same diagnosis from different angles: **the next useful agent layer isn't a better model — it's durable memory, social routing, observable workflows, and human override, treated as one system.** #contexto attacks memory; #teleport-router routes work between humans and agents; #jjhub (Smithers) makes workflows durable and inspectable; #tinycloud's autonomous-DAO experiment stress-tests what happens with none of it. What surfaced:
+
+- **Context-window collapse** is the failure mode nothing else fixes.
+- **Long-running agents die without durability primitives** (durable steps, persistent state, observability, hot-mode editing).
+- **Agent work vanishes into private sessions** — routing the exhaust into shared channels makes it replayable.
+- **Heartbeat / persistent state is load-bearing** — the most directive context must sit closest to the head of every loop.
+- **Human override is the safety layer, now** — not a future feature.
+- **Goal-mode** (outcomes, not task trees) is where the layer is heading.
+
+&gt; Cross-project connections, open questions, and the full resources table are in the [Appendix](#appendix--double-click).
 
 ## the claim
 
@@ -208,23 +211,23 @@ Four cohort projects converged on the same diagnosis from different angles this 
 
 ### 1. Context window collapse is the failure mode that nothing else fixes
 
-Shashank (#contexto) gave the cleanest framing of the underlying problem: *"context is basically everything that your agent sees before it helps… once the context window got full, it compacts, which might be lost, and some of the key concerns are lost in this process."* The compaction isn't a model bug. It is the architectural reality every agent today runs on. Bigger windows, sliding windows, raw markdown dumps — Shashank walked through and dismissed each in turn before describing the actual fix: an indexer that clusters episodes (prior agent runs) hierarchically and retrieves the right context for the current step deterministically.
+#contexto gave the cleanest framing of the underlying problem: context is everything an agent sees before it acts — system prompts, skills, tools, runtime inputs — and once the context window fills it compacts, and key reasoning is lost in that process. The compaction isn't a model bug. It is the architectural reality every agent today runs on. Bigger windows, sliding windows, raw markdown dumps each fall short; the actual fix is an indexer that clusters episodes (prior agent runs) hierarchically and retrieves the right context for the current step deterministically.
 
 This is the layer that has to exist before any of the other ones do useful work. Smithers can save every workflow output to SQLite, Router can publish every commit to a team channel, the agent DAO can vote on its next task — but if the next prompt the agent sees is a compacted summary that lost the actual reasoning, the system reconverges to the same lossy steady state.
 
-For the cohort: every agent project here has a context-eviction problem hiding inside it. #contexto is the project that's named it explicitly, but #elizaos, #wikigen, #signalstack, #conclave, and the Pasio-style multi-agent setups all run into the same edge.
+For the cohort: every agent project here has a context-eviction problem hiding inside it. #contexto is the project that's named it explicitly, but #elizaos, #wikigen, #signalstack, #conclave, and the multi-agent setups all run into the same edge.
 
 ### 2. Long-running agents die without durability primitives
 
-Will (#jjhub) opened Smithers' design with the archetypal failure: *"you might start some kind of workflow, maybe wrote a JavaScript workflow, and you started, and then you go to bed, and you wake up, you realize that you had like silly bug, and it just never ran overnight."* That is not a corner case. It is the median outcome of every long-running agent task in the cohort today.
+#jjhub opened Smithers' design with the archetypal failure: you kick off a long workflow, go to bed, and wake up to find a silly bug meant it never ran overnight. That is not a corner case. It is the median outcome of every long-running agent task in the cohort today.
 
-Smithers' answer is five primitives stated as a unit: durable steps, persistent state, parallel execution, event-driven flows, and observability. The cohort is used to seeing these as separate concerns (Temporal handles durability, OpenTelemetry handles observability, etc.) but Will's claim is that for agents you need them in one runtime because they fail as a unit. An agent that can be restarted from frame 7 but can't be inspected has nothing useful to restart into.
+Smithers' answer is five primitives stated as a unit: durable steps, persistent state, parallel execution, event-driven flows, and observability. The cohort is used to seeing these as separate concerns (Temporal handles durability, OpenTelemetry handles observability, etc.) but the claim is that for agents you need them in one runtime because they fail as a unit. An agent that can be restarted from frame 7 but can't be inspected has nothing useful to restart into.
 
 The most cohort-relevant Smithers detail: **hot mode** — the ability to change a prompt while the workflow is mid-flight and have it re-render on the next tick, no restart required. That is the difference between debugging an agent and rewriting it. For projects with long-running operations (#teesql cluster bootstrap, #tinycloud outreach pipelines, #wikigen content generation), hot mode is the primitive that turns a one-shot agent into something a human can steer in real time.
 
 ### 3. Agent work disappears into private sessions — Router is the routing primitive
 
-Andrew Miller (#teleport-router) framed the social side directly: *"for a long time, I would spend a ton of time posting on Twitter… in the past couple of years, I've retreated off of Twitter… I'm spending all of my time in my three to six [Claude Code] tabs, and that's a huge problem in missing out on serendipity."* Router's design is exactly the inverse: an MCP server that ambient-harvests the exhaust from your agent sessions (diffs, decisions, commits) and routes it as posts into team Slack/Matrix/email, plus a dynamic tool description that injects what teammates have posted *back into* the agent's context.
+#teleport-router framed the social side directly: developers now spend their time inside three-to-six Claude Code tabs instead of posting in public, and lose the serendipity that visible work used to create. Router's design is exactly the inverse: an MCP server that ambient-harvests the exhaust from your agent sessions (diffs, decisions, commits) and routes it as posts into team Slack/Matrix/email, plus a dynamic tool description that injects what teammates have posted *back into* the agent's context.
 
 That second half is the subtle part. Router is not a notification layer bolted on top of agents — it is a memory layer that uses other humans' work as input. The agent literally sees more of the cohort's context than the human running it does. That's why the cohort instance matters: a private Router is a personal feed; a cohort Router is a shared substrate that makes hallway conversations replayable.
 
@@ -232,15 +235,15 @@ For the program's retroactive-attribution rubric, this is structurally important
 
 ### 4. Heartbeat files and persistent state are load-bearing infrastructure
 
-Hudson (#tinycloud) ran the cleanest negative experiment of the week — an autonomous agent DAO that votes on its own next task using IPFS-backed shared state. The instructive failure: *"if I leave it running overnight, I go back to it in the morning, and all these agents are spinning up for like 30 seconds in a heartbeat, and they're being like, 'Oh, there's nothing to do.'"* Hudson's diagnosis: *"the heartbeat file matters the most. The first thing you're seeing has the most impact on what rules it will actually follow, and then any other, like, down the nested hierarchy of files, it will get just worse and worse."*
+#tinycloud ran the cleanest negative experiment of the week — an autonomous agent DAO that votes on its own next task using IPFS-backed shared state. The instructive failure: left running overnight, the agents spin up for about 30 seconds at each heartbeat, conclude there's nothing to do, and idle. The diagnosis: the heartbeat file matters most — the first thing the agent sees has the most impact on which rules it actually follows, and quality degrades further down the nested file hierarchy.
 
-LSDan, who has run agents for 16 hours autonomously on a dedicated machine, confirmed the same shape: *"reading the whole and relevant context, and then being like, 'Nothing.'"* The model is trained on user-driven chat. Absent fresh input, it converges to inactivity. The fix is not a better prompt — it is a memory architecture that keeps the *most directive* context closest to the head of every loop, with structured persistence underneath.
+#teesql, who has run agents autonomously for up to 16 hours on a dedicated machine, confirmed the same shape: the agent reads all the relevant context and concludes there's nothing to do. The model is trained on user-driven chat. Absent fresh input, it converges to inactivity. The fix is not a better prompt — it is a memory architecture that keeps the *most directive* context closest to the head of every loop, with structured persistence underneath.
 
 This is the layer #contexto is solving generically. The cross-project insight: **every agent runtime in the cohort needs a heartbeat-equivalent**, and the cohort would benefit from one shared definition of what that file looks like rather than five.
 
 ### 5. Human override is the safety layer, not a future feature
 
-LSDan offered the most concrete operational warning in either day of intros: while a long-running agent was running unsupervised on his dedicated machine, *"one of the things it did at some point was it exposed the raw Postgres, like unconfigured, unpassword-protected port, and a malware bot scanned it and found it and injected a crypto miner into the machine, so it was running 100% CPU non-stop."* It was caught manually, not by the system.
+#teesql offered the most concrete operational warning in either day of intros: while a long-running agent was running unsupervised on a dedicated machine, it exposed a raw, unconfigured, unpassword-protected Postgres port — a malware bot scanned it, found it, and injected a crypto miner that ran the machine at 100% CPU non-stop. It was caught manually, not by the system.
 
 This is the negative space around all the other proof-points. Memory, workflows, routing — none of it protects against an agent doing something operationally catastrophic while no one is watching. Smithers' approval nodes (workflows that halt for human input) and Router's posting-as-default behavior (every meaningful agent action becomes a visible post) are the two cohort projects that make the override layer real. The third piece — the policy layer for what agents can do unsupervised — is missing.
 
@@ -248,28 +251,20 @@ For #teesql, #abra, #tinycloud, #conclave (anyone running agents against product
 
 ### 6. Goal-mode is the paradigm shift the agent layer is moving into
 
-Will closed his Smithers demo with a forward claim: *"things are moving more towards… instead of like thinking of things in terms of breaking down a hard problem to pass, think of it in terms of measurable goals, like almost giving your agent an OKR… giving your agent a lot of room to improvise its way to a goal."* The cohort's task-decomposition projects (Smithers' workflow trees, Hudson's voting DAO, Shashank's episode indexer) are all converging on this from below.
+#jjhub closed the Smithers demo with a forward claim: agent work is moving away from breaking a hard problem into steps and toward setting measurable goals — giving an agent something like an OKR, and room to improvise its way to the outcome. The cohort's task-decomposition projects (Smithers' workflow trees, #tinycloud's voting DAO, #contexto's episode indexer) are all converging on this from below.
 
-This is worth naming because the cohort's instinct is to build *for* the current paradigm (decompose → schedule → execute). If Will is right, the projects that age best are the ones whose primitives still work when the prompt becomes *"this is the outcome; figure it out, and show me your work."* That changes what observability has to look like.
+This is worth naming because the cohort's instinct is to build *for* the current paradigm (decompose → schedule → execute). If goal-mode is where things are heading, the projects that age best are the ones whose primitives still work when the prompt becomes *"this is the outcome; figure it out, and show me your work."* That changes what observability has to look like.
 
 ## a moment worth naming
 
 Across Day 1, Day 3, and Friday's session, the same insight surfaced four times under four labels:
 
-- Shashank called it **context routing** — the right context to the right agent at the right step.
-- Andrew Miller called it **work-exhaust harvesting** — turning private agent output into shared cohort memory.
-- Will called it **observability** — the ability to look at any frame of a long-running workflow and understand why.
-- Hudson called it **the heartbeat problem** — the file that sits closest to the head of the loop determines what the rest of the system actually does.
+- #contexto called it **context routing** — the right context to the right agent at the right step.
+- #teleport-router called it **work-exhaust harvesting** — turning private agent output into shared cohort memory.
+- #jjhub called it **observability** — the ability to look at any frame of a long-running workflow and understand why.
+- #tinycloud called it **the heartbeat problem** — the file that sits closest to the head of the loop determines what the rest of the system actually does.
 
 Four people, four projects, one architecture. None of them used the others' vocabulary. If those four projects sit down together this week and agree on a shared interface — what does the "current context for this agent right now" object look like, in terms any of them could consume — the cohort would have something no individual project could produce alone.
-
-### other cross-project connections this week
-
-- #contexto (Shashank) ↔ #teleport-router (Andrew Miller) — both solve "surfacing the right context at the right time"; Contexto from the agent's perspective, Router from the team's. Probably one substrate.
-- #jjhub Smithers (Will) ↔ #teesql (LSDan) — Smithers' durable-steps primitive is exactly the shape LSDan needs for confidential-compute bootstrap workflows where every step is both an operational requirement and an audit artifact.
-- #tinycloud agent DAO (Hudson) ↔ #pasio-style multi-agent (LSDan) — Hudson's voting/heartbeat experiments and LSDan's coordinator/sub-agent monitoring are the same architecture with different governance assumptions. The diagnostic moments (the "Nothing" agent) match line-for-line.
-- #jjhub Smithers (Will) ↔ #teleport-router (Andrew Miller) — Smithers' approval nodes need to post somewhere a human will see them. That somewhere is Router. There is a one-week integration window here.
-- #contexto (Shashank) ↔ #jjhub (Will) — Smithers stores every workflow output; Contexto indexes prior agent episodes. Same primitive, different consumer. A shared schema would mean Smithers users get retrieval-grade history for free.
 
 ## what to do with this
 
@@ -277,91 +272,65 @@ Concrete moves, ranked by who they're for:
 
 - **#contexto, #teleport-router, #jjhub, #tinycloud.** Schedule a 90-minute working session this week, before Friday retro, on the question: *what does a shared "current context" object look like that any of the four projects could consume?* Even a strawman API is more valuable than any individual project shipping in isolation.
 - **#elizaos, #signalstack, #wikigen, #conclave, #pramaana, #shake, #etherea** — anyone running agents inside their product. Audit your own context-eviction story this week. If you can't describe what happens when the agent's window fills, you have a #contexto-shaped hole.
-- **Anyone running long-running agent operations against shared infra.** Put an approval node or a Router post in the loop before week 3. LSDan's crypto miner is the cheap version of this lesson.
-- **Andrew Miller, Will, Shashank, Hudson.** Write one paragraph each, in your own project's voice, on what *your* project assumes about durable memory. Diffing those four paragraphs is the cheapest way to get to a shared substrate.
+- **Anyone running long-running agent operations against shared infra.** Put an approval node or a Router post in the loop before week 3. #teesql's crypto miner is the cheap version of this lesson.
+- **#teleport-router, #jjhub, #contexto, #tinycloud.** Write one paragraph each, in your own project's voice, on what *your* project assumes about durable memory. Diffing those four paragraphs is the cheapest way to get to a shared substrate.
 - **Anyone building agent primitives.** Ask the goal-mode question now: when the task interface is *"here is the outcome, improvise"*, does your project still help? If no, name what changes.
-
-## open questions for the cluster
-
-- What is the smallest shared "current context for this agent" interface that #contexto, #teleport-router, #jjhub, and the cohort's other agent runtimes could all consume?
-- Where does the policy/sandbox layer live? Smithers gates per-workflow, Router publishes-by-default, but neither bounds what an autonomous agent is allowed to do against shared infra.
-- Is heartbeat-as-architecture (Hudson's pattern) general enough to be a primitive, or is it cohort-specific tribal knowledge?
-- How does the cohort instance of Router get adopted without turning into a noisy notification stream? The signal/noise problem is the routing problem.
-- What does goal-mode observability look like — what does an audit trail of "the agent improvised, here is why" actually contain?
-
-## voices from the room
-
-Verbatim where possible. Auto-transcribed, so some lines carry mishears — preserved with `[sic]` where meaning still reads.
-
-### Shashank (#contexto / sm86)
-
-- on context as substrate: *"context is basically everything that your agent sees before it helps, like all the inputs to the evidence. It can range from the system prompts, sold skills[sic], tools, whatever you enable, to the runtime things… once the context window got full, it compacts, which might be lost."*
-- on the agent-to-agent gap: *"the current workflow is like — I'm using my agents, [it] sends [a result] off to me, I'm copy-pasting it, sending it to my colleague, and then giving his Cloud Code agent the same prompt. Ideally, my agent should be just talking to his agent."*
-- on selective trust: *"the trust companies are different. You trust all the systems that you want. You might not really trust my query studio."*
-
-### Will (#jjhub, Smithers)
-
-- on durability as a unit: *"durable steps — when things go wrong, like your computer runs out of power, whatever, you get rate-limited, you just need the ability to restart it and have confidence everything's gonna work. You need persistent state. You need the ability to do parallel work. Event-driven flows. Observability is really one of the biggest things."*
-- on overnight failures: *"you might start some kind of workflow, you go to bed, and you wake up, you realize that you had like a silly bug, and it just never ran overnight. That's like the type of thing that happened to me all the time."*
-- on hot mode: *"any point if Smithers is running, you can actually — say it's running Cloud Code — you can hijack it. I can actually go change the prompt in real time, and we'll just — you won't even have to restart it."*
-- on paradigm shift: *"think of it in terms of measurable goals, like almost giving your agent an OKR… giving your agent a lot of room to improvise its way to a goal."*
-- on framework fatigue: *"a thing that's really popular right now is these one-size-fits-all orchestration frameworks. I think these are really cool experiments, but I don't really see these having staying power."*
-
-### Andrew Miller (#teleport-router)
-
-- on the visibility problem: *"for a long time, I would spend a ton of time posting on Twitter… in the past couple of years, I've retreated off of Twitter… I'm spending all of my time in my three to six [Claude Code] tabs, and that's a huge problem in missing out on serendipity."*
-- on Router's design: *"the first problem this solves is basically harvesting the exhaust — the way James puts it — from my [Claude Code], I'm now turning it into posts and recapturing some of the serendipity effect."*
-- on the routing UX challenge: *"the real challenge in the art of this — the prompting quality and what goes into the tool description really shapes everything. Maybe there's some alpha that people can keep proprietary about a very effective water-cooler-value prompt."*
-
-### Hudson (#tinycloud agent DAO)
-
-- on the heartbeat problem: *"if I leave it running overnight, I go back to it in the morning, and all these agents are spinning up for like 30 seconds in a heartbeat, and they're being like, 'Oh, there's nothing to do.'"*
-- on memory architecture: *"the heartbeat file matters the most. The first thing you're seeing has the most impact on what rules it will actually follow, and then any other, down the nested hierarchy of files, it will get just worse and worse."*
-- on system-level regression: *"there's something at the [Claude] system level causing this regression. Usually your humans are prompting AI, and system prompts have been designed for that — they get to this point where they're like, 'There's been no input for a while, I guess I should just do nothing.'"*
-- on durable-work governance: *"they're all on chain — the descriptions and everything they made on IPFS… they have different voting power based on how much they've contributed."*
-
-### LSDan (running agents on a dedicated machine)
-
-- the crypto miner incident: *"one of the things it did at some point was it exposed the raw Postgres, like unconfigured, unpassword-protected port, and a malware bot scanned it and found it and injected a crypto miner into the machine, so it was running 100% CPU non-stop… somebody was getting the value of the resource. The problem was it wasn't a very good miner, and so it kept crashing my system."*
-- on the manual loop: *"most of what I have to do manually is kick it and tell the coordinator to look at its agents and see what is it currently doing… I've actually managed to run for 16 hours autonomously like that, effectively, but usually it's more like two or three hours."*
-- on augmentation framing: *"I don't buy the worldview where we're replacing humans with AI. We're augmenting humans with AI — and humans who are incompetent, that incompetence is going to show a lot faster than it used to."*
-- on the trust model: *"it's just like trusting your developers, but verifying your outcome."*
-
-## resources mentioned
-
-Anything named across the four sessions, with provenance. URLs only when stated verbatim in the source or trivially derivable from a stated repo/team slug.
-
-| Name | What it is | Mentioned by | URL / pointer |
-|---|---|---|---|
-| **Contexto / Context Indexer** | Episode-clustering indexer that retrieves the right context for the current agent step; deterministic retrieval over compacting | Shashank (#contexto / sm86) | repo via cohort team record `#contexto` |
-| **Teleport Router** | MCP server that harvests agent work-exhaust into team channels and injects peer context back into the agent's view | Andrew Miller (#teleport-router) | `router.teleport.computer` (public instance); cohort instance forthcoming |
-| **Smithers** | Durable agent workflow runtime — durable steps, persistent state, parallel execution, event-driven flows, observability, hot mode | Will (#jjhub / fucory) | repo via cohort team record `#jjhub` |
-| **JJ Hub** | Experimental GitHub-alternative for agent sandboxing; co-evolves with Smithers | Will | code-name; not yet released |
-| **#tinycloud autonomous agent DAO** | Voting/IPFS-backed autonomous agent experiment with shared on-chain state | Hudson | cohort team record `#tinycloud` |
-| **Pasio-style multi-agent setup** | Dedicated-machine multi-agent coordinator (Hermes/GLM orchestrator + Claude/Codex/OpenCode sub-agents, worktrees, mobile access) | LSDan | personal production system |
-| **Hermes / GLM 5.1** | Orchestrator model used in LSDan's setup for long-running coordination | LSDan | — |
-| **Claude Code (Max tier)** | $200/mo Anthropic CLI subscription | Hudson, LSDan, Will | Anthropic product |
-| **AMP** | Pre-configured agent harness with 200k token window + "Hand Off" compaction | Will | — |
-| **Conductor.build** | UI for multi-agent task/conversation management | Hudson | — |
-| **Playwright + MCP** | Browser automation + testing for agent UI verification | Hudson | open-source |
-| **IPFS** | Cross-device persistent storage; substrate for Hudson's shared agent state | Hudson | — |
-| **SQLite (via Smithers)** | Persistence layer for every Smithers workflow output | Will | — |
-| **Zod** | TypeScript schema validation; used inside Smithers for output validation | Will | — |
-| **React-as-AST** | Smithers' design choice — represent workflow tasks as a React component tree, enabling LLM-shaped workflow authoring | Will | conceptual |
-| **Approval node** | Smithers workflow primitive that halts for human input | Will | — |
-| **Hot mode / time travel / fork-from-frame** | Smithers observability primitives | Will | — |
-| **Heartbeat.md pattern** | The file at the top of an agent's loop that determines drift behavior | Hudson | conceptual cohort-shared pattern |
-| **Goal-mode / OKR-mode** | Emerging agent UX: tasks expressed as outcomes rather than decomposed task trees | Will | conceptual |
-| **Matrix (E2EE)** | End-to-end-encrypted messaging used by Andrew for local-laptop-to-desktop agent comms | Andrew Miller | program canonical channel per `program/rules.md` |
-| **Zmux** | Tmux rewrite in Zig | Will (fucory) | open-source |
 
 ## why this article exists
 
 Four cohort projects are converging on the same architecture from four different starting points, none of them using each other's vocabulary, and the cohort has roughly three weeks before the June 14 demo night to either agree on a shared substrate or ship four parallel ones. The success rubric rewards collaborative contribution retroactively, but retroactive only works if the cross-project moves happen on the record. This is the prompt: name the convergence, surface the shared primitive, and build the integration before the public checkpoint forces you into separate booths.
 
+## appendix — double-click
+
+*Provenance and reference material: the cross-project connections, the open questions, and the full table of everything named across the four sessions.*
+
+### other cross-project connections this week
+
+- **#contexto ↔ #teleport-router** — both solve "surfacing the right context at the right time"; Contexto from the agent's perspective, Router from the team's. Probably one substrate.
+- **#jjhub Smithers ↔ #teesql** — Smithers' durable-steps primitive is exactly the shape #teesql needs for confidential-compute bootstrap workflows where every step is both an operational requirement and an audit artifact.
+- **#tinycloud agent DAO ↔ #teesql's multi-agent setup** — the voting/heartbeat experiments and the coordinator/sub-agent monitoring are the same architecture with different governance assumptions. The diagnostic moments (the "nothing to do" agent) match line-for-line.
+- **#jjhub Smithers ↔ #teleport-router** — Smithers' approval nodes need to post somewhere a human will see them. That somewhere is Router. There is a one-week integration window here.
+- **#contexto ↔ #jjhub** — Smithers stores every workflow output; Contexto indexes prior agent episodes. Same primitive, different consumer. A shared schema would mean Smithers users get retrieval-grade history for free.
+
+### open questions for the cluster
+
+- What is the smallest shared "current context for this agent" interface that #contexto, #teleport-router, #jjhub, and the cohort's other agent runtimes could all consume?
+- Where does the policy/sandbox layer live? Smithers gates per-workflow, Router publishes-by-default, but neither bounds what an autonomous agent is allowed to do against shared infra.
+- Is heartbeat-as-architecture general enough to be a primitive, or is it cohort-specific tribal knowledge?
+- How does the cohort instance of Router get adopted without turning into a noisy notification stream? The signal/noise problem is the routing problem.
+- What does goal-mode observability look like — what does an audit trail of "the agent improvised, here is why" actually contain?
+
+### resources mentioned
+
+Anything named across the four sessions, with provenance. URLs only when stated verbatim in the source or trivially derivable from a stated repo/team slug.
+
+| Name | What it is | Mentioned by | URL / pointer |
+|---|---|---|---|
+| **Contexto / Context Indexer** | Episode-clustering indexer that retrieves the right context for the current agent step; deterministic retrieval over compacting | #contexto | repo via cohort team record `#contexto` |
+| **Teleport Router** | MCP server that harvests agent work-exhaust into team channels and injects peer context back into the agent's view | #teleport-router | `router.teleport.computer` (public instance); cohort instance forthcoming |
+| **Smithers** | Durable agent workflow runtime — durable steps, persistent state, parallel execution, event-driven flows, observability, hot mode | #jjhub | repo via cohort team record `#jjhub` |
+| **JJ Hub** | Experimental GitHub-alternative for agent sandboxing; co-evolves with Smithers | #jjhub | code-name; not yet released |
+| **#tinycloud autonomous agent DAO** | Voting/IPFS-backed autonomous agent experiment with shared on-chain state | #tinycloud | cohort team record `#tinycloud` |
+| **Multi-agent coordinator setup** | Dedicated-machine multi-agent coordinator (orchestrator + Claude/Codex/OpenCode sub-agents, worktrees, mobile access) | #teesql | personal production system |
+| **Orchestrator model (Hermes / GLM 5.1)** | Orchestrator model used for long-running coordination | #teesql | — |
+| **Claude Code (Max tier)** | $200/mo Anthropic CLI subscription | #tinycloud, #teesql, #jjhub | Anthropic product |
+| **AMP** | Pre-configured agent harness with 200k token window + "Hand Off" compaction | #jjhub | — |
+| **Conductor.build** | UI for multi-agent task/conversation management | #tinycloud | — |
+| **Playwright + MCP** | Browser automation + testing for agent UI verification | #tinycloud | open-source |
+| **IPFS** | Cross-device persistent storage; substrate for the shared agent-DAO state | #tinycloud | — |
+| **SQLite (via Smithers)** | Persistence layer for every Smithers workflow output | #jjhub | — |
+| **Zod** | TypeScript schema validation; used inside Smithers for output validation | #jjhub | — |
+| **React-as-AST** | Smithers' design choice — represent workflow tasks as a React component tree, enabling LLM-shaped workflow authoring | #jjhub | conceptual |
+| **Approval node** | Smithers workflow primitive that halts for human input | #jjhub | — |
+| **Hot mode / time travel / fork-from-frame** | Smithers observability primitives | #jjhub | — |
+| **Heartbeat.md pattern** | The file at the top of an agent's loop that determines drift behavior | #tinycloud | conceptual cohort-shared pattern |
+| **Goal-mode / OKR-mode** | Emerging agent UX: tasks expressed as outcomes rather than decomposed task trees | #jjhub | conceptual |
+| **Matrix (E2EE)** | End-to-end-encrypted messaging used for local-laptop-to-desktop agent comms | #teleport-router | program canonical channel per `program/rules.md` |
+| **Zmux** | Tmux rewrite in Zig | #jjhub | open-source |
+
 ---
 
-*Sources: Day 1 project intro session notes (2026-05-19), Agents Day 3 project intro session notes (2026-05-21), Dumb Agent Tricks session notes (2026-05-21), Friday session notes with Shaw and Greg (2026-05-22). See also article #3 (`verifiability-is-becoming-ux-for-ai-infrastructure.md`) for the parallel infrastructure conversation in the #dstack cluster.*</textarea>
+*Sources: Day 1 project intro session notes (2026-05-19), Agents Day 3 project intro session notes (2026-05-21), Dumb Agent Tricks session notes (2026-05-21), Friday session notes (2026-05-22). See also the companion piece `verifiability-is-becoming-ux-for-ai-infrastructure.md` for the parallel infrastructure conversation in the #dstack cluster.*</textarea>
           </details>
         </section>
       </div>

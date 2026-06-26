@@ -1,0 +1,1048 @@
+{
+  "schema_version": 1,
+  "generated_at": null,
+  "generator": "claude-agents",
+  "edge_count": 130,
+  "edges": [
+    {
+      "from": "abra",
+      "to": "teesql",
+      "score": 0.9,
+      "kind": "seeking-offering",
+      "reason": "Abra explicitly seeks 'TEE Postgres beta access for the verification registry' and TeeSQL offers free TEE Postgres on dstack to cohort teams; this is the exact declared dependency Abra needs to validate its registry spec against a live deployment.",
+      "basis": "inferred"
+    },
+    {
+      "from": "dcnet",
+      "to": "searxng-wth-frnds",
+      "score": 0.9,
+      "kind": "dependency",
+      "reason": "Mutual declared dependency and same local-first-networking cluster. searxng-wth-frnds is fighting metadata leakage and Tor-exit blocking for private LLM search and is exploring reputation-gated egress; DCNet's dining-cryptographer anonymous broadcast is the exact anonymity primitive that problem calls for.",
+      "basis": "inferred"
+    },
+    {
+      "from": "dealproof",
+      "to": "prova",
+      "score": 0.9,
+      "kind": "complementary",
+      "reason": "Declared dependency with an existing typed dependency record (prova-dealproof, relation: complements). Both ship an open-source dual-attestation library; DealProof's own weekly goal names connecting with Justin (ProvaTrust) on attestation-layer complementarity, so the open question is one reusable module vs two complementary APIs.",
+      "basis": "inferred"
+    },
+    {
+      "from": "elizaos",
+      "to": "jjhub",
+      "score": 0.9,
+      "kind": "dependency",
+      "reason": "Live dependency confirmed in both records: elizaOS swapped n8n to Smithers as its workflow engine and JJHub's traction notes elizaOS adopted Smithers, with GEPA and TUI PRs landed upstream. A running integration to harden, not a prospective intro.",
+      "basis": "inferred"
+    },
+    {
+      "from": "elizaos",
+      "to": "bitrouter",
+      "score": 0.9,
+      "kind": "dependency",
+      "reason": "Live dependency in both records: elizaOS swapped OpenRouter to Bitrouter for routing (with OpenRouter fallback) and now runs cohort infrastructure on it. Bitrouter is hunting its first paying user from activated signups, and elizaOS is exactly the kind of real agent workflow that proves the supply-side cost edge.",
+      "basis": "inferred"
+    },
+    {
+      "from": "jjhub",
+      "to": "elizaos",
+      "score": 0.9,
+      "kind": "seeking-offering",
+      "reason": "elizaOS has already adopted Smithers as its workflow engine (swapped n8n→Smithers, GEPA + TUI PRs upstream) — a confirmed integration; this is the live non-self ICP JJHub's next milestone calls for, and JJHub's offered EVM/workflow consult directly supports elizaOS's runtime.",
+      "basis": "inferred"
+    },
+    {
+      "from": "prova",
+      "to": "dealproof",
+      "score": 0.9,
+      "kind": "seeking-offering",
+      "reason": "DealProof's own weekly goal explicitly names 'connect with Justin (ProvaTrust) on attestation layer complementarity' — both ship open-source dual-attestation libraries for cohort reuse, so the question is whether it becomes one shared module or two complementary APIs.",
+      "basis": "inferred"
+    },
+    {
+      "from": "teesql",
+      "to": "abra",
+      "score": 0.9,
+      "kind": "seeking-offering",
+      "reason": "Abra explicitly seeks 'TEE Postgres beta access for the verification registry' and TeeSQL offers free TeeSQL service to cohort teams during the accelerator; Abra is the named first validator for TeeSQL's registry-grade proof-of-deployment story.",
+      "basis": "inferred"
+    },
+    {
+      "from": "daedalus",
+      "to": "bitrouter",
+      "score": 0.88,
+      "kind": "dependency",
+      "reason": "Mutual declared dependency: Daedalus seeks integration partners for protected order-flow primitives and bitrouter lists daedalus as a dependency. Bitrouter's x402-kit agent-native payment rails are the execution/payment layer Daedalus's delta-neutral hedge tooling lacks (Daedalus is intelligence, not execution).",
+      "basis": "inferred"
+    },
+    {
+      "from": "dealproof",
+      "to": "contexto",
+      "score": 0.88,
+      "kind": "dependency",
+      "reason": "Live integration, not just a plan: Contexto's evidence notes state DealProof adopted its memory engine for negotiation rounds, and DealProof's now-field says its negotiation app carries memory across rounds via Contexto (hash + recall of prior terms). Already a working dependency to deepen.",
+      "basis": "inferred"
+    },
+    {
+      "from": "etherea",
+      "to": "tinycloud",
+      "score": 0.88,
+      "kind": "dependency",
+      "reason": "Etherea declares tinycloud as a dependency and Tinycloud already shipped a 'Realtime audio transcriber with Etherea'; tinycloud-secrets and the transcript-mining feed are the sovereign voice→transcript backbone Etherea's stage system ingests, making this a confirmed integration not a co-topic.",
+      "basis": "inferred"
+    },
+    {
+      "from": "feedling",
+      "to": "tinycloud",
+      "score": 0.88,
+      "kind": "dependency",
+      "reason": "Feedling declares tinycloud as a dependency and needs 'TEE-delegated access to watch-history signals'; Tinycloud's shipped tinycloud-secrets (scoped credential delegation) plus its 'personalized feed mined from a user's own transcripts' is almost the same primitive and product thesis — the delegation layer Feedling is missing.",
+      "basis": "inferred"
+    },
+    {
+      "from": "shape-rotator-os",
+      "to": "teleport-router",
+      "score": 0.88,
+      "kind": "dependency",
+      "reason": "Declared dependency: Teleport Router's was the first cohort-project merge into the OS, and the OS can consume the router's cross-pollination/Daybook feed (plain REST) instead of reimplementing the introduction pipeline — the open task is wiring a reader against that feed.",
+      "basis": "inferred"
+    },
+    {
+      "from": "daedalus",
+      "to": "crossroads",
+      "score": 0.86,
+      "kind": "dependency",
+      "reason": "Declared dependency and same Cornell Tech / IC3 research lineage. Crossroads' policy-constrained signing-committee wallet is exactly the custody/key-encumbrance layer Daedalus would need if its hedge-discovery intelligence ever drove on-chain Polymarket execution.",
+      "basis": "inferred"
+    },
+    {
+      "from": "pramaana",
+      "to": "crossroads",
+      "score": 0.86,
+      "kind": "seeking-offering",
+      "reason": "Declared complementarity (pramaana→crossroads): Pramaana offers its SDK as a post-quantum identity layer and seeks 'cohort tools that want identity verification'; Crossroads' Liquefaction wallet needs policy-constrained signing and identity primitives — an exact identity-layer↔wallet match, both in the crypto-id / IC3 axis.",
+      "basis": "inferred"
+    },
+    {
+      "from": "searxng-wth-frnds",
+      "to": "dcnet",
+      "score": 0.86,
+      "kind": "seeking-offering",
+      "reason": "searxng is writing 'a minimal anonymity architecture note for the reputation-gated egress design' to dodge Tor-exit blocking; DCNet offers anonymity-network design review and dining-cryptographer broadcast primitives and seeks 'product collaborators who can pressure-test private-search use cases' — the exact reviewer searxng needs.",
+      "basis": "inferred"
+    },
+    {
+      "from": "teleport-router",
+      "to": "shape-rotator-os",
+      "score": 0.86,
+      "kind": "distribution",
+      "reason": "Shape Rotator OS declares a depends_on Teleport Router and the router is already the first merged cohort-project contribution to the OS; turning that merge into a recurring routed Daybook/cross-pollination workflow is Teleport Router's stated next milestone and the OS's named integration target.",
+      "basis": "inferred"
+    },
+    {
+      "from": "bitrouter",
+      "to": "elizaos",
+      "score": 0.85,
+      "kind": "distribution",
+      "reason": "elizaOS already swapped OpenRouter for Bitrouter as its routing layer (live integration), making it Bitrouter's single best path to prove the supply-side cost edge inside a real agent workflow and to turn an activated user into the first paid conversion.",
+      "basis": "inferred"
+    },
+    {
+      "from": "contexto",
+      "to": "dealproof",
+      "score": 0.85,
+      "kind": "dependency",
+      "reason": "DealProof already adopted Contexto's memory engine to carry negotiation state (hash + recall of prior terms) across CDN-deal rounds — a confirmed live integration, the strongest external-use proof point Contexto has.",
+      "basis": "inferred"
+    },
+    {
+      "from": "etherea",
+      "to": "teleport-router",
+      "score": 0.85,
+      "kind": "seeking-offering",
+      "reason": "Etherea explicitly seeks 'cohort feedback on the Teleport Router architecture' — a direct, named request that Teleport Router (the team owning that architecture, plus the Daybook cross-pollination feed) is uniquely positioned to answer.",
+      "basis": "inferred"
+    },
+    {
+      "from": "dcnet",
+      "to": "teleport-router",
+      "score": 0.84,
+      "kind": "dependency",
+      "reason": "Declared dependency (Teleport lists dcnet) within the same local-first-networking cluster. Teleport's one-time delegated posting and attestation-verified routing leaks who initiated the action; DCNet offers private broadcast primitives so coordination happens without attribution leakage.",
+      "basis": "inferred"
+    },
+    {
+      "from": "enclave",
+      "to": "prova",
+      "score": 0.84,
+      "kind": "shared-problem",
+      "reason": "Enclave seeks 'healthcare or regulated-data users who can validate the first workflow'; Prova is already live on Phala TDX running a healthcare prior-auth workflow with real Da Vinci PAS / X12 278 payer integrations — the exact validator + EHR pattern Enclave needs to break its ICP-clarity bottleneck.",
+      "basis": "inferred"
+    },
+    {
+      "from": "pramaana",
+      "to": "wikigen",
+      "score": 0.84,
+      "kind": "seeking-offering",
+      "reason": "Pramaana declares wikigen as a dependency and offers a 'Pramaana SDK as identity layer' + Sybil-resistance/anonymous-credentials; WikiGen explicitly seeks an 'identity layer pair on consent workflows for sensitive datasets' — a precise seeking↔offering fit for consented bioinformatics pipelines.",
+      "basis": "inferred"
+    },
+    {
+      "from": "enclave",
+      "to": "trustless-tee",
+      "score": 0.83,
+      "kind": "seeking-offering",
+      "reason": "Enclave seeks 'TEE reviewers for medical-data threat modeling'; Trustless TEE offers 'sharp trust-boundary review for TEE-based projects' and specializes in where the hardware-vendor trust root enters the stack — directly what a medical-data trust boundary needs scrutinized.",
+      "basis": "inferred"
+    },
+    {
+      "from": "conclave",
+      "to": "contexto",
+      "score": 0.82,
+      "kind": "seeking-offering",
+      "reason": "Conclave's multi-week NDAI signal pipeline needs long-horizon memory to keep early-cohort signal relevant, which is exactly Contexto's episode-based relevant-context injection; both already declare each other as dependencies.",
+      "basis": "inferred"
+    },
+    {
+      "from": "jjhub",
+      "to": "contexto",
+      "score": 0.82,
+      "kind": "dependency",
+      "reason": "JJHub declares contexto as a dependency; JJHub seeks teams to 'dogfood Smithers for agentic CI' and Contexto seeks 'long-running agent dogfooders for context-collapse stress-testing' — Smithers' durable, long-running workflow traces are exactly the substrate Contexto's observability tooling needs to instrument.",
+      "basis": "inferred"
+    },
+    {
+      "from": "prova",
+      "to": "signalstack",
+      "score": 0.82,
+      "kind": "shared-problem",
+      "reason": "Prova seeks 'cohort teams shipping LLM inference in TEEs to compare deployment patterns' and SignalStack seeks exactly 'cohort teams comparing TEE deployment patterns + attestation UX' while shipping confidential LLM inference on Intel TDX — a direct deployment-pattern comparison before either standardizes a cohort-facing library.",
+      "basis": "inferred"
+    },
+    {
+      "from": "signalstack",
+      "to": "dealproof",
+      "score": 0.82,
+      "kind": "seeking-offering",
+      "reason": "SignalStack seeks 'integration testers for the attestation verification SDK' and feedback on attestation UX; DealProof seeks 'feedback on DCAP verification UX for non-TEE-native developers' and ships its own dual-attestation library — a direct two-way attestation-UX test.",
+      "basis": "inferred"
+    },
+    {
+      "from": "teleport-router",
+      "to": "etherea",
+      "score": 0.82,
+      "kind": "seeking-offering",
+      "reason": "Etherea explicitly seeks 'cohort feedback on the Teleport Router architecture' and Teleport Router offers exactly that plus social/account-boundary experiments for projects with user-owned context; both share James Barnes as a builder, so the architecture review is a direct match.",
+      "basis": "inferred"
+    },
+    {
+      "from": "conclave",
+      "to": "dealproof",
+      "score": 0.8,
+      "kind": "seeking-offering",
+      "reason": "DealProof's weekly goal explicitly names exploring Conclave collaboration on NDAI overlap, and Conclave seeks 'cohort projects to test multi-party skill workflows' — DealProof's dual-agent negotiation is a concrete first adopter of Conclave's reusable skill framework.",
+      "basis": "inferred"
+    },
+    {
+      "from": "contexto",
+      "to": "jjhub",
+      "score": 0.8,
+      "kind": "seeking-offering",
+      "reason": "Contexto seeks 'long-running agent dogfooders for context-collapse stress-testing' and JJHub seeks 'cohort teams willing to dogfood Smithers for agentic CI' — Smithers' durable workflows generate exactly the long-running agent traces Contexto needs; mutually declared.",
+      "basis": "inferred"
+    },
+    {
+      "from": "enclave",
+      "to": "teesql",
+      "score": 0.8,
+      "kind": "dependency",
+      "reason": "Enclave declares teesql as a dependency and needs a confidential-DB substrate for its medical-data prototype; TeeSQL offers a free TEE Postgres / attestation-gated mesh service to cohort teams, which is the storage layer Enclave's trust-boundary demo requires.",
+      "basis": "inferred"
+    },
+    {
+      "from": "jjhub",
+      "to": "bitrouter",
+      "score": 0.8,
+      "kind": "dependency",
+      "reason": "JJHub declares bitrouter as a dependency (and Bitrouter lists jjhub); Bitrouter repositioned around 'reliability + cost for coding agents' with Claude/Codex-subscription mixing — the cheaper, provider-unlocked inference + x402 payment rail under Smithers' agentic CI, where JJHub can give the DX feedback Bitrouter seeks.",
+      "basis": "inferred"
+    },
+    {
+      "from": "signalstack",
+      "to": "trustless-tee",
+      "score": 0.8,
+      "kind": "seeking-offering",
+      "reason": "SignalStack's primary bottleneck is Solution Quality on confidential LLM inference; Trustless TEE offers 'sharp trust-boundary review for TEE-based projects' and seeks 'TEE builders to pressure-test where trust actually enters their stack' — an exact reviewer-for-builder match on the vendor-key trust root SignalStack's attestation rests on.",
+      "basis": "inferred"
+    },
+    {
+      "from": "shake",
+      "to": "elocute",
+      "score": 0.8,
+      "kind": "shared-problem",
+      "reason": "Both are consumer apps in the consumer-behavior-apps cluster whose single named bottleneck is Retention; Elocute (538 users, live traction) explicitly offers 'consumer launch and content-distribution lessons from live traction' and 'fast AI product validation patterns' — directly aimed at Shake's open second-session retention question.",
+      "basis": "inferred"
+    },
+    {
+      "from": "teleport-router",
+      "to": "feedling",
+      "score": 0.8,
+      "kind": "seeking-offering",
+      "reason": "Feedling needs TEE-delegated access to a user's watch history and seeks 'privacy reviewers for delegated watch-history access'; Teleport Router offers one-time delegation/routing primitives and attestation-verified delegation, and Feedling already lists teleport-router as a declared dependency.",
+      "basis": "inferred"
+    },
+    {
+      "from": "tinycloud",
+      "to": "etherea",
+      "score": 0.8,
+      "kind": "dependency",
+      "reason": "Tinycloud already shipped a realtime audio transcriber with Etherea and Etherea lists tinycloud as a declared dependency; Etherea's live voice -> transcript -> stage pipeline is a ready consumer of tinycloud-secrets for scoped credential delegation on the transcript feed Tinycloud is trying to find an external user for.",
+      "basis": "inferred"
+    },
+    {
+      "from": "trustless-tee",
+      "to": "signalstack",
+      "score": 0.8,
+      "kind": "seeking-offering",
+      "reason": "Trustless TEE seeks 'TEE builders to pressure-test where trust actually enters their stack' and offers to separate enclave proof from hardware-root trust; SignalStack is shipping confidential LLM inference on Intel TDX (vendor signing keys) and seeks attestation-UX review — a direct trust-boundary review match, and SignalStack is a declared Trustless TEE dependency.",
+      "basis": "inferred"
+    },
+    {
+      "from": "bitrouter",
+      "to": "jjhub",
+      "score": 0.78,
+      "kind": "seeking-offering",
+      "reason": "Bitrouter (now repositioned to reliability+cost for coding agents and hunting its first paid user) declares a pairing with JJHub, whose Smithers agentic-coding workflows are exactly the coding-agent traffic that can route through Bitrouter and convert to paid.",
+      "basis": "inferred"
+    },
+    {
+      "from": "pramaana",
+      "to": "teesql",
+      "score": 0.78,
+      "kind": "dependency",
+      "reason": "Pramaana declares teesql as a dependency; its PALC enrollment flow runs a multichain registry that needs confidential, attested storage, and TeeSQL offers free TEE Postgres / attestation-gated SQL to cohort teams — the registry substrate behind Pramaana's enrollment.",
+      "basis": "inferred"
+    },
+    {
+      "from": "prova",
+      "to": "enclave",
+      "score": 0.78,
+      "kind": "distribution",
+      "reason": "Enclave is building TEE medical-data sharing and seeks 'healthcare or regulated-data users who can validate the first workflow'; Prova runs a live EHR prior-auth pilot with regional payers and provider groups, making it Enclave's most concrete validation user and threat-model partner.",
+      "basis": "inferred"
+    },
+    {
+      "from": "signalstack",
+      "to": "prova",
+      "score": 0.78,
+      "kind": "shared-problem",
+      "reason": "Both ship TEE-backed LLM workflows and both explicitly ask to compare deployment patterns and attestation UX; SignalStack's open-source attestation verification SDK and Prova's dual-attestation library are the artifacts to reconcile.",
+      "basis": "inferred"
+    },
+    {
+      "from": "teesql",
+      "to": "enclave",
+      "score": 0.78,
+      "kind": "distribution",
+      "reason": "Enclave is building TEE-backed medical-data sharing and lists confidential-db as a skill but has no storage layer; TeeSQL's attested confidential SQL is exactly the regulated-data storage primitive Enclave needs to demo a trust boundary end-to-end, and Enclave already lists teesql as a dependency.",
+      "basis": "inferred"
+    },
+    {
+      "from": "tinycloud",
+      "to": "elocute",
+      "score": 0.78,
+      "kind": "seeking-offering",
+      "reason": "Elocute's bottleneck is retention and it seeks GTM help turning traction into durable practice loops; Tinycloud is 'building a personalized feed mined from a user's own transcripts' (Listen) and seeks its first external user — Elocute's per-user speaking-session transcripts are an ideal Listen dataset, and Elocute already lists tinycloud as a dependency (they already did a user interview together).",
+      "basis": "inferred"
+    },
+    {
+      "from": "wikigen",
+      "to": "pramaana",
+      "score": 0.78,
+      "kind": "seeking-offering",
+      "reason": "WikiGen seeks an 'identity layer pair on consent workflows for sensitive datasets' and lists pramaana as a dependency; Pramaana offers its SDK as an identity layer for cohort tools (ML-KEM enrollment, PALC anonymous credentials) and seeks cohort tools to integrate — a direct identity/consent integration for WikiGen's sensitive-data intake.",
+      "basis": "inferred"
+    },
+    {
+      "from": "teleport-router",
+      "to": "contexto",
+      "score": 0.75,
+      "kind": "complementary",
+      "reason": "Teleport Router's in-session cross-pollination feed and Contexto's episode-based context engine are adjacent stages of removing manual prompt relay between collaborators' agents; the declared complements link suggests Router feed signals could feed Contexto's relevance index.",
+      "basis": "inferred"
+    },
+    {
+      "from": "feedling",
+      "to": "elocute",
+      "score": 0.74,
+      "kind": "distribution",
+      "reason": "Both sit in the consumer-behavior-apps cluster at the ICP/retention stage; Elocute offers 'consumer launch and content-distribution lessons from live traction' and proven social-content distribution, exactly what Feedling needs to convert its Xiaohongshu/RED community pull into a first retained user thread and onboarding loop.",
+      "basis": "inferred"
+    },
+    {
+      "from": "tinycloud",
+      "to": "feedling",
+      "score": 0.74,
+      "kind": "seeking-offering",
+      "reason": "Feedling needs TEE-delegated access to watch-history signals to drive user-owned feed interventions and lists tinycloud as a dependency; Tinycloud's tinycloud-secrets (scoped credential delegation on dstack rails) is precisely the delegation primitive Feedling needs without handing the platform broad account control.",
+      "basis": "inferred"
+    },
+    {
+      "from": "wikigen",
+      "to": "enclave",
+      "score": 0.74,
+      "kind": "shared-problem",
+      "reason": "WikiGen seeks 'bioinformatics teams interested in confidential collaborative pipelines' and Enclave is building TEE-enabled medical-data sharing seeking healthcare users to validate its first workflow; they share the exact regulated-bio/medical confidential-collaboration problem and can co-define one sensitive-dataset workflow with visible consent boundaries.",
+      "basis": "inferred"
+    },
+    {
+      "from": "abra",
+      "to": "enclave",
+      "score": 0.72,
+      "kind": "seeking-offering",
+      "reason": "Enclave seeks 'TEE reviewers for medical-data threat modeling' and validation of compliance workflows, which maps directly onto Abra's offer of 'regulated-rollouts (SOX, healthcare compliance) perspective' plus formal-verification office hours.",
+      "basis": "inferred"
+    },
+    {
+      "from": "elizaos",
+      "to": "prova",
+      "score": 0.72,
+      "kind": "seeking-offering",
+      "reason": "elizaOS explicitly seeks feedback from TEE/dstack teams on running agents in attested environments; Prova offers a TEE-deployment workshop (docker compose, dstack secrets, async patterns) and a free trust-api attestation layer, directly answering that ask.",
+      "basis": "inferred"
+    },
+    {
+      "from": "enclave",
+      "to": "dealproof",
+      "score": 0.72,
+      "kind": "dependency",
+      "reason": "Enclave declares dealproof as a dependency; DealProof offers an open-source dual-attestation (Intel DCAP) library plus deployment patterns 'for non-TEE-native developers' — the attestation plumbing Enclave needs to prove its medical-data trust boundary end to end.",
+      "basis": "inferred"
+    },
+    {
+      "from": "etherea",
+      "to": "contexto",
+      "score": 0.72,
+      "kind": "dependency",
+      "reason": "Etherea declares contexto as a dependency and they co-occupy the realtime-creative cluster (voice→memory→live generative); Contexto's episode-based context engine is the memory/processing stage between Etherea's captured room input and its responsive visuals.",
+      "basis": "inferred"
+    },
+    {
+      "from": "searxng-wth-frnds",
+      "to": "contexto",
+      "score": 0.72,
+      "kind": "complementary",
+      "reason": "searxng seeks peers wanting 'private/local search over trusted shared context' but has no context layer of its own; Contexto's episode-based context engine is exactly the shared-context substrate searxng would search over, and Contexto is already a declared searxng dependency.",
+      "basis": "inferred"
+    },
+    {
+      "from": "shape-rotator-os",
+      "to": "contexto",
+      "score": 0.72,
+      "kind": "skill-overlap",
+      "reason": "The OS's stated problem is that 'cohort knowledge lives in scattered transcripts and chats, so coordination work stays invisible and unqueryable' — Contexto's episode-based retrieval and context-monitoring engine is precisely the queryability layer the OS is missing for its context vault.",
+      "basis": "inferred"
+    },
+    {
+      "from": "shake",
+      "to": "teleport-router",
+      "score": 0.72,
+      "kind": "seeking-offering",
+      "reason": "Shake's core problem is that 'IRL social connection still has awkward manual exchange'; Teleport Router offers 'one-time delegation and routing primitives' and seeks 'social/account-boundary experiments' — its one-time social-account handoff is exactly the handle-exchange Shake's shake gesture wants to eliminate.",
+      "basis": "inferred"
+    },
+    {
+      "from": "teesql",
+      "to": "wikigen",
+      "score": 0.72,
+      "kind": "dependency",
+      "reason": "WikiGen seeks 'bioinformatics teams interested in confidential collaborative pipelines' and lists teesql as a declared dependency; TeeSQL's generalized attestation-gated mesh (Postgres/Clickhouse) is the confidential storage substrate WikiGen's Topos/BioToolsHub pipelines need to move sensitive scientific data.",
+      "basis": "inferred"
+    },
+    {
+      "from": "tinycloud",
+      "to": "elizaos",
+      "score": 0.72,
+      "kind": "seeking-offering",
+      "reason": "elizaOS already 'sandboxed tiny-agent on Tinycloud' and seeks scoped agent capabilities; Tinycloud seeks agent builders to dogfood tinycloud-secrets for scoped credential delegation — a live integration where elizaOS plugins can delegate secrets to agents on TEE rails rather than holding broad credentials.",
+      "basis": "inferred"
+    },
+    {
+      "from": "tvee-rl",
+      "to": "wikigen",
+      "score": 0.72,
+      "kind": "skill-overlap",
+      "reason": "WikiGen offers 'RL + tinker environments for ML tasks' and TvEE RL contributed Qwen 2.5-VL to Tinker and frames attested RL workflows — overlapping Tinker/RL tooling where WikiGen's bio/ML environments could become the concrete attested training/evaluation runs TvEE RL needs for its next milestone.",
+      "basis": "inferred"
+    },
+    {
+      "from": "abra",
+      "to": "dealproof",
+      "score": 0.7,
+      "kind": "complementary",
+      "reason": "DealProof publishes MRENCLAVE on-chain with reproducible Docker builds and asks for 'feedback on DCAP verification UX for non-TEE-native developers' — Abra's formal-verification registry and bounded-model-checking are exactly the inspectable proof-artifact layer that makes those attestation claims trustworthy.",
+      "basis": "inferred"
+    },
+    {
+      "from": "conclave",
+      "to": "tinycloud",
+      "score": 0.7,
+      "kind": "dependency",
+      "reason": "Conclave (a declared tinycloud dependency) seeks to test multi-party skill workflows; Tinycloud offers tinycloud-secrets for scoped credential delegation to agents, which is the missing credential-handoff primitive for Conclave's multi-party TEE skills.",
+      "basis": "inferred"
+    },
+    {
+      "from": "crossroads",
+      "to": "pramaana",
+      "score": 0.7,
+      "kind": "seeking-offering",
+      "reason": "Crossroads needs identity primitives for policy-constrained wallet signing; Pramaana offers its post-quantum identity SDK as an identity layer for cohort tools and seeks tools wanting identity verification — a direct complementarity declared by both.",
+      "basis": "inferred"
+    },
+    {
+      "from": "dealproof",
+      "to": "conclave",
+      "score": 0.7,
+      "kind": "complementary",
+      "reason": "Declared dependency and shared NDAI lineage (both in the ndai cluster). Conclave's modular open-source skills runtime for TEE agents is the natural packaging layer for DealProof's dual-attestation AI-to-AI contract layer to ship as a reusable cohort skill rather than a standalone repo.",
+      "basis": "inferred"
+    },
+    {
+      "from": "elocute",
+      "to": "shake",
+      "score": 0.7,
+      "kind": "shared-problem",
+      "reason": "Both are NYC consumer apps whose single named bottleneck is Retention (one-time novelty vs durable behavior). Shake offers a lightweight IRL connection mechanic for cohort demos and events, and Elocute needs live-event moments to drive repeated speaking reps — a mutual retention/distribution experiment.",
+      "basis": "inferred"
+    },
+    {
+      "from": "teesql",
+      "to": "prova",
+      "score": 0.7,
+      "kind": "distribution",
+      "reason": "Prova's healthcare prior-auth agent is live on Phala TDX and needs to store sensitive EHR/payer data confidentially; TeeSQL hunts a European/regulated confidential-computing ICP, and Prova's working Da Vinci PAS / X12 278 integrations are a concrete confidential-SQL design partner rather than just attestation-pattern sharing.",
+      "basis": "inferred"
+    },
+    {
+      "from": "trustless-tee",
+      "to": "dealproof",
+      "score": 0.7,
+      "kind": "seeking-offering",
+      "reason": "DealProof is publishing MRENCLAVE on-chain and generating ephemeral keys inside the TEE at boot, and seeks feedback on DCAP verification UX; Trustless TEE offers protocol review that separates enclave proof from hardware-root trust and lists dealproof as a dependency — a direct check on whether DealProof's on-chain attestation actually removes the vendor-key assumption.",
+      "basis": "inferred"
+    },
+    {
+      "from": "wikigen",
+      "to": "teesql",
+      "score": 0.7,
+      "kind": "dependency",
+      "reason": "WikiGen lists teesql as a declared dependency and needs confidential storage for sensitive scientific data before it can demo a secure collaborative workflow; TeeSQL's attestation-gated confidential SQL (and its offer of free service to cohort teams) is the storage substrate for WikiGen's Topos research pipelines.",
+      "basis": "inferred"
+    },
+    {
+      "from": "crossroads",
+      "to": "teesql",
+      "score": 0.68,
+      "kind": "dependency",
+      "reason": "Crossroads declares teesql a dependency; its on-chain signing committee needs confidential, attested storage for policy/key state, which is exactly TeeSQL's attestation-gated confidential SQL offered free to the cohort.",
+      "basis": "inferred"
+    },
+    {
+      "from": "elocute",
+      "to": "etherea",
+      "score": 0.68,
+      "kind": "dependency",
+      "reason": "Declared dependency. Etherea is prepping a live-stage demo that ingests cohort voice/transcript input, and Elocute's scored speaking reps are a natural, content-rich voice source — Elocute feeds Etherea live demo-day material while getting a high-visibility distribution surface.",
+      "basis": "inferred"
+    },
+    {
+      "from": "shape-rotator-os",
+      "to": "etherea",
+      "score": 0.68,
+      "kind": "complementary",
+      "reason": "Etherea offers 'live demo-day visuals (voice → transcript → stage)' and seeks feedback on the Teleport Router architecture the OS already depends on; the OS's cohort surface data and timelines are the structured feed Etherea could render as a live cohort demo-day backdrop (and James Barnes authored both the Etherea repo and the first OS merge).",
+      "basis": "inferred"
+    },
+    {
+      "from": "shake",
+      "to": "etherea",
+      "score": 0.68,
+      "kind": "distribution",
+      "reason": "Shake seeks 'live-event or cohort moments to test shake-to-connect density'; Etherea installs generative live-stage systems in NYC creative spaces and runs demo-day events — its events are the dense IRL venue where Shake can stress-test gesture density (Etherea is already a declared Shake dependency).",
+      "basis": "inferred"
+    },
+    {
+      "from": "trustless-tee",
+      "to": "prova",
+      "score": 0.68,
+      "kind": "shared-problem",
+      "reason": "Prova ships a production healthcare agent on Phala TDX whose entire trust story rests on Intel's signing key; Trustless TEE's explicit thesis — making the vendor-key trust root explicit — is the adversarial review Prova needs before a regulated payer signs, separating its dual-attestation claims from hardware-root assumptions.",
+      "basis": "inferred"
+    },
+    {
+      "from": "wikigen",
+      "to": "tvee-rl",
+      "score": 0.68,
+      "kind": "skill-overlap",
+      "reason": "WikiGen offers 'RL + tinker environments for ML tasks' and TvEE RL frames attested RL workflows with a Tinker (Qwen 2.5-VL) contribution; WikiGen's environments plus TvEE RL's attestation framing is a concrete pairing to produce one verifiable RL training run on scientific ML tasks.",
+      "basis": "inferred"
+    },
+    {
+      "from": "dcnet",
+      "to": "pramaana",
+      "score": 0.66,
+      "kind": "complementary",
+      "reason": "DCNet's anonymous broadcast hides who spoke but is open to Sybil flooding; Pramaana offers PALC anonymous credentials and Sybil resistance, the missing anti-abuse identity layer that makes an anonymity network usable without re-identifying participants.",
+      "basis": "inferred"
+    },
+    {
+      "from": "etherea",
+      "to": "shake",
+      "score": 0.66,
+      "kind": "distribution",
+      "reason": "Shake (which lists etherea as a dependency) seeks 'live-event or cohort moments to test shake-to-connect density'; Etherea builds live-stage moments and offers 'live demo-day visuals for cohort teams' — Etherea's installations are exactly the dense IRL events where Shake's gesture gets tested.",
+      "basis": "inferred"
+    },
+    {
+      "from": "feedling",
+      "to": "contexto",
+      "score": 0.66,
+      "kind": "complementary",
+      "reason": "Feedling declares contexto as a dependency and both just pivoted toward a consumer personal-agent (Feedling's AI companion, Contexto's personal to-do/journaling agent on Hermes); Contexto's memory/episode engine is the user-owned mediation layer that could drive Feedling's private feed interventions.",
+      "basis": "inferred"
+    },
+    {
+      "from": "pramaana",
+      "to": "shake",
+      "score": 0.66,
+      "kind": "distribution",
+      "reason": "Pramaana's GTM-stage next milestone is to 'integrate Pramaana identity into one other cohort tool'; Shake is a live consumer social app (150+ users) creating IRL connections that needs Sybil-resistant identity to keep the gesture honest — a concrete, non-crypto-native design partner for Pramaana's SDK.",
+      "basis": "inferred"
+    },
+    {
+      "from": "searxng-wth-frnds",
+      "to": "tinycloud",
+      "score": 0.66,
+      "kind": "seeking-offering",
+      "reason": "searxng's open question is 'what should stay local, what should sync, and what should never leave the LAN'; Tinycloud's user-owned cloud with single-message scoped delegation (tinycloud-secrets) and its Listen transcript aggregator are a ready answer to the sync-and-secrets boundary, and a corpus searxng could search privately.",
+      "basis": "inferred"
+    },
+    {
+      "from": "bitrouter",
+      "to": "contexto",
+      "score": 0.65,
+      "kind": "dependency",
+      "reason": "Both teams mutually declare the dependency; Contexto's long-running agent/context engine is a concrete dogfooder for Bitrouter's reliability+cost routing, and Bitrouter is routing infra Contexto's durable agents need.",
+      "basis": "inferred"
+    },
+    {
+      "from": "feedling",
+      "to": "teleport-router",
+      "score": 0.64,
+      "kind": "dependency",
+      "reason": "Feedling declares teleport-router as a dependency and Teleport Router reciprocally lists feedling; Teleport's user-owned context, account-boundary, and one-time delegation primitives map onto Feedling's delegated watch-history access and its need to mediate platform feeds without custody.",
+      "basis": "inferred"
+    },
+    {
+      "from": "abra",
+      "to": "signalstack",
+      "score": 0.62,
+      "kind": "complementary",
+      "reason": "SignalStack ships confidential LLM inference on Intel TDX with an attestation verification SDK; Abra's formal-verification registry can certify the registry-grade deployment properties SignalStack needs to assert beyond a bare attestation quote.",
+      "basis": "inferred"
+    },
+    {
+      "from": "contexto",
+      "to": "elocute",
+      "score": 0.62,
+      "kind": "complementary",
+      "reason": "Elocute's primary bottleneck is retention and a 'repeatable weekly practice loop'; Contexto's episode-based memory plus its new personal-assistant wedge is the continuity engine that can remember a user's past reps and drive targeted next-practice suggestions.",
+      "basis": "inferred"
+    },
+    {
+      "from": "daedalus",
+      "to": "jjhub",
+      "score": 0.62,
+      "kind": "seeking-offering",
+      "reason": "Daedalus explicitly seeks feedback from cohort teams building trading or agent execution systems; JJHub's Smithers durable-workflow engine is the orchestration substrate for turning a backtested hedge thesis into a repeatable systematic execution loop with review discipline.",
+      "basis": "inferred"
+    },
+    {
+      "from": "elizaos",
+      "to": "tinycloud",
+      "score": 0.62,
+      "kind": "seeking-offering",
+      "reason": "elizaOS already sandboxed a tiny-agent on Tinycloud per its WDYDLW; Tinycloud is seeking teams to dogfood tinycloud-secrets for scoped credential delegation, which is exactly what elizaOS agents need to act on user accounts without holding broad credentials.",
+      "basis": "inferred"
+    },
+    {
+      "from": "pramaana",
+      "to": "teleport-router",
+      "score": 0.62,
+      "kind": "seeking-offering",
+      "reason": "Teleport Router seeks 'reviewers for attestation-verified delegation flows' and does one-time delegated posting / cross-network routing; Pramaana's anonymous self-credentials and PALC identity layer is a natural fit for verifying who is allowed to delegate, answering Pramaana's seeking for tools wanting identity verification.",
+      "basis": "inferred"
+    },
+    {
+      "from": "signalstack",
+      "to": "enclave",
+      "score": 0.62,
+      "kind": "seeking-offering",
+      "reason": "Enclave seeks 'TEE reviewers for medical-data threat modeling' and an attestation path for its medical-data prototype; SignalStack offers an open-source attestation verification SDK and a TEE deployment workshop, and both sit in the regulated cluster (privacy-sensitive comms vs medical data).",
+      "basis": "inferred"
+    },
+    {
+      "from": "shape-rotator-os",
+      "to": "tinycloud",
+      "score": 0.62,
+      "kind": "shared-problem",
+      "reason": "Tinycloud is 'building a personalized feed mined from a user's own transcripts' and ships Listen, a transcript aggregator — the same transcript-to-timeline substrate the OS's context vault works from; Tinycloud also offers tinycloud-secrets for the scoped credential delegation the OS would need to gate context-vault access.",
+      "basis": "inferred"
+    },
+    {
+      "from": "tvee-rl",
+      "to": "conclave",
+      "score": 0.62,
+      "kind": "seeking-offering",
+      "reason": "TvEE RL seeks 'RL/agent builders who need verifiable training or evaluation workflows' and Conclave seeks 'cohort projects to test multi-party skill workflows'; Conclave's dataset-audit skill running in a TEE is a natural place to wrap TvEE RL's attested evaluation as a reusable skill, and both are declared-linked (tvee-rl lists conclave).",
+      "basis": "inferred"
+    },
+    {
+      "from": "abra",
+      "to": "trustless-tee",
+      "score": 0.6,
+      "kind": "shared-problem",
+      "reason": "Trustless TEE wants to make the hidden vendor-key trust root explicit; Abra's formal-verification registry is the natural artifact surface for encoding and inspecting exactly which trust assumptions a TEE deployment still relies on.",
+      "basis": "inferred"
+    },
+    {
+      "from": "conclave",
+      "to": "prova",
+      "score": 0.6,
+      "kind": "seeking-offering",
+      "reason": "Conclave's reusable TEE-agent skill runtime lacks a hardened attestation layer; Prova offers its trust-api as a free attestation layer for cohort teams, and both sit in the NDAI lineage so the integration is conceptually aligned.",
+      "basis": "inferred"
+    },
+    {
+      "from": "contexto",
+      "to": "teleport-router",
+      "score": 0.6,
+      "kind": "complementary",
+      "reason": "Teleport Router (which declares contexto a dependency) produces an ambient cross-pollination feed while Contexto ingests long-horizon context — adjacent stages of removing manual prompt relay, where Router feed signals could feed Contexto's relevance index.",
+      "basis": "inferred"
+    },
+    {
+      "from": "crossroads",
+      "to": "abra",
+      "score": 0.6,
+      "kind": "seeking-offering",
+      "reason": "Crossroads (which lists abra as a dependency) carries Technical Risk on its signing-committee and key-encumbrance logic; Abra offers formal-verification office hours and a bounded-model-checking primer to prove those policy-constrained signing properties are safe.",
+      "basis": "inferred"
+    },
+    {
+      "from": "dealproof",
+      "to": "bitrouter",
+      "score": 0.6,
+      "kind": "complementary",
+      "reason": "DealProof's AI-to-AI contract layer pairs attestable terms with on-chain escrow but needs a payment rail; Bitrouter's x402-kit is agent-native HTTP-native micropayments, a non-obvious complement where attested contract terms settle through x402 rather than a hand-rolled escrow flow.",
+      "basis": "inferred"
+    },
+    {
+      "from": "elizaos",
+      "to": "conclave",
+      "score": 0.6,
+      "kind": "skill-overlap",
+      "reason": "Both ship a skills abstraction — elizaOS a USE_SKILL system for packaging agent capabilities, Conclave a modular skills runtime for TEE agents. Worth reconciling rather than duplicating: Conclave could adopt elizaOS's runtime, or elizaOS could gain attested-execution skills from Conclave's framework.",
+      "basis": "inferred"
+    },
+    {
+      "from": "elocute",
+      "to": "contexto",
+      "score": 0.6,
+      "kind": "complementary",
+      "reason": "Declared dependency. Contexto is testing a contested mass-market personal-assistant wedge and running executive-assistant discovery interviews; Elocute offers fast AI product-validation patterns and already ran structured user-research (its 'one interview beat five days of speculation' lesson) — exactly the discovery muscle Contexto needs to settle its wedge.",
+      "basis": "inferred"
+    },
+    {
+      "from": "enclave",
+      "to": "wikigen",
+      "score": 0.6,
+      "kind": "shared-problem",
+      "reason": "Both must move sensitive data across trust boundaries with consent: WikiGen seeks an 'identity layer pair on consent workflows for sensitive datasets' and offers confidential collaborative pipelines, mirroring Enclave's medical-data-sharing problem — a candidate co-design on consent/disclosure mechanics.",
+      "basis": "inferred"
+    },
+    {
+      "from": "feedling",
+      "to": "signalstack",
+      "score": 0.6,
+      "kind": "seeking-offering",
+      "reason": "Feedling seeks 'privacy reviewers for delegated watch-history access'; SignalStack ships confidential LLM inference with zero-retention workflows and offers an attestation-verification SDK plus TEE deployment review — the privacy/attestation-UX reviewer Feedling's delegation model needs vetted.",
+      "basis": "inferred"
+    },
+    {
+      "from": "prova",
+      "to": "teesql",
+      "score": 0.6,
+      "kind": "dependency",
+      "reason": "Prova's EHR pilot stores sensitive health records under TEE attestation; TeeSQL offers a free confidential-SQL beta to cohort teams, so Prova could get attested storage ergonomics rather than only comparing attestation patterns.",
+      "basis": "inferred"
+    },
+    {
+      "from": "searxng-wth-frnds",
+      "to": "shape-rotator-os",
+      "score": 0.6,
+      "kind": "distribution",
+      "reason": "searxng's next milestone is 'one real cohort workflow using private search'; Shape Rotator OS holds a cohort context vault and timelines that are currently 'scattered and unqueryable' — making that vault searchable via searxng is a concrete first cohort workflow (and searxng is already a declared OS dependency).",
+      "basis": "inferred"
+    },
+    {
+      "from": "teesql",
+      "to": "crossroads",
+      "score": 0.6,
+      "kind": "shared-problem",
+      "reason": "TeeSQL's mesh uses a blockchain control plane with host- or dev-proof modes, while Crossroads runs an on-chain signing committee for policy-constrained signing; they share the hard problem of expressing attestation/policy as on-chain control and Crossroads is a declared TeeSQL dependency.",
+      "basis": "inferred"
+    },
+    {
+      "from": "tinycloud",
+      "to": "conclave",
+      "score": 0.6,
+      "kind": "complementary",
+      "reason": "Conclave's reusable TEE skills runtime needs scoped multi-party credential handling and lists tinycloud as a dependency; Tinycloud's threshold-crypto + proxy re-encryption pairing offer fills the credential-delegation gap so Conclave skills can act for mutually-distrusting parties without broad key custody.",
+      "basis": "inferred"
+    },
+    {
+      "from": "trustless-tee",
+      "to": "abra",
+      "score": 0.6,
+      "kind": "complementary",
+      "reason": "Abra builds a formal-verification registry for proof-of-deployment properties of TEE systems but treats the hardware root as given; Trustless TEE's explicit modeling of the vendor signing-key trust root is the missing assumption Abra's registry spec should encode as an inspectable artifact rather than an invisible axiom.",
+      "basis": "inferred"
+    },
+    {
+      "from": "tvee-rl",
+      "to": "signalstack",
+      "score": 0.6,
+      "kind": "shared-problem",
+      "reason": "TvEE RL seeks TEE reviewers for attested model-evaluation boundaries while SignalStack is shipping confidential LLM inference on Intel TDX; SignalStack's attestation verification SDK and TDX deployment experience are the concrete enclave-execution patterns TvEE RL's attested RL runs depend on, and signalstack is a declared TvEE RL dependency.",
+      "basis": "inferred"
+    },
+    {
+      "from": "wikigen",
+      "to": "conclave",
+      "score": 0.6,
+      "kind": "complementary",
+      "reason": "WikiGen offers 'data intake/processing infrastructure for cohort dogfooders' and needs confidential pipeline curation; Conclave's dataset-audit skill and reusable TEE skills runtime is a natural module for WikiGen to wrap its data-intake steps as inspectable multi-party workflows over sensitive scientific data.",
+      "basis": "inferred"
+    },
+    {
+      "from": "dcnet",
+      "to": "feedling",
+      "score": 0.58,
+      "kind": "seeking-offering",
+      "reason": "Feedling is seeking privacy reviewers for delegated watch-history access; DCNet offers anonymity-network design review and private-broadcast primitives, a non-obvious consumer-privacy fit for keeping a user's information-diet signals from leaking who watched what.",
+      "basis": "inferred"
+    },
+    {
+      "from": "dealproof",
+      "to": "elizaos",
+      "score": 0.58,
+      "kind": "seeking-offering",
+      "reason": "DealProof seeks cohort teams to integrate its dual-attestation contract layer; elizaOS seeks feedback from TEE/dstack teams on running agents in attested environments. elizaOS's runtime is the highest-leverage place to embed verifiable AI-to-AI contracts and stress-test DCAP UX for non-TEE-native developers.",
+      "basis": "inferred"
+    },
+    {
+      "from": "jjhub",
+      "to": "tvee-rl",
+      "score": 0.58,
+      "kind": "skill-overlap",
+      "reason": "TvEE RL needs 'verifiable training or evaluation workflows' but is thin on workflow orchestration; JJHub's durable-workflow primitive (Smithers as JSX, durable state + review loops) is the missing scaffolding to make an attested RL training/eval run reproducible and inspectable — a skill JJHub has that TvEE lacks.",
+      "basis": "inferred"
+    },
+    {
+      "from": "prova",
+      "to": "abra",
+      "score": 0.58,
+      "kind": "seeking-offering",
+      "reason": "Prova's primary bottleneck is GTM — converting the EHR pilot to a signed paid contract where compliance proof closes the deal; Abra offers a 'regulated-rollouts (SOX, healthcare compliance) perspective' plus formal verification of the very attestation claims Prova makes to payers.",
+      "basis": "inferred"
+    },
+    {
+      "from": "shape-rotator-os",
+      "to": "searxng-wth-frnds",
+      "score": 0.58,
+      "kind": "dependency",
+      "reason": "searxng is a declared OS dependency; the OS's local-first Electron viewer over a context vault is the natural place to embed searxng's LAN-first private search so cohort members can query the vault without a hosted search backend.",
+      "basis": "inferred"
+    },
+    {
+      "from": "teleport-router",
+      "to": "shake",
+      "score": 0.58,
+      "kind": "complementary",
+      "reason": "Shake creates IRL connections via a phone-shake gesture but struggles with retention/handoff after the moment; Teleport Router's one-time-use delegated posting and social/account-boundary primitives are a way to turn a Shake connection into a scoped cross-account action without custody transfer.",
+      "basis": "inferred"
+    },
+    {
+      "from": "elocute",
+      "to": "feedling",
+      "score": 0.56,
+      "kind": "shared-problem",
+      "reason": "Both sit in the consumer-behavior-apps cluster with retention/onboarding as the open PMF question. Feedling has early Xiaohongshu (RED) community pull but no live thread yet; Elocute has live consumer traction (538 users, 5.25% save on content) and content-distribution lessons to share on converting social pull into retained users.",
+      "basis": "inferred"
+    },
+    {
+      "from": "bitrouter",
+      "to": "daedalus",
+      "score": 0.55,
+      "kind": "dependency",
+      "reason": "Daedalus lists bitrouter as a dependency and seeks 'feedback from cohort teams building trading or agent execution systems'; Bitrouter's cost-optimized routing is relevant supply for Daedalus's systematic agent-execution pipeline.",
+      "basis": "inferred"
+    },
+    {
+      "from": "contexto",
+      "to": "feedling",
+      "score": 0.55,
+      "kind": "complementary",
+      "reason": "Feedling is building a customizable AI companion with RED-community pull and needs private, user-owned personalization; Contexto's episode-based context engine is the memory/personalization layer that companion needs without handing data to a platform.",
+      "basis": "inferred"
+    },
+    {
+      "from": "crossroads",
+      "to": "teleport-router",
+      "score": 0.55,
+      "kind": "shared-problem",
+      "reason": "Crossroads seeks cohort teams building cross-chain flows to 'compare key-encumbrance patterns'; Teleport Router solves the same custody-without-handover problem via one-time delegated control, so their custody/encumbrance designs are directly comparable.",
+      "basis": "inferred"
+    },
+    {
+      "from": "daedalus",
+      "to": "elizaos",
+      "score": 0.55,
+      "kind": "seeking-offering",
+      "reason": "Daedalus seeks integration partners and agent-execution feedback; elizaOS is the most mature agent runtime in the cohort and offers a plugin/skills substrate where Daedalus's orderbook-ingestion and hedge-discovery pipeline could ship as an embeddable agent skill.",
+      "basis": "inferred"
+    },
+    {
+      "from": "elocute",
+      "to": "tinycloud",
+      "score": 0.55,
+      "kind": "complementary",
+      "reason": "Declared dependency. Elocute's scored reps generate a stream of private practice transcripts; Tinycloud's Listen is a user-owned transcript aggregator and personalized feed built on tinycloud-secrets, giving Elocute a user-owned home for practice history and Tinycloud the external transcript-rich user it's seeking.",
+      "basis": "inferred"
+    },
+    {
+      "from": "etherea",
+      "to": "elocute",
+      "score": 0.55,
+      "kind": "skill-overlap",
+      "reason": "Both work in generative-media + design; Elocute offers 'consumer launch and content-distribution lessons from live traction' (538 users, 40k-view articulation reels), which speaks directly to Etherea's open bottleneck of packaging a repeatable stage-kit product and fundraising framing.",
+      "basis": "inferred"
+    },
+    {
+      "from": "jjhub",
+      "to": "dealproof",
+      "score": 0.55,
+      "kind": "complementary",
+      "reason": "DealProof is drafting an 'agent-agnostic SDK' for verifiable AI-to-AI contracts and JJHub seeks 'DX feedback from teams building with LLM-as-primitive'; Smithers' durable workflow + review loops could orchestrate DealProof's multi-round co-signing negotiations, a concrete LLM-primitive integration test for both.",
+      "basis": "inferred"
+    },
+    {
+      "from": "prova",
+      "to": "conclave",
+      "score": 0.55,
+      "kind": "complementary",
+      "reason": "Conclave is factoring its TEE-agent skill framework into a reusable module and seeks 'cohort projects to test multi-party skill workflows'; Prova offers its trust-api as a free attestation layer, so Conclave's skill runtime could consume Prova's attestation instead of re-implementing it.",
+      "basis": "inferred"
+    },
+    {
+      "from": "signalstack",
+      "to": "conclave",
+      "score": 0.55,
+      "kind": "complementary",
+      "reason": "Conclave's reusable TEE-agent skill framework needs real skills to package, and SignalStack offers 'AI tasks + AI translation features available to cohort via Signal' — SignalStack's Signal-bound assistant tasks could become Conclave skills running over its attested runtime.",
+      "basis": "inferred"
+    },
+    {
+      "from": "searxng-wth-frnds",
+      "to": "teleport-router",
+      "score": 0.55,
+      "kind": "shared-problem",
+      "reason": "Both sit in the local-first-networking cluster; searxng is fighting egress/IP-poisoning at the network boundary while Teleport Router builds cross-network routing and attestation-verified delegation primitives — a natural pairing on reputation-gated, attested egress paths.",
+      "basis": "inferred"
+    },
+    {
+      "from": "shake",
+      "to": "feedling",
+      "score": 0.55,
+      "kind": "shared-problem",
+      "reason": "Both are early consumer apps whose PMF question is retention/onboarding; Feedling has 'early Xiaohongshu (RED) community pull,' one of the cohort's clearer consumer-traction signals, making it a useful peer for comparing consumer onboarding loops and a possible distribution community for Shake.",
+      "basis": "inferred"
+    },
+    {
+      "from": "teleport-router",
+      "to": "dcnet",
+      "score": 0.55,
+      "kind": "skill-overlap",
+      "reason": "DCNet lists teleport-router as a dependency and seeks product collaborators to pressure-test coordination 'without attribution leakage'; Teleport Router's routing layer is a concrete surface where DCNet's anonymous-broadcast primitives could hide who initiated a delegated action.",
+      "basis": "inferred"
+    },
+    {
+      "from": "trustless-tee",
+      "to": "tvee-rl",
+      "score": 0.55,
+      "kind": "shared-problem",
+      "reason": "TvEE RL seeks 'TEE reviewers for attested model-evaluation boundaries' and Trustless TEE offers exactly trust-boundary review for TEE-based projects; both sit on the trusted-execution/attested-workflow side and share the question of where unverifiable trust enters an attested RL run.",
+      "basis": "inferred"
+    },
+    {
+      "from": "tvee-rl",
+      "to": "daedalus",
+      "score": 0.55,
+      "kind": "shared-problem",
+      "reason": "Daedalus offers an open backtesting/evaluation pipeline (orderbook ingestion, correlation backtests) and needs verifiable evaluation it can trust; TvEE RL's attested training/evaluation workflows address exactly the auditability gap — making a Daedalus backtest inspectable rather than an unverifiable offline claim.",
+      "basis": "inferred"
+    },
+    {
+      "from": "bitrouter",
+      "to": "teesql",
+      "score": 0.5,
+      "kind": "shared-problem",
+      "reason": "Both treat TEE remote attestation (via dstack/Phala) as an admission primitive that displaces reputation — Bitrouter for permissionless LLM-provider onboarding, TeeSQL for attestation-gated mesh membership — so they can share a quote-verification/attestation-registry scheme rather than build two.",
+      "basis": "inferred"
+    },
+    {
+      "from": "conclave",
+      "to": "tvee-rl",
+      "score": 0.5,
+      "kind": "dependency",
+      "reason": "TvEE RL lists conclave as a dependency and needs verifiable attested agent/RL workflow plumbing; Conclave's open-source modular skill framework is exactly the reusable runtime TvEE would otherwise re-implement for its attested workflows.",
+      "basis": "inferred"
+    },
+    {
+      "from": "crossroads",
+      "to": "daedalus",
+      "score": 0.5,
+      "kind": "dependency",
+      "reason": "Daedalus declares crossroads a dependency and needs cross-chain asset-movement rails for its delta-neutral hedge thesis; Crossroads offers documented cross-chain asset-movement patterns and signing-committee approaches for teams prototyping such flows.",
+      "basis": "inferred"
+    },
+    {
+      "from": "crossroads",
+      "to": "dcnet",
+      "score": 0.48,
+      "kind": "shared-problem",
+      "reason": "DCNet lists crossroads as a dependency and offers private-broadcast primitives 'without attribution leakage' — relevant to Crossroads' signing committee, where coordinating signers across chains can leak who initiated a transaction even when payloads are private.",
+      "basis": "inferred"
+    },
+    {
+      "from": "shake",
+      "to": "crossroads",
+      "score": 0.45,
+      "kind": "skill-overlap",
+      "reason": "Declared dependency; Shake's shake-to-connect creates a mutual link that needs a lightweight identity handshake, and Crossroads brings identity and policy-constrained signing expertise (its skill_areas include identity) that could harden how a Shake connection is represented and consented to.",
+      "basis": "inferred"
+    }
+  ]
+}

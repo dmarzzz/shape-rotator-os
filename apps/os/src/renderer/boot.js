@@ -5420,6 +5420,48 @@ function wireSwarmPanelLauncher() {
       openSwarmPanelFromLauncher(e);
     }
   });
+  wireCohortChatLauncher();
+}
+
+let cohortChatPromise = null;
+function loadCohortChat() {
+  if (!cohortChatPromise) {
+    cohortChatPromise = import("./cohort-chat.js").catch((e) => {
+      cohortChatPromise = null;
+      throw e;
+    });
+  }
+  return cohortChatPromise;
+}
+function warmCohortChat() {
+  loadCohortChat()
+    .then((m) => m.warmCohortChat?.())
+    .catch((e) => { console.warn("[cohort-chat] warmup failed:", e?.message || e); });
+}
+function openCohortChatFromLauncher(e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  loadCohortChat()
+    .then((m) => m.openCohortChat())
+    .catch((err) => {
+      console.error("[cohort-chat] panel failed:", err);
+      toast({ kind: "error", message: `cohort chat failed: ${err?.message || err}` });
+    });
+}
+// "Ask the cohort" — its own button in the search controls + a GLOBAL
+// Cmd/Ctrl+Shift+K (unlike the swarm's A, which is search-view-only) since
+// asking the cohort is useful from anywhere in the app.
+function wireCohortChatLauncher() {
+  const btn = document.getElementById("search-ask-cohort");
+  if (btn) {
+    btn.addEventListener("pointerover", warmCohortChat, { passive: true });
+    btn.addEventListener("focus", warmCohortChat);
+    btn.addEventListener("click", openCohortChatFromLauncher);
+  }
+  document.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "k" || e.key === "K")) {
+      openCohortChatFromLauncher(e);
+    }
+  });
 }
 
 function installSearchRecentStrip() {
