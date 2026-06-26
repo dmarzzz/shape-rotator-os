@@ -166,9 +166,34 @@ const SYSTEM = [
   "When asked what's happening or how something is progressing, ground it in the distilled session insights, recent activity, and each team's progress (stage / bottleneck / next milestone).",
 ].join("\n");
 
+// The action contract — appended only in agent mode (buildChatPrompt({agent:true})).
+// The model may PROPOSE structured changes; the app whitelists, sanitizes, and
+// shows them for human approval (cohort-chat-actions.mjs parses this). It never
+// applies anything itself, so the framing is strictly "propose, never claim done".
+export const ACTION_CONTRACT = [
+  "",
+  "## Proposing changes (optional)",
+  "When the member asks you to CHANGE or CONTRIBUTE something — update a profile, suggest a connection, flag a card as wrong, or refresh their profile from their own recent work — you MAY propose it as a structured action. You only ever PROPOSE: a human reviews and approves every action before anything is saved. NEVER say you have already changed, saved, or updated anything.",
+  "Emit actions as exactly ONE json block at the very end, after any reply text:",
+  "```json",
+  '{"actions":[ {"action":"<verb>", ...args} ]}',
+  "```",
+  "Verbs (use real record_id values from the cohort context above — never invent people):",
+  '- propose_profile_update — {"subject_record_id","fields":{"now"?,"weekly_intention"?,"skills"?[],"skill_areas"?[],"seeking"?[],"offering"?[],"prior_work"?[],"geo"?,"links"?:{"github"?,"repo"?}},"rationale"}',
+  '- propose_connection — {"from_record_id","to_record_id","reason"}',
+  '- file_contest — {"subject_record_id","contest_kind","note"}  (contest_kind ∈ stale_declaration | off_github_work | wrong_attribution | context_missing)',
+  '- request_scan — {"sources":["sessions","github"]}   (reads the member\'s OWN recent work, under a consent gate, to refresh THEIR profile — use this instead of guessing their work)',
+  '- ask — {"question"}   (ONE clarifying question when you need it before proposing)',
+  '- note — {"text"}',
+  "Rules: propose a field only when the context supports it; be conservative and truthful; prefer one `ask` over guessing. If the member is just chatting or asking a question, DON'T emit actions — just answer normally.",
+].join("\n");
+
 // Assemble the final prompt piped to the local CLI: system framing + grounded
 // context + prior turns + the new question. `history` is [{role, content}].
-export function buildChatPrompt({ surface, history = [], question, maxChars = 22000 } = {}) {
+// `agent:true` appends the ACTION_CONTRACT so the model may propose structured
+// changes; `toolResults` injects the output of a prior tool step (e.g. a scan
+// digest) for the next loop iteration.
+export function buildChatPrompt({ surface, history = [], question, maxChars = 22000, agent = false, toolResults = "" } = {}) {
   const context = buildCohortContext(surface, { question, maxChars });
   const convo = (Array.isArray(history) ? history : [])
     .filter((m) => m && m.content)
@@ -177,9 +202,11 @@ export function buildChatPrompt({ surface, history = [], question, maxChars = 22
     .join("\n");
   return [
     SYSTEM,
+    agent ? ACTION_CONTRACT : "",
     "\n===== COHORT CONTEXT =====",
     context,
     "===== END CONTEXT =====",
+    toolResults ? `\n===== TOOL RESULTS (read-only signal you requested) =====\n${String(toolResults).slice(0, 12000)}\n===== END TOOL RESULTS =====` : "",
     convo ? `\nConversation so far:\n${convo}` : "",
     `\nMember: ${question}`,
     "Assistant:",
