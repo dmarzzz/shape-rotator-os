@@ -253,7 +253,22 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
   display: flex;
   flex-direction: column;
   gap: 7px;
+  /* animate both ways when the chat popup opens/closes (see html.cohort-chat-open) */
+  transition: width 240ms cubic-bezier(0.19, 1, 0.22, 1),
+              bottom 240ms cubic-bezier(0.19, 1, 0.22, 1);
 }
+
+/* When the cohort-chat popup is open (fixed, bottom-right, ~400×560), lift the
+   agenda rail's foot above the popup and narrow it so today's timeline stays
+   visible and the bottom 'upcoming' cards don't collide with the chat. The
+   class is toggled on <html> by cohort-chat.js syncDial(). */
+html.cohort-chat-open .membrane-agenda {
+  width: 176px;
+  bottom: 620px;          /* clears the popup: its top edge sits ~650px up */
+  padding-bottom: 10px;
+}
+html.cohort-chat-open .magenda-upcoming { display: none; }  /* future days: hide while chatting */
+html.cohort-chat-open .magenda-track { min-height: 80px; }   /* let today's track compress, not clip */
 .membrane-agenda .magenda-head {
   text-align: right;
   font-size: 10px;
@@ -587,7 +602,9 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
   top: 0;
   left: 0;
   bottom: 0;
-  width: 264px;
+  /* 224 (was 264) balances the left feed against the 196px right agenda so the
+     origin-locked cube reads centered in the negative space between them. */
+  width: 224px;
   padding: 54px 14px 52px 24px;
   z-index: 2;
   font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;

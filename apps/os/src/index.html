@@ -11,6 +11,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="cohort-trace-view.css" />
+    <!-- Eager so the always-on corner chat dial is styled at first paint (its
+         glyph otherwise flashes huge + unstyled until cohort-chat.js lazy-loads
+         this). Href matches the lazy load in cohort-chat.js, so warmCohortChat()
+         no-ops (stylesheet-loader dedupes) — no double load. -->
+    <link rel="stylesheet" href="renderer/cohort-chat.css" />
     <!-- Design system (unified type/color/buttons/dropdowns). The application
          layer is scoped under html[data-ds], set permanently on <html> above.
          Must load AFTER styles.css so its override layer wins. -->
@@ -307,10 +312,10 @@
     </section>
 
     <!-- Chat with the cohort — runs the member's OWN local AI CLI (Claude Code /
-         Codex / Ollama) grounded in the live cohort data. No API key. See
+         Codex) grounded in the live cohort data. No API key. See
          apps/os/src/renderer/cohort-chat.js. -->
     <section id="cohort-chat-panel" class="cohort-chat-panel" hidden aria-hidden="true"
-             role="dialog" aria-modal="true" aria-label="chat with the cohort">
+             role="dialog" aria-modal="false" aria-label="chat with the cohort">
       <div class="cohort-chat-backdrop" data-cohort-chat-close></div>
       <div class="cohort-chat-card" role="document">
         <header class="cohort-chat-head">
@@ -334,10 +339,14 @@
 
         <div class="cohort-chat-log" id="cohort-chat-log" role="log" aria-live="polite" aria-label="cohort chat">
           <div class="cohort-chat-empty" id="cohort-chat-empty">
-            Ask anything about the cohort — grounded in the live data:<br/>
-            “who should I talk to about TEE Postgres?” · “what shipped this week?” ·
-            “who’s working on agent runtimes and how far along are they?”<br/>
-            <small>Answers run through your own local AI (Claude Code / Codex / Ollama). No API key, nothing leaves your machine except whatever that agent does.</small>
+            <div class="cohort-chat-empty-lede">Ask about the cohort — or ask me to <b>do</b> something. I draft, you approve.</div>
+            <div class="cohort-chat-egs">
+              <button type="button" class="cc-eg" data-cc-eg>who should I talk to about TEE Postgres?</button>
+              <button type="button" class="cc-eg" data-cc-eg>refresh my profile from my recent work</button>
+              <button type="button" class="cc-eg" data-cc-eg>suggest who I should connect with — and propose it</button>
+              <button type="button" class="cc-eg" data-cc-eg>update my GitHub and location on my profile</button>
+            </div>
+            <small>Runs on your own local AI (Claude Code / Codex) — no API key, nothing leaves your machine. Your own edits apply on the next refresh; changes about others are queued for the daily review.</small>
           </div>
         </div>
 
@@ -363,15 +372,14 @@
           </header>
           <div class="cohort-chat-settings-section">
             <input id="cohort-chat-cmd" type="text" class="cohort-chat-settings-input"
-                   placeholder="auto-detect (claude -p · codex exec · ollama run …)"
+                   placeholder="auto-detect (claude -p · codex exec)"
                    autocomplete="off" spellcheck="false" />
             <div class="cohort-chat-settings-hint" id="cohort-chat-detected"></div>
             <div class="cohort-chat-settings-hint">
               The full prompt (cohort context + your question) is piped to this
               command's stdin and the reply streams back. Leave blank to
               auto-detect a CLI on your PATH. Use the agent's non-interactive form
-              (e.g. <code>claude -p</code>, <code>codex exec</code>,
-              <code>ollama run qwen2.5</code>).
+              (e.g. <code>claude -p</code> or <code>codex exec</code>).
             </div>
           </div>
           <div class="cohort-chat-settings-status" id="cohort-chat-settings-status"></div>
@@ -381,6 +389,20 @@
         </div>
       </div>
     </section>
+
+    <!-- The radial dial launcher: a persistent corner control that toggles the chat
+         popup. Its CSS (renderer/cohort-chat.css) is eager-linked in <head> so the
+         glyph is styled at first paint — no unstyled flash. -->
+    <button id="cohort-chat-dial" class="cohort-chat-dial" type="button"
+            aria-label="ask the cohort" aria-expanded="false" title="Ask the cohort (Ctrl+Shift+K)">
+      <svg class="cc-dial-ring" viewBox="0 0 56 56" fill="none" aria-hidden="true">
+        <circle class="cc-dial-track" cx="28" cy="28" r="22" stroke-width="2"/>
+        <circle class="cc-dial-arc" cx="28" cy="28" r="22" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="34 200"/>
+      </svg>
+      <svg class="cc-dial-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>
+      </svg>
+    </button>
 
     <section id="atlas-view" class="atlas-view atlas-only">
       <div class="atlas-back-bar">

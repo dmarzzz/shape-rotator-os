@@ -7361,6 +7361,46 @@ function mirrorGithubDigest(card) {
   return parts.join("\n");
 }
 
+// A compact "what happened, when" strip for the mirror — the team's PUBLIC dated
+// activity (membrane feed items + GitHub releases) placed on a self-scaled axis
+// (oldest left → most recent right). Gives the snapshot mirror a sense of motion
+// over time. Inline design-token styles keep it self-contained (the ac-mirror CSS
+// is injected elsewhere). "" when there are < 2 dated points, so the panel is
+// unchanged when there's nothing to place.
+function mirrorTimelineHtml(teamId) {
+  const cohort = activeConstellationCohort() || {};
+  const pts = [];
+  const pushIf = (rid, meta, date, label, kind) => {
+    if (rid !== teamId && meta !== teamId) return;
+    const ms = Date.parse(date);
+    if (Number.isFinite(ms)) pts.push({ ms, label: String(label || ""), kind });
+  };
+  for (const w of Array.isArray(cohort.whats_new) ? cohort.whats_new : []) {
+    if (w && w.date) pushIf(w.nav && w.nav.recordId, w.meta, w.date, w.label, String(w.kind || "update"));
+  }
+  for (const r of Array.isArray(cohort.github_releases) ? cohort.github_releases : []) {
+    if (r && r.date) pushIf(r.nav && r.nav.recordId, r.meta, r.date, r.label || r.name, "release");
+  }
+  if (pts.length < 2) return "";
+  pts.sort((a, b) => a.ms - b.ms);
+  const min = pts[0].ms;
+  const max = pts[pts.length - 1].ms;
+  const span = max - min || 1;
+  const iso = (ms) => new Date(ms).toISOString().slice(0, 10);
+  const dots = pts.map((p) => {
+    const f = ((p.ms - min) / span) * 100;
+    const big = p.kind === "release";
+    const title = `${contextEvidenceDate(iso(p.ms))} · ${constShortText(p.label, 60)}`;
+    return `<span title="${escAttr(title)}" style="position:absolute;left:${f.toFixed(2)}%;bottom:-${big ? 4 : 3}px;width:${big ? 8 : 6}px;height:${big ? 8 : 6}px;border-radius:50%;background:var(--ds-accent);transform:translateX(-50%);"></span>`;
+  }).join("");
+  return `<div class="ac-mirror-timeline" aria-label="recent activity timeline" style="margin:.55em 0 .1em;">
+      <div style="position:relative;height:12px;border-bottom:1px solid var(--ds-border);">${dots}</div>
+      <div style="display:flex;justify-content:space-between;margin-top:5px;font-family:var(--ds-font-mono);font-size:var(--ds-text-2xs);color:var(--ds-ink-3);">
+        <span>${escHtml(contextEvidenceDate(iso(min)))}</span><span>${pts.length} events · recent →</span>
+      </div>
+    </div>`;
+}
+
 // The panel HTML, or "" when there is no resolved member, no team, or no card —
 // in every empty case the shipped grid below renders unchanged.
 function mirrorPanelHtml(subjectTeamId, cardByTeam, { eyebrow = "your mirror", readOnly = false } = {}) {
@@ -7411,6 +7451,7 @@ function mirrorPanelHtml(subjectTeamId, cardByTeam, { eyebrow = "your mirror", r
         <span class="ac-sds-cell${observedClass}"><b>repo shows</b><span>${escHtml(constShortText(content.did || "not observed", 160))}</span>${mixHtml}</span>
         <span class="ac-sds-cell${observedClass}"><b>shipped</b><span>${escHtml(constShortText(content.shipped || "not observed", 160))}</span>${chips ? `<span class="ac-sds-chips">${chips}</span>` : ""}${releasedHtml}</span>
       </div>
+      ${mirrorTimelineHtml(teamId)}
       <p class="ac-mirror-cal" data-tone="${escAttr(cal.tone)}">${escHtml(cal.text)}</p>
       ${readOnly ? "" : `<div class="ac-mirror-actions-row"><button type="button" class="ac-mirror-update" data-mirror-update>✨ update from my recent work</button></div>`}
       ${traceBody ? `<details class="ac-mirror-trace"><summary>how this reads</summary><div class="ac-mirror-trace-body">${traceBody}</div></details>` : ""}
