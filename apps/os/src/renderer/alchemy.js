@@ -87,12 +87,18 @@ const CONST_SIZE_LS_KEY = "srwk:const_size"; // bubble map size channel: "maturi
 const CONST_DOMAIN_FILTER_LS_KEY = "srwk:const_domain"; // bubble map colour isolate: "all" | "tee" | "ai" | "crypto" | "app-ux"
 const CONST_RAIL_LS_KEY = "srwk:const_rail_w"; // user-dragged inspector rail width (px); null = default clamp
 const CONST_RAIL_MIN = 220, CONST_RAIL_MAX = 480;
-function clampConstRail(v) {
-  if (v == null || v === "") return null; // no stored width → use the CSS clamp default
+const COLLAB_RAIL_LS_KEY = "srwk:collab_rail_w"; // collab board help-rail width (px); null = default clamp
+const COLLAB_RAIL_MIN = 280, COLLAB_RAIL_MAX = 520;
+// Shared clamp for both draggable rails (constellation inspector + collab help-rail).
+// null = no stored width → fall back to the CSS clamp default.
+function clampRail(v, min, max) {
+  if (v == null || v === "") return null;
   const n = Number(v);
   if (!Number.isFinite(n)) return null;
-  return Math.max(CONST_RAIL_MIN, Math.min(CONST_RAIL_MAX, Math.round(n)));
+  return Math.max(min, Math.min(max, Math.round(n)));
 }
+function clampConstRail(v) { return clampRail(v, CONST_RAIL_MIN, CONST_RAIL_MAX); }
+function clampCollabRail(v) { return clampRail(v, COLLAB_RAIL_MIN, COLLAB_RAIL_MAX); }
 const PROFILE_LS_KEY  = "srwk:profile_v1";
 const EVENTS_LS_KEY   = "srwk:cohort_events_v1";
 const DETAIL_LS_KEY   = "srwk:alchemy_detail_v1";
@@ -290,6 +296,7 @@ const state = {
   constellationSizeBy: "maturity", // bubble map size channel; persisted to CONST_SIZE_LS_KEY
   constDomainFilter: "all", // bubble map: isolate one domain colour; persisted to CONST_DOMAIN_FILTER_LS_KEY
   constRailW: null, // user-dragged inspector rail width in px (null = default clamp); CONST_RAIL_LS_KEY
+  collabRailW: null, // user-dragged collab help-rail width in px (null = default clamp); COLLAB_RAIL_LS_KEY
   constGrainDeep: false,   // clusters grain, deepest zoom band: reveal ALL team labels at rest
   constGrainManual: false, // user picked a band-less grain ("skills"); zoom won't fight it until the next zoom gesture
   constSelection: null,       // persistent constellation inspector selection: { type:"team"|"person", rid } | { type:"edge", from, to }
@@ -358,6 +365,7 @@ export function mount(container) {
     state.constellationSizeBy = constNormalizeSizeBy(localStorage.getItem(CONST_SIZE_LS_KEY));
     state.constDomainFilter = constNormalizeDomainFilter(localStorage.getItem(CONST_DOMAIN_FILTER_LS_KEY));
     state.constRailW = clampConstRail(localStorage.getItem(CONST_RAIL_LS_KEY));
+    state.collabRailW = clampCollabRail(localStorage.getItem(COLLAB_RAIL_LS_KEY));
     const savedInterest = localStorage.getItem(CONST_INTEREST_LS_KEY);
     if (savedInterest) state.constInterest = savedInterest;
     const savedProgramPage = localStorage.getItem(PROGRAM_PAGE_LS_KEY);
@@ -5992,34 +6000,42 @@ function constRailStyleAttr() {
   const w = clampConstRail(state.constRailW);
   return w == null ? "" : ` style="--const-rail-w:${w}px"`;
 }
+// Collab help-rail equivalents — same mechanic, its own width var + clamp so the
+// board's rail width persists independently of the constellation inspector.
+function collabRailStyleAttr() {
+  const w = clampCollabRail(state.collabRailW);
+  return w == null ? "" : ` style="--collab-rail-w:${w}px"`;
+}
 // Drag handle living in the workbench column gap (NOT inside the scrolling
 // inspector, which would clip it): pointer-drag — or ←/→ keys — resizes the
 // inspector against the map. Width persists; wired in wireConstellationHover.
 function constRailHandleHtml() {
   return `<div class="ac-rail-resize" role="separator" aria-orientation="vertical" aria-label="Resize inspector — drag, or use arrow keys" tabindex="0"></div>`;
 }
-// Pointer + keyboard controller for the inspector rail handle. The rail sits on
-// the RIGHT, so dragging the handle LEFT widens it (deltaX is negated). Commits
-// to state + localStorage on release so the width survives re-renders.
-function wireConstRailResize() {
+function collabRailHandleHtml() {
+  return `<div class="cb-rail-resize" role="separator" aria-orientation="vertical" aria-label="Resize help panel — drag, or use arrow keys" tabindex="0"></div>`;
+}
+// Pointer + keyboard controller for a draggable rail handle, shared by the
+// constellation inspector and the collab help-rail. The rail sits on the RIGHT,
+// so dragging the handle LEFT widens it (deltaX is negated). Commits to state +
+// localStorage on release so the width survives re-renders. Each caller supplies
+// its own selectors, CSS width var, clamp, and commit (state field + LS key).
+function wireRailResize({ handleSel, workbenchSel, railSel, cssVar, clamp, commit }) {
   if (!state.canvas) return;
-  const handle = state.canvas.querySelector(".ac-rail-resize");
+  const handle = state.canvas.querySelector(handleSel);
   if (!handle) return;
-  const workbench = handle.closest(".alch-const-workbench");
-  const railEl = workbench?.querySelector(".ac-inspector");
+  const workbench = handle.closest(workbenchSel);
+  const railEl = workbench?.querySelector(railSel);
   if (!workbench || !railEl) return;
-  const commit = (w) => {
-    const cw = clampConstRail(w);
+  const doCommit = (w) => {
+    const cw = clamp(w);
     if (cw == null) return;
-    state.constRailW = cw;
-    workbench.style.setProperty("--const-rail-w", `${cw}px`);
-    try { localStorage.setItem(CONST_RAIL_LS_KEY, String(cw)); } catch {}
+    commit(cw, workbench);
   };
   let startX = 0, startW = 0, pid = null;
   const onMove = (e) => {
-    // Live preview while dragging — set the var without persisting every frame.
-    const next = clampConstRail(startW + (startX - e.clientX));
-    if (next != null) workbench.style.setProperty("--const-rail-w", `${next}px`);
+    const next = clamp(startW + (startX - e.clientX));
+    if (next != null) workbench.style.setProperty(cssVar, `${next}px`);
   };
   const onUp = (e) => {
     workbench.classList.remove("is-rail-dragging");
@@ -6027,7 +6043,7 @@ function wireConstRailResize() {
     handle.removeEventListener("pointermove", onMove);
     handle.removeEventListener("pointerup", onUp);
     handle.removeEventListener("pointercancel", onUp);
-    commit(startW + (startX - e.clientX));
+    doCommit(startW + (startX - e.clientX));
     pid = null;
   };
   handle.addEventListener("pointerdown", (e) => {
@@ -6035,7 +6051,7 @@ function wireConstRailResize() {
     e.preventDefault();
     pid = e.pointerId;
     startX = e.clientX;
-    startW = railEl.getBoundingClientRect().width; // actual rendered width (clamp or var)
+    startW = railEl.getBoundingClientRect().width;
     workbench.classList.add("is-rail-dragging");
     try { handle.setPointerCapture(pid); } catch {}
     handle.addEventListener("pointermove", onMove);
@@ -6051,7 +6067,35 @@ function wireConstRailResize() {
     e.preventDefault();
     e.stopPropagation(); // don't let ←/→ bubble to the global view-tab cycler
     const cur = railEl.getBoundingClientRect().width;
-    commit(cur + dir * step);
+    doCommit(cur + dir * step);
+  });
+}
+function wireConstRailResize() {
+  wireRailResize({
+    handleSel: ".ac-rail-resize",
+    workbenchSel: ".alch-const-workbench",
+    railSel: ".ac-inspector",
+    cssVar: "--const-rail-w",
+    clamp: clampConstRail,
+    commit: (cw, workbench) => {
+      state.constRailW = cw;
+      workbench.style.setProperty("--const-rail-w", `${cw}px`);
+      try { localStorage.setItem(CONST_RAIL_LS_KEY, String(cw)); } catch {}
+    },
+  });
+}
+function wireCollabRailResize() {
+  wireRailResize({
+    handleSel: ".cb-rail-resize",
+    workbenchSel: ".cb-workbench",
+    railSel: ".cb-rail",
+    cssVar: "--collab-rail-w",
+    clamp: clampCollabRail,
+    commit: (cw, workbench) => {
+      state.collabRailW = cw;
+      workbench.style.setProperty("--collab-rail-w", `${cw}px`);
+      try { localStorage.setItem(COLLAB_RAIL_LS_KEY, String(cw)); } catch {}
+    },
   });
 }
 
@@ -11795,21 +11839,26 @@ function collabTeamByRecordId(rid, m = collabCurrentModel()) {
 
 
 
-// Merged legend + lens filter — one control (replaces the separate legend box
-// and the redundant lens dropdown). The two directed signals (dependency,
-// seek/offer) are clickable lens filters carrying the key mark + a live count;
-// hovering previews/isolates those cells (CSS :has on .alch-cohort-page). The
-// two scales (strength, most-depended-on) are non-clickable key annotations.
+// Merged legend + lens filter — ONE control (the ecosystem map's "the token IS
+// the legend AND the filter"). The two directed signals (dependency, seek/offer)
+// are clickable lens segments carrying their painted cell swatch + a live count;
+// hovering previews/isolates those cells (CSS :has on .alch-cohort-page). mutual
+// (a brighter match) and both (the split) are emergent cell states, not separate
+// lenses — shown as a small non-clickable key tail so the legend has no own box.
 function collabLensFilterHtml(lens = "all", m) {
   const lensKey = COLLAB_LENSES.has(lens) ? lens : "all";
   const seg = ({ key, cell, mark, label, count }) => `
       <button type="button" class="cb-lens-seg" data-collab-lens="${escAttr(key)}"${cell ? ` data-legend-cell="${escAttr(cell)}" data-collab-legend-lens="${escAttr(key)}"` : ""} aria-pressed="${lensKey === key ? "true" : "false"}" aria-label="${escAttr(`${label}${typeof count === "number" ? `, ${count}` : ""} — ${cell ? "filter the board to this signal" : "show all signals"}`)}">${mark ? `<i class="cb-legend-mark ${escAttr(mark)}"></i>` : ""}<b>${escHtml(label)}</b>${typeof count === "number" ? `<em class="cb-lens-count">${count}</em>` : ""}</button>`;
   return `
-    <div class="cb-lensfilter" role="group" aria-label="signal filter — hover to preview, click to filter">
+    <div class="cb-lensfilter" role="group" aria-label="signal filter — hover to preview, click to filter; brighter swatch = mutual, split = both">
       ${seg({ key: "all", cell: "", mark: "", label: "all", count: m.deps.size + m.seekOffer.length })}
       ${seg({ key: "deps", cell: "dep", mark: "dep", label: "dependencies", count: m.deps.size })}
       ${seg({ key: "needs", cell: "so", mark: "so", label: "seek / offer", count: m.seekOffer.length })}
-    </div>`;
+    </div>
+    <span class="cb-lens-key" aria-hidden="true">
+      <span class="cb-lens-keyitem"><i class="cb-legend-mark so is-mutual"></i>mutual</span>
+      <span class="cb-lens-keyitem"><i class="cb-legend-mark both"></i>both</span>
+    </span>`;
 }
 
 function collabLatentOverlapCards() {
@@ -12575,15 +12624,9 @@ function collabCell(R, C, ri, ci, m, lens = "all", detail = false, extraCls = ""
 // The map legend, built from the grid's OWN cell fills so the eye calibrates the
 // two colours it then reads in the field: cool slate = a match, brighter = mutual,
 // warm clay = a dependency, a diagonal split = both.
-function collabReadKeyHtml() {
-  return `
-    <div class="cb-readkey" aria-hidden="true">
-      <span class="cb-rk"><i class="cb-rk-sw cb-rk-match"></i>match</span>
-      <span class="cb-rk"><i class="cb-rk-sw cb-rk-mutual"></i>mutual</span>
-      <span class="cb-rk"><i class="cb-rk-sw cb-rk-dep"></i>dependency</span>
-      <span class="cb-rk"><i class="cb-rk-sw cb-rk-both"></i>both</span>
-    </div>`;
-}
+// collabReadKeyHtml was removed (2026-06): the legend folded INTO the lens filter
+// (collabLensFilterHtml) so filter + legend are one control — like the ecosystem
+// map. The two derived cell states (mutual, both) ride a small key tail there.
 
 // The single control that leads the surface: "i'm <team>". Choosing a team
 // personalises the route sheet and lights that team's row + column in the map.
@@ -12625,9 +12668,9 @@ function collabRouteSheetHtml(m, focusRid) {
     }).slice(0, 6);
     const rows = top.map(s => row({
       team: s.offerer, from: s.seeker, to: s.offerer, cls: s.mutual ? " is-mut" : "",
-      body: `<span class="cb-route-nm">${escHtml(s.seekerName)}</span><span class="cb-route-arrow" aria-hidden="true">⇄</span><span class="cb-route-nm">${escHtml(s.offererName)}</span><span class="cb-route-tg">${tagOf(s)}</span>${s.mutual ? `<span class="cb-route-badge">mutual</span>` : ""}${bar(s.score)}`,
+      body: `<span class="cb-route-nm">${escHtml(s.seekerName)}</span><span class="cb-route-arrow" aria-hidden="true">⇄</span><span class="cb-route-nm">${escHtml(s.offererName)}</span><span class="cb-route-tg">${tagOf(s)}</span>${s.mutual ? `<span class="cb-route-badge">mutual</span>` : ""}`,
     })).join("");
-    return `<div class="cb-route">${sec("strongest intros across the cohort", "is-match", rows || empty("no overlaps yet — teams declare seeks and offers in their profile"))}</div>`;
+    return `<div class="cb-route">${sec("while you decide — the cohort's strongest intros", "is-match", rows || empty("no overlaps yet — teams declare seeks and offers in their profile"))}</div>`;
   }
 
   // Mutual matches sort to the TOP of "who can help you" (they're the intro-worthy
@@ -12672,12 +12715,13 @@ function collabRouteSheetHtml(m, focusRid) {
   // A disclosure row: a compact head (name · why-tag) that toggles an in-place
   // panel (full why + contacts). It carries NO data-collab-focus-team —
   // clicking EXPANDS, it never pivots the whole surface (the old broken behavior).
-  const discRow = ({ rid, from, to, section, cls = "", tag = "", badge = "", why }) => {
+  const discRow = ({ rid, from, to, section, cls = "", tag = "", badge = "", why, lead = "" }) => {
     const pid = `cbr-${section}-${escAttr(String(rid))}`;
     return `<div class="cb-route-row cb-route-disc${cls}" data-route-from="${escAttr(from)}" data-route-to="${escAttr(to)}">
       <button type="button" class="cb-route-dh" aria-expanded="false" aria-controls="${pid}" data-route-toggle>
         <span class="cb-route-nm">${nameOf(rid)}</span>
         ${tag ? `<span class="cb-route-tg">${tag}</span>` : ""}
+        ${lead ? `<span class="cb-route-via">via ${escHtml(lead)}</span>` : ""}
         ${badge}
         <span class="cb-route-chev" aria-hidden="true"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></span>
       </button>
@@ -12688,11 +12732,13 @@ function collabRouteSheetHtml(m, focusRid) {
   const whyMatch = (lead, s) => `<div class="cb-route-why"><p class="cb-route-whyline">${lead}</p>${(s.shared && s.shared.length) ? `<div class="cb-route-chips">${chips(s.shared)}</div>` : ""}</div>`;
   const helpRows = help.map(s => discRow({
     rid: s.offerer, from: focusRid, to: s.offerer, section: "help", cls: s.mutual ? " is-mut" : "",
+    lead: (cohortRosterForTeam(state.cohort?.people || [], s.offerer)[0]?.name) || "",
     tag: tagOf(s), badge: s.mutual ? `<span class="cb-route-badge">mutual</span>` : "",
     why: whyMatch(`they offer <b>${escHtml(s.offering || "—")}</b> · you seek <b>${escHtml(s.seeking || "—")}</b>`, s),
   }));
   const giveRows = give.map(s => discRow({
     rid: s.seeker, from: s.seeker, to: focusRid, section: "give", tag: tagOf(s),
+    lead: (cohortRosterForTeam(state.cohort?.people || [], s.seeker)[0]?.name) || "",
     why: whyMatch(`you offer <b>${escHtml(s.offering || "—")}</b> · they seek <b>${escHtml(s.seeking || "—")}</b>`, s),
   }));
   const depRowsHtml = depList.map(d => {
@@ -12707,21 +12753,57 @@ function collabRouteSheetHtml(m, focusRid) {
   // Cap each list at 5 visible; the rest hide behind a "show N more" toggle so the
   // section stays small at rest even when the match list is long.
   const CAP = 5;
-  const capSec = (title, pip, rowsArr, emptyMsg) => {
-    if (!rowsArr.length) return sec(title, pip, empty(emptyMsg));
+  const capInner = (rowsArr) => {
     const headHtml = rowsArr.slice(0, CAP).join("");
     const rest = rowsArr.slice(CAP);
     const restHtml = rest.length
       ? `<div class="cb-route-extra" hidden>${rest.join("")}</div><button type="button" class="cb-route-more" data-route-more aria-expanded="false">show ${rest.length} more</button>`
       : "";
-    return sec(title, pip, headHtml + restHtml);
+    return headHtml + restHtml;
+  };
+  // The rail leads with the ONE answer — "who can help you", always open. The two
+  // secondary lists ("who you can help", "you depend on") collapse behind native
+  // <details> with their count on the summary, so the narrow rail stays short and
+  // the eye lands on inbound help first.
+  const capLead = (title, rowsArr, emptyMsg) =>
+    sec(title, "is-match", rowsArr.length ? capInner(rowsArr) : empty(emptyMsg));
+  const capFold = (title, rowsArr, emptyMsg) => {
+    const n = rowsArr.length;
+    const inner = n ? capInner(rowsArr) : empty(emptyMsg);
+    return `<details class="cb-route-fold">
+      <summary class="cb-route-foldsum"><span class="cb-route-sh">${escHtml(title)}</span>${n ? `<span class="cb-route-count">${n}</span>` : ""}<span class="cb-route-foldchev" aria-hidden="true"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4l4 4-4 4"/></svg></span></summary>
+      <div class="cb-route-foldbody">${inner}</div>
+    </details>`;
   };
 
   let html = "";
-  html += capSec("who can help you", "is-match", helpRows, "no matches yet — add what you're seeking with “add seek / offer” above.");
-  html += capSec("who you can help", "is-give", giveRows, "nobody's seeking your offer yet — add what you offer above.");
-  html += capSec("you depend on", "is-dep", depRowsHtml, "no declared dependencies yet.");
+  html += capLead("who can help you", helpRows, "no matches yet — add what you're seeking with “add seek / offer” above.");
+  html += capFold("who you can help", giveRows, "nobody's seeking your offer yet — add what you offer above.");
+  html += capFold("you depend on", depRowsHtml, "no declared dependencies yet.");
   return `<div class="cb-route">${html}</div>`;
+}
+
+// The rail's adaptive nudge banner — the "what do I do next" voice that used to
+// live in the page header. State-aware: prompt the pick when nothing's focused;
+// once a team is focused, name the inbound-help count and point at the rows. Pure
+// copy off the model already computed in renderCollab — no new data, no fetch.
+function collabNudgeHtml(m, focusRid) {
+  if (!focusRid) {
+    return `<div class="cb-nudge" data-nudge="pick">
+      <span class="cb-nudge-kicker">Start here</span>
+      <p class="cb-nudge-line">Pick your team in the selector above — the map pans to you and this panel fills with who can help.</p>
+      <p class="cb-nudge-sub">No team on the board yet? Add what you're seeking with “add seek / offer”.</p>
+    </div>`;
+  }
+  const name = escHtml(m.byRecordId.get(focusRid)?.name || "your team");
+  const helpN = m.seekOffer.filter(s => s.seeker === focusRid).length;
+  const line = helpN
+    ? `<b>${helpN}</b> team${helpN === 1 ? "" : "s"} can help <b>${name}</b>. Expand a row to see the shared work and who to message.`
+    : `No inbound matches for <b>${name}</b> yet — add what you're seeking with “add seek / offer”, or see who you can help below.`;
+  return `<div class="cb-nudge" data-nudge="${helpN ? "matches" : "empty"}">
+    <span class="cb-nudge-kicker">For ${name}</span>
+    <p class="cb-nudge-line">${line}</p>
+  </div>`;
 }
 
 // Resolve "my team" for the collab board from the LOCAL identity — the same
@@ -12819,7 +12901,10 @@ function renderCollab() {
     });
     rows += `<div class="cb-row" style="${colN}">${line}</div>`;
   });
-  const matrixBody = `<div class="cb-grid-wrap" tabindex="0"><div class="cb-grid" data-lens="${escAttr(lens)}">${rows}</div></div>`;
+  // is-spotlight dims every cell except the focused team's row+column band, so a
+  // pick reads as "the board moved to them". Driven purely by focusRid + the
+  // is-focus-band class already set on those cells above — no new data attrs.
+  const matrixBody = `<div class="cb-grid-wrap" tabindex="0"><div class="cb-grid${focusRid ? " is-spotlight" : ""}" data-lens="${escAttr(lens)}">${rows}</div></div>`;
   const matrixNote = hiddenN
     ? `<p class="cb-hint cb-grid-hidden">${hiddenN} team${hiddenN === 1 ? "" : "s"} with no declared signal yet — find them in the directory.</p>`
     : "";
@@ -12830,7 +12915,6 @@ function renderCollab() {
       <div class="cb-maphead">
         ${collabLensFilterHtml(lens, m)}
       </div>
-      ${collabReadKeyHtml()}
       <div class="cb-scroll">${matrixBody}</div>
       ${matrixNote}
     </section>`;
@@ -12862,13 +12946,23 @@ function renderCollab() {
 
   // convergence — skill areas shared by 3+ teams
   const maxConv = m.convergence.reduce((mx, c) => Math.max(mx, c.count), 1);
+  // Resolve shared-focus team NAMES → record_ids so each chip can open that team
+  // in the directory (m.convergence carries names; m.ordered has the rid map).
+  // Non-resolving names fall back to a plain, non-clickable span.
+  const convRidByName = new Map(m.ordered.map(o => [o.team?.name, o.rid]));
   const convRows = m.convergence.map(c => {
     const pct = Math.round((c.count / maxConv) * 100);
     const weight = c.count >= 8 ? " heavy" : c.count >= 5 ? " mid" : "";
+    const teamChips = c.teams.map(t => {
+      const rid = convRidByName.get(t);
+      return rid
+        ? `<button type="button" class="cb-cv-team" data-collab-cohort-open="${escAttr(rid)}" title="${escAttr("open " + t + " in the directory")}">${escHtml(t)}</button>`
+        : `<span class="cb-cv-team">${escHtml(t)}</span>`;
+    }).join("");
     return `<article class="cb-cv${weight}">
       <div class="cb-cv-head"><span class="cb-cv-skill">${escHtml(c.skill)}</span><span class="cb-cv-count">${c.count} teams</span></div>
       <div class="cb-cv-bar"><i style="width:${pct}%"></i></div>
-      <div class="cb-cv-teams">${c.teams.map(t => `<span class="cb-cv-team">${escHtml(t)}</span>`).join("")}</div>
+      <div class="cb-cv-teams">${teamChips}</div>
     </article>`;
   }).join("");
   const convSection = `
@@ -12877,19 +12971,15 @@ function renderCollab() {
       <div class="cb-cv-list">${convRows || '<p class="cb-empty">no shared areas.</p>'}</div>
     </section>`;
 
-  // Lead copy adapts to the auto-detected focus: once we know your team it names
-  // it and teaches the new expand-for-contact gesture; unfocused, it prompts the
-  // pick. Keeps the header honest about the state the surface is actually in.
-  const focusName = focusRid ? escHtml(m.byRecordId.get(focusRid)?.name || "your team") : "";
-  const leadSub = focusRid
-    ? `Matches for <b>${focusName}</b> — expand any row for the shared work and who to message. Switch teams above, or clear to browse the whole cohort.`
-    : `Pick your team above to see who can help you — or browse the cohort's strongest intros below.`;
+  // The header stays calm and stable: title + the one lead control (team picker)
+  // + intake. The *adaptive* "what to do next" copy moved into the rail's nudge
+  // banner (collabNudgeHtml), right next to the matches it talks about.
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="collab">
     ${cohortPageHead("collab")}
     <header class="cb-lead" data-shape-occluder>
       <h2 class="cb-lead-title">Find who can help you</h2>
-      <p class="cb-lead-sub">${leadSub}</p>
+      <p class="cb-lead-sub">The cohort's needs and offers, matched. Pick your team to make the map — and the panel — about you.</p>
       <div class="cb-lead-controls">
         ${collabTeamPickerHtml(m, focusRid)}
         <button class="cb-intake-open" type="button" data-collab-intake-open>
@@ -12899,15 +12989,24 @@ function renderCollab() {
       </div>
     </header>
     <div class="alch-collab">
-      ${collabRouteSheetHtml(m, focusRid)}
-      <div class="cb-rule" role="separator"></div>
-      ${mapSection}
-      ${latentSection}
-      <div class="cb-cohort-shape">
-        ${convSection}
-        ${underusedSection}
+      <div class="cb-workbench"${collabRailStyleAttr()}>
+        <div class="cb-board-main">
+          ${mapSection}
+        </div>
+        ${collabRailHandleHtml()}
+        <aside class="cb-rail" aria-label="who can help you" tabindex="-1">
+          ${collabNudgeHtml(m, focusRid)}
+          ${collabRouteSheetHtml(m, focusRid)}
+        </aside>
       </div>
-      <p class="alch-callout">Matches, intros, and offers are self-declared by teams. Latent overlaps are public prompts to verify before routing; no private scoring is shown.</p>
+      <div class="cb-cohort-extras">
+        ${latentSection}
+        <div class="cb-cohort-shape">
+          ${convSection}
+          ${underusedSection}
+        </div>
+        <p class="alch-callout">Matches, intros, and offers are self-declared by teams. Latent overlaps are public prompts to verify before routing; no private scoring is shown.</p>
+      </div>
     </div>
     </div>`;
 }
@@ -12940,6 +13039,7 @@ function wireCollab() {
   const collabRoot = state.canvas.querySelector(".alch-collab");
   wireConstellationModeNav();
   wireConstellationScrubber();
+  wireCollabRailResize();   // draggable help-rail width (matrix | rail workbench)
   wireCollabCohortLinks(state.canvas);
   wireCollabTrailerLinks(state.canvas);
   for (const btn of state.canvas.querySelectorAll("[data-collab-intake-open]")) {
@@ -13086,6 +13186,31 @@ function wireCollab() {
     if (!grid.contains(document.activeElement)) clearHL();
   });
   if (grid.contains(document.activeElement)) highlightFromTarget(document.activeElement);
+  // Pan the matrix to the focused team: center its row+column header inside the
+  // scroll viewport (.cb-grid-wrap) so a pick "moves the board" to them, pairing
+  // with the is-spotlight dimming. We use getBoundingClientRect deltas (not
+  // scrollIntoView, which would also yank the whole page) and only touch the
+  // matrix's own scroll. Runs after layout settles; no-op when nothing's focused.
+  if (state.collabFocus) {
+    requestAnimationFrame(() => {
+      const wrap = state.canvas.querySelector(".cb-grid-wrap");
+      const focusCol = state.canvas.querySelector(".cb-colhead.is-focus");
+      const focusRow = state.canvas.querySelector(".cb-rowhead.is-focus");
+      if (!wrap || (!focusCol && !focusRow)) return;
+      const wr = wrap.getBoundingClientRect();
+      const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+      const opts = { behavior: reduce ? "auto" : "smooth" };
+      if (focusCol) {
+        const cr = focusCol.getBoundingClientRect();
+        opts.left = Math.max(0, wrap.scrollLeft + (cr.left - wr.left) - (wrap.clientWidth - cr.width) / 2);
+      }
+      if (focusRow) {
+        const rr = focusRow.getBoundingClientRect();
+        opts.top = Math.max(0, wrap.scrollTop + (rr.top - wr.top) - (wrap.clientHeight - rr.height) / 2);
+      }
+      try { wrap.scrollTo(opts); } catch { wrap.scrollLeft = opts.left ?? wrap.scrollLeft; wrap.scrollTop = opts.top ?? wrap.scrollTop; }
+    });
+  }
   // Escape clears the focused team — the surface returns to the cohort-wide view
   // (strongest intros), the universal "get me out" affordance for the one gesture.
   collabRoot?.addEventListener("keydown", (event) => {

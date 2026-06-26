@@ -11754,19 +11754,18 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 
 
 
-.alch-collab .cb-legend-mark.dep::before {
-  content: "";
-  width: 8px; height: 8px; border: 0; border-radius: 50%;
-  background: var(--cb-preview-dep);
-  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.25);
+/* Legend swatches as square tiles painted from the grid's OWN cell fills — so the
+   merged filter+legend calibrates the eye to the matrix (slate match, clay dep,
+   brighter+rim mutual, split both). Replaces the old dot marks AND the read-key. */
+.alch-collab .cb-legend-mark.dep::before,
+.alch-collab .cb-legend-mark.so::before,
+.alch-collab .cb-legend-mark.both::before {
+  content: ""; width: 100%; height: 100%; border: 0; border-radius: 3px; box-shadow: none; transform: none;
 }
-
-.alch-collab .cb-legend-mark.so::before {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: var(--cb-match-ink);
-  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.22);
-  transform: none;
-}
+.alch-collab .cb-legend-mark.dep::before { background: rgba(var(--cb-dep-rgb), 0.5); }
+.alch-collab .cb-legend-mark.so::before  { background: rgba(var(--cb-match-rgb), 0.34); }
+.alch-collab .cb-legend-mark.so.is-mutual::before { background: rgba(var(--cb-match-rgb), 0.62); box-shadow: inset 0 0 0 1px rgba(var(--cb-match-edge), 0.7); }
+.alch-collab .cb-legend-mark.both::before { background: linear-gradient(135deg, rgba(var(--cb-dep-rgb), 0.55) 0 50%, rgba(var(--cb-match-rgb), 0.45) 50% 100%); }
 
 .alch-collab .cb-legend-mark.so-scale::before {
   background: linear-gradient(90deg,
@@ -11837,8 +11836,12 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 .cb-lens-seg:focus-visible { outline: 1px solid var(--alchemy-oxide-bright); outline-offset: 1px; }
 .cb-lens-seg .cb-lens-count { font-style: normal; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--alchemy-oxide-bright); }
 .cb-lens-seg .cb-legend-mark { position: relative; width: 12px; height: 12px; flex: 0 0 12px; }
-/* (Removed dead .cb-lens-key + .cb-scope-token CSS — the rebuilt board has no
-   scope/sort tokens and the legend is .cb-readkey, not .cb-lens-key.) */
+/* The merged-control key tail: non-clickable annotations for the two derived cell
+   states (mutual = brighter match, both = the split) that aren't separate filters.
+   Sits beside the filter pill in .cb-maphead — the legend has no standalone box. */
+.alch-collab .cb-lens-key { display: inline-flex; align-items: center; gap: 14px; flex-wrap: wrap; padding-left: 16px; border-left: 1px solid rgba(var(--ink-rgb), 0.12); }
+.alch-collab .cb-lens-keyitem { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em; color: var(--alchemy-ink-mute); white-space: nowrap; }
+.alch-collab .cb-lens-keyitem .cb-legend-mark { width: 12px; height: 12px; flex: 0 0 12px; }
 
 /* Legend-is-the-filter: hovering / focusing a lens segment dims the cells it does
    NOT describe (pure-CSS linked brushing) — the house "legend as control" pattern,
@@ -11874,20 +11877,8 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 }
 .alch-collab .cb-cell.has-dep.has-so.is-mutual { box-shadow: inset 0 0 0 1px rgba(var(--cb-match-edge), 0.5); }
 
-/* Map legend — the grid's own cell fills, so the eye calibrates the two colours
-   (slate match / clay dependency) before reading the field. */
-.alch-collab .cb-readkey {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 7px 16px;
-  margin: 0 0 12px; padding: 0 2px;
-  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em;
-  color: var(--alchemy-ink-mute);
-}
-.alch-collab .cb-rk { display: inline-flex; align-items: center; gap: 6px; }
-.alch-collab .cb-rk-sw { display: inline-block; width: 13px; height: 13px; border-radius: 3px; box-sizing: border-box; flex: 0 0 auto; }
-.alch-collab .cb-rk-match  { background: rgba(var(--cb-match-rgb), 0.34); }
-.alch-collab .cb-rk-mutual { background: rgba(var(--cb-match-rgb), 0.62); box-shadow: inset 0 0 0 1px rgba(var(--cb-match-edge), 0.7); }
-.alch-collab .cb-rk-dep    { background: rgba(var(--cb-dep-rgb), 0.5); }
-.alch-collab .cb-rk-both   { background: linear-gradient(135deg, rgba(var(--cb-dep-rgb), 0.55) 0 50%, rgba(var(--cb-match-rgb), 0.45) 50% 100%); }
+/* (cb-readkey removed 2026-06 — the legend folded into the lens-filter swatches +
+   the .cb-lens-key tail above; filter and legend are now one control.) */
 
 /* ════════════════════════════════════════════════════════════════════════════
    Route-sheet lead (2026-06): the ANSWER leads (who can help you), the table is
@@ -11921,10 +11912,105 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 .cb-picker select:focus-visible { outline: 1px solid var(--alchemy-oxide-bright); outline-offset: 1px; }
 .cb-lead-controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 
-.alch-collab .cb-route { margin-top: 18px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; align-items: start; }
+/* ── collab workbench: matrix (hero) | help-rail ──────────────────────────────
+   One surface instead of two stacked pieces. The adjacency matrix is the hero
+   map on the left; the "who can help you" route sheet rides a draggable right
+   rail (mirrors .alch-const-workbench — its own --collab-rail-w var + clamp,
+   width persisted via COLLAB_RAIL_LS_KEY). Tokens match the rest of the board. */
+.alch-collab .cb-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--collab-rail-w, clamp(300px, 26vw, 360px));
+  gap: 22px;
+  align-items: start;
+  position: relative; /* anchor for the rail resize handle */
+}
+.alch-collab .cb-board-main { min-width: 0; }
+.alch-collab .cb-rail {
+  min-width: 0;
+  align-self: start;
+  position: sticky;
+  top: 8px;
+  max-height: calc(100vh - 96px);
+  overflow: auto;
+  padding-left: 20px;
+  border-left: 1px solid var(--alchemy-rule);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--ink-rgb), 0.28) transparent;
+}
+.alch-collab .cb-rail:focus { outline: none; }
+.alch-collab .cb-rail::-webkit-scrollbar { width: 9px; }
+.alch-collab .cb-rail::-webkit-scrollbar-thumb { background: rgba(var(--ink-rgb), 0.22); border-radius: 999px; }
+.alch-collab .cb-rail::-webkit-scrollbar-thumb:hover { background: rgba(var(--ink-rgb), 0.4); }
+.alch-collab .cb-rail-resize {
+  position: absolute; top: 0; bottom: 0;
+  right: calc(var(--collab-rail-w, clamp(300px, 26vw, 360px)) + 6px);
+  width: 11px; z-index: 4; cursor: col-resize; touch-action: none;
+  background: transparent; border: 0; padding: 0;
+}
+.alch-collab .cb-rail-resize::before {
+  content: ""; position: absolute; top: 10px; bottom: 10px; left: 50%;
+  width: 2px; transform: translateX(-50%); border-radius: 2px;
+  background: rgba(var(--ink-rgb), 0.10);
+  transition: background 160ms var(--ease);
+}
+.alch-collab .cb-rail-resize:hover::before,
+.alch-collab .cb-rail-resize:focus-visible::before,
+.alch-collab .cb-workbench.is-rail-dragging .cb-rail-resize::before { background: rgba(var(--ink-rgb), 0.34); }
+.alch-collab .cb-rail-resize:focus-visible { outline: none; }
+.alch-collab .cb-workbench.is-rail-dragging { cursor: col-resize; user-select: none; }
+@media (max-width: 900px) {
+  .alch-collab .cb-workbench { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .alch-collab .cb-rail { position: static; max-height: none; overflow: visible; padding-left: 0; border-left: 0; border-top: 1px solid var(--alchemy-rule); padding-top: 22px; }
+  .alch-collab .cb-rail-resize { display: none; }
+}
+.alch-collab .cb-cohort-extras { margin-top: 30px; }
+
+/* ── rail nudge banner: the adaptive "what next" voice (moved out of the header) ─ */
+.alch-collab .cb-nudge {
+  border: 1px solid var(--alchemy-rule);
+  border-left: 2px solid var(--alchemy-oxide-bright);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--alchemy-oxide-bright) 5%, transparent);
+  padding: 10px 13px;
+  margin-bottom: 16px;
+}
+.alch-collab .cb-nudge-kicker {
+  display: block; font-family: var(--font-mono); font-size: 8.5px;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--alchemy-oxide-bright); margin-bottom: 5px;
+}
+.alch-collab .cb-nudge-line { font-size: 12px; line-height: 1.5; color: var(--alchemy-paper-warm); margin: 0; }
+.alch-collab .cb-nudge-sub { font-size: 10.5px; line-height: 1.45; color: var(--alchemy-ink-mute); margin: 7px 0 0; }
+.alch-collab .cb-nudge-line b { color: var(--alchemy-oxide-bright); font-weight: 600; }
+.alch-collab .cb-nudge[data-nudge="empty"] { border-left-color: var(--alchemy-ink-mute); background: rgba(var(--ink-rgb), 0.02); }
+.alch-collab .cb-nudge[data-nudge="empty"] .cb-nudge-kicker { color: var(--alchemy-ink-mute); }
+
+/* ── collapsible secondary route sections (who you can help / you depend on) ─── */
+.alch-collab .cb-route-fold { border-top: 1px solid var(--alchemy-rule); padding-top: 12px; }
+.alch-collab .cb-route-foldsum {
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  list-style: none; user-select: none;
+}
+.alch-collab .cb-route-foldsum::-webkit-details-marker { display: none; }
+.alch-collab .cb-route-foldsum .cb-route-sh { margin: 0; }
+.alch-collab .cb-route-count {
+  font-family: var(--font-mono); font-size: 9px; color: var(--alchemy-ink-mute);
+  border: 1px solid var(--alchemy-rule); border-radius: 999px; padding: 1px 7px;
+}
+.alch-collab .cb-route-foldchev { margin-left: auto; color: var(--alchemy-ink-mute); display: inline-flex; transition: transform 160ms var(--ease); }
+.alch-collab .cb-route-fold[open] .cb-route-foldchev { transform: rotate(90deg); }
+.alch-collab .cb-route-foldsum:hover .cb-route-foldchev { color: var(--alchemy-paper-warm); }
+.alch-collab .cb-route-foldsum:focus-visible { outline: 1px solid var(--alchemy-oxide-bright); outline-offset: 2px; border-radius: 4px; }
+.alch-collab .cb-route-foldbody { padding-top: 10px; }
+.alch-collab .cb-route-row.is-open .cb-contact-dm {
+  background: color-mix(in srgb, var(--cb-preview-gold) 16%, transparent);
+  border-color: color-mix(in srgb, var(--cb-preview-gold) 60%, transparent);
+}
+
+/* In the rail the three sections stack vertically (not a 3-up grid). "who can
+   help you" leads; the other two ride collapsible <details> (.cb-route-fold). */
+.alch-collab .cb-route { margin-top: 0; display: flex; flex-direction: column; gap: 14px; }
 .alch-collab .cb-route-sec { margin-bottom: 0; min-width: 0; }
-/* narrow windows: drop the 3-up grid back to a single column */
-@media (max-width: 820px) { .alch-collab .cb-route { grid-template-columns: minmax(0, 1fr); gap: 20px; } }
 .alch-collab .cb-route-sh { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--alchemy-paper-warm); margin: 0 0 10px; }
 /* Row = a flex shell (border/fill) holding the focus MAIN + the open ↗. The
    shell is the hover/entrance surface; the two buttons are the gestures. */
@@ -11949,6 +12035,7 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 .alch-collab .cb-route-nm.is-dep { color: color-mix(in srgb, var(--cb-preview-dep) 72%, var(--alchemy-paper-warm)); }
 .alch-collab .cb-route-arrow { color: rgba(var(--ink-rgb), 0.35); flex: 0 0 auto; font-size: 12px; }
 .alch-collab .cb-route-tg { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.02em; color: var(--alchemy-ink-mute); flex: 1; min-width: 40px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alch-collab .cb-route-via { flex: 0 0 auto; max-width: 9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.03em; color: rgba(var(--ink-rgb), 0.42); }
 .alch-collab .cb-route-badge { font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--cb-preview-gold); border: 1px solid color-mix(in srgb, var(--cb-preview-gold) 40%, transparent); border-radius: 999px; padding: 2px 8px; flex: 0 0 auto; }
 .alch-collab .cb-route-empty { font-family: var(--font-mono); font-size: 10px; color: rgba(var(--ink-rgb), 0.35); padding: 2px 2px 6px; margin: 0; }
 
@@ -12019,17 +12106,30 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 .alch-collab .cb-route-more:focus-visible { outline: 1px solid var(--alchemy-oxide-bright); outline-offset: 1px; }
 
 .alch-collab .cb-rule { height: 1px; background: rgba(var(--ink-rgb), 0.07); margin: 26px 0 18px; }
-.alch-collab .cb-maphead { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+.alch-collab .cb-maphead { display: flex; align-items: center; justify-content: flex-start; gap: 14px 18px; flex-wrap: wrap; margin-bottom: 12px; }
 .alch-collab .cb-map-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--alchemy-ink-mute); }
 
 /* persistent highlight of the picked team's row + column in the map */
-.alch-collab .cb-cell.is-focus-band { box-shadow: inset 0 0 0 999px rgba(var(--cb-dep-rgb), 0.10); }
+.alch-collab .cb-cell.is-focus-band { box-shadow: inset 0 0 0 999px rgba(var(--cb-dep-rgb), 0.16); }
 .alch-collab .cb-rowhead.is-focus { background: color-mix(in srgb, var(--alchemy-oxide-bright) 12%, var(--cb-preview-panel-2)); }
 .alch-collab .cb-rowhead.is-focus .cb-rowhead-name { color: var(--alchemy-oxide-bright); }
 /* Persistent focus (your team, or a picked one) — oxide text + a slightly
    stronger bottom underline. No full-height fill: it would clip the diagonal
    labels to its left (and auto-detect makes a focused column the default). */
 .alch-collab .cb-colhead.is-focus { color: var(--alchemy-oxide-bright); opacity: 1; box-shadow: inset 0 -3px 0 var(--alchemy-oxide-bright); }
+
+/* spotlight: with a team focused the matrix gets .is-spotlight — fade everything
+   except its row+column band (those cells already carry .is-focus-band) so a
+   pick visibly "moves the board" to them. Hovering any row/col reveals it at full
+   strength, so the map stays explorable while focused. */
+.alch-collab .cb-grid.is-spotlight .cb-cell:not(.is-focus-band) { opacity: 0.5; transition: opacity 220ms var(--ease); }
+.alch-collab .cb-grid.is-spotlight .cb-cell.is-focus-band { transition: opacity 220ms var(--ease); }
+.alch-collab .cb-grid.is-spotlight .cb-rowhead:not(.is-focus),
+.alch-collab .cb-grid.is-spotlight .cb-colhead:not(.is-focus) { opacity: 0.6; transition: opacity 220ms var(--ease); }
+.alch-collab .cb-grid.is-spotlight .cb-rowhead:not(.is-focus):hover,
+.alch-collab .cb-grid.is-spotlight .cb-colhead:not(.is-focus):hover { opacity: 0.9; }
+.alch-collab .cb-grid.is-spotlight .cb-cell.is-hl-row,
+.alch-collab .cb-grid.is-spotlight .cb-cell.is-hl-col { opacity: 1; }
 
 /* transient: hovering a route-sheet row lights its directed pair on the map
    below (the list ↔ table tie). A pointed accent outline reads as "this exact
@@ -12048,6 +12148,11 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 /* honor reduced-motion: keep the depth, drop the movement */
 @media (prefers-reduced-motion: reduce) {
   .cb-route-row, .cb-route-main, .cb-route-open, .cb-intake-open, .cb-lens-seg, .alch-collab .cb-cell, .cb-picker select { transition: none; }
+  /* spotlight fade + fold chevron snap, no animated movement */
+  .alch-collab .cb-grid.is-spotlight .cb-cell:not(.is-focus-band),
+  .alch-collab .cb-grid.is-spotlight .cb-rowhead:not(.is-focus),
+  .alch-collab .cb-grid.is-spotlight .cb-colhead:not(.is-focus),
+  .alch-collab .cb-route-foldchev, .alch-collab .cb-rail-resize::before { transition: none; }
   /* disclosure: snap open/closed (visibility 0s either way), no chevron spin */
   .alch-collab .cb-route-dh, .alch-collab .cb-route-chev,
   .alch-collab .cb-route-panel, .alch-collab .cb-route-row.is-open .cb-route-panel { transition: none; }
@@ -12084,6 +12189,9 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 .cb-chip, .cb-cv-team { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.06em; text-transform: lowercase; padding: 2px 6px; border-radius: 3px; }
 
 .cb-cv-team { background: rgba(var(--ink-rgb), 0.05); color: var(--alchemy-ink-mute); }
+.alch-collab button.cb-cv-team { appearance: none; border: 0; cursor: pointer; line-height: inherit; }
+.alch-collab button.cb-cv-team:hover { color: var(--alchemy-oxide-bright); background: rgba(var(--ink-rgb), 0.09); }
+.alch-collab button.cb-cv-team:focus-visible { outline: 1px solid var(--alchemy-oxide-bright); outline-offset: 1px; }
 
 .cb-chip { background: rgba(193,168,114,0.14); color: rgba(214,189,134,0.95); }
 
