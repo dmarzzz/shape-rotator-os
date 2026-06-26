@@ -14,12 +14,13 @@ import { buildChatPrompt } from "./cohort-chat-context.mjs";
 import { parseChatActions } from "./cohort-chat-actions.mjs";
 import { createChatStream } from "./cohort-chat-stream.mjs";
 import { maybeOfferMirror, parseMirrorCommand, handToSelfReport } from "./cohort-chat-mirror.mjs";
+import { resolveChatFocus } from "./cohort-chat-focus.mjs";
 import { getIdentity } from "./identity.js";
 import { getClaimTokenHash } from "./claim-token.mjs";
 import { saveProfileProposal } from "./supabase-self-report.mjs";
 import { emitConnection, emitContest, emitSelfReport } from "./cohort-emit.mjs";
 import { submitContest } from "./supabase-contest.mjs";
-import { scanGithubActivity, resolvePersonHandle } from "./gh-self-report.mjs";
+import { scanGithubActivity, resolvePersonHandle, summarizeEvents, digestFromEvents } from "./gh-self-report.mjs";
 
 let stylesheetPromise = null;
 let controller = null;
@@ -41,13 +42,18 @@ function resolveMyPerson(surface) {
 function buildActionCtx(surface) {
   const id = getIdentity();
   const ids = new Set();
-  for (const coll of [surface && surface.people, surface && surface.teams]) {
-    for (const r of Array.isArray(coll) ? coll : []) if (r && r.record_id) ids.add(String(r.record_id));
+  const teamIds = new Set();
+  for (const r of Array.isArray(surface && surface.people) ? surface.people : []) {
+    if (r && r.record_id) ids.add(String(r.record_id));
+  }
+  for (const r of Array.isArray(surface && surface.teams) ? surface.teams : []) {
+    if (r && r.record_id) { ids.add(String(r.record_id)); teamIds.add(String(r.record_id)); }
   }
   return {
     proposerRecordId: id && id.record_id ? String(id.record_id) : null,
     proposerClaimHash: getClaimTokenHash() || null,
     knownRecordIds: ids,
+    knownTeamIds: teamIds, // the subset that are teams → a team subject uses the award whitelist
   };
 }
 
@@ -113,6 +119,9 @@ function createController() {
   let lastQuestion = "";        // the member's question, for a tool-grounded re-ask
   let toolRound = 0;            // bounded self-questioning depth (see MAX_TOOL_ROUNDS)
   const MAX_TOOL_ROUNDS = 1;    // at most one public-tool follow-up per member turn
+  let activeFocus = null;       // the project in hand (cohort-chat-focus.mjs) — scopes
+  let selectedTeamId = "";      //   what's scanned + the team a write targets; the
+                                //   member's explicit pick (UI), else named-in-chat/primary
 
   // Auto-scroll should follow the stream, but never YANK a user who has scrolled
   // up to read earlier output. Check before each chunk grows the log.
@@ -276,15 +285,30 @@ function createController() {
 
   function esc(s) { const d = document.createElement("div"); d.textContent = String(s == null ? "" : s); return d.innerHTML; }
 
+  // A github-only scan request: consented + run inline (vs a sessions scan, which
+  // opens the consent-first self-report modal). Kept as a helper because the card's
+  // copy + CTA + routing all branch on it.
+  function isGithubScan(a) {
+    return a.action === "request_scan" && a.sources.includes("github") && !a.sources.includes("sessions");
+  }
+
   // A one-line, human-readable summary of a proposed action for the review card.
   function summarizeAction(a) {
     if (a.action === "propose_profile_update") {
+      const fields = Object.keys(a.delta).join(", ");
+      if (a.subject_type === "team") return `Propose update to the ${a.subject_record_id} project — ${fields}`;
       const who = a.origin && a.origin.is_self ? "your profile" : `${a.subject_record_id}’s profile`;
-      return `Propose update to ${who} — ${Object.keys(a.delta).join(", ")}`;
+      return `Propose update to ${who} — ${fields}`;
     }
     if (a.action === "propose_connection") return `Suggest connection — ${a.from_record_id} ↔ ${a.to_record_id}`;
     if (a.action === "file_contest") return `Flag ${a.subject_record_id}’s card — ${a.contest_kind.replace(/_/g, " ")}`;
-    if (a.action === "request_scan") return `Read your ${a.sources.join(" + ")} to refresh your profile`;
+    if (a.action === "request_scan") {
+      if (isGithubScan(a)) {
+        const where = activeFocus && activeFocus.repos && activeFocus.repos.length ? ` for ${activeFocus.teamName}` : "";
+        return `Check your GitHub${where} to ground this — uses your own gh login (private repos read only for a linked project); only a scrubbed digest is used`;
+      }
+      return `Read your ${a.sources.join(" + ")} to refresh your profile`;
+    }
     return a.action;
   }
 
@@ -300,6 +324,7 @@ function createController() {
           proposerClaimHash: o.proposer_claim_hash,
           rationale: a.rationale,
           sourceKinds: ["cohort_chat"],
+          subjectType: a.subject_type || "person", // team ⇒ award-evidence whitelist, pending
         });
         // A self-edit auto-approves (live on next refresh) — emit a feed signal so
         // it shows in the activity timeline. A third-party proposal stays pending;
@@ -320,6 +345,13 @@ function createController() {
         return res || { ok: false, error: "contest_failed" };
       }
       if (a.action === "request_scan") {
+        // A github scan the member just approved: run it (private-preferred, scoped)
+        // and re-ask once. A sessions scan opens the consent-first self-report modal.
+        if (isGithubScan(a)) {
+          if (toolRound >= MAX_TOOL_ROUNDS) return { ok: false, error: "already checked this turn" };
+          void runGithubFollowup();
+          return { ok: true };
+        }
         let surface = null; try { surface = await getCohortSurface(); } catch {}
         const me = resolveMyPerson(surface);
         if (!me) return { ok: false, error: "claim your profile first" };
@@ -337,19 +369,21 @@ function createController() {
   // The CTA + the in-flight + the success line, tuned per action so a self-edit
   // reads as a direct "apply" and a proposal about someone else reads as "propose".
   function ctaLabel(a) {
-    if (a.action === "request_scan") return "Choose what to share →";
+    if (a.action === "request_scan") return isGithubScan(a) ? "Check my GitHub →" : "Choose what to share →";
     if (isSelfApply(a)) return "Apply";
     return "Propose";
   }
   function pendingLabel(a) {
-    if (a.action === "request_scan") return "opening…";
+    if (a.action === "request_scan") return isGithubScan(a) ? "checking…" : "opening…";
     return isSelfApply(a) ? "applying…" : "sending…";
   }
   function successMsg(a) {
-    if (a.action === "request_scan") return "opened — pick what to share.";
+    if (a.action === "request_scan") return isGithubScan(a) ? "checking your GitHub…" : "opened — pick what to share.";
     if (a.action === "propose_profile_update") return isSelfApply(a)
       ? "✓ updated — live on the next refresh."
-      : "sent — queued for the daily review (it’s about someone else).";
+      : a.subject_type === "team"
+        ? "sent — queued for review (a project update)."
+        : "sent — queued for the daily review (it’s about someone else).";
     if (a.action === "propose_connection") return "✓ suggested — added to the activity feed.";
     if (a.action === "file_contest") return "✓ flagged — it’ll be reviewed.";
     return "done.";
@@ -473,17 +507,11 @@ function createController() {
     // away (history carries, so it stays in context).
     setTimeout(() => { try { input.focus(); } catch {} }, 30);
     if (parsed && parsed.actions.length && !failMsg) {
-      // Bounded self-questioning: a github-only scan request is a PUBLIC tool we can
-      // run inline and re-ask once. Everything else becomes a review card (never
-      // auto-applied). A sessions scan stays on the consent-modal path via its card.
-      const ghScan = parsed.actions.find((a) =>
-        a.action === "request_scan" && a.sources.includes("github") && !a.sources.includes("sessions"));
-      if (ghScan && toolRound < MAX_TOOL_ROUNDS) {
-        renderActionReview(parsed.actions.filter((a) => a !== ghScan));
-        void runGithubFollowup();
-      } else {
-        renderActionReview(parsed.actions);
-      }
+      // Every proposed action becomes a review card the member must click — nothing
+      // reads or writes on its own. A GitHub scan in particular uses the member's own
+      // gh login (private repos included), so it is gated behind an explicit click
+      // like every other action, never auto-run.
+      renderActionReview(parsed.actions);
     }
   }
 
@@ -519,7 +547,11 @@ function createController() {
     lastQuestion = q;
     toolRound = 0;
     pendingActionCtx = buildActionCtx(surface);
-    runTurn(buildChatPrompt({ surface, history: history.slice(0, -1), question: q, agent: true }));
+    // Resolve the project in hand (explicit pick → named-in-chat → primary team), so
+    // the prompt scopes the answer + any team proposal to it and a github scan only
+    // reads that project's repos. Never pull in unrelated work.
+    activeFocus = resolveChatFocus({ surface, identity: getIdentity(), selectedTeamId, mentioned: q }).focus;
+    runTurn(buildChatPrompt({ surface, history: history.slice(0, -1), question: q, agent: true, focus: activeFocus }));
   }
 
   // Spawn ONE agent turn for a prebuilt prompt: stream stdout into a fresh bubble,
@@ -589,25 +621,54 @@ function createController() {
     }
   }
 
-  // Bounded self-questioning (one round): the model asked to read the member's
-  // PUBLIC github to ground its proposal, so fetch that public signal and re-ask
-  // the SAME question with the digest as tool results. github is public, so this
-  // stays a public-dataMode turn (no privacy escalation); the private sessions
-  // scan keeps going through the consent modal instead.
+  // The member approved a GitHub scan (via its review card). Ground the answer in
+  // their real recent work, then re-ask once. PRIVATE repos are read only when the
+  // focused project has a LINKED repo to scope to — an unscoped private read could
+  // pull in unrelated private work, so with no repo link we use the PUBLIC events
+  // fetch instead. Either way only a SCRUBBED, repo-scoped digest (commit lines +
+  // counts, never diffs/secrets) enters the prompt; dataMode stays public — it's a
+  // scrubbed digest of the member's own work, drafted by their own model.
   async function runGithubFollowup() {
+    if (toolRound >= MAX_TOOL_ROUNDS) return;
     let surface = null; try { surface = await getCohortSurface(); } catch {}
     const me = resolveMyPerson(surface);
     const handle = me ? resolvePersonHandle(me) : "";
-    if (!handle) { appendBubble("assistant", "I don’t see a public GitHub handle on your profile to check."); return; }
-    appendBubble("assistant", `Checking @${handle}’s public GitHub…`);
+    // We only have a scope when the focused project has at least one linked repo.
+    const repos = activeFocus && activeFocus.repos && activeFocus.repos.length ? activeFocus.repos : null;
+    const scopeNote = repos ? ` (scoped to ${activeFocus.teamName})` : "";
+    appendBubble("assistant", `Checking your GitHub${scopeNote}…`);
     let digest = "";
-    try { const r = await scanGithubActivity(handle); digest = (r && r.digest) || ""; } catch {}
-    if (!digest) { appendBubble("assistant", "No recent public GitHub activity to ground that in."); return; }
+    let priv = false;
+    let privScanned = false; // the authenticated scan actually ran (vs gh missing/unauthed)
+    // Private path only when we can scope it; uses the member's OWN gh login and the
+    // SAME pure scrubber as the public path. `r.login` is the account actually queried.
+    if (repos) {
+      try {
+        const r = window.api.scanPrivateGithub ? await window.api.scanPrivateGithub({}) : null;
+        if (r && r.ok && Array.isArray(r.events)) {
+          privScanned = true;
+          priv = true;
+          digest = digestFromEvents(r.login || handle, summarizeEvents(r.events, { repos }), { sourceLabel: "recent events (incl. private)" });
+        }
+      } catch {}
+    }
+    // Public fallback only when the private scan didn't actually run (gh missing/unauthed).
+    // If it ran but found nothing on the focused repos, re-fetching public is pointless.
+    if (!digest && !privScanned) {
+      if (!handle) { appendBubble("assistant", "I don’t see a GitHub handle on your profile to check."); return; }
+      try { const r = await scanGithubActivity(handle, { repos: repos || undefined }); digest = (r && r.digest) || ""; } catch {}
+    }
+    if (!digest) {
+      appendBubble("assistant", repos
+        ? `No recent GitHub activity on ${activeFocus.teamName} to ground that in.`
+        : "No recent public GitHub activity to ground that in.");
+      return;
+    }
     toolRound += 1;
     pendingActionCtx = buildActionCtx(surface);
     runTurn(buildChatPrompt({
-      surface, history: history.slice(-6), question: lastQuestion, agent: true,
-      toolResults: `GITHUB ACTIVITY for @${handle} (public):\n${digest}`,
+      surface, history: history.slice(-6), question: lastQuestion, agent: true, focus: activeFocus,
+      toolResults: `GITHUB ACTIVITY${scopeNote} (${priv ? "incl. private — scrubbed digest" : "public"}):\n${digest}`,
     }));
   }
 
