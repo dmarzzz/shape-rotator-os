@@ -44,7 +44,7 @@ test("unreadCounts primes valid empty modes so the first later record is unread"
   assert.deepEqual(unreadCounts(surface()), {});
   assert.deepEqual(unreadCounts(surface({
     asks: [{ record_id: "ask-a", title: "Need help" }],
-  })), { asks: 1 });
+  })), { activity: 1 });
 });
 
 test("markModeSeen clears an unread mode by storing the current fingerprints", () => {
@@ -52,7 +52,17 @@ test("markModeSeen clears an unread mode by storing the current fingerprints", (
   const next = surface({ asks: [{ record_id: "ask-a", title: "Need help" }] });
 
   unreadCounts(surface());
-  assert.deepEqual(unreadCounts(next), { asks: 1 });
+  assert.deepEqual(unreadCounts(next), { activity: 1 });
+  markModeSeen("activity", next);
+  assert.deepEqual(unreadCounts(next), {});
+});
+
+test("legacy asks mode marks the merged activity source seen", () => {
+  installLocalStorage();
+  const next = surface({ asks: [{ record_id: "ask-a", title: "Need help" }] });
+
+  unreadCounts(surface());
+  assert.deepEqual(unreadCounts(next), { activity: 1 });
   markModeSeen("asks", next);
   assert.deepEqual(unreadCounts(next), {});
 });

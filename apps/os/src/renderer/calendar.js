@@ -404,7 +404,7 @@ export function flattenScheduleEvents(data) {
 // People presence + per-week PMF live outside this module's data, so the host
 // (alchemy.js) computes them and passes the shaped result in; this module stays
 // presentation-only.
-export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 0, source = null, view = "cal", presenceHtml = "", activity = [], catHidden = [], signals = null, subscriptions = null } = {}) {
+export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 0, source = null, view = "cal", presenceHtml = "", activity = [], catHidden = [], signals = null, subscriptions = null, timelineHtml = "", timelineOptions = null, timelineSummary = null } = {}) {
   const tab = data?.tabs?.[PRIMARY_TAB] || [];
   const safeWeekIdx = Math.max(0, Math.min(WEEK_COUNT - 1, weekIdx | 0));
   const week = parseWeekRow(tab[2 + safeWeekIdx] || [], safeWeekIdx);
@@ -881,6 +881,49 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       </div>
     </div>`;
 
+  const laneOpts = Array.isArray(timelineOptions?.lanes) ? timelineOptions.lanes : [];
+  const catOpts = Array.isArray(timelineOptions?.categories) ? timelineOptions.categories : [];
+  const timelineOpt = (kind, opt) => {
+    const key = String(opt?.key || "");
+    const label = String(opt?.label || key);
+    const count = Number.isFinite(opt?.count) ? String(opt.count) : "";
+    const checked = !opt?.hidden;
+    return `
+      <button class="c2-rowsctl-opt rr-timeline-opt" role="menuitemcheckbox" aria-checked="${checked ? "true" : "false"}"
+              data-c2-timeline-pref="${escAttr(kind)}" data-c2-timeline-key="${escAttr(key)}" type="button">
+        <i class="c2-rowsctl-check" aria-hidden="true">&#10003;</i>
+        <span class="rr-timeline-swatch" ${kind === "category" ? `data-cat="${escAttr(key)}"` : `data-track="${escAttr(key)}"`} aria-hidden="true"></span>
+        <span class="rr-timeline-opt-label">${escHtml(label)}</span>
+        ${count ? `<em class="rr-timeline-opt-count">${escHtml(count)}</em>` : ""}
+      </button>`;
+  };
+  const timelineControls = (laneOpts.length || catOpts.length) ? `
+    <div class="rr-timeline-prefs" data-c2-timeline-ctl>
+      <button class="rr-timeline-prefbtn" data-c2-timeline-prefs-toggle type="button" aria-haspopup="menu" aria-expanded="false" aria-label="choose timeline view">
+        <span>view</span><i class="c2-chev" aria-hidden="true"></i>
+      </button>
+      <div class="c2-rowsctl-menu rr-timeline-menu" role="menu" aria-label="timeline view" hidden>
+        ${laneOpts.length ? `<div class="c2-rowsctl-grp">lanes</div>${laneOpts.map((opt) => timelineOpt("lane", opt)).join("")}` : ""}
+        ${catOpts.length ? `<div class="c2-rowsctl-grp">points</div>${catOpts.map((opt) => timelineOpt("category", opt)).join("")}` : ""}
+      </div>
+    </div>` : "";
+  const timelineBits = [
+    Number.isFinite(timelineSummary?.lanes) ? `${timelineSummary.lanes} lanes` : "",
+    Number.isFinite(timelineSummary?.points) ? `${timelineSummary.points} points` : "",
+    "program axis",
+  ].filter(Boolean).join(" &middot; ");
+  const timelinePanel = timelineHtml ? `
+    <section class="rr-timeline" data-c2-timeline aria-label="cohort timeline">
+      <header class="rr-timeline-head">
+        <div class="rr-timeline-title">
+          <span>cohort timeline</span>
+          <em>${timelineBits}</em>
+        </div>
+        ${timelineControls}
+      </header>
+      <div class="alch-timeline-view rr-timeline-view">${timelineHtml}</div>
+    </section>` : "";
+
   const navHtml = `
     <div class="rr-nav">
       <button class="rr-navbtn rr-prev" data-c2-nav="prev"${safeWeekIdx === 0 ? " disabled" : ""} type="button">${safeWeekIdx === 0 ? "start of residency" : `← wk ${String(safeWeekIdx).padStart(2, "0")} · ${escHtml(weekStartMs != null ? shortDate(weekStartMs - 7 * DAY_MS) : "")}`}</button>
@@ -925,6 +968,7 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
             ${rowsHtml}
           </div>
           ${addRowControl}
+          ${timelinePanel}
         </div>
         ${navHtml}
       </section>

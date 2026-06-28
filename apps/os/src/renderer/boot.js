@@ -5447,6 +5447,33 @@ function openCohortChatFromLauncher(e) {
       toast({ kind: "error", message: `cohort chat failed: ${err?.message || err}` });
     });
 }
+function openCohortChatSettingsFromLauncher(e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  loadCohortChat()
+    .then((m) => (m.openCohortChatSettings ? m.openCohortChatSettings() : m.openCohortChat()))
+    .catch((err) => {
+      console.error("[cohort-chat] settings failed:", err);
+      toast({ kind: "error", message: `chat settings failed: ${err?.message || err}` });
+    });
+}
+function openCohortMirrorFromLauncher(e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  loadCohortChat()
+    .then((m) => (m.openCohortMirror ? m.openCohortMirror() : m.openCohortChat()))
+    .catch((err) => {
+      console.error("[cohort-chat] mirror failed:", err);
+      toast({ kind: "error", message: `mirror failed: ${err?.message || err}` });
+    });
+}
+function openCohortUpdatesFromLauncher(e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  loadCohortChat()
+    .then((m) => (m.openCohortUpdates ? m.openCohortUpdates() : m.openCohortChat()))
+    .catch((err) => {
+      console.error("[cohort-chat] updates failed:", err);
+      toast({ kind: "error", message: `updates failed: ${err?.message || err}` });
+    });
+}
 // The corner radial dial toggles the popup (open ↔ close) rather than only opening.
 function toggleCohortChatFromLauncher(e) {
   if (e) { e.preventDefault(); e.stopPropagation(); }
@@ -5456,6 +5483,13 @@ function toggleCohortChatFromLauncher(e) {
       console.error("[cohort-chat] panel failed:", err);
       toast({ kind: "error", message: `cohort chat failed: ${err?.message || err}` });
     });
+}
+function routeCohortChatAction(e) {
+  const action = e.currentTarget && e.currentTarget.getAttribute("data-cohort-chat-action");
+  if (action === "settings") return openCohortChatSettingsFromLauncher(e);
+  if (action === "updates") return openCohortUpdatesFromLauncher(e);
+  if (action === "mirror") return openCohortMirrorFromLauncher(e);
+  return toggleCohortChatFromLauncher(e);
 }
 // "Ask the cohort" — its own button in the search controls + a GLOBAL
 // Cmd/Ctrl+Shift+K (unlike the swarm's A, which is search-view-only) since
@@ -5475,6 +5509,29 @@ function wireCohortChatLauncher() {
     dial.addEventListener("pointerover", warmCohortChat, { passive: true });
     dial.addEventListener("focus", warmCohortChat);
     dial.addEventListener("click", toggleCohortChatFromLauncher);
+  }
+  const dialWrap = document.getElementById("cohort-chat-dial-wrap");
+  const radialMenu = document.getElementById("cohort-chat-radial-menu");
+  const actionBtns = Array.from(document.querySelectorAll("[data-cohort-chat-action]"));
+  const setRadialMenuOpen = (open) => {
+    if (radialMenu) radialMenu.setAttribute("aria-hidden", open ? "false" : "true");
+    for (const actionBtn of actionBtns) actionBtn.tabIndex = open ? 0 : -1;
+  };
+  setRadialMenuOpen(false);
+  if (dialWrap) {
+    dialWrap.addEventListener("pointerenter", () => setRadialMenuOpen(true), { passive: true });
+    dialWrap.addEventListener("pointerleave", () => setRadialMenuOpen(false), { passive: true });
+    dialWrap.addEventListener("focusin", () => setRadialMenuOpen(true));
+    dialWrap.addEventListener("focusout", () => {
+      setTimeout(() => {
+        if (!dialWrap.contains(document.activeElement)) setRadialMenuOpen(false);
+      }, 0);
+    });
+  }
+  for (const actionBtn of actionBtns) {
+    actionBtn.addEventListener("pointerover", warmCohortChat, { passive: true });
+    actionBtn.addEventListener("focus", warmCohortChat);
+    actionBtn.addEventListener("click", routeCohortChatAction);
   }
   document.addEventListener("keydown", (e) => {
     if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "k" || e.key === "K")) {

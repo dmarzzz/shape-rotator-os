@@ -302,3 +302,21 @@ export function buildDefaultTimeline(
   if (sessions.items.length) lanes.push(sessions);
   return { axis, lanes };
 }
+
+// Apply viewer preferences to an already-built timeline. This stays pure so the
+// calendar can persist controls locally while the standalone timeline view keeps
+// its unfiltered default unless the host opts in.
+export function filterTimelineByPrefs(timeline, prefs = {}) {
+  const hiddenLanes = new Set(Array.isArray(prefs.hiddenLanes) ? prefs.hiddenLanes : []);
+  const hiddenCategories = new Set(Array.isArray(prefs.hiddenCategories) ? prefs.hiddenCategories : []);
+  const lanes = (Array.isArray(timeline?.lanes) ? timeline.lanes : [])
+    .filter((lane) => lane && !hiddenLanes.has(lane.trackKey))
+    .map((lane) => {
+      if (!hiddenCategories.size || !Array.isArray(lane.items)) return lane;
+      return {
+        ...lane,
+        items: lane.items.filter((item) => !hiddenCategories.has(item?.category)),
+      };
+    });
+  return { ...(timeline || {}), lanes };
+}

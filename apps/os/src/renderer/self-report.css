@@ -42,6 +42,9 @@
 }
 .selfrep-consent:hover { border-color: var(--ds-border-strong); }
 .selfrep-consent.is-disabled { opacity: 0.55; cursor: default; }
+.selfrep-consent.selfrep-remember {
+  background: color-mix(in srgb, var(--ds-accent) 8%, var(--ds-surface-3));
+}
 .selfrep-consent input { margin-top: 3px; accent-color: var(--ds-accent); flex: none; }
 .selfrep-consent b { display: block; font-size: var(--ds-text-sm); font-weight: 600; margin-bottom: 2px; }
 .selfrep-consent small { display: block; font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); color: var(--ds-ink-3); }

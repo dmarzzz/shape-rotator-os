@@ -855,7 +855,16 @@ function createController() {
     }
   });
 
-  return { open, close, isOpen: () => !panel.hidden };
+  return {
+    open,
+    close,
+    openSettings,
+    isOpen: () => !panel.hidden,
+    notice(text) {
+      open();
+      appendBubble("assistant", text);
+    },
+  };
 }
 
 function getController() {
@@ -863,11 +872,43 @@ function getController() {
   return controller;
 }
 
+async function openSelfReportForMe({ autoRunPrevious = false } = {}) {
+  let surface = null;
+  try { surface = await getCohortSurface(); } catch {}
+  const me = resolveMyPerson(surface);
+  if (!me) {
+    const c = getController();
+    if (c) c.notice("Claim your profile first, then I can sync updates against the right cohort record.");
+    return false;
+  }
+  const selfReport = await import("./self-report.js");
+  await selfReport.openSelfReport({ person: me, autoRunPrevious });
+  return true;
+}
+
 export async function openCohortChat() {
   await warmCohortChat();
   const c = getController();
   if (!c) { console.warn("[cohort-chat] panel markup missing"); return; }
   c.open();
+}
+
+export async function openCohortChatSettings() {
+  await warmCohortChat();
+  const c = getController();
+  if (!c) { console.warn("[cohort-chat] panel markup missing"); return; }
+  c.open();
+  c.openSettings();
+}
+
+export async function openCohortMirror() {
+  await warmCohortChat();
+  await openSelfReportForMe({ autoRunPrevious: false });
+}
+
+export async function openCohortUpdates() {
+  await warmCohortChat();
+  await openSelfReportForMe({ autoRunPrevious: true });
 }
 
 // Toggle for the radial dial launcher: open when closed, close when open.

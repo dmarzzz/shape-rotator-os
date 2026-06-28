@@ -433,11 +433,20 @@
 }
 
 /* Persistent radial launcher in the bottom-right corner. */
-.cohort-chat-dial {
+.cohort-chat-dial-wrap {
   position: fixed;
   right: 22px;
   bottom: 22px;
   z-index: 1201;
+  width: 160px;
+  height: 160px;
+  pointer-events: none;
+}
+.cohort-chat-dial {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
   width: 56px;
   height: 56px;
   padding: 0;
@@ -448,12 +457,89 @@
   cursor: pointer;
   display: grid;
   place-items: center;
+  pointer-events: auto;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-  transition: transform 0.16s ease, background 0.2s ease;
+  transition: transform 0.18s ease, opacity 0.18s ease, background 0.2s ease;
 }
 .cohort-chat-dial[hidden] { display: none; }
 .cohort-chat-dial:hover { transform: translateY(-2px); background: var(--ds-surface-1); }
 .cohort-chat-dial:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 3px; }
+.cohort-chat-radial-menu {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  overflow: hidden;
+  border-radius: 50%;
+  border: 1px solid var(--ds-border-strong);
+  background:
+    linear-gradient(90deg, transparent calc(50% - 0.5px), var(--ds-border) calc(50% - 0.5px), var(--ds-border) calc(50% + 0.5px), transparent calc(50% + 0.5px)),
+    linear-gradient(0deg, transparent calc(50% - 0.5px), var(--ds-border) calc(50% - 0.5px), var(--ds-border) calc(50% + 0.5px), transparent calc(50% + 0.5px)),
+    color-mix(in srgb, var(--ds-surface-2) 94%, transparent);
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.52);
+  opacity: 0;
+  transform: scale(0.36);
+  transform-origin: bottom right;
+  pointer-events: none;
+  transition: opacity 0.16s ease, transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.cohort-chat-dial-wrap:hover .cohort-chat-radial-menu,
+.cohort-chat-dial-wrap:focus-within .cohort-chat-radial-menu {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+}
+.cohort-chat-dial-wrap:hover .cohort-chat-dial,
+.cohort-chat-dial-wrap:focus-within .cohort-chat-dial {
+  transform: translate(-52px, -52px) scale(0.58);
+  opacity: 0.42;
+  pointer-events: none;
+}
+.cc-radial-action {
+  appearance: none;
+  min-width: 0;
+  min-height: 0;
+  padding: 12px 9px;
+  border: 0;
+  background: transparent;
+  color: var(--ds-ink-3);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  pointer-events: auto;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.cc-radial-action:hover,
+.cc-radial-action:focus-visible {
+  background: color-mix(in srgb, var(--ds-accent) 18%, transparent);
+  color: var(--ds-ink-1);
+}
+.cc-radial-action:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: -4px;
+}
+.cc-radial-icon {
+  display: inline-flex;
+  color: var(--ds-accent);
+}
+.cc-radial-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.cc-radial-label {
+  max-width: 8ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 /* a gentle accent pulse to draw the eye (stops once the chat is open) */
 .cohort-chat-dial::after {
   content: "";
@@ -485,6 +571,8 @@
 @media (prefers-reduced-motion: reduce) {
   .cohort-chat-card { animation: none; }
   .cohort-chat-dial::after { animation: none; }
+  .cohort-chat-radial-menu,
+  .cohort-chat-dial,
   .cc-dial-ring .cc-dial-arc { transition: none; }
   .cc-deep-rail span[data-state="active"]::after { animation: none; display: none; }
 }

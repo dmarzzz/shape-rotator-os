@@ -41,14 +41,17 @@ export const WEB_BASE = "https://os-web.shaperotator.xyz/s/";
 const TABS         = ["alchemy", "apps", "network", "links", "matrix"];
 const APPS_VIEWS   = ["atlas", "easel"];                 // "" → apps grid
 const NET_SUBS     = ["network", "metrics"];
-const ALCH_MODES   = ["membrane", "shapes", "constellation", "calendar", "profile", "onboarding", "program", "asks", "context"];
-const CONST_LENSES = ["map", "ring", "journey", "stack", "targets", "shipped", "collab"];
+const ALCH_MODES   = ["membrane", "shapes", "constellation", "calendar", "mirror", "profile", "onboarding", "program", "asks", "context", "activity"];
+const CONST_LENSES = ["map", "ring", "journey", "stack", "targets", "collab"];
 const CTX_VIEWS    = ["articles", "raw", "signals", "data"];
 
 // Append-only: old canonical view key → current canonical view key. Lets a
 // historical code keep resolving if we ever rename an internal view id. Empty
 // at launch.
-const VIEW_ALIASES = {};
+const VIEW_ALIASES = {
+  "alchemy/asks": "alchemy/activity",
+  "alchemy/constellation/shipped": "alchemy/mirror",
+};
 
 const RADIX = 36;
 const CODE_LEN = 5;
@@ -86,6 +89,10 @@ function canonicalView(snap) {
   }
   if (tab === "alchemy") {
     const mode = ALCH_MODES.includes(s.alchMode) ? s.alchMode : "membrane";
+    if (mode === "asks") return "alchemy/activity";
+    if (mode === "constellation" && String(s.constMode || "").toLowerCase() === "shipped") {
+      return "alchemy/mirror";
+    }
     if (mode === "constellation") {
       return "alchemy/constellation" + (CONST_LENSES.includes(s.constMode) ? "/" + s.constMode : "");
     }
@@ -104,7 +111,7 @@ function enumerateViews() {
   const out = [];
   const push = (key, snap) => out.push({ key, snap });
 
-  for (const mode of ["membrane", "shapes", "calendar", "profile", "onboarding", "program", "asks"]) {
+  for (const mode of ["membrane", "shapes", "calendar", "mirror", "profile", "onboarding", "program", "activity"]) {
     push("alchemy/" + mode, { tab: "alchemy", alchMode: mode });
   }
   push("alchemy/constellation", { tab: "alchemy", alchMode: "constellation" });
