@@ -184,7 +184,7 @@ export const ACTION_CONTRACT = [
   '- propose_profile_update — the FOCUSED TEAM/project: {"subject_record_id":<the focused team id>,"fields":{"journey"?:{"stage"?:1-8,"evidence_quality"?:1-5,"market_upside"?:1-5,"primary_bottleneck"?,"company_type"?,"confidence"?:"Low|Medium|High","icp"?,"problem"?,"solution"?,"evidence_notes"?,"next_milestone"?},"traction"?,"prior_shipping"?[],"success_dimensions"?[]},"rationale"}   (journey = the shape-rotation evidence; traction/shipping = team–product-fit. Propose a team update ONLY for the focused project below, and only grounded in real work.)',
   '- propose_connection — {"from_record_id","to_record_id","reason"}',
   '- file_contest — {"subject_record_id","contest_kind","note"}  (contest_kind ∈ stale_declaration | off_github_work | wrong_attribution | context_missing)',
-  '- request_scan — {"sources":["sessions","github"]}   (reads the member\'s OWN recent work, under a consent gate, to refresh THEIR profile — use this instead of guessing their work)',
+  '- request_scan — {"sources":["sessions","github"]}   (reads the member\'s OWN recent GitHub + local AI/Codex work, under a consent gate, to refresh THIS WEEK\'S profile — use this instead of guessing their work)',
   '- ask — {"question"}   (ONE clarifying question when you need it before proposing)',
   '- note — {"text"}',
   "Rules: propose a field only when the context supports it; be conservative and truthful; prefer one `ask` over guessing. If the member is just chatting or asking a question, DON'T emit actions — just answer normally.",

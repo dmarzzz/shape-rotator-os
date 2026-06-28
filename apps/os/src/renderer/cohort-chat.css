@@ -121,20 +121,24 @@
   margin-bottom: 14px;
 }
 .cohort-chat-empty-lede b { color: var(--ds-accent); font-weight: 600; }
-.cohort-chat-egs { display: flex; flex-direction: column; gap: 7px; align-items: center; }
+.cohort-chat-egs { display: flex; flex-direction: column; gap: 7px; align-items: stretch; }
 .cc-eg {
   font-family: var(--ds-font-ui);
   font-size: var(--ds-text-xs);
+  line-height: var(--ds-lh-xs);
   color: var(--ds-ink-2);
   background: var(--ds-surface-3);
   border: 1px solid var(--ds-border);
-  border-radius: 999px;
-  padding: 6px 13px;
-  max-width: 100%;
+  border-radius: 8px;
+  padding: 7px 10px;
+  width: min(100%, 340px);
+  margin: 0 auto;
+  text-align: left;
+  overflow-wrap: anywhere;
   cursor: pointer;
-  transition: border-color 0.12s ease, color 0.12s ease;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
 }
-.cc-eg:hover { border-color: var(--ds-accent); color: var(--ds-ink-1); }
+.cc-eg:hover { border-color: var(--ds-accent); color: var(--ds-ink-1); background: var(--ds-surface-2); }
 .cc-eg:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 1px; }
 
 .cc-msg { display: flex; }
@@ -305,8 +309,9 @@
   font-size: var(--ds-text-sm);
   line-height: var(--ds-lh-sm);
   color: var(--ds-ink-1);
+  overflow-wrap: anywhere;
 }
-.cc-card-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.cc-card-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .cc-card-status {
   font-family: var(--ds-font-mono);
   font-size: var(--ds-text-2xs);

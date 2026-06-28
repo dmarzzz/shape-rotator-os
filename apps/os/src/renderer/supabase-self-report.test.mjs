@@ -99,15 +99,18 @@ test("fetchApprovedProfileUpdates maps newest-per-record and only the GET view",
     { record_id: "dmarz", delta: { now: "older" }, created_at: "2026-06-24T00:00:00Z" },
     { record_id: "dmarz", delta: { now: "newer" }, created_at: "2026-06-25T00:00:00Z" }, // asc ⇒ wins
     { record_id: "albiona", delta: { skills: ["x"] }, created_at: "2026-06-25T00:00:00Z" },
+    { record_type: "team", record_id: "teesql", delta: { traction: "2 pilots" }, created_at: "2026-06-25T00:00:00Z" },
     { record_id: "", delta: { now: "junk" }, created_at: "2026-06-25T00:00:00Z" },         // dropped
   ];
   let seenUrl = "";
   const fetchImpl = async (url) => { seenUrl = url; return { ok: true, status: 200, json: async () => rows }; };
-  const { updates, source } = await fetchApprovedProfileUpdates({ config: CONFIG, fetchImpl });
+  const { updates, teamUpdates, source } = await fetchApprovedProfileUpdates({ config: CONFIG, fetchImpl });
   assert.equal(source, "supabase");
   assert.ok(seenUrl.includes("/rest/v1/app_profile_updates")); // reads the APPROVED view, not the raw inbox
+  assert.ok(seenUrl.includes("record_type"), "new-schema read requests record_type for team overlays");
   assert.deepEqual(updates.dmarz, { now: "newer" });
   assert.deepEqual(updates.albiona, { skills: ["x"] });
+  assert.deepEqual(teamUpdates.teesql, { traction: "2 pilots" });
   assert.ok(!("" in updates));
 });
 
@@ -128,7 +131,26 @@ test("fetchApprovedProfileUpdates bounds the read and stays newest-per-record re
 
 test("fetchApprovedProfileUpdates is resilient: outage ⇒ source none, no throw", async () => {
   const r1 = await fetchApprovedProfileUpdates({ config: CONFIG, fetchImpl: async () => { throw new Error("offline"); } });
-  assert.deepEqual(r1, { updates: {}, source: "none" });
+  assert.deepEqual(r1, { updates: {}, teamUpdates: {}, source: "none" });
   const r2 = await fetchApprovedProfileUpdates({ config: CONFIG, fetchImpl: async () => ({ ok: false, status: 500 }) });
-  assert.deepEqual(r2, { updates: {}, source: "none" });
+  assert.deepEqual(r2, { updates: {}, teamUpdates: {}, source: "none" });
+});
+
+test("fetchApprovedProfileUpdates falls back to the deployed person-only view while record_type is absent", async () => {
+  const urls = [];
+  const fetchImpl = async (url) => {
+    urls.push(url);
+    if (urls.length === 1) return { ok: false, status: 400, text: async () => "record_type missing" };
+    return {
+      ok: true,
+      status: 200,
+      json: async () => [{ record_id: "mikeishiring", delta: { now: "fresh" }, created_at: "2026-06-28T00:00:00Z" }],
+    };
+  };
+  const { updates, teamUpdates, source } = await fetchApprovedProfileUpdates({ config: CONFIG, fetchImpl });
+  assert.equal(source, "supabase");
+  assert.ok(urls[0].includes("record_type"), "first tries the new team-aware view");
+  assert.ok(!urls[1].includes("record_type"), "fallback keeps current live DB working");
+  assert.deepEqual(updates.mikeishiring, { now: "fresh" });
+  assert.deepEqual(teamUpdates, {});
 });

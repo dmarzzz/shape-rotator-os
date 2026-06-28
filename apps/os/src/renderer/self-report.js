@@ -3,9 +3,10 @@
 // The INPUT side of "Your Mirror": with explicit, per-source permission it scans
 // the member's real signal (their LOCAL Claude/Codex sessions, kept on-machine;
 // their already-public GitHub activity) and drafts a profile update. The member
-// reviews the proposed change and hands it to the existing profile editor, where
-// THEY click save. Nothing is scanned without opt-in; nothing is written without
-// the editor's existing save gate; only whitelisted fields ever move.
+// reviews the proposed change and sends the whitelisted delta to Supabase. Own
+// profile updates auto-approve server-side and are overlaid back into the live
+// cohort surface. Nothing is scanned without opt-in; nothing is written without
+// an explicit click.
 //
 // The synth brain (prompt + safe JSON parse/whitelist/merge) is self-report-synth.mjs;
 // the local scan + local-CLI run happen in main (window.api.selfReport*).
@@ -20,6 +21,9 @@ import { loadStylesheetOnce } from "./stylesheet-loader.js";
 import { scanGithubActivity, resolvePersonHandle } from "./gh-self-report.mjs";
 import { saveSelfReportUpdate } from "./supabase-self-report.mjs";
 import { emitSelfReport } from "./cohort-emit.mjs";
+import { getAppContext } from "./app-context.mjs";
+import { getClaimTokenHash } from "./claim-token.mjs";
+import { refreshCohortFromGithub } from "./cohort-source.js";
 
 // Expose the entry on a global so the cohort-chat bot's opt-in flow can route into
 // it: window.__srwkOpenSelfReport?.({ person, githubDigest }) — a graceful no-op
@@ -42,6 +46,7 @@ const FIELD_LABELS = {
   offering: "offering",
   prior_work: "prior work",
 };
+const SELF_REPORT_LOOKBACK_DAYS = 7;
 const fieldLabel = (k) => FIELD_LABELS[k] || k;
 const asText = (v) => (Array.isArray(v) ? v.join(", ") : String(v == null ? "" : v));
 function esc(s) {
@@ -91,14 +96,14 @@ function renderConsent(person, githubFallback) {
     : (githubFallback ? "Uses the public commit/release signal already on your profile." : "No public GitHub handle on your profile yet.");
   host.innerHTML = card(`
     <header class="selfrep-head">
-      <span class="selfrep-eyebrow">update from my recent work</span>
+      <span class="selfrep-eyebrow">update from this week's work</span>
       <button type="button" class="selfrep-x" data-sr-close aria-label="close">✕</button>
     </header>
-    <p class="selfrep-lede">I can draft an update to your profile from your own recent work — you review and approve every change. Pick what I may read:</p>
+    <p class="selfrep-lede">I can draft an update to your profile from this week's work — you review and approve every change. Pick what I may read:</p>
     <label class="selfrep-consent">
       <input type="checkbox" data-sr-sessions>
       <span>
-        <b>My recent local AI sessions</b>
+        <b>My local AI sessions this week</b>
         <small>Reads your Claude Code / Codex logs <em>on this machine</em>, scrubbed into a short summary. Raw content never leaves your computer.</small>
       </span>
     </label>
@@ -163,6 +168,19 @@ function renderError(message) {
   for (const b of host.querySelectorAll("[data-sr-close]")) b.addEventListener("click", closeSelfReport);
 }
 
+function renderSuccess(fields = []) {
+  clearBusyTimer();
+  if (!host) return;
+  const fieldText = fields.length ? fields.map(fieldLabel).join(", ") : "your profile";
+  host.innerHTML = card(`
+    <header class="selfrep-head"><span class="selfrep-eyebrow">sent to the cohort record</span>
+      <button type="button" class="selfrep-x" data-sr-close aria-label="close">✕</button></header>
+    <p class="selfrep-lede">Updated ${esc(fieldText)} through Supabase. It should appear in the app after the live refresh settles.</p>
+    <div class="selfrep-actions"><button type="button" class="selfrep-btn selfrep-primary" data-sr-close>done</button></div>
+  `);
+  for (const b of host.querySelectorAll("[data-sr-close]")) b.addEventListener("click", closeSelfReport);
+}
+
 // One synthesis pass by the member's own AI. When `answer` is given it's a refine
 // pass (the answer to the AI's previous question folds in). Returns
 // { ok, merged, changed, question } or { ok:false, error }.
@@ -193,7 +211,7 @@ async function runSelfReport(person, { useSessions, useGithub, githubFallback })
   renderBusy("reading your recent work…");
   let sessionDigest = "";
   if (useSessions) {
-    const scan = await safeCall(() => window.api?.selfReportScan?.({ days: 14 }));
+    const scan = await safeCall(() => window.api?.selfReportScan?.({ days: SELF_REPORT_LOOKBACK_DAYS }));
     if (!scan || !scan.ok) return renderError("Scanning your local sessions isn’t available on this build yet.");
     sessionDigest = scan.digest || "";
   }
@@ -220,7 +238,7 @@ async function runSelfReport(person, { useSessions, useGithub, githubFallback })
   renderReview(person, { ...res, digests });
 }
 
-// ── Step 3 — review → optional interview refine → hand to the editor ──────────
+// ── Step 3 — review → optional interview refine → send/apply ──────────
 function renderReview(person, state) {
   clearBusyTimer();
   if (!host) return; // an async pass finished after the modal was closed
@@ -233,7 +251,7 @@ function renderReview(person, state) {
       <div class="selfrep-diff-new">${esc(asText(merged[k]))}</div>
     </div>`).join("");
   // Router-style: the member's AI asks ONE question to sharpen; answering it runs a
-  // refine pass. Optional — they can open the editor without answering.
+  // refine pass. Optional — they can send the reviewed delta as-is.
   const refine = question ? `
     <div class="selfrep-refine">
       <p class="selfrep-q">${esc(question)}</p>
@@ -243,45 +261,50 @@ function renderReview(person, state) {
   host.innerHTML = card(`
     <header class="selfrep-head"><span class="selfrep-eyebrow">proposed update · ${changed.length} field${changed.length === 1 ? "" : "s"}</span>
       <button type="button" class="selfrep-x" data-sr-close aria-label="close">✕</button></header>
-    <p class="selfrep-lede">Drafted from your recent work by your own AI. Answer its question to sharpen it, or open it in your profile editor to save.</p>
+    <p class="selfrep-lede">Drafted from this week's work by your own AI. Answer its question to sharpen it, then send the approved fields to your cohort record.</p>
     <div class="selfrep-diffs">${rows}</div>
     ${refine}
     <div class="selfrep-actions">
       <button type="button" class="selfrep-btn selfrep-ghost" data-sr-close>discard</button>
-      <button type="button" class="selfrep-btn selfrep-primary" data-sr-apply>open in editor →</button>
+      <button type="button" class="selfrep-btn selfrep-primary" data-sr-apply>send update</button>
     </div>
+    <p class="selfrep-foot" data-sr-send-status></p>
   `);
   for (const b of host.querySelectorAll("[data-sr-close]")) b.addEventListener("click", closeSelfReport);
   let applied = false;
-  host.querySelector("[data-sr-apply]").addEventListener("click", () => {
+  host.querySelector("[data-sr-apply]").addEventListener("click", async () => {
     if (applied) return; // guard a double-click → duplicate inbox rows + double editor open
     applied = true;
-    // RECEIVE (additive): append the approved delta to the Supabase inbox
-    // (os_profile_updates) so an operator/Engine can approve + promote it cohort-wide.
-    // The canonical write is still the editor save below; this is the durable
-    // cross-device receive. .then/.catch so a silent inbox drop is logged (it would
-    // otherwise defeat the cross-device premise) and a future throw can't leak.
-    const sourceKinds = [
+    const applyBtn = host.querySelector("[data-sr-apply]");
+    const statusEl = host.querySelector("[data-sr-send-status]");
+    if (applyBtn) applyBtn.disabled = true;
+    if (statusEl) statusEl.textContent = "sending to Supabase...";
+    const directSourceKinds = [
       digests.sessionDigest ? "sessions" : "",
       digests.githubDigest ? "github" : "",
     ].filter(Boolean);
-    Promise.resolve(saveSelfReportUpdate(person.record_id, merged, { question: question || "", sourceKinds }))
-      .then((r) => { if (!r || !r.ok) console.warn("[self-report] receive write failed:", r && r.error); })
-      .catch((e) => console.warn("[self-report] receive write error:", e && e.message ? e.message : e));
-    // Spine: a loud "refreshed their profile from recent work" feed line (field
-    // NAMES only; the values stay gated in the os_profile_updates inbox).
-    emitSelfReport(person.record_id, Object.keys(merged || {}));
-    // Hand the proposal to the existing profile editor as a one-shot prefill; the
-    // member tweaks and clicks the editor's own "save" — the real HITL gate.
-    if (typeof window.__srwkOpenProfile === "function") {
-      window.__srwkOpenProfile({
-        kind: "person",
-        record_id: person.record_id,
-        mode: "edit",
-        draftPatch: { record_id: person.record_id, fields: merged },
-      });
+    let ctx = {};
+    try { ctx = await getAppContext(); } catch {}
+    const direct = await saveSelfReportUpdate(person.record_id, merged, {
+      question: question || "",
+      sourceKinds: directSourceKinds,
+      appVersion: ctx.appVersion,
+      platform: ctx.platform,
+      proposerClaimHash: getClaimTokenHash(),
+    });
+    if (!direct || !direct.ok) {
+      applied = false;
+      if (applyBtn) applyBtn.disabled = false;
+      if (statusEl) statusEl.textContent = direct && direct.error === "unconfigured"
+        ? "Supabase is not configured in this build."
+        : `couldn't send: ${direct && direct.error ? direct.error : "try again"}`;
+      return;
     }
-    closeSelfReport();
+    emitSelfReport(person.record_id, Object.keys(merged || {}));
+    if (statusEl) statusEl.textContent = "sent - refreshing the cohort record...";
+    try { await refreshCohortFromGithub(); } catch {}
+    setTimeout(() => { refreshCohortFromGithub().catch(() => {}); }, 1500);
+    renderSuccess(Object.keys(merged || {}));
   });
   const refineBtn = host.querySelector("[data-sr-refine]");
   if (refineBtn) {
