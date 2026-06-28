@@ -109,6 +109,8 @@ function createController() {
 
   const history = [];          // [{role:'user'|'assistant', content}]
   let currentRequestId = null;
+  let activeRunCard = null;
+  let activeRunMeta = null;
   let outputDispose = null;
   let statusDispose = null;
   let activeBubbleBody = null;  // the streaming assistant <div> being filled
@@ -282,6 +284,89 @@ function createController() {
     log.appendChild(row);
     log.scrollTop = log.scrollHeight;
     return body;
+  }
+
+  function scopeName(meta = {}) {
+    const focus = meta.focus || activeFocus;
+    return focus && focus.teamName ? String(focus.teamName) : "cohort";
+  }
+
+  function runPhaseForElapsed(secs, phase) {
+    if (phase === "writing") return { id: "writing", label: "writing the answer" };
+    if (secs < 4) return { id: "scope", label: `scoping ${scopeName(activeRunMeta)}` };
+    if (secs < 12) return { id: "evidence", label: "checking the evidence pack" };
+    return { id: "agent", label: "letting the agent go deep" };
+  }
+
+  function renderRunCard(meta = {}) {
+    if (activeRunCard) activeRunCard.remove();
+    activeRunMeta = meta;
+    const card = document.createElement("div");
+    card.className = "cc-card cc-deep-run";
+    const scope = scopeName(meta);
+    const route = meta.route === "refresh_update" ? "update"
+      : meta.route === "connection" ? "connection"
+        : meta.route === "status_lookup" ? "status"
+          : "answer";
+    card.innerHTML = `
+      <div class="cc-deep-top">
+        <span class="cc-card-eyebrow">deep run</span>
+        <span class="cc-deep-time" data-cc-deep-time>0s</span>
+      </div>
+      <div class="cc-deep-scope"><span>scope</span><b>${esc(scope)}</b><i>${esc(route)}</i></div>
+      <div class="cc-deep-rail" aria-hidden="true">
+        <span data-cc-phase="scope"></span>
+        <span data-cc-phase="evidence"></span>
+        <span data-cc-phase="agent"></span>
+        <span data-cc-phase="writing"></span>
+      </div>
+      <div class="cc-deep-line" data-cc-deep-line>scoping ${esc(scope)}</div>`;
+    log.appendChild(card);
+    if (isPinnedToBottom()) log.scrollTop = log.scrollHeight;
+    activeRunCard = card;
+    setRunPhase("scope", 0);
+  }
+
+  function setRunPhase(phase, secs = 0) {
+    if (!activeRunCard) return;
+    activeRunCard.dataset.phase = phase;
+    const labels = {
+      scope: `scoping ${scopeName(activeRunMeta)}`,
+      evidence: "checking the evidence pack",
+      agent: "letting the agent go deep",
+      writing: "writing the answer",
+      done: "done",
+      error: "stopped",
+    };
+    const order = ["scope", "evidence", "agent", "writing"];
+    const phaseIdx = order.indexOf(phase);
+    for (const el of activeRunCard.querySelectorAll("[data-cc-phase]")) {
+      const id = el.getAttribute("data-cc-phase");
+      const idx = order.indexOf(id);
+      let state = idx < phaseIdx ? "done" : id === phase ? "active" : "pending";
+      if (phase === "done") state = "done";
+      if (phase === "error") state = "error";
+      el.dataset.state = state;
+    }
+    const line = activeRunCard.querySelector("[data-cc-deep-line]");
+    const time = activeRunCard.querySelector("[data-cc-deep-time]");
+    if (line) line.textContent = labels[phase] || labels.agent;
+    if (time) time.textContent = `${secs}s`;
+  }
+
+  function clearRunCard({ error = false } = {}) {
+    if (!activeRunCard) return;
+    if (error) {
+      setRunPhase("error");
+      activeRunCard = null;
+      activeRunMeta = null;
+      return;
+    }
+    const card = activeRunCard;
+    setRunPhase("done");
+    activeRunCard = null;
+    activeRunMeta = null;
+    setTimeout(() => { try { card.remove(); } catch {} }, 650);
   }
 
   function projectChoiceMessage(focusResolution) {
@@ -501,14 +586,17 @@ function createController() {
           const said = parsed.actions.find((a) => a.action === "ask" || a.action === "note");
           if (said) display = said.question || said.text || "";
         }
+        activeBubbleBody.hidden = false;
         activeBubbleBody.textContent = display || finalText;
         history.push({ role: "assistant", content: display || finalText });
       } else {
         // No answer — show the diagnostic (the CLI's own stderr if we have it).
+        activeBubbleBody.hidden = false;
         activeBubbleBody.textContent = failMsg || diagnoseFailure();
         activeBubbleBody.classList.add("is-error");
       }
     }
+    clearRunCard({ error: !!failMsg || !!(activeBubbleBody && activeBubbleBody.classList.contains("is-error")) });
     if (failMsg) setPreMsg(failMsg, "error");
     activeBubbleBody = null;
     activeStream = null;
@@ -581,16 +669,18 @@ function createController() {
       focus: activeFocus,
       focusResolution: activeFocusResolution,
       route,
-    }));
+    }), { focus: activeFocus, focusResolution: activeFocusResolution, route });
   }
 
   // Spawn ONE agent turn for a prebuilt prompt: stream stdout into a fresh bubble,
   // finish (parse + review) on exit. Reused by send() and the bounded tool loop.
-  async function runTurn(prompt) {
+  async function runTurn(prompt, meta = {}) {
     const requestId = `chat_${Math.random().toString(36).slice(2, 10)}_${Date.now()}`;
     currentRequestId = requestId;
 
+    renderRunCard(meta);
     activeBubbleBody = appendBubble("assistant", "");
+    activeBubbleBody.hidden = true;
     activeBubbleBody.classList.add("is-streaming");
     activeStream = createChatStream();
     setStatus("running", "thinking…");
@@ -603,7 +693,9 @@ function createController() {
     clearInterval(elapsedTimer);
     elapsedTimer = setInterval(() => {
       const secs = Math.round((Date.now() - started) / 1000);
-      setStatus("running", `${activeStream && activeStream.phase() === "writing" ? "writing" : "thinking"}… ${secs}s`);
+      const phase = runPhaseForElapsed(secs, activeStream && activeStream.phase());
+      setRunPhase(phase.id, secs);
+      setStatus("running", `${phase.label}... ${secs}s`);
     }, 500);
 
     if (outputDispose) outputDispose();
@@ -615,7 +707,12 @@ function createController() {
       activeStream.push(p.chunk);
       if (activeBubbleBody) {
         const disp = activeStream.display();
-        if (disp) activeBubbleBody.textContent = disp; // type it out as deltas arrive
+        if (disp) {
+          activeBubbleBody.hidden = false;
+          activeBubbleBody.textContent = disp; // type it out as deltas arrive
+          const secs = Math.round((Date.now() - started) / 1000);
+          setRunPhase("writing", secs);
+        }
         if (isPinnedToBottom()) log.scrollTop = log.scrollHeight;
       }
     });
@@ -635,17 +732,32 @@ function createController() {
     try {
       const res = await window.api.cohortChatStart({ requestId, prompt });
       if (!res || !res.ok) {
+        const msg = res?.detail || res?.reason || "failed to start local AI";
         clearInterval(elapsedTimer); elapsedTimer = null;
         if (activeBubbleBody) activeBubbleBody.classList.remove("is-streaming");
+        if (activeBubbleBody) {
+          activeBubbleBody.hidden = false;
+          activeBubbleBody.textContent = msg;
+          activeBubbleBody.classList.add("is-error");
+        }
+        clearRunCard({ error: true });
         setStatus("error", "failed");
-        setPreMsg(res?.detail || res?.reason || "failed to start local AI", "error");
+        setPreMsg(msg, "error");
         sendBtn.hidden = false;
         stopBtn.hidden = true;
       }
     } catch (err) {
+      const msg = `start threw: ${err.message}`;
       clearInterval(elapsedTimer); elapsedTimer = null;
+      if (activeBubbleBody) {
+        activeBubbleBody.classList.remove("is-streaming");
+        activeBubbleBody.hidden = false;
+        activeBubbleBody.textContent = msg;
+        activeBubbleBody.classList.add("is-error");
+      }
+      clearRunCard({ error: true });
       setStatus("error", "failed");
-      setPreMsg(`start threw: ${err.message}`, "error");
+      setPreMsg(msg, "error");
       sendBtn.hidden = false;
       stopBtn.hidden = true;
     }
@@ -699,7 +811,7 @@ function createController() {
     runTurn(buildChatPrompt({
       surface, history: history.slice(-6), question: lastQuestion, agent: true, focus: activeFocus, focusResolution: activeFocusResolution,
       toolResults: `GITHUB ACTIVITY${scopeNote} (${priv ? "incl. private — scrubbed digest" : "public"}):\n${digest}`,
-    }));
+    }), { focus: activeFocus, focusResolution: activeFocusResolution, route: classifyChatIntent(lastQuestion) });
   }
 
   async function stop() { try { await window.api.cohortChatStop(); } catch {} }
