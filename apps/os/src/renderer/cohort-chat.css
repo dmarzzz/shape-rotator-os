@@ -345,10 +345,94 @@
   padding: 1px 5px;
 }
 
-/* ── the radial dial launcher ───────────────────────────────────────────────
-   A persistent circular control in the bottom-right corner that toggles the chat.
-   A faint full ring + a gold "dial" arc that sweeps around the chat glyph on hover
-   and settles when open — echoing the app's sphere / membrane motif. */
+/* Deep-run progress card shown while the local agent is working. */
+.cc-deep-run {
+  width: min(88%, 340px);
+  gap: 10px;
+  background:
+    linear-gradient(135deg,
+      color-mix(in srgb, var(--ds-accent) 10%, var(--ds-surface-2)),
+      var(--ds-surface-2) 46%,
+      color-mix(in srgb, var(--ds-surface-3) 82%, var(--ds-accent)));
+}
+.cc-deep-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.cc-deep-time {
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  color: var(--ds-ink-3);
+}
+.cc-deep-scope {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-family: var(--ds-font-ui);
+  font-size: var(--ds-text-xs);
+  color: var(--ds-ink-2);
+}
+.cc-deep-scope span,
+.cc-deep-scope i {
+  flex: 0 0 auto;
+  font-family: var(--ds-font-mono);
+  font-style: normal;
+  font-size: var(--ds-text-2xs);
+  color: var(--ds-ink-4);
+}
+.cc-deep-scope b {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ds-ink-1);
+  font-weight: 600;
+}
+.cc-deep-rail {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.cc-deep-rail span {
+  position: relative;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ds-ink-4) 34%, transparent);
+}
+.cc-deep-rail span[data-state="done"] {
+  background: color-mix(in srgb, var(--ds-accent) 72%, var(--ds-surface-3));
+}
+.cc-deep-rail span[data-state="active"] {
+  background: color-mix(in srgb, var(--ds-accent) 46%, var(--ds-surface-3));
+}
+.cc-deep-rail span[data-state="active"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 46%;
+  background: color-mix(in srgb, var(--ds-ink-1) 40%, transparent);
+  animation: cc-deep-sweep 1.15s ease-in-out infinite;
+}
+.cc-deep-rail span[data-state="error"] {
+  background: color-mix(in srgb, var(--ds-danger) 70%, var(--ds-surface-3));
+}
+.cc-deep-line {
+  min-height: 16px;
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  color: var(--ds-ink-3);
+}
+@keyframes cc-deep-sweep {
+  from { transform: translateX(-105%); }
+  to { transform: translateX(230%); }
+}
+
+/* Persistent radial launcher in the bottom-right corner. */
 .cohort-chat-dial {
   position: fixed;
   right: 22px;
@@ -402,4 +486,5 @@
   .cohort-chat-card { animation: none; }
   .cohort-chat-dial::after { animation: none; }
   .cc-dial-ring .cc-dial-arc { transition: none; }
+  .cc-deep-rail span[data-state="active"]::after { animation: none; display: none; }
 }
