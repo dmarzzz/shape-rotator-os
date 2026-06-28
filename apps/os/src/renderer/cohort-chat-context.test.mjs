@@ -8,6 +8,9 @@ const surface = {
     {
       record_id: "abra", name: "Abra", focus: "formal verification · TEE Postgres",
       now: "writing the verification registry spec",
+      description: "A registry for proving TEE database claims against formal evidence.",
+      domain: "tee",
+      geo: "NYC",
       links: { repo: "abra-org/abra", website: "https://abra.dev" },
       traction: "verification registry spec is in active buildout",
       prior_shipping: ["TEE registry prototype"],
@@ -20,12 +23,56 @@ const surface = {
     { record_id: "elocute", name: "Elocute", focus: "AI speech practice", offering: ["consumer GTM"], skill_areas: ["design"] },
   ],
   people: [
-    { record_id: "albiona-hoti", name: "Albiona Hoti", team: "elocute", now: "compressing user conversations into a product plan", go_to_them_for: ["speech-practice tools"], skill_areas: ["agentic", "design"] },
+    { record_id: "albiona-hoti", name: "Albiona Hoti", team: "elocute", now: "compressing user conversations into a product plan", go_to_them_for: ["speech-practice tools"], skill_areas: ["agentic", "design"], bio: "Builds speech-practice product loops from user interviews.", working_style: "prototype with users" },
   ],
   transcript_evidence_cards: [
-    { claim_text: "Crossroads is building a cross-chain exchange using key encumbrance", content_json: { week_start: "2026-06-14" } },
+    { claim_type: "product_signal", claim_text: "Abra validated the registry spec against a TeeSQL dependency.", summary: "Project-specific validation signal.", evidence_level: "observed", confidence: 0.82, surface_tier: "T2", attribution_scope: "team", content_json: { week_start: "2026-06-14", teams: ["abra"], themes: ["TEE registry"], claims: [{ text: "TeeSQL beta access is the next validation dependency." }] } },
   ],
   whats_new: [{ date: "2026-06-20", label: "teesql v0.2.0", meta: "TeeSQL", kind: "release" }],
+  cohort_intel: {
+    project_week_snapshots: [{
+      project_id: "abra",
+      project_name: "Abra",
+      week_start: "2026-06-14",
+      declared_state: { bottleneck: "Solution Quality", bottleneck_category: "Solution Quality" },
+      observed_state: {
+        inferred_bottleneck: "Solution Quality",
+        evidence_quality: "medium",
+        evidence_summary: "2 transcript signals across 1 source card; 2 scored as project-specific.",
+        top_observed_claims: [{ text: "The registry spec needs TeeSQL beta validation.", claim_type: "product_signal" }],
+      },
+      drift: { status: "aligned", reason: "Declared and observed bottlenecks agree." },
+      evidence: { project_specific_signal_count: 2, signal_count: 2 },
+    }],
+    project_week_snapshot_quality: { snapshot_count: 1, project_count: 1, drift_status_counts: { aligned: 1 }, weak_snapshot_count: 0, insufficient_snapshot_count: 0 },
+    project_progress_rollups: [{
+      project_id: "abra",
+      project_name: "Abra",
+      latest_week_start: "2026-06-14",
+      current_drift_status: "aligned",
+      current_evidence_quality: "medium",
+      declared_bottleneck: "Solution Quality",
+      observed_bottleneck: "Solution Quality",
+      trajectory: "on_track",
+      intervention_priority: "low",
+      operator_question: "Verify the next milestone moved rather than only the label improving.",
+      recommended_next_check: "Validate the registry against TeeSQL.",
+      coverage: { dated_week_count: 1, project_specific_signal_count: 2, signal_count: 2 },
+    }],
+    project_progress_rollup_quality: { rollup_count: 1, priority_counts: { low: 1 }, trajectory_counts: { on_track: 1 }, no_evidence_count: 0, undated_evidence_project_count: 0, coverage_gap_count: 0 },
+    data_contract: {
+      quality: {
+        source_transcript_count: 1,
+        total_signal_count: 2,
+        claim_signal_count: 1,
+        qa_signal_count: 1,
+        team_signal_count: 1,
+        person_signal_count: 0,
+        missing_team_signal_count: 1,
+        missing_person_signal_count: 1,
+      },
+    },
+  },
 };
 
 test("qTokens keeps meaningful question terms, drops stopwords", () => {
@@ -40,6 +87,8 @@ test("qTokens keeps meaningful question terms, drops stopwords", () => {
 test("teamBlock surfaces focus, seeking/offering, journey, and suggested connections", () => {
   const b = teamBlock(surface.teams[0]);
   assert.match(b, /focus: formal verification/);
+  assert.match(b, /profile: domain tee; geo NYC/);
+  assert.match(b, /description: A registry for proving TEE database claims/);
   assert.match(b, /links: repo: abra-org\/abra/);
   assert.match(b, /traction: verification registry spec/);
   assert.match(b, /prior shipping: TEE registry prototype/);
@@ -54,12 +103,29 @@ test("teamBlock surfaces focus, seeking/offering, journey, and suggested connect
 test("buildCohortContext ranks the question-relevant team into full detail", () => {
   const ctx = buildCohortContext(surface, { question: "who works on TEE Postgres?" });
   assert.match(ctx, /COHORT: 2 teams, 1 people/);
+  assert.match(ctx, /Data quality and coverage/);
+  assert.match(ctx, /signal inventory: 2 total/);
+  assert.match(ctx, /coverage gaps: 1 team\(s\) without transcript-derived signals/);
   // The TEE team should appear as a full block (has 'suggested connections').
   assert.match(ctx, /### Abra \(team, id:abra\)/);
   assert.match(ctx, /suggested connections/);
   // Distilled insight + activity sections present.
   assert.match(ctx, /Recent distilled session insights/);
+  assert.match(ctx, /teams: abra/);
+  assert.match(ctx, /meta: tier T2; type product_signal; level observed; confidence 0.82; scope team/);
   assert.match(ctx, /Recent activity/);
+});
+
+test("buildCohortContext includes focused project trajectory and evidence snapshots", () => {
+  const ctx = buildCohortContext(surface, {
+    question: "how is Abra doing this week?",
+    focus: { teamId: "abra", teamName: "Abra", repos: ["abra-org/abra"] },
+  });
+  assert.match(ctx, /Project trajectory rows/);
+  assert.match(ctx, /Abra: priority low; trajectory on_track; latest 2026-06-14; quality medium/);
+  assert.match(ctx, /operator question: Verify the next milestone moved/);
+  assert.match(ctx, /Project-week evidence snapshots/);
+  assert.match(ctx, /top claim: The registry spec needs TeeSQL beta validation/);
 });
 
 test("buildCohortContext keeps the focused project in full detail even when query terms point elsewhere", () => {

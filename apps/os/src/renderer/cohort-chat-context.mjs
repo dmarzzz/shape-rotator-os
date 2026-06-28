@@ -28,8 +28,14 @@ function list(v) {
   return [String(v)];
 }
 
+function items(v) {
+  if (Array.isArray(v)) return v.filter((x) => x != null);
+  if (v == null || v === "") return [];
+  return [v];
+}
+
 const SEARCH_FIELDS = Object.freeze([
-  "name", "record_id", "focus", "domain", "now", "role", "team", "geo",
+  "name", "record_id", "focus", "description", "about", "bio", "domain", "now", "role", "team", "geo",
   "seeking", "offering", "skill_areas", "go_to_them_for", "best_contexts",
   "recurring_themes", "working_style", "contribute_interests", "weekly_intention",
   "prior_work", "bio_md", "links", "traction", "prior_shipping",
@@ -82,11 +88,99 @@ function shortText(value, max = 360) {
   return s.length > max ? s.slice(0, max - 1).trimEnd() + "..." : s;
 }
 
+function object(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function firstText(...values) {
+  for (const value of values) {
+    const s = shortText(value, 500);
+    if (s) return s;
+  }
+  return "";
+}
+
+function countBy(values = []) {
+  const out = {};
+  for (const value of values) {
+    const key = String(value || "unknown");
+    out[key] = (out[key] || 0) + 1;
+  }
+  return out;
+}
+
+function formatCounts(counts, max = 5) {
+  return Object.entries(counts || {})
+    .filter(([, count]) => count)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, max)
+    .map(([key, count]) => `${key}:${count}`)
+    .join(", ");
+}
+
+function evidenceDate(c) {
+  const cj = object(c && c.content_json);
+  return String(cj.week_start || c?.week_start || cj.date || c?.created_at || "").slice(0, 10);
+}
+
+function evidenceConfidence(c) {
+  if (!c || c.confidence == null || c.confidence === "") return "";
+  const n = Number(c.confidence);
+  if (Number.isFinite(n)) return n <= 1 ? n.toFixed(2) : String(Math.round(n));
+  return String(c.confidence);
+}
+
+function evidenceStrength(c) {
+  const level = String(c?.evidence_level || "").toLowerCase();
+  const confidence = Number(c?.confidence);
+  const levelScore = level === "reviewed" || level === "observed" || level === "grounded" ? 3
+    : level === "inferred" || level === "aggregate" ? 2
+      : level === "weak" ? 0
+        : 1;
+  return levelScore + (Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : 0);
+}
+
+function evidenceRank(c, qset) {
+  const text = evidenceText(c);
+  const queryScore = qset.size ? [...qset].filter((t) => text.includes(t)).length * 10 : 0;
+  const date = evidenceDate(c).replaceAll("-", "");
+  const recency = /^\d{8}$/.test(date) ? Number(date) / 100000000 : 0;
+  return queryScore + evidenceStrength(c) + recency;
+}
+
+function nestedClaimTexts(cj) {
+  const candidates = [
+    ...items(cj.claims),
+    ...items(cj.top_claims),
+    ...items(cj.questions),
+    ...items(cj.qa),
+  ];
+  return candidates
+    .map((item) => {
+      if (typeof item === "string" || typeof item === "number") return String(item);
+      if (item && typeof item === "object") {
+        return item.text || item.claim_text || item.answer || item.question || item.summary || "";
+      }
+      return "";
+    })
+    .map((s) => shortText(s, 160))
+    .filter(Boolean);
+}
+
 // Full team block — the high-value fields + its precomputed connections.
 export function teamBlock(t) {
   const lines = [`### ${t.name || t.record_id} (team, id:${t.record_id})`];
   if (t.focus) lines.push(`focus: ${t.focus}`);
   if (t.now) lines.push(`now: ${t.now}`);
+  if (t.domain || t.geo || t.membership) {
+    lines.push(`profile: ${[
+      t.domain && `domain ${t.domain}`,
+      t.geo && `geo ${t.geo}`,
+      t.membership && `membership ${t.membership}`,
+    ].filter(Boolean).join("; ")}`);
+  }
+  const description = firstText(t.about, t.description, t.bio, t.bio_md);
+  if (description) lines.push(`description: ${shortText(description)}`);
   const links = t.links && typeof t.links === "object" ? t.links : {};
   const linkBits = [links.repo && `repo: ${links.repo}`, links.github && `github: ${links.github}`, links.website && `website: ${links.website}`].filter(Boolean);
   if (linkBits.length) lines.push(`links: ${linkBits.join("; ")}`);
@@ -128,9 +222,12 @@ function personDetailLine(p) {
   const links = p.links && typeof p.links === "object" ? p.links : {};
   const linkBits = [links.github && `github: ${links.github}`, links.repo && `repo: ${links.repo}`, links.website && `website: ${links.website}`].filter(Boolean);
   const bits = [
+    firstText(p.bio, p.description, p.bio_md) ? `bio: ${shortText(firstText(p.bio, p.description, p.bio_md), 180)}` : "",
     list(p.prior_work).slice(0, 2).length ? `prior: ${list(p.prior_work).slice(0, 2).join(", ")}` : "",
     list(p.seeking).slice(0, 2).length ? `seeking: ${list(p.seeking).slice(0, 2).join("; ")}` : "",
     list(p.offering).slice(0, 2).length ? `offering: ${list(p.offering).slice(0, 2).join("; ")}` : "",
+    list(p.best_contexts).slice(0, 2).length ? `best contexts: ${list(p.best_contexts).slice(0, 2).join("; ")}` : "",
+    p.working_style ? `working style: ${shortText(p.working_style, 160)}` : "",
     linkBits.length ? linkBits.join("; ") : "",
   ].filter(Boolean);
   return bits.length ? `${base} | ${bits.join(" | ")}` : base;
@@ -138,13 +235,131 @@ function personDetailLine(p) {
 
 function teamLine(t) {
   const seeking = list(t.seeking).slice(0, 2).join("; ");
-  return `- ${t.name || t.record_id} (id:${t.record_id})${t.focus ? ` — ${t.focus}` : ""}${seeking ? ` · seeking: ${seeking}` : ""}`;
+  const j = object(t.journey);
+  const quality = j.evidence_quality ? `evidence ${j.evidence_quality}/5` : "";
+  const bottleneck = j.primary_bottleneck ? `bottleneck: ${j.primary_bottleneck}` : "";
+  return `- ${t.name || t.record_id} (id:${t.record_id})${t.focus ? ` — ${t.focus}` : ""}${t.now ? ` · now: ${shortText(t.now, 100)}` : ""}${[quality, bottleneck].filter(Boolean).length ? ` · ${[quality, bottleneck].filter(Boolean).join("; ")}` : ""}${seeking ? ` · seeking: ${seeking}` : ""}`;
 }
 
 function evidenceCardLine(c) {
-  const text = c.claim_text || (c.content_json && (c.content_json.summary || c.content_json.claim_text)) || c.title || "";
-  const wk = (c.content_json && c.content_json.week_start) || c.week_start || "";
-  return text ? `- ${wk ? `[${wk}] ` : ""}${String(text).slice(0, 220)}` : null;
+  const cj = object(c && c.content_json);
+  const text = firstText(c?.claim_text, cj.claim_text, c?.summary, cj.summary, c?.title);
+  if (!text) return null;
+  const wk = evidenceDate(c);
+  const teams = list(cj.teams).slice(0, 4).join(", ");
+  const people = list(cj.people).slice(0, 3).join(", ");
+  const themes = list(cj.themes || cj.topic_tags || cj.topics).slice(0, 3).join(", ");
+  const claims = nestedClaimTexts(cj).slice(0, 2).join(" / ");
+  const meta = [
+    c?.surface_tier && `tier ${c.surface_tier}`,
+    c?.claim_type && `type ${c.claim_type}`,
+    c?.evidence_level && `level ${c.evidence_level}`,
+    evidenceConfidence(c) && `confidence ${evidenceConfidence(c)}`,
+    c?.attribution_scope && `scope ${c.attribution_scope}`,
+  ].filter(Boolean).join("; ");
+  const bits = [
+    `- ${wk ? `[${wk}] ` : ""}${shortText(text, 260)}`,
+    teams && `teams: ${teams}`,
+    people && `people: ${people}`,
+    themes && `themes: ${themes}`,
+    claims && `claims: ${claims}`,
+    meta && `meta: ${meta}`,
+  ].filter(Boolean);
+  return bits.join(" | ");
+}
+
+function projectProgressLine(row) {
+  const coverage = object(row.coverage);
+  const name = row.project_name || row.project_id;
+  const bits = [
+    `priority ${row.intervention_priority || "unknown"}`,
+    `trajectory ${row.trajectory || "unknown"}`,
+    `latest ${row.latest_week_start || "none"}`,
+    `quality ${row.current_evidence_quality || "none"}`,
+    `declared ${row.declared_bottleneck || row.declared_bottleneck_category || "not declared"}`,
+    `observed ${row.observed_bottleneck || "no evidence"}`,
+    `specific signals ${coverage.project_specific_signal_count ?? 0}/${coverage.signal_count ?? 0}`,
+  ];
+  if (row.operator_question) bits.push(`operator question: ${shortText(row.operator_question, 220)}`);
+  if (row.recommended_next_check) bits.push(`next check: ${shortText(row.recommended_next_check, 220)}`);
+  return `- ${name}: ${bits.join("; ")}`;
+}
+
+function projectSnapshotLine(snapshot) {
+  const observed = object(snapshot.observed_state);
+  const declared = object(snapshot.declared_state);
+  const drift = object(snapshot.drift);
+  const evidence = object(snapshot.evidence);
+  const claim = Array.isArray(observed.top_observed_claims) ? observed.top_observed_claims[0] : null;
+  const name = snapshot.project_name || snapshot.project_id;
+  const bits = [
+    `week ${snapshot.week_start || "undated"}`,
+    `quality ${observed.evidence_quality || "unknown"}`,
+    `declared ${declared.bottleneck || declared.bottleneck_category || "not declared"}`,
+    `observed ${observed.inferred_bottleneck || "insufficient evidence"}`,
+    `drift ${drift.status || "unknown"}`,
+    `specific signals ${evidence.project_specific_signal_count ?? 0}/${evidence.signal_count ?? 0}`,
+  ];
+  if (observed.evidence_summary) bits.push(shortText(observed.evidence_summary, 180));
+  if (claim) bits.push(`top claim: ${shortText(claim.text || claim.claim_text || "", 180)}`);
+  if (drift.reason) bits.push(`reason: ${shortText(drift.reason, 220)}`);
+  return `- ${name}: ${bits.join("; ")}`;
+}
+
+function relevantProjectRows(rows, teamIds, limit = 6) {
+  const ids = new Set([...teamIds].map(String).filter(Boolean));
+  const list = Array.isArray(rows) ? rows : [];
+  const picked = ids.size ? list.filter((row) => ids.has(String(row.project_id || ""))) : list;
+  return picked.slice(0, limit);
+}
+
+function dataQualityBlock(s, { focusId = "", topTeamIds = new Set() } = {}) {
+  const cards = Array.isArray(s.transcript_evidence_cards) ? s.transcript_evidence_cards : [];
+  const intel = object(s.cohort_intel);
+  const transcriptEvidence = object(s.transcript_evidence);
+  const contract = object(intel.data_contract);
+  const quality = object(contract.quality);
+  const snapshotQuality = object(intel.project_week_snapshot_quality);
+  const rollupQuality = object(intel.project_progress_rollup_quality);
+  const lines = ["## Data quality and coverage"];
+  lines.push(`surface freshness: ${s._generated_at || s._storedAt || "unknown"}${s._source ? ` (${s._source})` : ""}`);
+  lines.push(`loaded evidence cards: ${cards.length}${cards.length ? `; tiers ${formatCounts(countBy(cards.map((c) => c.surface_tier || c.source || "unknown"))) || "unknown"}; levels ${formatCounts(countBy(cards.map((c) => c.evidence_level || "unknown"))) || "unknown"}` : ""}`);
+  if (transcriptEvidence.source_artifact_count != null) {
+    lines.push(`transcript evidence export: ${transcriptEvidence.source_artifact_count || 0} source artifact(s); policy: ${transcriptEvidence.public_web_policy || transcriptEvidence.generated_from || "cohort/private boundary applies"}`);
+  }
+  if (Object.keys(quality).length) {
+    lines.push(`signal inventory: ${quality.total_signal_count || 0} total; claims ${quality.claim_signal_count || 0}; q&a ${quality.qa_signal_count || 0}; team signals ${quality.team_signal_count || 0}; person signals ${quality.person_signal_count || 0}; source transcripts ${quality.source_transcript_count || 0}`);
+    const gaps = [
+      quality.missing_team_signal_count ? `${quality.missing_team_signal_count} team(s) without transcript-derived signals` : "",
+      quality.missing_person_signal_count ? `${quality.missing_person_signal_count} person record(s) without transcript-derived signals` : "",
+      quality.sources_without_claims ? `${quality.sources_without_claims} source(s) without claims` : "",
+      quality.sources_without_questions ? `${quality.sources_without_questions} source(s) without q&a` : "",
+    ].filter(Boolean);
+    if (gaps.length) lines.push(`coverage gaps: ${gaps.join("; ")}`);
+  }
+  lines.push(`project-week snapshots: ${snapshotQuality.snapshot_count || 0} snapshot(s), ${snapshotQuality.project_count || 0} project(s), ${snapshotQuality.weak_snapshot_count || 0} weak, ${snapshotQuality.insufficient_snapshot_count || 0} insufficient`);
+  lines.push(`project trajectory rollups: ${rollupQuality.rollup_count || 0} project(s), ${rollupQuality.coverage_gap_count || 0} coverage gap(s), ${rollupQuality.no_evidence_count || 0} with no evidence, ${rollupQuality.undated_evidence_project_count || 0} undated`);
+  if (!cards.length && !(quality.total_signal_count || snapshotQuality.snapshot_count || rollupQuality.rollup_count)) {
+    lines.push("guidance: no live transcript-derived signal is loaded in this surface. Answer from declared profiles, links, connections, recent activity, and releases; do not imply this week is transcript-verified.");
+  } else {
+    lines.push("guidance: distinguish declared profile fields from transcript-derived or inferred evidence. If coverage is weak, name the missing source instead of smoothing it over.");
+  }
+
+  const relevantIds = new Set(topTeamIds);
+  if (focusId) relevantIds.add(focusId);
+  const rollups = relevantProjectRows(intel.project_progress_rollups, relevantIds, 5);
+  if (rollups.length) {
+    lines.push("\n## Project trajectory rows");
+    lines.push(rollups.map(projectProgressLine).join("\n"));
+  } else if (focusId) {
+    lines.push(`focused project trajectory: no project-week rollup is loaded for ${focusId}; ask for a concrete project-level update before changing PMF/evidence descriptions.`);
+  }
+  const snapshots = relevantProjectRows(intel.project_week_snapshots, relevantIds, 4);
+  if (snapshots.length) {
+    lines.push("\n## Project-week evidence snapshots");
+    lines.push(snapshots.map(projectSnapshotLine).join("\n"));
+  }
+  return lines.join("\n");
 }
 
 // Build the grounded context block, retrieval-ranked against the question and
@@ -188,6 +403,7 @@ export function buildCohortContext(surface, { question = "", maxChars = 22000, f
 
   const parts = [];
   parts.push(`COHORT: ${teams.length} teams, ${people.length} people. Program: Shape Rotator accelerator.`);
+  parts.push(dataQualityBlock(s, { focusId, topTeamIds }));
 
   parts.push("\n## Most relevant teams (full detail)");
   for (const t of topTeams) parts.push(teamBlock(t));
@@ -206,7 +422,7 @@ export function buildCohortContext(surface, { question = "", maxChars = 22000, f
   const cards = Array.isArray(s.transcript_evidence_cards) ? s.transcript_evidence_cards : [];
   if (cards.length) {
     const ranked = cards
-      .map((c) => ({ c, score: qset.size ? [...qset].filter((t) => evidenceText(c).includes(t)).length : 0 }))
+      .map((c) => ({ c, score: evidenceRank(c, qset) }))
       .sort((a, b) => b.score - a.score)
       .slice(0, 14)
       .map((x) => evidenceCardLine(x.c))
@@ -288,6 +504,8 @@ const SYSTEM = [
   "You are the Shape Rotator cohort assistant, embedded in the cohort's desktop app.",
   "Answer the member's question using ONLY the cohort context provided below. Do not invent teams, people, facts, or links.",
   "Be concrete and concise. Refer to teams and people by name. When you don't have enough grounded information, say so plainly.",
+  "Use the data-quality block as an explicit reliability signal: distinguish declared profile fields, live transcript-derived evidence, inferred attribution, GitHub/release activity, and coverage gaps.",
+  "When describing a project, prefer this shape: what it is, who it serves, what it is doing now, strongest evidence, current bottleneck/gap, and next useful check. Skip generic praise unless the context names the evidence.",
   "When asked who to connect with / who to talk to, use each team's `seeking`/`offering` and its `suggested connections`, and explain the specific reason for each suggestion (the need met, the shared problem, the dependency).",
   "When asked what's happening or how something is progressing, ground it in the distilled session insights, recent activity, and each team's progress (stage / bottleneck / next milestone).",
   "The cohort's central lens is its two awards: Best Shape Rotation (a substantiated pivot toward product–market fit — a team that changed shape in response to real feedback and can SHOW it) and Best Team–Product Fit (the right team for this problem, evidenced by how they work, what they ship, and how they take feedback). Treat award help as an evidence dossier, not a pitch deck: identify supported evidence, missing evidence, and unrelated/out-of-scope signal; make the pivot, trigger, shipping, and team-fit evidence legible only when the grounded work supports it.",
@@ -314,6 +532,7 @@ export const ACTION_CONTRACT = [
   '- ask — {"question"}   (ONE clarifying question when you need it before proposing)',
   '- note — {"text"}',
   "Rules: propose a field only when the context supports it; be conservative and truthful; prefer one `ask` over guessing. If the member is just chatting or asking a question, DON'T emit actions — just answer normally. Never write promotional award copy; write compact evidence notes.",
+  "For low-coverage data, prefer a `note` or `ask` that names the missing evidence over a confident profile update. A useful description can include gaps; it should not hide them.",
   "When refreshing a member's OWN profile or focused project, prefer `request_scan` to ground in their real recent work rather than guessing, and look specifically for award-relevant signal: their shape-rotation (a pivot and the feedback that drove it, with evidence) and their team–product-fit (what they ship, how they work and take feedback). Keep only signal relevant to the active project; call out gaps or missing proof instead of filling them with a pitch. Capture what you find in the fields it supports; raise anything you can't yet ground as a single `ask`.",
 ].join("\n");
 
