@@ -33,7 +33,7 @@ import { fetchAllSpheres } from "./supabase-sphere.mjs";
 import { fetchApprovedProfileUpdates } from "./supabase-self-report.mjs";
 import { fetchCohortFeed } from "./supabase-cohort-events.mjs";
 import { sanitizeDelta } from "./self-report-synth.mjs";
-import { sanitizeProfileFields } from "./cohort-chat-actions.mjs";
+import { sanitizeProfileFields, sanitizeTeamFields } from "./cohort-chat-actions.mjs";
 import { fetchReleasesFeed } from "./supabase-releases.mjs";
 import { fetchConnections, connectionsByRecord } from "./supabase-connections.mjs";
 
@@ -919,17 +919,18 @@ async function applySphereOverlay(surface) {
 }
 
 // Apply the live Supabase profile-update overlay: APPROVED self-report deltas
-// ("Your Mirror") read from the app_profile_updates view, merged onto the matching
-// person records so the rendered profile "updates off it" with no PR. Unlike the
-// sphere overlay (a side map read at render), profile FIELDS merge into the person
-// object itself because the card/detail/editor renderers read person.now,
-// person.skills, etc. directly. Approved-only by design (the raw inbox is anon
-// write-only); on a Supabase outage the surface keeps its committed/synced baseline.
+// ("Your Mirror") read from the app_profile_updates view, merged onto matching
+// person/team records so the rendered surface "updates off it" with no PR. Unlike
+// the sphere overlay (a side map read at render), profile FIELDS merge into the
+// record object itself because card/detail/editor renderers read those fields
+// directly. Approved-only by design (the raw inbox is anon write-only); on a
+// Supabase outage the surface keeps its committed/synced baseline.
 async function applyProfileUpdateOverlay(surface) {
   try {
-    const { updates, source } = await fetchApprovedProfileUpdates();
+    const { updates, teamUpdates, source } = await fetchApprovedProfileUpdates();
     if (source !== "supabase") return surface;
     const people = Array.isArray(surface.people) ? surface.people : [];
+    const teams = Array.isArray(surface.teams) ? surface.teams : [];
     let touched = false;
     // CLONE, never mutate: the baseline person objects are shared/persisted, so
     // mutating them would bake an approved delta in permanently (un-revertible if
@@ -948,6 +949,16 @@ async function applyProfileUpdateOverlay(surface) {
       // `links` is nested: deep-merge so an approved github/repo update keeps the
       // member's other links (x / website / linkedin / demo / deck) intact.
       if (clean.links) merged.links = { ...(person.links || {}), ...clean.links };
+      return merged;
+    });
+    surface.teams = teams.map((team) => {
+      const delta = team && team.record_id ? teamUpdates?.[team.record_id] : null;
+      if (!delta || typeof delta !== "object") return team;
+      const clean = sanitizeTeamFields(delta);
+      if (!Object.keys(clean).length) return team;
+      touched = true;
+      const merged = { ...team, ...clean };
+      if (clean.journey) merged.journey = { ...(team.journey || {}), ...clean.journey };
       return merged;
     });
     // Approved self-reports intentionally win over the markdown/sync baseline (they

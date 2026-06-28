@@ -1371,7 +1371,7 @@ ipcMain.handle("context-vault:reveal-corpus", async () => {
 // The member opts in (renderer); we scan their LOCAL Claude/Codex sessions into a
 // scrubbed digest (daybook redaction via digestFromRawFiles) and run their OWN
 // local CLI to draft a profile update. Raw never leaves the box; only the
-// member-approved field delta is written, via the existing profile editor.
+// member-approved field delta is written, via the Supabase receive inbox.
 // See self-report-node.js + apps/os/src/renderer/self-report.js.
 const selfReport = require("./self-report-node");
 ipcMain.handle("fg:self-report:scan", async (_e, opts) => {

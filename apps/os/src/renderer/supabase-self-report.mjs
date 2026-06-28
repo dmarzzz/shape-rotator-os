@@ -99,26 +99,46 @@ export async function saveProfileProposal(
   return postAnonRow(WRITE_TABLE, body, opts);
 }
 
-// Read APPROVED deltas (newest per record_id). Returns { updates, source }.
+// Read APPROVED deltas (newest per record_id). Returns
+// { updates, teamUpdates, source }; updates remains the person map.
 // source: "supabase" on a clean read, "none" otherwise (so an outage keeps the
 // committed baseline rather than blanking overlays).
 export async function fetchApprovedProfileUpdates(opts = {}) {
   // Route through the shared anon-read primitive, bounded by APPROVED_READ_LIMIT
   // so the approved-overlay read can't grow unboundedly as approved rows pile up.
-  const { rows, source } = await getAnonRows(
-    `${READ_VIEW}?select=record_id,delta,created_at&order=created_at.desc&limit=${APPROVED_READ_LIMIT}`,
+  let recordTypeAware = true;
+  let result = await getAnonRows(
+    `${READ_VIEW}?select=record_type,record_id,delta,created_at&order=created_at.desc&limit=${APPROVED_READ_LIMIT}`,
     opts,
   );
-  if (source !== "supabase") return { updates: {}, source: "none" };
+  if (result.source !== "supabase") {
+    recordTypeAware = false;
+    result = await getAnonRows(
+      `${READ_VIEW}?select=record_id,delta,created_at&order=created_at.desc&limit=${APPROVED_READ_LIMIT}`,
+      opts,
+    );
+  }
+  const { rows, source } = result;
+  if (source !== "supabase") return { updates: {}, teamUpdates: {}, source: "none" };
   const updates = {};
+  const teamUpdates = {};
   const newestAt = {};
+  const newestTeamAt = {};
   for (const row of rows) {
     const id = row && row.record_id ? String(row.record_id) : "";
     if (!id || !row.delta || typeof row.delta !== "object") continue;
     // Keep newest-per-record by created_at — order-independent, so the result is
     // correct whether the response came back asc, desc, or capped by the limit.
     const at = Date.parse(row.created_at || "") || 0;
-    if (!(id in updates) || at >= newestAt[id]) { updates[id] = row.delta; newestAt[id] = at; }
+    if (recordTypeAware && row.record_type === "team") {
+      if (!(id in teamUpdates) || at >= newestTeamAt[id]) {
+        teamUpdates[id] = row.delta;
+        newestTeamAt[id] = at;
+      }
+    } else if (!(id in updates) || at >= newestAt[id]) {
+      updates[id] = row.delta;
+      newestAt[id] = at;
+    }
   }
-  return { updates, source };
+  return { updates, teamUpdates, source };
 }
