@@ -432,95 +432,121 @@
   to { transform: translateX(230%); }
 }
 
-/* Persistent radial launcher in the bottom-right corner. */
+/* Persistent chat launcher in the bottom-right corner. */
 .cohort-chat-dial-wrap {
   position: fixed;
-  right: 22px;
-  bottom: 22px;
+  right: 18px;
+  bottom: 18px;
   z-index: 1201;
-  width: 160px;
-  height: 160px;
-  pointer-events: none;
+  width: 48px;
+  height: 48px;
+  pointer-events: auto;
 }
 .cohort-chat-dial {
   position: absolute;
   right: 0;
   bottom: 0;
   z-index: 2;
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   padding: 0;
-  border: none;
+  border: 1px solid color-mix(in srgb, var(--ds-border-strong) 78%, transparent);
   border-radius: 50%;
-  background: var(--ds-surface-2);
+  background: color-mix(in srgb, var(--ds-surface-2) 88%, transparent);
   color: var(--ds-accent);
   cursor: pointer;
   display: grid;
   place-items: center;
   pointer-events: auto;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-  transition: transform 0.18s ease, opacity 0.18s ease, background 0.2s ease;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px);
+  transition: transform 0.14s ease, border-color 0.14s ease, color 0.14s ease, background 0.14s ease;
 }
 .cohort-chat-dial[hidden] { display: none; }
-.cohort-chat-dial:hover { transform: translateY(-2px); background: var(--ds-surface-1); }
+.cohort-chat-dial:hover { transform: translateY(-1px); background: color-mix(in srgb, var(--ds-surface-1) 92%, transparent); }
 .cohort-chat-dial:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 3px; }
 .cohort-chat-radial-menu {
   position: absolute;
-  inset: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(2, minmax(0, 1fr));
-  overflow: hidden;
-  border-radius: 50%;
-  border: 1px solid var(--ds-border-strong);
-  background:
-    linear-gradient(90deg, transparent calc(50% - 0.5px), var(--ds-border) calc(50% - 0.5px), var(--ds-border) calc(50% + 0.5px), transparent calc(50% + 0.5px)),
-    linear-gradient(0deg, transparent calc(50% - 0.5px), var(--ds-border) calc(50% - 0.5px), var(--ds-border) calc(50% + 0.5px), transparent calc(50% + 0.5px)),
-    color-mix(in srgb, var(--ds-surface-2) 94%, transparent);
-  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.52);
+  right: 0;
+  bottom: calc(100% + 10px);
+  width: min(220px, calc(100vw - 36px));
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  overflow: visible;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--ds-border-strong) 82%, transparent);
+  background: color-mix(in srgb, var(--ds-surface-2) 90%, transparent);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(18px);
   opacity: 0;
-  transform: scale(0.36);
+  transform: translateY(6px) scale(0.985);
   transform-origin: bottom right;
   pointer-events: none;
-  transition: opacity 0.16s ease, transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: opacity 0.14s ease, transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.cohort-chat-radial-menu::after {
+  content: "";
+  position: absolute;
+  right: 18px;
+  bottom: -5px;
+  width: 10px;
+  height: 10px;
+  border-right: 1px solid color-mix(in srgb, var(--ds-border-strong) 82%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--ds-border-strong) 82%, transparent);
+  background: color-mix(in srgb, var(--ds-surface-2) 90%, transparent);
+  transform: rotate(45deg);
 }
 .cohort-chat-dial-wrap:hover .cohort-chat-radial-menu,
-.cohort-chat-dial-wrap:focus-within .cohort-chat-radial-menu {
+.cohort-chat-dial-wrap:focus-within .cohort-chat-radial-menu,
+.cohort-chat-dial-wrap.is-expanded .cohort-chat-radial-menu {
   opacity: 1;
-  transform: scale(1);
+  transform: translateY(0) scale(1);
   pointer-events: auto;
 }
 .cohort-chat-dial-wrap:hover .cohort-chat-dial,
-.cohort-chat-dial-wrap:focus-within .cohort-chat-dial {
-  transform: translate(-52px, -52px) scale(0.58);
-  opacity: 0.42;
+.cohort-chat-dial-wrap:focus-within .cohort-chat-dial,
+.cohort-chat-dial-wrap.is-expanded .cohort-chat-dial {
+  border-color: color-mix(in srgb, var(--ds-accent) 54%, var(--ds-border-strong));
+  background: color-mix(in srgb, var(--ds-surface-1) 92%, transparent);
+}
+.cohort-chat-dial-wrap.is-suppressed .cohort-chat-radial-menu {
+  opacity: 0;
+  transform: translateY(6px) scale(0.985);
   pointer-events: none;
+}
+.cohort-chat-dial-wrap.is-suppressed .cohort-chat-dial {
+  transform: translateY(0);
+  pointer-events: auto;
 }
 .cc-radial-action {
   appearance: none;
+  width: 100%;
   min-width: 0;
-  min-height: 0;
-  padding: 12px 9px;
+  min-height: 44px;
+  padding: 7px 9px;
   border: 0;
+  border-radius: 10px;
   background: transparent;
   color: var(--ds-ink-3);
   cursor: pointer;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
   align-items: center;
-  justify-content: center;
-  gap: 5px;
-  font-family: var(--ds-font-mono);
-  font-size: var(--ds-text-2xs);
-  line-height: 1;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  gap: 9px;
+  font-family: var(--ds-font-ui);
+  text-align: left;
   pointer-events: auto;
-  transition: background 0.12s ease, color 0.12s ease;
+  transition: background 0.12s ease, color 0.12s ease, transform 0.12s ease;
+}
+.cc-radial-action.is-primary {
+  background: color-mix(in srgb, var(--ds-accent) 11%, transparent);
+  color: var(--ds-ink-1);
 }
 .cc-radial-action:hover,
 .cc-radial-action:focus-visible {
-  background: color-mix(in srgb, var(--ds-accent) 18%, transparent);
+  background: color-mix(in srgb, var(--ds-accent) 16%, transparent);
   color: var(--ds-ink-1);
 }
 .cc-radial-action:focus-visible {
@@ -528,36 +554,75 @@
   outline-offset: -4px;
 }
 .cc-radial-icon {
-  display: inline-flex;
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ds-surface-3) 82%, transparent);
   color: var(--ds-accent);
 }
 .cc-radial-icon svg {
-  width: 18px;
-  height: 18px;
+  width: 15px;
+  height: 15px;
+}
+.cc-radial-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 .cc-radial-label {
-  max-width: 8ch;
+  display: block;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ds-ink-1);
+  font-size: var(--ds-text-xs);
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: 0;
 }
-/* a gentle accent pulse to draw the eye (stops once the chat is open) */
+.cc-radial-hint {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ds-ink-4);
+  font-family: var(--ds-font-mono);
+  font-size: 10px;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+.cc-radial-action[data-state="busy"] .cc-radial-icon svg {
+  animation: cc-sync-spin 0.8s linear infinite;
+}
+.cc-radial-action[data-state="done"] .cc-radial-icon {
+  color: var(--ds-ink-1);
+  background: color-mix(in srgb, var(--ds-accent) 28%, transparent);
+}
+.cc-radial-action[data-state="error"] .cc-radial-icon {
+  color: var(--ds-danger);
+  background: color-mix(in srgb, var(--ds-danger) 14%, transparent);
+}
+@keyframes cc-sync-spin {
+  to { transform: rotate(360deg); }
+}
 .cohort-chat-dial::after {
   content: "";
   position: absolute;
-  inset: 0;
+  inset: 6px;
   border-radius: 50%;
-  animation: cc-dial-pulse 3.4s ease-out infinite;
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 26%, transparent);
+  opacity: 0.7;
   pointer-events: none;
 }
-@keyframes cc-dial-pulse {
-  0%       { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ds-accent) 40%, transparent); }
-  55%, 100% { box-shadow: 0 0 0 13px color-mix(in srgb, var(--ds-accent) 0%, transparent); }
-}
-.cohort-chat-dial.is-open::after { animation: none; }
-.cohort-chat-dial.is-open { color: var(--ds-accent-hover); }
+.cohort-chat-dial.is-open { color: var(--ds-accent-hover); border-color: color-mix(in srgb, var(--ds-accent) 64%, var(--ds-border-strong)); }
 
 .cc-dial-ring { position: absolute; inset: 0; width: 100%; height: 100%; }
-.cc-dial-ring .cc-dial-track { stroke: var(--ds-border-strong); }
+.cc-dial-ring .cc-dial-track { stroke: color-mix(in srgb, var(--ds-border-strong) 84%, transparent); }
 .cc-dial-ring .cc-dial-arc {
   stroke: var(--ds-accent);
   transform: rotate(-90deg);
@@ -566,13 +631,14 @@
 }
 .cohort-chat-dial:hover .cc-dial-arc { transform: rotate(0deg); }
 .cohort-chat-dial.is-open .cc-dial-arc { transform: rotate(45deg); }
-.cc-dial-glyph { position: relative; width: 22px; height: 22px; }
+.cc-dial-glyph { position: relative; width: 20px; height: 20px; }
 
 @media (prefers-reduced-motion: reduce) {
   .cohort-chat-card { animation: none; }
-  .cohort-chat-dial::after { animation: none; }
   .cohort-chat-radial-menu,
   .cohort-chat-dial,
+  .cc-radial-action,
   .cc-dial-ring .cc-dial-arc { transition: none; }
+  .cc-radial-action[data-state="busy"] .cc-radial-icon svg { animation: none; }
   .cc-deep-rail span[data-state="active"]::after { animation: none; display: none; }
 }

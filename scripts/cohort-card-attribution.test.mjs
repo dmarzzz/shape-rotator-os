@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { attributeInsightCards, buildTeamMatchers, indexCohortEvidence, teamEvidence, teamTimeline, dedupeDependencyEdges, connectionEdgesFromInsightCards, frozenAttributionFromInsightCards, teamProgressRollup } from "../apps/os/src/renderer/cohort-evidence-index.mjs";
+import { attributeInsightCards, buildTeamMatchers, evidenceMoveCards, indexCohortEvidence, rankEvidenceNeighbors, teamEvidence, teamTimeline, dedupeDependencyEdges, connectionEdgesFromInsightCards, frozenAttributionFromInsightCards, teamProgressRollup } from "../apps/os/src/renderer/cohort-evidence-index.mjs";
 
 const teams = [
   { record_id: "teesql", name: "TeeSQL", skill_areas: ["tee", "postgres", "dstack"], focus: "TEE Postgres on dstack" },
@@ -181,4 +181,52 @@ test("teamProgressRollup is 'declared-only' with a plan but no observed signal, 
   assert.equal(planned.observed.sessions, 0);
   const quiet = teamProgressRollup(indexCohortEvidence([]), { record_id: "y" });
   assert.equal(quiet.status, "quiet");
+});
+
+test("evidenceMoveCards turns live evidence into coordinator-move cards", () => {
+  const cards = [
+    {
+      id: "edge-1",
+      claim_type: "collaboration_edge",
+      claim_text: "TeeSQL and TinyCloud tested a TEE hosting path together.",
+      confidence: 0.9,
+      evidence_level: "session_observed",
+      content_json: { teams: ["teesql", "tinycloud"], week_start: "2026-06-21" },
+    },
+    insight("no-team", "A general note without a mapped team"),
+  ];
+
+  const moves = evidenceMoveCards(cards, teams);
+
+  assert.equal(moves.length, 1);
+  assert.equal(moves[0].kind, "collaboration");
+  assert.deepEqual(moves[0].teams, ["teesql", "tinycloud"]);
+  assert.match(moves[0].coordinatorMove, /shared next artifact/);
+  assert.ok(moves[0].receipts.includes("2026-06-21"));
+});
+
+test("rankEvidenceNeighbors ranks observed collaboration ahead of same-week overlap", () => {
+  const cards = [
+    {
+      id: "edge-1",
+      claim_type: "collaboration_edge",
+      claim_text: "TeeSQL and TinyCloud tested a TEE hosting path together.",
+      confidence: 0.85,
+      content_json: { teams: ["teesql", "tinycloud"], week_start: "2026-06-21" },
+    },
+    {
+      id: "week-1",
+      claim_type: "product_signal",
+      claim_text: "TeeSQL and Abra both surfaced proof language in the same review.",
+      confidence: 0.7,
+      content_json: { teams: ["teesql", "abra"], week_start: "2026-06-21" },
+    },
+  ];
+
+  const ranked = rankEvidenceNeighbors(indexCohortEvidence(cards), teams, "teesql");
+
+  assert.equal(ranked[0].id, "tinycloud");
+  assert.equal(ranked[0].edgeCount, 1);
+  assert.ok(ranked.some((row) => row.id === "abra"));
+  assert.equal(rankEvidenceNeighbors(indexCohortEvidence(cards), teams, "missing").length, 0);
 });

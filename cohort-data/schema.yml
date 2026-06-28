@@ -217,21 +217,28 @@ events:
     - subtitle      # one-line context (location, week tag, etc.)
     - links         # nested: {website, deck, signup, recap}
 
-# Cohort-internal "asks" — verb-first pair-requests posted by participants.
-# Modeled on Recurse Center's pairing stream + ETHGlobal #find-a-team. Each
-# ask is a small markdown file under cohort-data/asks/ with frontmatter.
-# Posts auto-fade 5 days after `posted_at` (renderer-side). Author is a
-# person record_id; tap-to-claim opens a DM via the person's existing
-# `links` fields (telegram/x/email).
+# Cohort-internal asks/activity — short-lived posts from participants. Supports
+# time-boxed IRL help requests and "come join" plans with lightweight
+# who-is-going metadata. Posts auto-fade 5 days after `posted_at`, after
+# `expires_at` for limited asks, or after `starts_at` for dated plans
+# (renderer-side). Author is a person record_id; ask posts can be claimed, and
+# come-join posts collect `joined_by`.
 asks:
   surface_fields:
     - record_id
     - record_type
-    - posted_at        # YYYY-MM-DD — when posted; renderer computes "expires_at = posted_at + 5d"
+    - posted_at        # YYYY-MM-DD — when posted; renderer uses this for the fallback 5-day fade
     - author           # person record_id who posted it
+    - intent           # ask | come_join — help request or come-with-me plan
     - verb             # short emoji+verb glyph (e.g. "🤝 pair on", "🎨 need 30 min with", "🔬 brain on")
     - topic            # one-line topic — "fuzzing the AMM contract", "Electron app distribution"
     - skill_areas      # optional list[controlled vocab] — for filtering
+    - starts_at        # date/time for IRL asks or come-join plans; future posts stay current until this day passes
+    - expires_at       # optional date/time deadline; required by the app composer for asks
+    - location         # human-readable where; required by the app composer for asks
+    - contact          # public contact detail/handle; required by the app composer for asks
+    - capacity         # optional spots or constraint text: "3", "small group", "open"
+    - joined_by        # optional list[person record_id] for come-join posts; author may include themself
     - status           # open | claimed | done — defaults to "open"
     - claimed_by       # optional person record_id
 

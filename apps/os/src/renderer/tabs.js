@@ -10,7 +10,7 @@
 //     tab: "alchemy" | "apps" | "network" | "links",
 //     mode?,        // OS sub-page when tab === "alchemy"
 //     constellationMode?, // Constellation sub-view, e.g. "map" | "collab"
-//     programPage?, // Program handbook page, e.g. "overview" | "success"
+//     programPage?, // Program Info page, e.g. "onboarding" | "overview"
 //     recordId?,    // an open record-detail page (alchemy)
 //     appsView?,    // "atlas" | "easel"
 //     netSub?,      // "network" | "metrics"
@@ -48,16 +48,16 @@ export function configureAlchemy(adapter = {}) {
 const MODE_LABEL = {
   membrane: "membrane", shapes: "cohort",
   constellation: "cohort",
-  calendar: "calendar", profile: "profile", onboarding: "onboarding",
+  calendar: "calendar", profile: "profile",
   mirror: "mirror",
   program: "program info", asks: "asks & activity", context: "context", icons: "icons",
   activity: "asks & activity",
 };
 
 // Short suffixes for the cohort page's constellation views and the context
-// page's views — tab titles read "cohort · map", "context · intel", etc.
+// page's views — tab titles read "cohort · map", "context · evidence", etc.
 const CONST_VIEW_LABEL = { map: "map", ring: "map", journey: "journey", stack: "stack", collab: "collab" };
-const CONTEXT_VIEW_LABEL = { raw: "transcripts", signals: "intel", data: "intel data" };
+const CONTEXT_VIEW_LABEL = { raw: "transcripts", evidence: "evidence" };
 
 // Inner SVG markup for each page's Lucide icon (matches the left-nav rail).
 const ICON_PATHS = {
@@ -66,7 +66,6 @@ const ICON_PATHS = {
   constellation: '<path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/>',
   calendar: '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
   profile: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
-  onboarding: '<path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"/><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"/><path d="M16 17h4"/><path d="M4 13h4"/>',
   program: '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
   asks: '<path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/>',
   mirror: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
@@ -117,6 +116,9 @@ function normalizeLocation(loc) {
   if (loc.tab === "alchemy" && loc.mode === "asks") {
     return { ...loc, mode: "activity" };
   }
+  if (loc.tab === "alchemy" && loc.mode === "onboarding") {
+    return { ...loc, mode: "program", programPage: "onboarding" };
+  }
   if (loc.tab === "alchemy" && loc.mode === "constellation" && String(loc.constellationMode || "").toLowerCase() === "shipped") {
     const { constellationMode, ...rest } = loc;
     return { ...rest, mode: "mirror" };
@@ -125,10 +127,16 @@ function normalizeLocation(loc) {
     const { constellationMode, ...rest } = loc;
     return { ...rest, mode: "shapes" };
   }
-  // Intel folded into the context page (2026-06) — old intel tabs reopen
-  // on context's intel view.
+  // Intel folded into the context page (2026-06), then removed from the context
+  // nav (2026-06-28): old intel tabs reopen on evidence.
   if (loc.tab === "alchemy" && loc.mode === "intel") {
-    return { ...loc, mode: "context", contextView: "signals" };
+    return { ...loc, mode: "context", contextView: "evidence" };
+  }
+  if (loc.tab === "alchemy" && loc.mode === "context") {
+    const v = String(loc.contextView || "").toLowerCase();
+    if (v === "signals" || v === "data" || v === "intel" || v === "cards") {
+      return { ...loc, contextView: "evidence" };
+    }
   }
   // calendar2 graduated to THE calendar (2026-06) — old trial tabs reopen
   // on the calendar page.
@@ -172,6 +180,9 @@ function locTitle(loc) {
     }
     if (loc.mode === "context" && CONTEXT_VIEW_LABEL[loc.contextView]) {
       return `context · ${CONTEXT_VIEW_LABEL[loc.contextView]}`;
+    }
+    if (loc.mode === "program" && loc.programPage === "onboarding") {
+      return "program info / onboarding";
     }
     return MODE_LABEL[loc.mode] || "operating system";
   }

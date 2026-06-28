@@ -5,12 +5,65 @@
 export const ASK_EXPIRY_DAYS = 5;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const ASK_INTENT_ALIASES = {
+  help: "ask",
+  request: "ask",
+  pair: "ask",
+  pairing: "ask",
+  join: "come_join",
+  "come-join": "come_join",
+  activity: "come_join",
+  event: "come_join",
+  invite: "come_join",
+  social: "come_join",
+  fyi: "come_join",
+  announcement: "come_join",
+  update: "come_join",
+  note: "come_join",
+};
+const ASK_INTENT_META = {
+  ask: {
+    label: "ask",
+    section: "asks",
+    action: "claim",
+    color: "#5E4310",
+    light: "#EADBA8",
+    paths: `<path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8"/><path d="M8 13h5"/>`,
+  },
+  come_join: {
+    label: "come join",
+    section: "come join",
+    action: "join",
+    color: "#1E4A2A",
+    light: "#CAE3C8",
+    paths: `<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/>`,
+  },
+};
 
 export function isoDateOnly(value) {
   if (!value) return null;
   const m = String(value).match(/(\d{4})-(\d{2})-(\d{2})/);
   if (!m) return null;
   return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+}
+
+export function askIntent(ask) {
+  let raw = String(ask?.intent || ask?.kind || ask?.category || "").trim().toLowerCase();
+  if (!raw) raw = "ask";
+  raw = raw.replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+  return ASK_INTENT_META[raw] ? raw : (ASK_INTENT_ALIASES[raw] || "ask");
+}
+
+export function askIntentLabel(ask) {
+  return ASK_INTENT_META[askIntent(ask)]?.label || "ask";
+}
+
+export function askIntentSection(ask) {
+  return ASK_INTENT_META[askIntent(ask)]?.section || "asks";
+}
+
+export function askPrimaryActionLabel(ask) {
+  return ASK_INTENT_META[askIntent(ask)]?.action || "claim";
 }
 
 export function askStatus(ask) {
@@ -30,6 +83,64 @@ export function askAgeLabel(ask) {
   return `${days} days ago`;
 }
 
+function relativeDateLabel(value, nowMs = Date.now()) {
+  const d = isoDateOnly(value);
+  if (!d) return "";
+  const today = isoDateOnly(new Date(nowMs).toISOString());
+  const dayOffset = today ? Math.floor((d.getTime() - today.getTime()) / DAY_MS) : null;
+  let base;
+  if (dayOffset === 0) base = "today";
+  else if (dayOffset === 1) base = "tomorrow";
+  else if (dayOffset === -1) base = "yesterday";
+  else {
+    base = new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(d);
+  }
+  const m = String(value || "").match(/(?:T|\s)(\d{1,2}:\d{2})/);
+  return m ? `${base} ${m[1]}` : base;
+}
+
+export function askStartsLabel(ask, nowMs = Date.now()) {
+  return relativeDateLabel(ask?.starts_at || ask?.start_at || ask?.date, nowMs);
+}
+
+export function askExpiresLabel(ask, nowMs = Date.now()) {
+  const label = relativeDateLabel(ask?.expires_at || ask?.ends_at || ask?.end_at, nowMs);
+  return label ? `until ${label}` : "";
+}
+
+export function askTimeLabel(ask) {
+  return askStartsLabel(ask) || askAgeLabel(ask);
+}
+
+export function askLocation(ask) {
+  return String(ask?.location || ask?.where || "").trim();
+}
+
+export function askContact(ask) {
+  return String(ask?.contact || ask?.contact_info || ask?.how_to_reach || "").trim();
+}
+
+export function askCapacityLabel(ask) {
+  const raw = String(ask?.capacity || ask?.spots || "").trim();
+  if (!raw) return "";
+  return /^\d+$/.test(raw) ? `${raw} spots` : raw;
+}
+
+export function askJoinedBy(ask) {
+  const raw = ask?.joined_by || ask?.going || ask?.rsvps || [];
+  const values = Array.isArray(raw) ? raw : String(raw || "").split(",");
+  return values.map((v) => String(v).trim()).filter(Boolean);
+}
+
+export function askHasJoined(ask, context = {}) {
+  const mine = askIdentityKeys(context);
+  if (mine.size === 0) return false;
+  for (const value of askJoinedBy(ask)) {
+    if (mine.has(normalizeAskIdentity(value))) return true;
+  }
+  return false;
+}
+
 export function askIsOpen(ask) {
   return !!ask && askStatus(ask) === "open" && askIsCurrent(ask);
 }
@@ -40,6 +151,16 @@ export function askIsCurrent(ask) {
 
 export function compareAsksByFreshness(a, b) {
   if (!!a?._expired !== !!b?._expired) return a?._expired ? 1 : -1;
+  if (a?._startOffsetDays != null || b?._startOffsetDays != null) {
+    const aStart = a?._startOffsetDays == null ? Number.POSITIVE_INFINITY : a._startOffsetDays;
+    const bStart = b?._startOffsetDays == null ? Number.POSITIVE_INFINITY : b._startOffsetDays;
+    if (aStart !== bStart) return aStart - bStart;
+  }
+  if (a?._expiresOffsetDays != null || b?._expiresOffsetDays != null) {
+    const aExpires = a?._expiresOffsetDays == null ? Number.POSITIVE_INFINITY : a._expiresOffsetDays;
+    const bExpires = b?._expiresOffsetDays == null ? Number.POSITIVE_INFINITY : b._expiresOffsetDays;
+    if (aExpires !== bExpires) return aExpires - bExpires;
+  }
   const aAge = a?._ageDays == null ? 0 : a._ageDays;
   const bAge = b?._ageDays == null ? 0 : b._ageDays;
   if (aAge !== bAge) return aAge - bAge;
@@ -48,13 +169,25 @@ export function compareAsksByFreshness(a, b) {
 
 export function asksWithStatus(rawAsks, nowMs = Date.now()) {
   const all = Array.isArray(rawAsks) ? rawAsks.slice() : [];
+  const today = isoDateOnly(new Date(nowMs).toISOString());
   return all.map((ask) => {
     const posted = isoDateOnly(ask?.posted_at);
+    const starts = isoDateOnly(ask?.starts_at || ask?.start_at || ask?.date);
+    const expires = isoDateOnly(ask?.expires_at || ask?.ends_at || ask?.end_at);
     const ageDays = posted ? Math.floor((nowMs - posted.getTime()) / DAY_MS) : null;
+    const startOffsetDays = starts && today ? Math.floor((starts.getTime() - today.getTime()) / DAY_MS) : null;
+    const expiresOffsetDays = expires && today ? Math.floor((expires.getTime() - today.getTime()) / DAY_MS) : null;
     return {
       ...ask,
+      _intent: askIntent(ask),
       _ageDays: ageDays,
-      _expired: ageDays != null && ageDays >= ASK_EXPIRY_DAYS,
+      _startOffsetDays: startOffsetDays,
+      _expiresOffsetDays: expiresOffsetDays,
+      _expired: expiresOffsetDays != null
+        ? expiresOffsetDays < 0
+        : startOffsetDays != null
+          ? startOffsetDays < 0
+          : ageDays != null && ageDays >= ASK_EXPIRY_DAYS,
     };
   }).sort(compareAsksByFreshness);
 }
@@ -177,4 +310,40 @@ export function askVerbIconSvg(glyph) {
   const def = ASK_VERB_ICONS[glyph];
   if (!def) return null;
   return `<svg class="alch-asks-verb-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${def.paths}</svg>`;
+}
+
+export function askIntentVars(intent) {
+  const def = ASK_INTENT_META[ASK_INTENT_META[intent] ? intent : askIntent({ intent })];
+  if (!def) return null;
+  return `--verb-color:${def.color};--verb-color-light:${def.light}`;
+}
+
+export function askIntentIconSvg(intent) {
+  const def = ASK_INTENT_META[ASK_INTENT_META[intent] ? intent : askIntent({ intent })];
+  if (!def) return null;
+  return `<svg class="alch-asks-verb-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${def.paths}</svg>`;
+}
+
+export function askDisplayVerb(askOrVerb, fallbackIntent = "ask") {
+  const ask = askOrVerb && typeof askOrVerb === "object" ? askOrVerb : null;
+  const verb = String(ask ? ask.verb || "" : askOrVerb || "").trim();
+  const intent = ask ? askIntent(ask) : askIntent({ intent: fallbackIntent });
+  const chars = Array.from(verb);
+  const glyph = chars[0] || "";
+  if (glyph && ASK_VERB_ICONS[glyph]) {
+    return {
+      verb: verb || askIntentLabel({ intent }),
+      glyph,
+      label: chars.slice(1).join("").trim() || verb,
+      vars: askVerbVars(glyph),
+      icon: askVerbIconSvg(glyph),
+    };
+  }
+  return {
+    verb: verb || askIntentLabel({ intent }),
+    glyph: "",
+    label: verb || askIntentLabel({ intent }),
+    vars: askIntentVars(intent),
+    icon: askIntentIconSvg(intent),
+  };
 }

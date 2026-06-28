@@ -41,16 +41,20 @@ export const WEB_BASE = "https://os-web.shaperotator.xyz/s/";
 const TABS         = ["alchemy", "apps", "network", "links", "matrix"];
 const APPS_VIEWS   = ["atlas", "easel"];                 // "" → apps grid
 const NET_SUBS     = ["network", "metrics"];
-const ALCH_MODES   = ["membrane", "shapes", "constellation", "calendar", "mirror", "profile", "onboarding", "program", "asks", "context", "activity"];
+const ALCH_MODES   = ["membrane", "shapes", "constellation", "calendar", "mirror", "profile", "program", "asks", "context", "activity"];
 const CONST_LENSES = ["map", "ring", "journey", "stack", "targets", "collab"];
-const CTX_VIEWS    = ["articles", "raw", "signals", "data"];
+const CTX_VIEWS    = ["articles", "raw", "evidence"];
 
 // Append-only: old canonical view key → current canonical view key. Lets a
 // historical code keep resolving if we ever rename an internal view id. Empty
 // at launch.
 const VIEW_ALIASES = {
   "alchemy/asks": "alchemy/activity",
+  "alchemy/onboarding": "alchemy/program/onboarding",
   "alchemy/constellation/shipped": "alchemy/mirror",
+  "alchemy/intel": "alchemy/context/evidence",
+  "alchemy/context/signals": "alchemy/context/evidence",
+  "alchemy/context/data": "alchemy/context/evidence",
 };
 
 const RADIX = 36;
@@ -75,9 +79,16 @@ function hash5(str) {
   return (n % CODE_SPACE).toString(RADIX).padStart(CODE_LEN, "0");
 }
 
+function canonicalContextView(raw) {
+  const v = String(raw || "").toLowerCase();
+  if (v === "transcripts") return "raw";
+  if (v === "cards" || v === "intel" || v === "signals" || v === "data") return "evidence";
+  return CTX_VIEWS.includes(v) ? v : "";
+}
+
 // Snapshot (from boot.js navSnapshot) → canonical view string. Structural ids
-// only; record selection is handled separately. `program` collapses to the
-// mode level (a dynamic programPage is not encoded — see header / plan).
+// only; record selection is handled separately. `program` usually collapses
+// to the mode level; onboarding is the stable synthetic Program subview.
 function canonicalView(snap) {
   const s = snap || {};
   const tab = TABS.includes(s.tab) ? s.tab : "alchemy";
@@ -88,6 +99,7 @@ function canonicalView(snap) {
     return "network/" + (NET_SUBS.includes(s.netSub) ? s.netSub : "network");
   }
   if (tab === "alchemy") {
+    if (s.alchMode === "onboarding") return "alchemy/program/onboarding";
     const mode = ALCH_MODES.includes(s.alchMode) ? s.alchMode : "membrane";
     if (mode === "asks") return "alchemy/activity";
     if (mode === "constellation" && String(s.constMode || "").toLowerCase() === "shipped") {
@@ -97,7 +109,11 @@ function canonicalView(snap) {
       return "alchemy/constellation" + (CONST_LENSES.includes(s.constMode) ? "/" + s.constMode : "");
     }
     if (mode === "context") {
-      return "alchemy/context" + (CTX_VIEWS.includes(s.ctxView) ? "/" + s.ctxView : "");
+      const ctxView = canonicalContextView(s.ctxView);
+      return "alchemy/context" + (ctxView ? "/" + ctxView : "");
+    }
+    if (mode === "program" && String(s.programPage || "").toLowerCase() === "onboarding") {
+      return "alchemy/program/onboarding";
     }
     return "alchemy/" + mode;
   }
@@ -111,9 +127,10 @@ function enumerateViews() {
   const out = [];
   const push = (key, snap) => out.push({ key, snap });
 
-  for (const mode of ["membrane", "shapes", "calendar", "mirror", "profile", "onboarding", "program", "activity"]) {
+  for (const mode of ["membrane", "shapes", "calendar", "mirror", "profile", "program", "activity"]) {
     push("alchemy/" + mode, { tab: "alchemy", alchMode: mode });
   }
+  push("alchemy/program/onboarding", { tab: "alchemy", alchMode: "program", programPage: "onboarding" });
   push("alchemy/constellation", { tab: "alchemy", alchMode: "constellation" });
   for (const lens of CONST_LENSES) push("alchemy/constellation/" + lens, { tab: "alchemy", alchMode: "constellation", constMode: lens });
   push("alchemy/context", { tab: "alchemy", alchMode: "context" });

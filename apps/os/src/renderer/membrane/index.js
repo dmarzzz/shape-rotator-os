@@ -10,7 +10,12 @@ import { BLOB_IDS, BLOB_PROFILES, SHAPE_NAMES, TARGET_R } from './cube.js';
 // a unit BoxGeometry normalized to bounding-sphere TARGET_R, then group-scaled.
 // The Rubik's cube body is matched to this — then bumped 20% larger by request.
 const DIE_CUBE_EDGE = TARGET_R * (2 / Math.sqrt(3)) * CUBE_SCALE * 1.2;
-import { askAgeLabel, askIsOpen, askStatus, askTopic, isAskMine, resolveAskAuthor, askVerbIconSvg, askVerbVars } from '../asks.js';
+import {
+  askCapacityLabel, askContact, askDisplayVerb, askExpiresLabel, askIsOpen,
+  askIntent, askIntentLabel, askJoinedBy, askLocation, askStatus,
+  askTimeLabel, askTopic, isAskMine,
+  resolveAskAuthor,
+} from '../asks.js';
 import { computeIncoming, acknowledgeIncoming } from './calendar-watch.mjs';
 import { submitFeedback, FEEDBACK_MIN_LENGTH, FEEDBACK_MAX_LENGTH } from '../supabase-feedback.mjs';
 
@@ -176,13 +181,13 @@ const PANEL_TEMPLATES = {
     ],
   },
   asks: {
-    eyebrow: 'open pairings',
+    eyebrow: 'open asks and plans',
     title: 'asks',
-    copy: 'each open ask is a bubbling point of pressure on the surface. fresh asks rise sharp; expiring asks sink back into the membrane.',
+    copy: 'asks and come-join plans stay near the surface while they are still actionable.',
     stats: [
       { key: 'open',  val: '—', dataKey: 'openAskCount', details: (data) => renderAsksInline(data), open: true },
       { key: 'mine',  val: '—', dataKey: 'myAskCount' },
-      { key: 'ask', label: 'post ask', mode: 'asks', opts: { openComposer: true } },
+      { key: 'ask', label: 'post', mode: 'asks', opts: { openComposer: true } },
     ],
     inline: null,
     actions: [],
@@ -418,17 +423,26 @@ function renderAsksInline(data) {
     const author = resolveAskAuthor(a, people);
     const owner = author ? (author.name || author.record_id) : (a.author || a.owner || '');
     const mine = isAskMine(a, askIdentity);
-    const ago = askAgeLabel(a);
-    const verb = a.verb || 'ask';
-    const verbGlyph = Array.from(String(verb).trim())[0] || '·';
-    const verbVars = askVerbVars(verbGlyph);
+    const ago = askTimeLabel(a);
+    const intent = askIntent(a);
+    const intentLabel = askIntentLabel(a);
+    const display = askDisplayVerb(a);
     const status = askStatus(a);
     const statusBadge = status === 'open' && a._expired
       ? '<span class="membrane-ask-status membrane-ask-status-fading">fading</span>'
       : status !== 'open'
         ? `<span class="membrane-ask-status">${escHtml(status)}</span>`
+        : intent !== 'ask'
+          ? `<span class="membrane-ask-status">${escHtml(intentLabel)}</span>`
         : '';
-    const chips = (Array.isArray(a.skill_areas) ? a.skill_areas : [])
+    const meta = [
+      askExpiresLabel(a),
+      askLocation(a),
+      askContact(a) ? `contact: ${askContact(a)}` : '',
+      askCapacityLabel(a),
+      askJoinedBy(a).length ? `${askJoinedBy(a).length} going` : '',
+    ].filter(Boolean);
+    const chips = [...meta, ...(Array.isArray(a.skill_areas) ? a.skill_areas : [])]
       .slice(0, 5)
       .map((s) => `<span class="membrane-ask-chip">${escHtml(s)}</span>`)
       .join('');
@@ -436,7 +450,7 @@ function renderAsksInline(data) {
       <li class="membrane-ask-item" data-expired="${a._expired ? '1' : '0'}">
         <details class="membrane-ask-row">
           <summary class="membrane-ask-summary">
-            <span class="membrane-ask-verb${verbVars ? ' has-verb-color' : ''}"${verbVars ? ` style="${verbVars}"` : ''} title="${escHtml(verb)}">${askVerbIconSvg(verbGlyph) || escHtml(verbGlyph)}</span>
+            <span class="membrane-ask-verb${display.vars ? ' has-verb-color' : ''}"${display.vars ? ` style="${display.vars}"` : ''} title="${escHtml(display.verb)}">${display.icon || escHtml(display.glyph || intentLabel)}</span>
             <span class="membrane-ask-body">
               <span class="membrane-ask-title">${escHtml(title)}</span>
               <span class="membrane-ask-meta">

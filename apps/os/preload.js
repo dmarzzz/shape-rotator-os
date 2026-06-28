@@ -21,6 +21,13 @@ contextBridge.exposeInMainWorld("api", {
   // NOT on a cohort view (cohort views handle those keys with their own scoped
   // zoom). action: "in" | "out" | "reset".
   appZoom:      (action) => ipcRenderer.invoke("os:app-zoom", action),
+  setUnreadCount: (count) => ipcRenderer.invoke("os:unread-count", count),
+  notifyCohortPost: (payload) => ipcRenderer.invoke("os:notify-cohort-post", payload || {}),
+  onNotificationTarget: (cb) => {
+    const handler = (_e, payload) => { try { cb(payload || {}); } catch {} };
+    ipcRenderer.on("os:notification-target", handler);
+    return () => ipcRenderer.removeListener("os:notification-target", handler);
+  },
   loadContextVault:       ()   => ipcRenderer.invoke("context-vault:manifest"),
   scanContextVault:       ()   => ipcRenderer.invoke("context-vault:scan"),
   readContextVaultSource: (id) => ipcRenderer.invoke("context-vault:read-source", id),

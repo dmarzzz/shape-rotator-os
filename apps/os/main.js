@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, clipboard, dialog, ipcMain, nativeTheme, safeStorage, screen, shell } = require("electron");
+const { app, BrowserWindow, Menu, Notification, clipboard, dialog, ipcMain, nativeTheme, safeStorage, screen, shell } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const os = require("node:os");
@@ -1237,6 +1237,69 @@ function zoomWebContents(wc, action) {
   wc.setZoomLevel(Math.max(-3, Math.min(3, next)));
 }
 
+function setUnreadBadgeCount(count) {
+  const n = Math.max(0, Math.min(99, Number(count) || 0));
+  try {
+    if (typeof app.setBadgeCount === "function") app.setBadgeCount(n);
+  } catch {}
+  return n;
+}
+
+function attentionForSender(sender, count) {
+  const win = BrowserWindow.fromWebContents(sender);
+  if (!win || win.isDestroyed()) return;
+  try {
+    if (!win.isFocused()) win.flashFrame(count > 0);
+  } catch {}
+}
+
+function focusWindowForSender(sender) {
+  const win = BrowserWindow.fromWebContents(sender);
+  if (!win || win.isDestroyed()) return null;
+  try {
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+  } catch {}
+  return win;
+}
+
+function notifyCohortPost(sender, payload = {}) {
+  const count = setUnreadBadgeCount(payload.count);
+  attentionForSender(sender, count || 1);
+  const win = BrowserWindow.fromWebContents(sender);
+  if (win && !win.isDestroyed() && win.isFocused()) {
+    return { ok: true, count, notified: false, reason: "window_focused" };
+  }
+  try {
+    if (!Notification.isSupported()) return { ok: true, count, notified: false, reason: "unsupported" };
+    const title = String(payload.title || "Come join").slice(0, 80);
+    const body = String(payload.body || "Someone posted a new come join.").slice(0, 220);
+    const notification = new Notification({
+      title,
+      body,
+      silent: payload.silent !== false,
+      urgency: payload.urgency === "normal" || payload.urgency === "critical" ? payload.urgency : "low",
+      timeoutType: "default",
+    });
+    notification.on("click", () => {
+      const target = focusWindowForSender(sender);
+      if (!target || target.isDestroyed()) return;
+      try {
+        target.webContents.send("os:notification-target", {
+          mode: payload.mode || "activity",
+          recordId: payload.recordId || "",
+          kind: payload.kind || "come_join",
+        });
+      } catch {}
+    });
+    notification.show();
+    return { ok: true, count, notified: true };
+  } catch (e) {
+    return { ok: false, count, error: e && e.message ? e.message : String(e) };
+  }
+}
+
 function buildAppMenu() {
   const isMac = process.platform === "darwin";
   const template = [
@@ -1292,6 +1355,11 @@ function buildAppMenu() {
 // Renderer fallback for Cmd/Ctrl +/-/0 when it's not on a cohort view —
 // zoom the whole window (mirrors the View-menu click behavior).
 ipcMain.handle("os:app-zoom", (e, action) => { zoomWebContents(e.sender, action); return true; });
+ipcMain.handle("os:unread-count", (e, count) => {
+  const n = setUnreadBadgeCount(count);
+  return { ok: true, count: n };
+});
+ipcMain.handle("os:notify-cohort-post", (e, payload) => notifyCohortPost(e.sender, payload || {}));
 ipcMain.handle("prefs:load", async () => readJSON(PREFS_FILE, {}));
 ipcMain.handle("prefs:save", async (_e, d) => { writeJSON(PREFS_FILE, d); return true; });
 ipcMain.handle("context-vault:manifest", async () => ({
@@ -2339,6 +2407,10 @@ app.whenReady().then(() => {
   // the dock icon, menu, swf-node spawn, and auto-updater — none of that
   // matters for "does the renderer load without throwing".
   if (SMOKE_TEST) { runSmokeTest(); return; }
+
+  if (process.platform === "win32") {
+    try { app.setAppUserModelId("com.shape-rotator.os"); } catch {}
+  }
 
   // Dev-mode dock icon. Packaged builds get their icon from electron-builder
   // (build-resources/icon.icns); in `npm run os` we'd otherwise see

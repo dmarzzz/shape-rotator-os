@@ -1874,6 +1874,13 @@ function buildTeamTimeline({ teams, people, asks, events, calendar, githubProgre
 // {date, kind, label, meta, nav}. Dates go through isoDate() because js-yaml
 // parses ISO frontmatter timestamps (events/asks) into Date objects — a plain
 // String(date).slice(0,10) yields "Mon May 18" and silently drops them.
+function askIntentLabelForFeed(ask = {}) {
+  const raw = String(ask.intent || ask.kind || ask.category || "ask").trim().toLowerCase();
+  if (raw === "come_join" || raw === "come-join" || raw === "join" || raw === "activity" || raw === "event" || raw === "invite") return "come join";
+  if (raw === "fyi" || raw === "announcement" || raw === "update" || raw === "note") return "come join";
+  return "ask";
+}
+
 function buildWhatsNew({ teams, releaseItems, githubProgressArtifacts, asks, events, since }) {
   const nameById = new Map((teams || []).map((t) => [String(t.record_id || ""), t.name || t.record_id]));
   // Keep a sane year window AND clip to the program start so pre-event history
@@ -1906,7 +1913,8 @@ function buildWhatsNew({ teams, releaseItems, githubProgressArtifacts, asks, eve
   for (const a of (asks || [])) {
     const date = isoDate(a.posted_at);
     if (!inWindow(date)) continue;
-    out.push({ date, kind: "ask", label: a.topic || a.verb || "ask", meta: `${a.verb || "ask"} · ask`, nav: { mode: "asks" } });
+    const intent = askIntentLabelForFeed(a);
+    out.push({ date, kind: "ask", label: a.topic || a.verb || intent, meta: `${a.verb || intent} · ${intent}`, nav: { mode: "asks" } });
   }
   for (const e of (events || [])) {
     const date = isoDate(e.date || e.range_start || e.starts_at);
