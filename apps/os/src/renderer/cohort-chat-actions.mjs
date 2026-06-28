@@ -22,7 +22,7 @@
 //      decides WHO is proposing.
 //
 // Nothing here writes anything. Execution (saveProfileProposal / emitConnection /
-// emitContest / the local scan + transcript doors) lives in the impure wiring
+// emitContest / the local scan doors) lives in the impure wiring
 // (cohort-chat.js), which calls parseChatActions, renders a HITL review, and only
 // then routes approved actions to the existing gated channels.
 
@@ -109,7 +109,6 @@ export const ACTION_TYPES = Object.freeze([
   "propose_connection",     // "X should talk to Y" → cohort_events connection event
   "file_contest",           // "this card looks off" → public_card_contests
   "request_scan",           // ask to read local sessions / public github (consent-gated tool)
-  "request_transcript",     // contribute a transcript with context (consent-gated)
   "ask",                    // a clarifying question surfaced to the member (self-questioning)
   "note",                   // free-text the agent wants shown (terminal display)
 ]);
@@ -288,13 +287,6 @@ const ACTIONS = {
       .filter((s) => s === "sessions" || s === "github");
     if (!sources.length) return null;
     return { action: "request_scan", sources };
-  },
-  request_transcript(args) {
-    const title = clampOne(args.title, 200);
-    if (!title) return null;
-    const withWhom = (Array.isArray(args.with_whom) ? args.with_whom : [])
-      .map(clampId).filter(Boolean).slice(0, 20);
-    return { action: "request_transcript", title, with_whom: withWhom };
   },
   ask(args) {
     const question = clampOne(args.question || args.text, REASON_MAX);

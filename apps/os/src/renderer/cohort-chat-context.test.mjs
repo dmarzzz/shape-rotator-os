@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { qTokens, teamBlock, buildCohortContext, buildChatPrompt } from "./cohort-chat-context.mjs";
+import { qTokens, teamBlock, buildCohortContext, buildChatPrompt, classifyChatIntent, needsProjectConfirmation } from "./cohort-chat-context.mjs";
 import { splitCommand, resolveCommand } from "../../cohort-chat-node.js";
 
 const surface = {
@@ -8,9 +8,13 @@ const surface = {
     {
       record_id: "abra", name: "Abra", focus: "formal verification · TEE Postgres",
       now: "writing the verification registry spec",
+      links: { repo: "abra-org/abra", website: "https://abra.dev" },
+      traction: "verification registry spec is in active buildout",
+      prior_shipping: ["TEE registry prototype"],
+      success_dimensions: ["technical-risk"],
       seeking: ["TEE Postgres beta access"], offering: ["formal-verification office hours"],
       skill_areas: ["tee", "formal-verification"],
-      journey: { stage: 3, primary_bottleneck: "Solution Quality", next_milestone: "validate registry against TeeSQL" },
+      journey: { stage: 3, primary_bottleneck: "Solution Quality", next_milestone: "validate registry against TeeSQL", problem: "TEE database claims need verifiable registry evidence" },
       connections: [{ to: "teesql", toName: "TeeSQL", score: 0.9, kind: "dependency", reason: "Abra needs TEE Postgres; TeeSQL offers it." }],
     },
     { record_id: "elocute", name: "Elocute", focus: "AI speech practice", offering: ["consumer GTM"], skill_areas: ["design"] },
@@ -28,6 +32,7 @@ test("qTokens keeps meaningful question terms, drops stopwords", () => {
   const t = qTokens("who should I talk to about TEE Postgres?");
   assert.ok(t.has("tee"));
   assert.ok(t.has("postgres"));
+  assert.ok(qTokens("Shape OS").has("os"));
   assert.ok(!t.has("who"));
   assert.ok(!t.has("talk"));
 });
@@ -35,9 +40,13 @@ test("qTokens keeps meaningful question terms, drops stopwords", () => {
 test("teamBlock surfaces focus, seeking/offering, journey, and suggested connections", () => {
   const b = teamBlock(surface.teams[0]);
   assert.match(b, /focus: formal verification/);
+  assert.match(b, /links: repo: abra-org\/abra/);
+  assert.match(b, /traction: verification registry spec/);
+  assert.match(b, /prior shipping: TEE registry prototype/);
   assert.match(b, /seeking: TEE Postgres beta access/);
   assert.match(b, /progress: stage 3/);
   assert.match(b, /bottleneck: Solution Quality/);
+  assert.match(b, /journey problem: TEE database claims/);
   assert.match(b, /suggested connections:/);
   assert.match(b, /TeeSQL: Abra needs TEE Postgres/);
 });
@@ -51,6 +60,16 @@ test("buildCohortContext ranks the question-relevant team into full detail", () 
   // Distilled insight + activity sections present.
   assert.match(ctx, /Recent distilled session insights/);
   assert.match(ctx, /Recent activity/);
+});
+
+test("buildCohortContext keeps the focused project in full detail even when query terms point elsewhere", () => {
+  const ctx = buildCohortContext(surface, {
+    question: "consumer GTM",
+    fullTeams: 1,
+    focus: { teamId: "abra", teamName: "Abra", repos: ["abra-org/abra"] },
+  });
+  assert.match(ctx, /### Abra \(team, id:abra\)/);
+  assert.doesNotMatch(ctx, /### Elocute \(team, id:elocute\)/);
 });
 
 test("buildCohortContext respects the char budget", () => {
@@ -78,6 +97,47 @@ test("buildChatPrompt agent mode injects the action contract + tool results", ()
   assert.match(p, /shipped the agent loop/);
   // still ends ready for the model to answer
   assert.match(p, /Assistant:$/);
+});
+
+test("award refresh prompt asks for relevant evidence, not pitching", () => {
+  const p = buildChatPrompt({
+    surface,
+    question: "scan my work for awards evidence",
+    agent: true,
+    route: "refresh_update",
+    focus: { teamId: "abra", teamName: "Abra", repos: ["abra-org/abra"] },
+    focusResolution: { reason: "selected", candidates: [surface.teams[0]] },
+  });
+  assert.match(p, /evidence dossier, not a pitch deck/);
+  assert.match(p, /supported evidence, missing evidence, and unrelated\/out-of-scope signal/);
+  assert.match(p, /Keep only signal relevant to the active project/);
+  assert.match(p, /Never write promotional award copy/);
+});
+
+test("chat routing classifies update scans and asks for a project when default focus is ambiguous", () => {
+  const route = classifyChatIntent("refresh my github for this week");
+  const focusResolution = {
+    reason: "default-primary",
+    focus: { teamId: "abra", teamName: "Abra", repos: ["abra-org/abra"] },
+    candidates: surface.teams,
+  };
+  assert.equal(route, "refresh_update");
+  assert.equal(needsProjectConfirmation(route, focusResolution), true);
+  const p = buildChatPrompt({
+    surface,
+    question: "refresh my github for this week",
+    agent: true,
+    route,
+    focus: focusResolution.focus,
+    focusResolution,
+  });
+  assert.match(p, /===== ROUTING =====/);
+  assert.match(p, /focus_reason: default-primary/);
+  assert.match(p, /Before proposing a scan or profile\/project update, ask which project/);
+});
+
+test("chat routing keeps status questions read-only even when they mention this week", () => {
+  assert.equal(classifyChatIntent("what did dmarz ship this week for Shape OS?"), "status_lookup");
 });
 
 // ── local AI CLI resolver ──────────────────────────────────────────────────

@@ -53,7 +53,7 @@ The security boundary. The model emits JSON action blocks; this whitelists/sanit
 | `propose_connection` | `cohort_events` type=`connection` (already allowed) | stamped |
 | `file_contest` | `public_card_contests` + contest event | stamped |
 | `request_scan` | local sessions / public github tool (consent) | — |
-| `request_transcript` | `emitTranscript` door (consent) | always self |
+| `request_transcript` | deferred until the chat UI has a consent route | parser rejects for now |
 | `ask` | clarifying question surfaced to member (self-questioning) | — |
 | `note` | terminal display text | — |
 

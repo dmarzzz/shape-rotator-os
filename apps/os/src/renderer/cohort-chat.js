@@ -10,7 +10,7 @@
 
 import { loadStylesheetOnce } from "./stylesheet-loader.js";
 import { getCohortSurface } from "./cohort-source.js";
-import { buildChatPrompt } from "./cohort-chat-context.mjs";
+import { buildChatPrompt, classifyChatIntent, needsProjectConfirmation } from "./cohort-chat-context.mjs";
 import { parseChatActions } from "./cohort-chat-actions.mjs";
 import { createChatStream } from "./cohort-chat-stream.mjs";
 import { maybeOfferMirror, parseMirrorCommand, handToSelfReport } from "./cohort-chat-mirror.mjs";
@@ -120,6 +120,7 @@ function createController() {
   let toolRound = 0;            // bounded self-questioning depth (see MAX_TOOL_ROUNDS)
   const MAX_TOOL_ROUNDS = 1;    // at most one public-tool follow-up per member turn
   let activeFocus = null;       // the project in hand (cohort-chat-focus.mjs) — scopes
+  let activeFocusResolution = null;
   let selectedTeamId = "";      //   what's scanned + the team a write targets; the
                                 //   member's explicit pick (UI), else named-in-chat/primary
 
@@ -281,6 +282,17 @@ function createController() {
     log.appendChild(row);
     log.scrollTop = log.scrollHeight;
     return body;
+  }
+
+  function projectChoiceMessage(focusResolution) {
+    const candidates = Array.isArray(focusResolution && focusResolution.candidates)
+      ? focusResolution.candidates : [];
+    const names = candidates
+      .map((t) => `${t.name || t.record_id} (${t.record_id})`)
+      .join(", ");
+    return names
+      ? `Which project should I use for that update? I can scope it to: ${names}. Say the project name and I'll ground the scan/update there.`
+      : "Which project should I use for that update? Say the project name and I'll ground the scan/update there.";
   }
 
   function esc(s) { const d = document.createElement("div"); d.textContent = String(s == null ? "" : s); return d.innerHTML; }
@@ -550,8 +562,26 @@ function createController() {
     // Resolve the project in hand (explicit pick → named-in-chat → primary team), so
     // the prompt scopes the answer + any team proposal to it and a github scan only
     // reads that project's repos. Never pull in unrelated work.
-    activeFocus = resolveChatFocus({ surface, identity: getIdentity(), selectedTeamId, mentioned: q }).focus;
-    runTurn(buildChatPrompt({ surface, history: history.slice(0, -1), question: q, agent: true, focus: activeFocus }));
+    activeFocusResolution = resolveChatFocus({ surface, identity: getIdentity(), selectedTeamId, mentioned: q });
+    const route = classifyChatIntent(q);
+    if (needsProjectConfirmation(route, activeFocusResolution)) {
+      activeFocus = null;
+      const msg = projectChoiceMessage(activeFocusResolution);
+      appendBubble("assistant", msg);
+      history.push({ role: "assistant", content: msg });
+      setStatus("idle", "idle");
+      return;
+    }
+    activeFocus = activeFocusResolution.focus;
+    runTurn(buildChatPrompt({
+      surface,
+      history: history.slice(0, -1),
+      question: q,
+      agent: true,
+      focus: activeFocus,
+      focusResolution: activeFocusResolution,
+      route,
+    }));
   }
 
   // Spawn ONE agent turn for a prebuilt prompt: stream stdout into a fresh bubble,
@@ -667,7 +697,7 @@ function createController() {
     toolRound += 1;
     pendingActionCtx = buildActionCtx(surface);
     runTurn(buildChatPrompt({
-      surface, history: history.slice(-6), question: lastQuestion, agent: true, focus: activeFocus,
+      surface, history: history.slice(-6), question: lastQuestion, agent: true, focus: activeFocus, focusResolution: activeFocusResolution,
       toolResults: `GITHUB ACTIVITY${scopeNote} (${priv ? "incl. private — scrubbed digest" : "public"}):\n${digest}`,
     }));
   }
