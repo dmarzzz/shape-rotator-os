@@ -91,7 +91,7 @@ import { loadStylesheetOnce } from "./stylesheet-loader.js";
 
 const ALCHEMY_LS_KEY  = "srwk:alchemy_mode";
 const CONTEXT_VIEW_LS_KEY = "srwk:context_view"; // context page view: "articles" | "raw" | "signals" | "data"
-const CONST_MODE_LS_KEY = "srwk:const_mode";  // constellation sub-view: "map" | "ring" | "journey" | "stack" | "targets" | "collab" ("shipped" migrates to mirror)
+const CONST_MODE_LS_KEY = "srwk:const_mode";  // constellation sub-view: "map" | "ring" | "journey" | "stack" | "targets" | "collab" ("shipped" -> mirror, "timeline" -> calendar)
 const CONST_SCOPE_LS_KEY = "srwk:const_scope"; // network scope: "projects" | "people"
 const CONST_LENS_LS_KEY = "srwk:const_lens";  // map lens: "all" | "relies" | "works" | "substrate"
 const CONST_TIER_LS_KEY = "srwk:const_tier";  // pinned line-source tier: "all" | "record" | "mention"
@@ -410,6 +410,12 @@ export function mount(container) {
     // asks merged into the activity feed (2026-06); old saved modes land on
     // the combined asks & activity page.
     if (saved === "asks")      { state.mode = "activity"; localStorage.setItem(ALCHEMY_LS_KEY, "activity"); }
+    if (saved === "constellation" && String(localStorage.getItem(CONST_MODE_LS_KEY) || "").toLowerCase() === "timeline") {
+      state.mode = "calendar";
+      state.constellationMode = "map";
+      localStorage.setItem(ALCHEMY_LS_KEY, "calendar");
+      localStorage.setItem(CONST_MODE_LS_KEY, "map");
+    }
     // say/did/shipped moved out of cohort into its own Mirror rail page.
     if (saved === "constellation" && String(localStorage.getItem(CONST_MODE_LS_KEY) || "").toLowerCase() === "shipped") {
       state.mode = "mirror";
@@ -677,12 +683,14 @@ export function applyLocation(loc = {}) {
   const legacyIntel = loc.mode === "intel";
   const legacyAsks = loc.mode === "asks";
   const legacyShipped = loc.mode === "constellation" && String(loc.constellationMode || "").toLowerCase() === "shipped";
+  const legacyTimeline = loc.mode === "constellation" && String(loc.constellationMode || "").toLowerCase() === "timeline";
   const mode = legacyCollab ? "constellation"
     : (legacyPulse ? "shapes"
     : (legacyIntel ? "context"
     : (legacyAsks ? "activity"
+    : (legacyTimeline ? "calendar"
     : (legacyShipped ? "mirror"
-    : (ALCHEMY_MODES.includes(loc.mode) ? loc.mode : state.mode)))));
+    : (ALCHEMY_MODES.includes(loc.mode) ? loc.mode : state.mode))))));
   if (mode === "program" && loc.programPage) {
     state.programPage = String(loc.programPage);
     try { localStorage.setItem(PROGRAM_PAGE_LS_KEY, state.programPage); } catch {}
@@ -690,6 +698,11 @@ export function applyLocation(loc = {}) {
   if (legacyCollab || mode === "constellation") {
     state.constellationMode = legacyCollab ? "collab" : constNormalizeConstellationMode(loc.constellationMode || "map");
     try { localStorage.setItem(CONST_MODE_LS_KEY, state.constellationMode); } catch {}
+  }
+  if (legacyTimeline) {
+    state.constellationMode = "map";
+    state.calendar.view = "cal";
+    try { localStorage.setItem(CONST_MODE_LS_KEY, "map"); } catch {}
   }
   if (legacyIntel || (mode === "context" && loc.contextView)) {
     state.contextVault.mode = legacyIntel ? "signals" : contextNormalizeView(loc.contextView);
@@ -1003,6 +1016,9 @@ function selectCohortView(constMode) {
     syncRailSelection();
     render();
     return true;
+  }
+  if (String(constMode || "").toLowerCase() === "timeline") {
+    return selectCalendarView("cal");
   }
   if (constMode === "directory") {
     if (state.mode === "shapes" && !state.detailRecordId) return false;
@@ -2542,6 +2558,10 @@ window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode, opts) {
   // intel lives inside the context page now — jump to its view there.
   if (mode === "intel") { mode = "context"; opts = { ...(opts || {}), contextView: opts?.contextView || "signals" }; }
   if (mode === "asks") mode = "activity";
+  if (mode === "constellation" && String(opts?.constellationMode || "").toLowerCase() === "timeline") {
+    mode = "calendar";
+    opts = { ...(opts || {}), calendarView: "cal" };
+  }
   if (mode === "constellation" && String(opts?.constellationMode || "").toLowerCase() === "shipped") mode = "mirror";
   if (!ALCHEMY_MODES.includes(mode)) return;
   clearDetailForNavigation();
@@ -3287,16 +3307,15 @@ const CONST_VIEWS = [
   { mode: "stack",   glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>', label: "standing", hint: "status + gap to target" },
   // "targets" folded into "standing" as a projection toggle (2026-06): same
   // goal model, same chips — it was a second tab for one dataset. The gap view
-  // is now the "gap to target" toggle inside standing. Mode kept valid below
-  // so old deep-links still resolve. Say/did/shipped moved to Mirror.
-  { mode: "timeline", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" x2="21" y1="6" y2="6"/><line x1="3" x2="21" y1="12" y2="12"/><line x1="3" x2="21" y1="18" y2="18"/><circle cx="8" cy="6" r="1.4" fill="currentColor"/><circle cx="15" cy="12" r="1.4" fill="currentColor"/><circle cx="11" cy="18" r="1.4" fill="currentColor"/></svg>', label: "timeline", hint: "activity, insights, standing & presence on one axis" },
+  // is now the "gap to target" toggle inside standing. Say/did/shipped moved to
+  // Mirror; timeline moved to the bottom of Calendar.
 ];
 function constNormalizeConstellationMode(raw) {
   const mode = String(raw || "").toLowerCase();
   // The node-link "ring"/"map" layouts are retired in favour of the nested
   // bubble map; old saved state and deep-links resolve to the relationship map.
   if (mode === "circle" || mode === "ring" || mode === "wells" || mode === "clusters" || mode === "dependencies" || mode === "source") return "map";
-  if (mode === "journey" || mode === "stack" || mode === "targets" || mode === "collab" || mode === "timeline") return mode;
+  if (mode === "journey" || mode === "stack" || mode === "targets" || mode === "collab") return mode;
   return "map";
 }
 // The cohort views used to render as an in-page tab strip here
@@ -8560,7 +8579,7 @@ function calendarTimelineOptions(rawTimeline, prefs) {
   };
 }
 
-function renderCohortTimeline() {
+function legacyCohortTimelinePreview() {
   loadStylesheetOnce("renderer/cohort-timeline-view.css");
   const timeline = buildCohortTimelineModel(activeConstellationCohort());
   const points = timeline.lanes.reduce(
@@ -8579,7 +8598,6 @@ function renderCohortTimeline() {
     ${cohortPageHead("timeline")}
     ${sentenceBar}
     <div class="alch-timeline-view">${renderTimelineLanesHtml(timeline)}</div>`;
-  wireCohortTimelineActions();
 }
 
 // The timeline writes straight into state.canvas with no .ac-inspector panel,
@@ -8590,18 +8608,6 @@ function renderCohortTimeline() {
 // that team's dossier with Back returning to the constellation (this view) —
 // mirroring how say/did/shipped project cards open. The .ctl-dot markers are
 // native <button>s, so Enter/Space fire this click handler for free.
-function wireCohortTimelineActions() {
-  if (state.cohortTimelineActionsBound) return;
-  state.cohortTimelineActionsBound = true;
-  state.canvas.addEventListener("click", (e) => {
-    if (state.mode !== "constellation" || state.detailRecordId) return;
-    const dot = e.target.closest(".alch-timeline-view [data-const-team]");
-    if (!dot) return;
-    const rid = dot.getAttribute("data-const-team");
-    if (rid) openDetail(rid, "constellation");
-  });
-}
-
 function renderConstellation() {
   const cohort = activeConstellationCohort();
   const teams = cohort.teams || [];
@@ -8624,8 +8630,6 @@ function renderConstellation() {
     renderProductStack();
     return;
   }
-  if (mode === "shipped") { renderSayDidShipped(); return; }
-  if (mode === "timeline") { renderCohortTimeline(); return; }
 
   const edgeTier = constNormalizeEdgeTier(state.constEdgeTier);
   const networkScope = constNormalizeNetworkScope(state.constellationScope);
