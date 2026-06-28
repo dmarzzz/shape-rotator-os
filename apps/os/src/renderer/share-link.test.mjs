@@ -40,6 +40,18 @@ test("asks links canonicalize to the merged activity page", () => {
   assert.deepEqual(parseLocation(legacyAskLink), { tab: "alchemy", alchMode: "activity" });
 });
 
+test("onboarding links canonicalize to the Program Info onboarding view", () => {
+  buildLinkIndex([]);
+
+  const onboardingView = { tab: "alchemy", alchMode: "program", programPage: "onboarding" };
+  const onboardingLink = serializeLocation(onboardingView);
+  assert.equal(serializeLocation({ tab: "alchemy", alchMode: "onboarding" }), onboardingLink);
+  assert.deepEqual(parseLocation(onboardingLink), onboardingView);
+
+  const legacyOnboardingLink = WEB_BASE + hash5("v:alchemy/onboarding");
+  assert.deepEqual(parseLocation(legacyOnboardingLink), onboardingView);
+});
+
 test("old say-did-shipped constellation links resolve to mirror", () => {
   buildLinkIndex([]);
 
@@ -52,4 +64,26 @@ test("old say-did-shipped constellation links resolve to mirror", () => {
 
   const legacyShippedLink = WEB_BASE + hash5("v:alchemy/constellation/shipped");
   assert.deepEqual(parseLocation(legacyShippedLink), { tab: "alchemy", alchMode: "mirror" });
+});
+
+test("retired context intel links resolve to evidence", () => {
+  buildLinkIndex([]);
+
+  const evidenceLink = serializeLocation({ tab: "alchemy", alchMode: "context", ctxView: "evidence" });
+  assert.equal(
+    serializeLocation({ tab: "alchemy", alchMode: "context", ctxView: "signals" }),
+    evidenceLink,
+  );
+  assert.equal(
+    serializeLocation({ tab: "alchemy", alchMode: "context", ctxView: "data" }),
+    evidenceLink,
+  );
+  assert.deepEqual(parseLocation(evidenceLink), { tab: "alchemy", alchMode: "context", ctxView: "evidence" });
+
+  const legacySignalsLink = WEB_BASE + hash5("v:alchemy/context/signals");
+  const legacyDataLink = WEB_BASE + hash5("v:alchemy/context/data");
+  const legacyIntelLink = WEB_BASE + hash5("v:alchemy/intel");
+  assert.deepEqual(parseLocation(legacySignalsLink), { tab: "alchemy", alchMode: "context", ctxView: "evidence" });
+  assert.deepEqual(parseLocation(legacyDataLink), { tab: "alchemy", alchMode: "context", ctxView: "evidence" });
+  assert.deepEqual(parseLocation(legacyIntelLink), { tab: "alchemy", alchMode: "context", ctxView: "evidence" });
 });

@@ -62,8 +62,8 @@ import {
 } from "./context-submit.mjs";
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable, refreshCohortFromGithub } from "./cohort-source.js";
 import { readSupabaseConfig, persistCohortKeyOverride } from "./supabase-evidence.mjs";
-import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
-import { indexCohortEvidence, teamEvidence, recentClaims, teamTimeline, claimLane, teamProgressRollup } from "./cohort-evidence-index.mjs";
+import { unreadCounts, unreadRecordsForMode, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
+import { evidenceMoveCards, indexCohortEvidence, rankEvidenceNeighbors, teamEvidence, recentClaims, teamTimeline, claimLane, teamProgressRollup } from "./cohort-evidence-index.mjs";
 import { cardTraceBodyHtml, cardTraceHtml } from "./cohort-trace-view.mjs";
 import { getCohortTimeline } from "./cohort-timeline.js";
 import { isPresent, buildDefaultTimeline, filterTimelineByPrefs } from "./cohort-timeline-tracks.mjs";
@@ -75,9 +75,12 @@ import { toast } from "./ux.js";
 import { getTheme, toggleTheme } from "./theme.js";
 import { getIdentity, setIdentity, hasSkippedIdentityOnboarding, mountResealInline } from "./identity.js";
 import {
-  askAgeLabel, askIsCurrent, askIsOpen, askStatus, askTopic, asksWithStatus,
+  askAgeLabel, askCapacityLabel, askContact, askDisplayVerb, askExpiresLabel,
+  askHasJoined, askIntent, askIntentLabel, askIntentSection, askIsCurrent,
+  askIsOpen, askJoinedBy, askLocation, askPrimaryActionLabel, askStatus,
+  askTimeLabel, askTopic,
+  asksWithStatus,
   isAskMine, normalizeAskIdentity, resolveAskAuthor, resolveAskIdentityPerson,
-  askVerbVars, askVerbIconSvg,
 } from "./asks.js";
 import { submitContest } from "./supabase-contest.mjs";
 import { emitProfileEdit, emitContest, emitTranscript } from "./cohort-emit.mjs";
@@ -90,7 +93,10 @@ import { createLazyModule } from "./lazy-module.js";
 import { loadStylesheetOnce } from "./stylesheet-loader.js";
 
 const ALCHEMY_LS_KEY  = "srwk:alchemy_mode";
-const CONTEXT_VIEW_LS_KEY = "srwk:context_view"; // context page view: "articles" | "raw" | "signals" | "data"
+const COME_JOIN_NOTIFY_LS_KEY = "srwk:comejoin:notified_v1";
+const COME_JOIN_NOTIFY_LAST_LS_KEY = "srwk:comejoin:last_alert_ms_v1";
+const COME_JOIN_NOTIFY_COOLDOWN_MS = 2 * 60 * 1000;
+const CONTEXT_VIEW_LS_KEY = "srwk:context_view"; // context page view: "articles" | "raw" | "evidence"
 const CONST_MODE_LS_KEY = "srwk:const_mode";  // constellation sub-view: "map" | "ring" | "journey" | "stack" | "targets" | "collab" ("shipped" -> mirror, "timeline" -> calendar)
 const CONST_SCOPE_LS_KEY = "srwk:const_scope"; // network scope: "projects" | "people"
 const CONST_LENS_LS_KEY = "srwk:const_lens";  // map lens: "all" | "relies" | "works" | "substrate"
@@ -118,6 +124,13 @@ const PROFILE_LS_KEY  = "srwk:profile_v1";
 const EVENTS_LS_KEY   = "srwk:cohort_events_v1";
 const DETAIL_LS_KEY   = "srwk:alchemy_detail_v1";
 const PROGRAM_PAGE_LS_KEY = "srwk:program_page";
+const PROGRAM_ONBOARDING_PAGE_ID = "onboarding";
+const PROGRAM_ONBOARDING_PAGE = Object.freeze({
+  record_id: PROGRAM_ONBOARDING_PAGE_ID,
+  title: "onboarding",
+  order: -1000,
+  synthetic: true,
+});
 const COLLAB_INTAKE_DRAFT_LS_KEY = "srwk:collab_intake_draft_v1";
 const CONSTELLATION_TIMELINE_LS_KEY = "srwk:constellation_timeline_idx_v1";
 // Per-user zoom for the cohort views (Ctrl/Cmd + scroll, or the corner
@@ -181,7 +194,7 @@ function normalizeDirCols(stored, defaultKeys) {
 // section below this constant for the disabled hooks.
 // `collab` is a Constellation sub-view, not a standalone OS mode. Legacy
 // saved locations that still say "collab" are normalized on restore.
-const ALCHEMY_MODES   = ["membrane", "shapes", "constellation", "calendar", "mirror", "profile", "onboarding", "program", "asks", "context", "activity"];
+const ALCHEMY_MODES   = ["membrane", "shapes", "constellation", "calendar", "mirror", "profile", "program", "asks", "context", "activity"];
 const MEMBRANE_INTRO_LS_KEY = "srwk:membrane_seen_v1";
 const membraneLazy = createLazyModule(() =>
   Promise.all([
@@ -193,6 +206,9 @@ const intelLazy = createLazyModule(() =>
     loadStylesheetOnce("renderer/intel/intel.css"),
     import("./intel/intel.js"),
   ]).then(([, module]) => module));
+// Removal-bound (2026-06-28): context signals/data links now normalize to the
+// evidence view. Keep the bundled intel renderer only until its files can be
+// deleted in a follow-up cleanup without breaking old route shims.
 const calendarLazy = createLazyModule(() =>
   Promise.all([
     loadStylesheetOnce("vendor/shape-ui/cohort-calendar-week.css"),
@@ -220,7 +236,6 @@ export function warmMode(mode) {
     : mode;
   if (normalized === "membrane") return warmLazySurface("membrane", membraneLazy);
   if (normalized === "calendar") return warmLazySurface("calendar", calendarLazy);
-  if (normalized === "context") return warmLazySurface("context", intelLazy);
   return Promise.resolve(null);
 }
 
@@ -299,7 +314,7 @@ const state = {
   constellationTimelineIdx: null,  // selected snapshot index within cohortTimeline.snapshots
   constellationShowDelta: false,
   profile: null,       // local-only: { user, editor state, ... }
-  programPage: null,   // active program-handbook page slug (overview | success | rules | schedule)
+  programPage: null,   // active Program Info page slug (onboarding | overview | success | rules | schedule)
   atlasFocus: null,    // active tag in the atlas view (null = whole-graph mode)
   onboardingJustToggled: null,  // step key that was just marked/unmarked done; consumed by wireOnboarding to scroll-into-view the next step
   openAskComposer: false, // one-shot landing state when membrane sends someone to post
@@ -410,6 +425,14 @@ export function mount(container) {
     // asks merged into the activity feed (2026-06); old saved modes land on
     // the combined asks & activity page.
     if (saved === "asks")      { state.mode = "activity"; localStorage.setItem(ALCHEMY_LS_KEY, "activity"); }
+    // onboarding moved under Program Info (2026-06); old saved modes land on
+    // the Program Info onboarding view instead of a standalone rail page.
+    if (saved === "onboarding") {
+      state.mode = "program";
+      state.programPage = PROGRAM_ONBOARDING_PAGE_ID;
+      localStorage.setItem(ALCHEMY_LS_KEY, "program");
+      localStorage.setItem(PROGRAM_PAGE_LS_KEY, PROGRAM_ONBOARDING_PAGE_ID);
+    }
     if (saved === "constellation" && String(localStorage.getItem(CONST_MODE_LS_KEY) || "").toLowerCase() === "timeline") {
       state.mode = "calendar";
       state.constellationMode = "map";
@@ -423,15 +446,15 @@ export function mount(container) {
       localStorage.setItem(ALCHEMY_LS_KEY, "mirror");
       localStorage.setItem(CONST_MODE_LS_KEY, "map");
     }
-    // Context page view (articles | raw | signals | data) survives reloads.
+    // Context page view (articles | raw | evidence) survives reloads.
     state.contextVault.mode = contextNormalizeView(localStorage.getItem(CONTEXT_VIEW_LS_KEY) || state.contextVault.mode);
-    // intel folded into the context page (2026-06): old intel users land on
-    // the context page's intel view.
+    // intel folded into the context page (2026-06), then retired from the
+    // context nav (2026-06-28): old intel users land on evidence.
     if (saved === "intel") {
       state.mode = "context";
-      state.contextVault.mode = "signals";
+      state.contextVault.mode = "evidence";
       localStorage.setItem(ALCHEMY_LS_KEY, "context");
-      localStorage.setItem(CONTEXT_VIEW_LS_KEY, "signals");
+      localStorage.setItem(CONTEXT_VIEW_LS_KEY, "evidence");
     }
     // Defensive: if state.mode somehow came in as "feed" from a non-
     // localStorage path while FEED_DISABLED is true, reroute to shapes
@@ -492,6 +515,13 @@ export function mount(container) {
         state.detailReturnMode = "context";
         if (state.detailRecordId) {
           localStorage.setItem(DETAIL_LS_KEY, JSON.stringify({ recordId: state.detailRecordId, returnMode: "context" }));
+        }
+      } else if (d?.returnMode === "onboarding") {
+        state.detailReturnMode = "program";
+        state.programPage = PROGRAM_ONBOARDING_PAGE_ID;
+        localStorage.setItem(PROGRAM_PAGE_LS_KEY, PROGRAM_ONBOARDING_PAGE_ID);
+        if (state.detailRecordId) {
+          localStorage.setItem(DETAIL_LS_KEY, JSON.stringify({ recordId: state.detailRecordId, returnMode: "program" }));
         }
       } else if (d?.returnMode && ALCHEMY_MODES.includes(d.returnMode)) {
         state.detailReturnMode = normalizeDetailReturnMode(d.returnMode);
@@ -636,6 +666,12 @@ export function mount(container) {
   syncRailSelection();
   reconcileRailSubnavs();  // booting onto a sub-nav page shows its disclosure expanded right away
   startContextAutoRefresh();
+  try {
+    window.api?.onNotificationTarget?.((payload = {}) => {
+      if ((payload.mode || "activity") !== "activity") return;
+      applyLocation({ mode: "activity", instant: true });
+    });
+  } catch {}
   setTimeout(() => { warmMode(state.mode).catch(() => {}); }, 0);
   loadCohort().then(render).catch(err => {
     console.error("[alchemy] cohort load failed:", err);
@@ -667,6 +703,10 @@ export function getLocation() {
   let mode = state.mode === "collab" ? "constellation" : state.mode;
   if (mode === "intel") mode = "context";
   if (mode === "asks") mode = "activity";
+  if (mode === "onboarding") {
+    mode = "program";
+    if (!state.programPage) state.programPage = PROGRAM_ONBOARDING_PAGE_ID;
+  }
   const loc = { mode, recordId: state.detailRecordId || null };
   if (mode === "constellation") loc.constellationMode = constNormalizeConstellationMode(state.constellationMode);
   if (mode === "program" && state.programPage) loc.programPage = state.programPage;
@@ -682,17 +722,20 @@ export function applyLocation(loc = {}) {
   const legacyPulse = loc.mode === "pulse";
   const legacyIntel = loc.mode === "intel";
   const legacyAsks = loc.mode === "asks";
+  const legacyOnboarding = loc.mode === "onboarding";
   const legacyShipped = loc.mode === "constellation" && String(loc.constellationMode || "").toLowerCase() === "shipped";
   const legacyTimeline = loc.mode === "constellation" && String(loc.constellationMode || "").toLowerCase() === "timeline";
   const mode = legacyCollab ? "constellation"
     : (legacyPulse ? "shapes"
     : (legacyIntel ? "context"
     : (legacyAsks ? "activity"
+    : (legacyOnboarding ? "program"
     : (legacyTimeline ? "calendar"
     : (legacyShipped ? "mirror"
-    : (ALCHEMY_MODES.includes(loc.mode) ? loc.mode : state.mode))))));
-  if (mode === "program" && loc.programPage) {
-    state.programPage = String(loc.programPage);
+    : (ALCHEMY_MODES.includes(loc.mode) ? loc.mode : state.mode)))))));
+  const programPage = legacyOnboarding ? PROGRAM_ONBOARDING_PAGE_ID : loc.programPage;
+  if (mode === "program" && programPage) {
+    state.programPage = String(programPage);
     try { localStorage.setItem(PROGRAM_PAGE_LS_KEY, state.programPage); } catch {}
   }
   if (legacyCollab || mode === "constellation") {
@@ -705,7 +748,7 @@ export function applyLocation(loc = {}) {
     try { localStorage.setItem(CONST_MODE_LS_KEY, "map"); } catch {}
   }
   if (legacyIntel || (mode === "context" && loc.contextView)) {
-    state.contextVault.mode = legacyIntel ? "signals" : contextNormalizeView(loc.contextView);
+    state.contextVault.mode = legacyIntel ? "evidence" : contextNormalizeView(loc.contextView);
     try { localStorage.setItem(CONTEXT_VIEW_LS_KEY, state.contextVault.mode); } catch {}
   }
   if (loc.recordId) {
@@ -920,27 +963,121 @@ function activeDetailCohort() {
 // positioned, so the icon and label never move; it clears once the
 // page is viewed.
 //
-// DISABLED for now (2026-06-11) — flip to true to re-enable the badges.
-// While off, no badge ever renders, but the seen-baseline bookkeeping
-// (markModeSeen / markFingerprintsSeen) keeps running silently so
-// re-enabling won't flood the rail with stale "new" counts.
-const WHATS_NEW_ENABLED = false;
+// Enabled for come-join realtime attention: the same counts also feed the
+// Electron app badge/flash bridge. The baseline still primes silently so old
+// records do not flood the rail on first launch.
+const WHATS_NEW_ENABLED = true;
+
+function loadComeJoinNotificationSet() {
+  try {
+    const raw = localStorage.getItem(COME_JOIN_NOTIFY_LS_KEY);
+    const values = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(values) ? values.map(String).filter(Boolean) : []);
+  } catch { return new Set(); }
+}
+
+function saveComeJoinNotificationSet(values) {
+  try {
+    localStorage.setItem(COME_JOIN_NOTIFY_LS_KEY, JSON.stringify([...values].slice(-200)));
+  } catch {}
+}
+
+function lastComeJoinNotificationMs() {
+  try {
+    const n = Number(localStorage.getItem(COME_JOIN_NOTIFY_LAST_LS_KEY) || 0);
+    return Number.isFinite(n) ? n : 0;
+  } catch { return 0; }
+}
+
+function saveComeJoinNotificationMs(value) {
+  try { localStorage.setItem(COME_JOIN_NOTIFY_LAST_LS_KEY, String(Math.max(0, Number(value) || 0))); } catch {}
+}
+
+function syncAppUnreadCount(count) {
+  try { window.api?.setUnreadCount?.(Math.max(0, Number(count) || 0)); } catch {}
+}
+
+function comeJoinNotificationLine(record) {
+  return [
+    askTopic(record) || "New plan in the cohort",
+    askTimeLabel(record),
+    askLocation(record),
+  ].filter(Boolean).join(" - ");
+}
+
+function comeJoinNotificationPayload(fresh, unreadCount) {
+  const records = fresh.map((row) => row?.record).filter(Boolean);
+  if (records.length <= 1) {
+    const first = records[0] || {};
+    return {
+      kind: "come_join",
+      mode: "activity",
+      title: "Come join",
+      body: comeJoinNotificationLine(first) || "Someone posted a new come join.",
+      count: unreadCount,
+      recordId: first.record_id || "",
+      silent: true,
+      urgency: "low",
+    };
+  }
+  const topics = records
+    .slice(0, 3)
+    .map((record) => askTopic(record) || askTimeLabel(record) || askLocation(record))
+    .filter(Boolean);
+  const more = records.length > topics.length ? ` + ${records.length - topics.length} more` : "";
+  return {
+    kind: "come_join",
+    mode: "activity",
+    title: `${records.length} new come joins`,
+    body: `${topics.join("; ")}${more}` || "New plans in the cohort.",
+    count: unreadCount,
+    recordId: records[0]?.record_id || "",
+    silent: true,
+    urgency: "low",
+  };
+}
+
+function notifyUnreadComeJoin(rows, unreadCount) {
+  if (!Array.isArray(rows) || rows.length === 0) return;
+  const notified = loadComeJoinNotificationSet();
+  const fresh = rows.filter((row) => row?.fingerprint && !notified.has(row.fingerprint));
+  if (!fresh.length) return;
+  for (const row of fresh) notified.add(row.fingerprint);
+  saveComeJoinNotificationSet(notified);
+  const now = Date.now();
+  if (now - lastComeJoinNotificationMs() < COME_JOIN_NOTIFY_COOLDOWN_MS) return;
+  saveComeJoinNotificationMs(now);
+  try { window.api?.notifyCohortPost?.(comeJoinNotificationPayload(fresh, unreadCount)); } catch {}
+}
 
 function updateRailUnread() {
-  if (!state.rail || !state.cohort) return;
+  if (!state.rail || !state.cohort) {
+    syncAppUnreadCount(0);
+    return;
+  }
   if (!WHATS_NEW_ENABLED) {
     // Strip anything a previous session may have painted.
     for (const btn of state.rail.querySelectorAll(".alchemy-rail-btn")) {
       btn.classList.remove("ar-unread");
       btn.querySelector(".ar-unread-badge")?.remove();
     }
+    syncAppUnreadCount(0);
     return;
   }
   const counts = unreadCounts(state.cohort);
+  const unreadActivityRows = unreadRecordsForMode("activity", state.cohort);
+  let askIdentity = {};
+  try { askIdentity = currentAskContext().askIdentity || {}; } catch {}
+  notifyUnreadComeJoin(
+    unreadActivityRows.filter((row) => askIntent(row.record) === "come_join" && !isAskMine(row.record, askIdentity)),
+    counts.activity || 0,
+  );
   const ctxCount = unreadCountForFingerprints("context", contextVaultFingerprints());
   if (ctxCount > 0) counts.context = ctxCount;
   const calCount = unreadCountForFingerprints("calendar-grid", calendarFingerprints());
   if (calCount > 0) counts.calendar = calCount;
+  const totalUnread = Object.values(counts).reduce((sum, n) => sum + (Number(n) || 0), 0);
+  syncAppUnreadCount(totalUnread);
   for (const btn of state.rail.querySelectorAll(".alchemy-rail-btn")) {
     const n = counts[btn.dataset.alchMode] || 0;
     btn.classList.toggle("ar-unread", n > 0);
@@ -1323,6 +1460,14 @@ export function closeMembraneMenu() {
 
 function render(opts = {}) {
   if (!state.canvas || !state.cohort) return;
+  if (state.mode === "onboarding") {
+    state.mode = "program";
+    state.programPage = PROGRAM_ONBOARDING_PAGE_ID;
+    try {
+      localStorage.setItem(ALCHEMY_LS_KEY, "program");
+      localStorage.setItem(PROGRAM_PAGE_LS_KEY, PROGRAM_ONBOARDING_PAGE_ID);
+    } catch {}
+  }
   wireEvidenceTimelineLinks();
   // Monotonic render guard — a delayed cross-fade swap must not overwrite a
   // newer view if the user switched tabs during the 220ms timeout.
@@ -1410,6 +1555,22 @@ function renderActivityMode() {
     </li>`;
   const empty = events.length === 0;
   const newBadge = view.newCount ? ` · <strong>${view.newCount} new</strong>` : "";
+  const activityCount = view.items.length + view.quietCount;
+  const activitySummary = empty
+    ? "waiting"
+    : `${activityCount} ${activityCount === 1 ? "update" : "updates"}${view.newCount ? ` - ${view.newCount} new` : ""}`;
+  const activityBody = empty
+    ? `<div class="alch-activity-empty">No activity yet. Edit your profile, share a transcript, or contest a claim; it shows up here for the whole cohort.</div>`
+    : `<ul class="alch-activity-list">
+        ${view.items.map(itemRow).join("")}
+        ${view.quietCount ? `<li class="alch-activity-quiet">+ ${view.quietCount} quiet profile ${view.quietCount === 1 ? "tidy" : "tidies"}</li>` : ""}
+      </ul>`;
+  const mineBody = view.mine.length
+    ? `<div class="alch-activity-yours">
+        <h3 class="alch-activity-yours-title">your activity</h3>
+        <ul class="alch-activity-list">${view.mine.map(itemRow).join("")}</ul>
+      </div>`
+    : "";
   canvas.innerHTML = `
     <section class="alch-activity alch-asks-activity" data-activity>
       <header class="alch-activity-head">
@@ -1425,18 +1586,16 @@ function renderActivityMode() {
       <div class="alch-asks-activity-board">
         ${renderAsksHtml()}
       </div>
-      ${empty
-        ? `<div class="alch-activity-empty">No activity yet. Edit your profile, share a transcript, or contest a claim — it shows up here for the whole cohort.</div>`
-        : `<ul class="alch-activity-list">
-            ${view.items.map(itemRow).join("")}
-            ${view.quietCount ? `<li class="alch-activity-quiet">+ ${view.quietCount} quiet profile ${view.quietCount === 1 ? "tidy" : "tidies"}</li>` : ""}
-          </ul>`}
-      ${view.mine.length
-        ? `<div class="alch-activity-yours">
-            <h3 class="alch-activity-yours-title">your activity</h3>
-            <ul class="alch-activity-list">${view.mine.map(itemRow).join("")}</ul>
-          </div>`
-        : ""}
+      <details class="alch-activity-stream"${view.newCount ? " open" : ""}>
+        <summary class="alch-activity-stream-head">
+          <span class="alch-activity-stream-title">cohort updates</span>
+          <span class="alch-activity-stream-count">${escHtml(activitySummary)}</span>
+        </summary>
+        <div class="alch-activity-stream-body">
+          ${activityBody}
+          ${mineBody}
+        </div>
+      </details>
     </section>`;
   markSeen(Date.now());
 }
@@ -1477,7 +1636,6 @@ function renderModeContent() {
     else if (state.mode === "constellation") renderConstellation();
     else if (state.mode === "calendar") renderCalendar();
     else if (state.mode === "profile") renderProfile();
-    else if (state.mode === "onboarding") renderOnboarding();
     else if (state.mode === "program") renderProgram();
     else if (state.mode === "mirror") renderSayDidShipped();
     else if (state.mode === "asks") renderActivityMode();
@@ -1501,7 +1659,6 @@ function renderModeContent() {
         else wireConstellationHover();
       }
       if (state.mode === "calendar") wireCalendar();
-      if (state.mode === "onboarding") wireOnboarding();
       if (state.mode === "program") wireProgram();
       if (state.mode === "asks") { wireAsks(); wireActivityMode(); }
       if (state.mode === "context") wireContextVault();
@@ -2231,7 +2388,7 @@ function buildWhatsNewFeed(c) {
     out.push({
       date, kind: 'ask',
       label: a.topic || a.verb || 'ask',
-      meta: `${a.verb || 'ask'} · ask`,
+      meta: `${a.verb || askIntentLabel(a)} · ${askIntentLabel(a)}`,
       nav: { mode: 'activity' },
     });
   }
@@ -2555,8 +2712,8 @@ window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode, opts) {
     render();
     return;
   }
-  // intel lives inside the context page now — jump to its view there.
-  if (mode === "intel") { mode = "context"; opts = { ...(opts || {}), contextView: opts?.contextView || "signals" }; }
+  // intel used to live inside the context page; land old jumps on evidence.
+  if (mode === "intel") { mode = "context"; opts = { ...(opts || {}), contextView: opts?.contextView || "evidence" }; }
   if (mode === "asks") mode = "activity";
   if (mode === "constellation" && String(opts?.constellationMode || "").toLowerCase() === "timeline") {
     mode = "calendar";
@@ -9218,6 +9375,11 @@ function normalizeDetailReturnMode(mode) {
   if (mode === "pulse") return "shapes";
   if (mode === "intel") return "context";
   if (mode === "asks") return "activity";
+  if (mode === "onboarding") {
+    state.programPage = PROGRAM_ONBOARDING_PAGE_ID;
+    try { localStorage.setItem(PROGRAM_PAGE_LS_KEY, PROGRAM_ONBOARDING_PAGE_ID); } catch {}
+    return "program";
+  }
   return ALCHEMY_MODES.includes(mode) ? mode : "shapes";
 }
 
@@ -11545,7 +11707,7 @@ function onbCompleteControl(s) {
     </button>`;
 }
 
-function renderOnboarding() {
+function renderOnboardingHtml() {
   const cohortIndex = buildCohortIndex(state.cohort);
   const people = cohortIndex.people;
   const p       = state.profile || {};
@@ -11787,7 +11949,7 @@ function renderOnboarding() {
   const doneCore   = steps.filter(s => !s.bonus && s.state === "complete").length;
   const corePct    = coreTotal ? Math.round((doneCore / coreTotal) * 100) : 0;
 
-  state.canvas.innerHTML = `
+  return `
     <header class="alch-onb-head">
       <h1 class="alch-onb-title">first week</h1>
       <p class="alch-onb-sub">${coreTotal} core${bonusTotal ? ` · ${bonusTotal} optional` : ""} — <strong>${doneCore} of ${coreTotal} done</strong></p>
@@ -11801,6 +11963,10 @@ function renderOnboarding() {
     <p class="alch-callout"><strong>onboarding · v0.5</strong><br/>
     progress is saved on this machine. steps marked <em>detected</em> read from your synced cohort profile, so they stay done across devices once your profile syncs.</p>
   `;
+}
+
+function renderOnboarding() {
+  state.canvas.innerHTML = renderOnboardingHtml();
 }
 
 // ─── onboarding action modals ───────────────────────────────────────
@@ -12131,7 +12297,8 @@ function wireOnboarding() {
 }
 
 // ─── program handbook ───────────────────────────────────────────────
-// Tabbed renderer over cohort-data/program/*.md. Each page's body_md
+// Program Info combines the synthetic onboarding checklist with the
+// cohort-data/program/*.md pages. Each markdown page's body_md
 // is shipped in the surface bundle; we do a lightweight markdown→HTML
 // pass (enough for headings, paragraphs, em/strong, code, lists, links).
 // Each page has a "edit this page" link that opens github's web editor
@@ -12261,7 +12428,10 @@ function renderProgramMarkdown(md) {
 }
 
 function programPages() {
-  const pages = (state.cohort?.program || []).slice();
+  const pages = [
+    PROGRAM_ONBOARDING_PAGE,
+    ...(state.cohort?.program || []).filter(p => p?.record_id !== PROGRAM_ONBOARDING_PAGE_ID),
+  ];
   // Defensive sort by `order` then record_id; matches the build script.
   pages.sort((a, b) => {
     const ao = Number.isFinite(a.order) ? a.order : 1e9;
@@ -12288,6 +12458,7 @@ function currentProgramPage(pages) {
 // Per-page tab icons — same stroke style as the rail and view navs.
 // Keyed by record_id; unknown pages get the generic document icon.
 const PROGRAM_TAB_ICONS = {
+  onboarding: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"/><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"/><path d="M16 17h4"/><path d="M4 13h4"/></svg>',
   overview: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>',
   rules: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg>',
   schedule: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>',
@@ -12307,6 +12478,13 @@ function renderProgramTabs(pages, current) {
 }
 
 function renderProgramPage(current) {
+  if (current?.record_id === PROGRAM_ONBOARDING_PAGE_ID) {
+    return `
+      <article class="alch-prog-page alch-prog-page-onboarding">
+        ${renderOnboardingHtml()}
+      </article>
+    `;
+  }
   const bodyHtml = renderProgramMarkdown(current.body_md);
   const editPath = `cohort-data/program/${current.record_id}.md`;
   return `
@@ -12393,6 +12571,7 @@ function wireProgram() {
     });
   }
   wireProgramPageActions(state.canvas);
+  if (state.programPage === PROGRAM_ONBOARDING_PAGE_ID) wireOnboarding();
 }
 
 // ─── asks board ─────────────────────────────────────────────────────
@@ -13966,34 +14145,61 @@ function renderAsksHtml() {
   const { people, askIdentity, myHandle, authorSlug } = currentAskContext();
 
   const open = asks.filter(askIsOpen);
+  const openByIntent = {
+    come_join: open.filter((a) => askIntent(a) === "come_join"),
+    ask: open.filter((a) => askIntent(a) === "ask"),
+  };
   const closed = asks.filter(a => !askIsOpen(a));
 
   const renderAsk = (a) => {
     const author = resolveAskAuthor(a, people);
     const authorLabel = author ? (author.name || author.record_id) : (a.author || a.owner || "unknown");
     const dm = dmLinkForPerson(author);
-    const chips = (a.skill_areas || []).map(s => `<span class="alch-asks-chip">${escHtml(s)}</span>`).join("");
+    const intent = askIntent(a);
+    const intentLabel = askIntentLabel(a);
+    const joinedBy = askJoinedBy(a);
+    const joinedByMe = askHasJoined(a, askIdentity);
+    const metaChips = [
+      (a.starts_at || a.start_at || a.date) ? askTimeLabel(a) : "",
+      askExpiresLabel(a),
+      askLocation(a),
+      askContact(a) ? `contact: ${askContact(a)}` : "",
+      askCapacityLabel(a),
+      joinedBy.length ? `${joinedBy.length} going` : "",
+    ].filter(Boolean);
+    const chips = [
+      ...metaChips.map(s => `<span class="alch-asks-chip alch-asks-chip-meta">${escHtml(s)}</span>`),
+      ...(a.skill_areas || []).map(s => `<span class="alch-asks-chip">${escHtml(s)}</span>`),
+    ].join("");
     const isMine = isAskMine(a, askIdentity);
     const claimedByMe = a.claimed_by ? isAskMine({ author: a.claimed_by }, askIdentity) : false;
-    const ageLabel = askAgeLabel(a) || "—";
+    const ageLabel = askTimeLabel(a) || askAgeLabel(a) || "-";
     const status = askStatus(a);
-    const verb = String(a.verb || "ask").trim();
-    const verbGlyph = Array.from(verb)[0] || "·";
-    const verbLabel = Array.from(verb).slice(1).join("").trim() || verb;
-    const verbVars = askVerbVars(verbGlyph);
+    const verbDisplay = askDisplayVerb(a);
     const statusBadge = status === "claimed" ? `<span class="alch-asks-status alch-asks-status-claimed">claimed</span>`
                       : status === "done"    ? `<span class="alch-asks-status alch-asks-status-done">done</span>`
                       : a._expired           ? `<span class="alch-asks-status alch-asks-status-fading">fading</span>`
+                      : intent !== "ask"     ? `<span class="alch-asks-status alch-asks-status-${escAttr(intent)}">${escHtml(intentLabel)}</span>`
                       : "";
     const topic = askTopic(a) || "untitled ask";
     const actions = [];
     if (isMine && status !== "done") {
       actions.push(`<a class="alch-asks-action alch-asks-action-primary alch-asks-action-edit" data-asks-edit="${escAttr(a.record_id)}" href="#">edit</a>`);
-    } else if (status === "open" && !a._expired) {
+    } else if (status === "open" && !a._expired && intent === "come_join") {
+      if (joinedByMe) {
+        actions.push(`<span class="alch-asks-action alch-asks-action-disabled">you're in</span>`);
+      } else if (authorSlug !== "your-slug") {
+        actions.push(`<button class="alch-asks-action alch-asks-action-primary" type="button" data-asks-join="${escAttr(a.record_id)}">${escHtml(askPrimaryActionLabel(a))}</button>`);
+      } else if (dm) {
+        actions.push(`<a class="alch-asks-action alch-asks-action-primary" data-external href="${escAttr(dm.url)}">${escHtml(dm.label)} -></a>`);
+      } else {
+        actions.push(`<span class="alch-asks-action alch-asks-action-disabled">join needs profile</span>`);
+      }
+    } else if (status === "open" && !a._expired && intent === "ask") {
       if (authorSlug !== "your-slug") {
         actions.push(`<button class="alch-asks-action alch-asks-action-primary" type="button" data-asks-claim="${escAttr(a.record_id)}">claim</button>`);
       } else if (dm) {
-        actions.push(`<a class="alch-asks-action alch-asks-action-primary" data-external href="${escAttr(dm.url)}">${escHtml(dm.label)} →</a>`);
+        actions.push(`<a class="alch-asks-action alch-asks-action-primary" data-external href="${escAttr(dm.url)}">${escHtml(dm.label)} -></a>`);
       } else {
         actions.push(`<span class="alch-asks-action alch-asks-action-disabled">claim needs profile</span>`);
       }
@@ -14007,9 +14213,9 @@ function renderAsksHtml() {
       ? `<div class="alch-asks-actions">${actions.join("")}</div>`
       : "";
     return `
-      <details class="alch-asks-card" data-expired="${a._expired ? "1" : "0"}" data-asks-record="${escAttr(a.record_id)}">
+      <details class="alch-asks-card" data-expired="${a._expired ? "1" : "0"}" data-intent="${escAttr(intent)}" data-asks-record="${escAttr(a.record_id)}">
         <summary class="alch-asks-summary">
-          <span class="alch-asks-verb${verbVars ? " has-verb-color" : ""}"${verbVars ? ` style="${verbVars}"` : ""} title="${escAttr(verb)}" aria-label="${escAttr(verbLabel)}">${askVerbIconSvg(verbGlyph) || escHtml(verbGlyph)}</span>
+          <span class="alch-asks-verb${verbDisplay.vars ? " has-verb-color" : ""}"${verbDisplay.vars ? ` style="${verbDisplay.vars}"` : ""} title="${escAttr(verbDisplay.verb)}" aria-label="${escAttr(verbDisplay.label)}">${verbDisplay.icon || escHtml(verbDisplay.glyph || intentLabel)}</span>
           <span class="alch-asks-body">
             <span class="alch-asks-topic" title="${escAttr(topic)}">${escHtml(topic)}</span>
             <span class="alch-asks-meta">
@@ -14053,24 +14259,42 @@ function renderAsksHtml() {
 
   // Common verbs the compose form offers as quick picks. Stays in code
   // (not cohort-data) since it's a tiny vocab that drives nothing else.
-  const ASK_VERB_OPTIONS = [
-    "🤝 pair on",
-    "🎨 need 30 min with",
-    "🔬 brain on",
-    "🧪 try this with me",
-    "📣 looking for",
-    "🪛 help me debug",
+  const ASK_INTENT_OPTIONS = [
+    { key: "ask", label: "ask", hint: "help / pairing" },
+    { key: "come_join", label: "come join", hint: "open plan" },
   ];
-  const askVerbPills = ASK_VERB_OPTIONS.map((v, i) => {
-    const glyph = Array.from(v)[0] || "";
-    const label = Array.from(v).slice(1).join("").trim() || v;
-    const icon = askVerbIconSvg(glyph);
-    const vars = askVerbVars(glyph);
-    return `
-    <button class="alch-asks-verb-pill${vars ? " has-verb-color" : ""}"${vars ? ` style="${vars}"` : ""} type="button" data-asks-verb="${escAttr(v)}" aria-pressed="${i === 0 ? "true" : "false"}">
-      ${icon ? `<span class="alch-asks-verb-pill-icon" aria-hidden="true">${icon}</span>` : ""}<span class="alch-asks-verb-pill-label">${escHtml(label)}</span>
-    </button>`;
-  }).join("");
+  const ASK_VERB_OPTIONS = {
+    ask: [
+      "🤝 pair on",
+      "🎨 need 30 min with",
+      "🔬 brain on",
+      "🧪 try this with me",
+      "📣 looking for",
+      "🪛 help me debug",
+    ],
+    come_join: [
+      "come join",
+      "cowork",
+      "food run",
+      "walk and talk",
+      "after-hours",
+    ],
+  };
+  const initialIntent = "ask";
+  const intentPills = ASK_INTENT_OPTIONS.map((opt) => `
+    <button class="alch-asks-intent-pill" type="button" data-asks-intent="${escAttr(opt.key)}" aria-pressed="${opt.key === initialIntent ? "true" : "false"}">
+      <span>${escHtml(opt.label)}</span>
+      <small>${escHtml(opt.hint)}</small>
+    </button>
+  `).join("");
+  const askVerbMenus = Object.entries(ASK_VERB_OPTIONS).map(([intentKey, options]) => `
+    <select class="alch-asks-verb-select" data-asks-verb-menu="${escAttr(intentKey)}" aria-label="${escAttr(`${askIntentLabel({ intent: intentKey })} kind`)}"${intentKey === initialIntent ? "" : " hidden disabled"}>
+      ${options.map((v, i) => {
+        const display = askDisplayVerb(v, intentKey);
+        return `<option value="${escAttr(v)}"${i === 0 ? " selected" : ""}>${escHtml(display.label)}</option>`;
+      }).join("")}
+    </select>
+  `).join("");
   const openComposer = state.openAskComposer === true;
   state.openAskComposer = false;
 
@@ -14078,34 +14302,61 @@ function renderAsksHtml() {
     <form class="alch-asks-compose" data-author-slug="${escAttr(authorSlug)}" data-today="${escAttr(todayIso)}" data-autofocus="${openComposer ? "1" : "0"}">
       <details class="alch-asks-compose-shell" data-asks-compose-details${openComposer ? " open" : ""}>
         <summary class="alch-asks-compose-head">
-          <span class="alch-asks-compose-title">post an ask</span>
-          <span class="alch-asks-verb-pills" role="group" aria-label="ask type">
-            ${askVerbPills}
+          <span class="alch-asks-compose-title">new post</span>
+          <span class="alch-asks-intent-pills" role="group" aria-label="post intent">
+            ${intentPills}
           </span>
           <span class="alch-asks-compose-caret" aria-hidden="true"></span>
         </summary>
-        <input type="hidden" name="verb" value="${escAttr(ASK_VERB_OPTIONS[0])}" />
+        <input type="hidden" name="intent" value="${escAttr(initialIntent)}" />
+        <input type="hidden" name="verb" value="${escAttr(ASK_VERB_OPTIONS[initialIntent][0])}" />
         <div class="alch-asks-compose-body">
           <div class="alch-asks-compose-grid">
             <label class="alch-asks-compose-field alch-asks-compose-topic">
-              <span class="alch-asks-compose-label">topic</span>
+              <span class="alch-asks-compose-label" data-asks-topic-label>what do you need?</span>
               <textarea name="topic" rows="2" class="alch-asks-compose-input"
                         placeholder="fuzzing the AMM contract — would love 30 min with someone who's done property testing"></textarea>
             </label>
-            <label class="alch-asks-compose-field alch-asks-compose-tags">
-              <span class="alch-asks-compose-label">tags <span class="alch-asks-compose-hint">(comma-separated, from cohort vocab if you can)</span></span>
-              <input name="skill_areas" type="text" class="alch-asks-compose-input" placeholder="tee, dstack, attestation" />
-            </label>
-            <details class="alch-asks-compose-context">
-              <summary>add context</summary>
-              <label class="alch-asks-compose-field">
-                <span class="alch-asks-compose-label">context</span>
-                <textarea name="body" rows="3" class="alch-asks-compose-input" placeholder="links, constraints, what you've tried"></textarea>
-              </label>
+            <div class="alch-asks-compose-toolbar">
+              <span class="alch-asks-compose-label alch-asks-compose-toolbar-label">kind</span>
+              <span class="alch-asks-verb-menu-wrap">${askVerbMenus}</span>
+            </div>
+            <details class="alch-asks-compose-context alch-asks-compose-more">
+              <summary>details if known <span class="alch-asks-compose-hint">time, place, contact, tags</span></summary>
+              <div class="alch-asks-compose-more-grid">
+                <label class="alch-asks-compose-field">
+                  <span class="alch-asks-compose-label">when <span class="alch-asks-compose-hint">(optional)</span></span>
+                  <input name="starts_at" type="text" class="alch-asks-compose-input" placeholder="${escAttr(todayIso)} 18:00, after lunch, next week" />
+                </label>
+                <label class="alch-asks-compose-field">
+                  <span class="alch-asks-compose-label">until <span class="alch-asks-compose-hint">(optional)</span></span>
+                  <input name="expires_at" type="text" class="alch-asks-compose-input" placeholder="2026-06-29 20:00 or when filled" />
+                </label>
+                <label class="alch-asks-compose-field">
+                  <span class="alch-asks-compose-label">where <span class="alch-asks-compose-hint">(optional)</span></span>
+                  <input name="location" type="text" class="alch-asks-compose-input" placeholder="TBD, online, Brooklyn Boulders" />
+                </label>
+                <label class="alch-asks-compose-field">
+                  <span class="alch-asks-compose-label">contact <span class="alch-asks-compose-hint">(optional)</span></span>
+                  <input name="contact" type="text" class="alch-asks-compose-input" placeholder="@handle, Signal, Discord" />
+                </label>
+                <label class="alch-asks-compose-field">
+                  <span class="alch-asks-compose-label">spots <span class="alch-asks-compose-hint">(optional)</span></span>
+                  <input name="capacity" type="text" class="alch-asks-compose-input" placeholder="3" />
+                </label>
+                <label class="alch-asks-compose-field alch-asks-compose-more-full">
+                  <span class="alch-asks-compose-label">tags <span class="alch-asks-compose-hint">(optional)</span></span>
+                  <input name="skill_areas" type="text" class="alch-asks-compose-input" placeholder="tee, dstack, social, climbing" />
+                </label>
+                <label class="alch-asks-compose-field alch-asks-compose-more-full">
+                  <span class="alch-asks-compose-label">context</span>
+                  <textarea name="body" rows="3" class="alch-asks-compose-input" placeholder="links, constraints, what you've tried"></textarea>
+                </label>
+              </div>
             </details>
           </div>
           <div class="alch-asks-compose-row">
-            <button class="alch-feed-btn alch-asks-compose-submit" type="submit">submit → open PR</button>
+            <button class="alch-feed-btn alch-asks-compose-submit" type="submit">review post</button>
             <span class="alch-asks-compose-author">${
               authorSlug === "your-slug"
                 ? "claim your cohort profile before posting"
@@ -14117,7 +14368,9 @@ function renderAsksHtml() {
       </details>
     </form>
 
-    ${section("open", open, "no open asks.")}
+    ${section(askIntentSection({ intent: "come_join" }), openByIntent.come_join, "no plans open to join.")}
+
+    ${section(askIntentSection({ intent: "ask" }), openByIntent.ask, "no open asks.")}
 
     ${section("closed", closed, "nothing closed yet.")}
   `;
@@ -14141,8 +14394,22 @@ function askTagsBlock(skillAreas) {
     : "skill_areas: []";
 }
 
+function askYamlListBlock(name, values) {
+  const list = (Array.isArray(values) ? values : [])
+    .map(s => String(s).trim())
+    .filter(Boolean);
+  return list.length
+    ? `${name}:\n` + list.map(s => `  - ${quoteYaml(s)}`).join("\n")
+    : "";
+}
+
+function askOptionalScalarLine(name, value) {
+  const s = String(value || "").trim();
+  return s ? `${name}: ${quoteYaml(s)}\n` : "";
+}
+
 function askBodyOrPlaceholder(body) {
-  if (body == null) return "\n(optional body — extra context for the ask.)\n";
+  if (body == null) return "\n(optional body — extra context for the post.)\n";
   const s = String(body);
   return s.startsWith("\n") ? s : `\n${s}`;
 }
@@ -14150,15 +14417,18 @@ function askBodyOrPlaceholder(body) {
 function buildAskMarkdown(ask, overrides = {}, body = null) {
   const merged = { ...ask, ...overrides };
   const claimedBy = String(merged.claimed_by || "").trim();
+  const joinedByBlock = askYamlListBlock("joined_by", askJoinedBy(merged));
   return `---
 record_id: ${merged.record_id}
 record_type: ask
 schema_version: ${merged.schema_version || 1}
 posted_at: ${askPostedDate(merged)}
 author: ${quoteYaml(merged.author || "your-slug")}
+intent: ${quoteYaml(askIntent(merged))}
 verb: ${quoteYaml(merged.verb || "🤝 pair on")}
 topic: ${yamlScalar(askTopic(merged) || "untitled ask", 2)}
 ${askTagsBlock(merged.skill_areas)}
+${askOptionalScalarLine("starts_at", merged.starts_at || merged.start_at || merged.date)}${askOptionalScalarLine("expires_at", merged.expires_at || merged.ends_at || merged.end_at)}${askOptionalScalarLine("location", merged.location || merged.where)}${askOptionalScalarLine("contact", merged.contact || merged.contact_info || merged.how_to_reach)}${askOptionalScalarLine("capacity", merged.capacity || merged.spots)}${joinedByBlock ? `${joinedByBlock}\n` : ""}
 status: ${quoteYaml(askStatus(merged))}
 ${claimedBy ? `claimed_by: ${quoteYaml(claimedBy)}\n` : ""}---${askBodyOrPlaceholder(body)}`;
 }
@@ -14166,7 +14436,7 @@ ${claimedBy ? `claimed_by: ${quoteYaml(claimedBy)}\n` : ""}---${askBodyOrPlaceho
 function cleanAskBody(body) {
   const s = String(body || "").trim();
   if (!s) return "";
-  if (/^\(optional body\s+—\s+extra context for the ask\.\)$/i.test(s)) return "";
+  if (/^\(optional body\s+—\s+extra context for the (ask|post)\.\)$/i.test(s)) return "";
   if (/^\(this is a seed example so the asks tab isn't empty/i.test(s)) return "";
   return s;
 }
@@ -14229,6 +14499,53 @@ async function launchAskStatusUpdate(el, recordId, nextStatus) {
   if (note) wireExternalLinks(note);
 }
 
+async function launchAskJoinUpdate(el, recordId) {
+  const ask = findRenderedAsk(recordId);
+  if (!ask) {
+    askRowNote(el, `<span class="alch-onb-inline-tag">missing</span> post record not found.`, "error");
+    return;
+  }
+  const { authorSlug } = currentAskContext();
+  if (authorSlug === "your-slug") {
+    askRowNote(el, `<span class="alch-onb-inline-tag">profile</span> claim your profile before joining.`, "error");
+    return;
+  }
+  const current = askJoinedBy(ask);
+  const mine = normalizeAskIdentity(authorSlug);
+  const joined = current.some((value) => normalizeAskIdentity(value) === mine)
+    ? current
+    : [...current, authorSlug];
+  const path = askMarkdownPath(recordId);
+  askRowNote(el, `<span class="alch-onb-inline-tag">preparing</span> adding you to this plan...`);
+  const body = await fetchExistingBody(path);
+  const markdown = buildAskMarkdown(ask, { joined_by: joined, status: askStatus(ask) }, body);
+  let copied = false;
+  try {
+    if (window.api?.clipboardWrite) {
+      const res = await window.api.clipboardWrite(markdown);
+      copied = !res || res.ok !== false;
+    }
+  } catch {}
+  const launched = await launchPRFlow({ kind: "edit", path, value: markdown });
+  if (!launched.ok) {
+    askRowNote(el, `<span class="alch-onb-inline-tag">fork first</span> create your fork, then click join again.`, "error");
+    return;
+  }
+  askRowNote(el, `
+    <span class="alch-onb-inline-tag">github opened</span>
+    ${copied
+      ? `replacement markdown copied — paste it over the file in github, then commit the join update and create the PR.`
+      : `copy the replacement markdown below, paste it over the file in github, then commit the join update and create the PR.`}
+    <a class="alch-onb-inline-link" href="${escAttr(launched.url)}" data-external>reopen</a>
+    <details class="alch-asks-compose-preview">
+      <summary>replacement markdown</summary>
+      <pre class="alch-onb-inline-patch">${escHtml(markdown)}</pre>
+    </details>
+  `, "success");
+  const note = el?.closest?.(".alch-asks-card")?.querySelector?.("[data-asks-row-note]");
+  if (note) wireExternalLinks(note);
+}
+
 async function loadAskContextForCard(card, recordId) {
   const panel = card?.querySelector?.("[data-asks-context-panel]");
   if (!panel || !recordId) return null;
@@ -14243,7 +14560,7 @@ async function loadAskContextForCard(card, recordId) {
   panel.dataset.loaded = "1";
   panel.innerHTML = body
     ? `<pre>${escHtml(body)}</pre>`
-    : `<span class="alch-onb-inline-tag">context</span> no extra context in this ask.`;
+    : `<span class="alch-onb-inline-tag">context</span> no extra context in this post.`;
   return panel;
 }
 
@@ -14254,16 +14571,22 @@ async function loadAskContextForCard(card, recordId) {
 async function submitAskCompose(form) {
   const authorSlug = form.dataset.authorSlug || "your-slug";
   const todayIso   = form.dataset.today || new Date().toISOString().slice(0, 10);
+  const intent     = askIntent({ intent: form.elements.intent?.value || "ask" });
   const verb       = String(form.elements.verb?.value || "🤝 pair on").trim();
   const topic      = String(form.elements.topic?.value || "").trim();
   const tagsRaw    = String(form.elements.skill_areas?.value || "").trim();
+  const startsAt   = String(form.elements.starts_at?.value || "").trim();
+  const expiresAt  = String(form.elements.expires_at?.value || "").trim();
+  const location   = String(form.elements.location?.value || "").trim();
+  const contact    = String(form.elements.contact?.value || "").trim();
+  const capacity   = String(form.elements.capacity?.value || "").trim();
   const bodyRaw    = String(form.elements.body?.value || "").trim();
   const result     = form.querySelector(".alch-asks-compose-result");
   if (!result) return;
 
   if (authorSlug === "your-slug") {
     result.hidden = false;
-    result.innerHTML = `<p class="alch-onb-inline-line alch-onb-inline-err">claim your cohort profile before posting an ask.</p>`;
+    result.innerHTML = `<p class="alch-onb-inline-line alch-onb-inline-err">claim your cohort profile before posting.</p>`;
     return;
   }
 
@@ -14284,24 +14607,24 @@ async function submitAskCompose(form) {
   const hash = h.toString(36).slice(0, 4);
   const recordId = `${authorSlug}-${todayIso}-${hash}`;
 
-  // Build the markdown body. quoteYaml + yamlScalar handle quoting + multiline.
-  const tagsBlock = skillAreas.length
-    ? "skill_areas:\n" + skillAreas.map(s => `  - ${quoteYaml(s)}`).join("\n")
-    : "skill_areas: []";
-  const bodyBlock = bodyRaw
-    ? `\n${bodyRaw}\n`
-    : "\n(optional body — extra context for the ask.)\n";
-  const askMarkdown = `---
-record_id: ${recordId}
-record_type: ask
-schema_version: 1
-posted_at: ${todayIso}
-author: ${quoteYaml(authorSlug)}
-verb: ${quoteYaml(verb)}
-topic: ${yamlScalar(topic, 2)}
-${tagsBlock}
-status: open
----${bodyBlock}`;
+  const askMarkdown = buildAskMarkdown({
+    record_id: recordId,
+    record_type: "ask",
+    schema_version: 1,
+    posted_at: todayIso,
+    author: authorSlug,
+    intent,
+    verb,
+    topic,
+    skill_areas: skillAreas,
+    starts_at: startsAt,
+    expires_at: expiresAt,
+    location,
+    contact,
+    capacity,
+    status: "open",
+    joined_by: intent === "come_join" ? [authorSlug] : [],
+  }, {}, bodyRaw || null);
   const filename = `cohort-data/asks/${recordId}.md`;
 
   // Fork-aware launch. needs-fork pops a modal; ready opens the URL on
@@ -14340,16 +14663,43 @@ function wireAsks() {
   // Compose form: build the full markdown content from the form values
   // and open github's /new/ URL with that content prefilled.
   for (const form of state.canvas.querySelectorAll("form.alch-asks-compose")) {
+    const intentInput = form.elements.intent;
     const verbInput = form.elements.verb;
     const composeDetails = form.querySelector("[data-asks-compose-details]");
-    for (const b of form.querySelectorAll("[data-asks-verb]")) {
+    const setIntent = (intent) => {
+      const next = askIntent({ intent });
+      if (intentInput) intentInput.value = next;
+      form.querySelectorAll("[data-asks-intent]").forEach((x) => {
+        x.setAttribute("aria-pressed", x.dataset.asksIntent === next ? "true" : "false");
+      });
+      let activeMenu = null;
+      form.querySelectorAll("[data-asks-verb-menu]").forEach((x) => {
+        const visible = x.dataset.asksVerbMenu === next;
+        x.hidden = !visible;
+        x.disabled = !visible;
+        if (visible) activeMenu = x;
+      });
+      if (activeMenu && verbInput) verbInput.value = activeMenu.value || "";
+      const topic = form.elements.topic;
+      if (topic && !String(topic.value || "").trim()) {
+        topic.placeholder = next === "come_join"
+          ? "going rock climbing after lunch — come join if you want to move"
+          : "fuzzing the AMM contract — would love 30 min with someone who's done property testing";
+      }
+      const topicLabel = form.querySelector("[data-asks-topic-label]");
+      if (topicLabel) topicLabel.textContent = next === "come_join" ? "what is happening?" : "what do you need?";
+    };
+    for (const b of form.querySelectorAll("[data-asks-intent]")) {
       b.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (verbInput) verbInput.value = b.dataset.asksVerb || "";
-        form.querySelectorAll("[data-asks-verb]").forEach((x) => {
-          x.setAttribute("aria-pressed", x === b ? "true" : "false");
-        });
+        setIntent(b.dataset.asksIntent || "ask");
+        if (composeDetails) composeDetails.open = true;
+      });
+    }
+    for (const menu of form.querySelectorAll("[data-asks-verb-menu]")) {
+      menu.addEventListener("change", () => {
+        if (verbInput) verbInput.value = menu.value || "";
         if (composeDetails) composeDetails.open = true;
         if (!String(form.elements.topic?.value || "").trim()) {
           requestAnimationFrame(() => form.elements.topic?.focus?.());
@@ -14375,6 +14725,12 @@ function wireAsks() {
     b.addEventListener("click", async (e) => {
       e.preventDefault();
       await launchAskStatusUpdate(b, b.dataset.asksClaim, "claimed");
+    });
+  }
+  for (const b of state.canvas.querySelectorAll("[data-asks-join]")) {
+    b.addEventListener("click", async (e) => {
+      e.preventDefault();
+      await launchAskJoinUpdate(b, b.dataset.asksJoin);
     });
   }
   for (const b of state.canvas.querySelectorAll("[data-asks-done]")) {
@@ -14541,21 +14897,20 @@ async function selectContextSource(sourceId) {
   render();
 }
 
-// The context page's views. Articles + transcripts come from the local
-// vault; signals + data are the bundled intel module (folded in 2026-06).
+// The context page's views. Articles + transcripts come from the local vault;
+// evidence is the reviewed/public-safe transcript-card lane. The old
+// signals/data intel views are hidden and normalize here for compatibility.
 function contextNormalizeView(raw) {
   const v = String(raw || "").toLowerCase();
   if (v === "transcripts") return "raw";
-  if (v === "intel") return "signals";
   if (v === "cards") return "evidence";
-  return (v === "articles" || v === "raw" || v === "signals" || v === "data" || v === "evidence") ? v : "articles";
+  if (v === "intel" || v === "signals" || v === "data") return "evidence";
+  return (v === "articles" || v === "raw" || v === "evidence") ? v : "articles";
 }
 
 const CONTEXT_VIEWS = [
   { view: "articles", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>', label: "articles", hint: "reader-facing drafts from the vault" },
   { view: "raw",      glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="21" x2="3" y1="6" y2="6"/><line x1="15" x2="3" y1="12" y2="12"/><line x1="17" x2="3" y1="18" y2="18"/></svg>', label: "transcripts", hint: "your local raw vault + the cohort's distilled readouts (live)" },
-  { view: "signals",  glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>', label: "signals", hint: "vault-backed reads on cohort moves" },
-  { view: "data",     glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>', label: "data", hint: "sanitized entity graph behind the signals" },
   { view: "evidence", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg>', label: "evidence", hint: "distilled evidence cards, live from Supabase" },
 ];
 
@@ -15272,6 +15627,34 @@ function contextEvidenceCardHtml(card) {
   `;
 }
 
+function contextEvidenceMovesHtml(cards) {
+  const cohort = activeConstellationCohort();
+  const moves = evidenceMoveCards(cards, cohort?.teams || [], { limit: 3 });
+  if (!moves.length) return "";
+  return `
+    <section class="alch-ev-moves" aria-label="suggested evidence moves">
+      ${moves.map((move) => `
+        <article class="alch-ev-move" data-move-kind="${escAttr(move.kind)}">
+          <header class="alch-ev-move-head">
+            <span class="alch-ev-type">${escHtml(move.kind)}</span>
+            <span class="alch-ev-prov">${move.receipts.map(escHtml).join(" · ")}</span>
+          </header>
+          <h3 class="alch-ev-move-title">${escHtml(move.title)}</h3>
+          <p class="alch-ev-move-claim">${escHtml(constShortText(move.claim, 190))}</p>
+          <dl class="alch-ev-move-fields">
+            <div><dt>move</dt><dd>${escHtml(move.coordinatorMove)}</dd></div>
+            <div><dt>watch</dt><dd>${escHtml(move.watchFor)}</dd></div>
+            <div><dt>limit</dt><dd>${escHtml(move.limits)}</dd></div>
+          </dl>
+          <div class="alch-ev-move-teams">
+            ${move.teams.map((teamId) => `<button type="button" class="alch-ev-move-team" data-evt-team="${escAttr(teamId)}">${escHtml(evTeamName(teamId))}</button>`).join("")}
+          </div>
+        </article>
+      `).join("")}
+    </section>
+  `;
+}
+
 const EVIDENCE_TIER_LS_KEY = "srfg:evidence_tier";
 
 // Split the live evidence read into its two tiers. transcript_evidence_cards
@@ -15518,15 +15901,17 @@ function renderContextEvidence(tier, t3cards, t2cards, insights) {
     const named = Array.isArray(t2cards) ? t2cards : [];
     const readouts = Array.isArray(insights) ? insights : [];
     const total = named.length + readouts.length;
+    const moves = contextEvidenceMovesHtml(named);
     const body = total
-      ? `<p class="alch-ev-lede">${total} named cohort evidence ${total === 1 ? "card" : "cards"} — team- and person-attributed, read live from Supabase. Switch to <em>generalized</em> for the person-anonymized public view.</p>
+      ? `${moves}<p class="alch-ev-lede">${total} named cohort evidence ${total === 1 ? "card" : "cards"} — team- and person-attributed, read live from Supabase. Switch to <em>generalized</em> for the person-anonymized public view.</p>
          <div class="alch-ev-grid">${named.map(contextEvidenceCardHtml).join("")}${readouts.map(contextSessionSummaryHtml).join("")}</div>`
       : `<p class="alch-cv-muted alch-ev-empty">No named cohort evidence in this build. The named tier reads the gated Supabase view (cohort_app_transcript_evidence_cards), which needs the cohort key — without it the app shows the <em>generalized</em> public tier only.</p>`;
     return `${toggle}${body}`;
   }
   const cards = Array.isArray(t3cards) ? t3cards : [];
+  const moves = contextEvidenceMovesHtml(cards);
   const body = cards.length
-    ? `<p class="alch-ev-lede">${cards.length} distilled evidence card${cards.length === 1 ? "" : "s"}, read live from Supabase — person-anonymized, team-attributed, published.</p>
+    ? `${moves}<p class="alch-ev-lede">${cards.length} distilled evidence card${cards.length === 1 ? "" : "s"}, read live from Supabase — person-anonymized, team-attributed, published.</p>
        <div class="alch-ev-grid">${cards.map(contextEvidenceCardHtml).join("")}</div>`
     : `<p class="alch-cv-muted alch-ev-empty">No distilled evidence cards yet. These load live from Supabase once cohort sessions are distilled, reviewed, and published.</p>`;
   return `${toggle}${body}`;
@@ -15599,7 +15984,6 @@ function renderContextVault() {
   const manifest = cv.manifest || null;
   const sources = contextArticleSources(manifest);
   const rawScripts = manifest?.raw_scripts || [];
-  const intelMeta = contextIntelMeta();
   // Context views moved to the rail sub-nav (left panel) — the page no longer
   // renders its own in-page tab strip. (contextViewNav is retired.)
   const nav = "";
@@ -15619,8 +16003,8 @@ function renderContextVault() {
     return;
   }
 
-  // Intel views — the embedded signals/data module renders below the same
-  // page header the vault views use.
+  // Removal-bound compatibility: signals/data normalize to evidence before this
+  // point. Keep this branch only until the bundled intel files are deleted.
   if (view === "signals" || view === "data") {
     state.canvas.innerHTML = `
       <section class="alch-cv">
@@ -16979,6 +17363,33 @@ function renderTeamProgressRollup(recordId) {
   return renderDisclosureSection("progress · declared vs observed", body, false, preview, "alch-detail-progress");
 }
 
+function renderEvidenceNeighbors(recordId) {
+  const cohort = activeConstellationCohort();
+  const rows = rankEvidenceNeighbors(cohortEvidenceIndex(), cohort?.teams || [], recordId, { limit: 5 });
+  if (!rows.length) return "";
+  const body = `
+    <div class="ac-neighbors">
+      ${rows.map((row) => {
+        const bits = [
+          row.edgeCount ? `${row.edgeCount} collab edge${row.edgeCount === 1 ? "" : "s"}` : "",
+          row.sharedWeekCount ? `${row.sharedWeekCount} shared week${row.sharedWeekCount === 1 ? "" : "s"}` : "",
+          row.latestWeek ? `latest ${row.latestWeek}` : "",
+        ].filter(Boolean);
+        return `
+          <button type="button" class="ac-neighbor-row" data-directory-record="${escAttr(row.id)}" title="${escAttr(`open ${row.name}`)}">
+            <span class="ac-neighbor-main">
+              <strong>${escHtml(row.name)}</strong>
+              <small>${escHtml(constShortText(row.reason, 115))}</small>
+            </span>
+            <span class="ac-neighbor-meta">${bits.map(escHtml).join(" · ")}</span>
+          </button>
+        `;
+      }).join("")}
+    </div>`;
+  const preview = rows.slice(0, 2).map((row) => row.name).join(" · ");
+  return renderDisclosureSection("neighbors from evidence", body, false, preview, "alch-detail-neighbors");
+}
+
 function renderWorkstreamTimeline(recordId) {
   const tl = teamTimeline(cohortEvidenceIndex(), recordId);
   if (!tl.length) return "";
@@ -17279,6 +17690,7 @@ function renderTeamDetail(team) {
           ${renderDisclosureSection("assessment / plan", detailRows(assessmentRows), false, assessmentPreview)}
           ${renderDisclosureSection("evidence", detailRows(evidenceRows), false, evidencePreview)}
           ${renderTeamProgressRollup(recordId)}
+          ${renderEvidenceNeighbors(recordId)}
           ${renderWorkstreamTimeline(recordId)}
           ${renderTeamReleases(recordId)}
           ${renderDisclosureSection("coordination", detailRows(coordinationRows), false, coordinationPreview)}

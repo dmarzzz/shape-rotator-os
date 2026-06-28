@@ -6,7 +6,7 @@ import test from "node:test";
 const sourcePath = path.resolve("apps/os/src/renderer/whats-new.js");
 const source = fs.readFileSync(sourcePath, "utf8");
 const mod = await import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
-const { markModeSeen, unreadCounts } = mod;
+const { markModeSeen, unreadCounts, unreadRecordsForMode } = mod;
 
 function installLocalStorage() {
   const store = new Map();
@@ -55,6 +55,19 @@ test("markModeSeen clears an unread mode by storing the current fingerprints", (
   assert.deepEqual(unreadCounts(next), { activity: 1 });
   markModeSeen("activity", next);
   assert.deepEqual(unreadCounts(next), {});
+});
+
+test("unreadRecordsForMode returns unread activity records without priming", () => {
+  installLocalStorage();
+  const next = surface({ asks: [{ record_id: "join-a", intent: "come_join", topic: "Rock climbing" }] });
+
+  assert.deepEqual(unreadRecordsForMode("activity", next), []);
+  unreadCounts(surface());
+  const rows = unreadRecordsForMode("activity", next);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].record.record_id, "join-a");
+  markModeSeen("activity", next);
+  assert.deepEqual(unreadRecordsForMode("activity", next), []);
 });
 
 test("legacy asks mode marks the merged activity source seen", () => {

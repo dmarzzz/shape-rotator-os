@@ -26,6 +26,16 @@ function cardWeek(card) {
   return String(cj.week_start || cj.date || "").slice(0, 10) || "undated";
 }
 function unorderedPair(a, b) { return a < b ? `${a}|${b}` : `${b}|${a}`; }
+function teamNameMap(teams = []) {
+  const names = new Map();
+  for (const team of Array.isArray(teams) ? teams : []) {
+    if (team && team.record_id) names.set(String(team.record_id), String(team.name || team.record_id));
+  }
+  return names;
+}
+function displayTeamName(names, id) {
+  return names.get(id) || String(id || "").replace(/-/g, " ");
+}
 
 // claim_type → the lane the timeline groups/colours it under. Mirrors the bucket
 // sets above so the dossier timeline and the per-view enrichers agree on meaning.
@@ -261,6 +271,159 @@ export function weekHistogram(index) {
   const out = [];
   for (const [week, cards] of (index && index.byWeek ? index.byWeek : new Map())) out.push({ week, count: cards.length });
   return out.filter((w) => w.week !== "undated").sort((a, b) => a.week.localeCompare(b.week));
+}
+
+function confidenceScore(value) {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0.6;
+}
+
+function moveKind(type) {
+  if (EDGE.has(type)) return "collaboration";
+  if (RISK.has(type)) return "risk";
+  if (ASK.has(type)) return "ask";
+  if (PMF.has(type)) return "signal";
+  if (DID.has(type)) return "followup";
+  return "insight";
+}
+
+function moveTitle(kind, teams, names) {
+  const label = teams.slice(0, 3).map((id) => displayTeamName(names, id)).join(" + ");
+  if (kind === "collaboration") return `Stage ${label || "these teams"} around the observed overlap`;
+  if (kind === "risk") return `Turn the ${label || "team"} risk into an owner/test`;
+  if (kind === "ask") return `Route the ${label || "team"} ask before it goes cold`;
+  if (kind === "signal") return `Convert the ${label || "team"} signal into a proof card`;
+  if (kind === "followup") return `Close the loop on ${label || "this"} evidence`;
+  return `Make the ${label || "cohort"} insight actionable`;
+}
+
+function coordinatorMove(kind, teams, names) {
+  const label = teams.slice(0, 3).map((id) => displayTeamName(names, id)).join(" + ");
+  if (kind === "collaboration") return `Ask ${label || "the mapped teams"} for one shared next artifact, session, or intro request.`;
+  if (kind === "risk") return `Name the owner, the smallest de-risking test, and the date the cohort should re-check it.`;
+  if (kind === "ask") return `Pair the ask with one likely helper and require a concrete next contact path.`;
+  if (kind === "signal") return `Write the user, proof metric, and next pilot surface while the signal is fresh.`;
+  if (kind === "followup") return `Turn the decision/action into a dated follow-up so observed progress can be checked.`;
+  return `Promote this into a concrete cohort move only if the next owner and proof are clear.`;
+}
+
+function watchFor(kind) {
+  if (kind === "collaboration") return "A follow-up card or declared dependency involving the same teams.";
+  if (kind === "risk") return "A dated mitigation, clearer blocker owner, or a new risk card with lower uncertainty.";
+  if (kind === "ask") return "A claim, join, intro, or session note that shows the ask was actually routed.";
+  if (kind === "signal") return "A named pilot user, proof metric, or repeated evidence in a later week.";
+  if (kind === "followup") return "A later shipped/decision card that closes the loop.";
+  return "Repeated evidence, named owner, or a public-safe receipt before treating this as strategy.";
+}
+
+function moveLimit(card, teams) {
+  const basis = card?.content_json?.teams_basis === "inferred" ? "Team attribution is inferred." : "Team attribution comes from the evidence card.";
+  if (!teams.length) return "No team attribution; keep this as a general note until an owner is named.";
+  return `${basis} Treat this as a prompt, not a commitment.`;
+}
+
+export function evidenceMoveCards(cards = [], teams = [], { limit = 4 } = {}) {
+  const names = teamNameMap(teams);
+  const rows = [];
+  for (const card of Array.isArray(cards) ? cards : []) {
+    if (!card || typeof card !== "object") continue;
+    const claim = String(card.claim_text || card.summary || card.title || "").trim();
+    if (!claim) continue;
+    const teamIds = cardTeams(card);
+    if (!teamIds.length) continue;
+    const type = String(card.claim_type || "insight");
+    const kind = moveKind(type);
+    const week = cardWeek(card);
+    const score = (teamIds.length > 1 ? 0.18 : 0) + confidenceScore(card.confidence)
+      + (kind === "collaboration" ? 0.35 : kind === "risk" || kind === "ask" ? 0.2 : 0)
+      + (week === "undated" ? 0 : 0.08);
+    rows.push({
+      id: String(card.id || `${type}:${week}:${claim.slice(0, 24)}`),
+      kind,
+      title: moveTitle(kind, teamIds, names),
+      claim,
+      teams: teamIds,
+      coordinatorMove: coordinatorMove(kind, teamIds, names),
+      watchFor: watchFor(kind),
+      limits: moveLimit(card, teamIds),
+      receipts: [type.replace(/_/g, " "), week === "undated" ? "" : week, String(card.evidence_level || "").replace(/_/g, " ")].filter(Boolean),
+      score,
+    });
+  }
+  rows.sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
+  return rows.slice(0, Math.max(0, Number(limit) || 0));
+}
+
+function teamSkillTokens(team) {
+  return attrTokens([
+    team && team.focus,
+    team && team.domain,
+    ...(Array.isArray(team && team.skill_areas) ? team.skill_areas : []),
+  ].filter(Boolean).join(" "));
+}
+
+export function rankEvidenceNeighbors(index, teams = [], teamId, { limit = 6 } = {}) {
+  const target = String(teamId || "").trim();
+  if (!target || !index) return [];
+  const byId = new Map((Array.isArray(teams) ? teams : []).filter((t) => t && t.record_id).map((t) => [String(t.record_id), t]));
+  if (!byId.has(target)) return [];
+  const scores = new Map();
+  const ensure = (id) => {
+    if (!id || id === target || !byId.has(id)) return null;
+    if (!scores.has(id)) scores.set(id, { id, score: 0, edgeCount: 0, sharedWeeks: new Set(), latestWeek: "", reasons: [] });
+    return scores.get(id);
+  };
+
+  for (const edge of (index.edges || [])) {
+    const other = edge.a === target ? edge.b : edge.b === target ? edge.a : "";
+    const row = ensure(other);
+    if (!row) continue;
+    row.score += 4 + confidenceScore(edge.card && edge.card.confidence);
+    row.edgeCount += 1;
+    if (edge.week && edge.week !== "undated") {
+      row.sharedWeeks.add(edge.week);
+      if (edge.week > row.latestWeek) row.latestWeek = edge.week;
+    }
+    const reason = String((edge.card && (edge.card.title || edge.card.claim_text)) || "").trim();
+    if (reason) row.reasons.push(reason);
+  }
+
+  for (const [week, weekCards] of (index.byWeek || new Map())) {
+    const hasTarget = (weekCards || []).some((card) => cardTeams(card).includes(target));
+    if (!hasTarget) continue;
+    const others = new Set();
+    for (const card of weekCards || []) for (const id of cardTeams(card)) if (id !== target) others.add(id);
+    for (const id of others) {
+      const row = ensure(id);
+      if (!row) continue;
+      row.score += 1.2;
+      if (week && week !== "undated") {
+        row.sharedWeeks.add(week);
+        if (week > row.latestWeek) row.latestWeek = week;
+      }
+    }
+  }
+
+  const targetTokens = teamSkillTokens(byId.get(target));
+  for (const [id, row] of scores) {
+    const otherTokens = teamSkillTokens(byId.get(id));
+    let overlap = 0;
+    for (const tok of targetTokens) if (otherTokens.has(tok)) overlap += 1;
+    if (overlap) row.score += Math.min(1.5, overlap * 0.3);
+  }
+
+  return [...scores.values()]
+    .map((row) => ({
+      id: row.id,
+      name: displayTeamName(teamNameMap(teams), row.id),
+      score: Number(row.score.toFixed(3)),
+      edgeCount: row.edgeCount,
+      sharedWeekCount: row.sharedWeeks.size,
+      latestWeek: row.latestWeek,
+      reason: row.reasons[0] || (row.edgeCount ? "Observed collaboration edge" : "Shared active evidence week"),
+    }))
+    .sort((a, b) => b.score - a.score || b.edgeCount - a.edgeCount || a.name.localeCompare(b.name))
+    .slice(0, Math.max(0, Number(limit) || 0));
 }
 
 function confidenceLabel(value) {

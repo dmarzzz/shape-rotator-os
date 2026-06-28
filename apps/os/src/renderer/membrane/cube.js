@@ -97,7 +97,7 @@ export const BLOB_PROFILES = {
   self:   { label: 'self',   sub: 'your shape',        rimColor: '#FFE6D4', baseColor: '#c43914' },
   cohort: { label: 'cohort', sub: 'the constellation', rimColor: '#D4E0FF', baseColor: '#3850a8' },
   events: { label: 'events', sub: 'who is here when',  rimColor: '#D4F0E2', baseColor: '#2a7a60' },
-  asks:   { label: 'asks',   sub: 'open pairings',     rimColor: '#FFE9B8', baseColor: '#d49a1a' },
+  asks:   { label: 'asks',   sub: 'asks and plans',    rimColor: '#FFE9B8', baseColor: '#d49a1a' },
 };
 
 // ─── psychedelic cube shader ─────────────────────────────────────────────

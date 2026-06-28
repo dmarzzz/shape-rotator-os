@@ -99,16 +99,14 @@ function buildCatalog() {
       nav: () => { window.__srwkGoTab?.("alchemy"); window.__srwkAlchemyJump?.(mode); },
     });
   });
-  // In-page views folded into the cohort + context pages (2026-06). They no
-  // longer have rail buttons, so list them here to keep "constellation",
-  // "collab board", and "intel" launchable from search.
+  // In-page views folded into the cohort page (2026-06). They no longer have
+  // rail buttons, so list them here to keep "constellation" and "collab board"
+  // launchable from search.
   const FOLDED_VIEWS = [
     { title: "constellation", sub: "cohort · relationship map", hay: "constellation map shared edges relationships cohort", jump: ["constellation", { constellationMode: "map" }] },
     { title: "pmf evidence", sub: "cohort · journey view", hay: "journey pmf evidence product market fit cohort", jump: ["constellation", { constellationMode: "journey" }] },
     { title: "product layer", sub: "cohort · stack view", hay: "stack product layer cohort", jump: ["constellation", { constellationMode: "stack" }] },
     { title: "collab board", sub: "cohort · seek ↔ offer · intros", hay: "collab board collaboration intros seek offer matrix cohort", jump: ["constellation", { constellationMode: "collab" }] },
-    { title: "intel signals", sub: "context · vault-backed cohort moves", hay: "intel signals vault moves reads context", jump: ["context", { contextView: "signals" }] },
-    { title: "intel data", sub: "context · sanitized entity graph", hay: "intel data entities graph grounding context", jump: ["context", { contextView: "data" }] },
   ];
   for (const v of FOLDED_VIEWS) {
     items.push({

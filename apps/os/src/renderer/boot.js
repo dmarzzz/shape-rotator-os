@@ -4571,7 +4571,7 @@ function navSnapshot() {
     }
     if (alchMode === "intel") {
       alchMode = "context";
-      ctxView = "signals";
+      ctxView = "evidence";
     }
     if (alchMode !== "constellation") constMode = "";
     if (alchMode !== "context") ctxView = "";
@@ -4616,16 +4616,17 @@ function navApplyLocation(snap) {
     try { localStorage.setItem(NET_SUB_LS_KEY, netSub); } catch {}
   }
   if (tab === "alchemy") {
+    const legacyIntel = snap.alchMode === "intel";
     const mode = snap.alchMode === "collab" ? "constellation"
       : (snap.alchMode === "pulse" ? "shapes"
-      : (snap.alchMode === "intel" ? "context" : (snap.alchMode || "membrane")));
+      : (legacyIntel ? "context" : (snap.alchMode || "membrane")));
     const loc = {
       mode,
       recordId: snap.recordId || null,
       instant: true,
     };
     if (mode === "constellation" && snap.constMode) loc.constellationMode = snap.constMode;
-    if (mode === "context" && snap.ctxView) loc.contextView = snap.ctxView;
+    if (mode === "context" && (snap.ctxView || legacyIntel)) loc.contextView = legacyIntel ? "evidence" : snap.ctxView;
     if (mode === "program" && snap.programPage) loc.programPage = snap.programPage;
     try { Alchemy.applyLocation(loc); } catch {}
   }
@@ -5438,6 +5439,11 @@ function warmCohortChat() {
     .then((m) => m.warmCohortChat?.())
     .catch((e) => { console.warn("[cohort-chat] warmup failed:", e?.message || e); });
 }
+function warmCohortChatAfterPaint() {
+  const run = () => setTimeout(warmCohortChat, 0);
+  try { requestAnimationFrame(run); }
+  catch { run(); }
+}
 function openCohortChatFromLauncher(e) {
   if (e) { e.preventDefault(); e.stopPropagation(); }
   loadCohortChat()
@@ -5456,6 +5462,15 @@ function openCohortChatSettingsFromLauncher(e) {
       toast({ kind: "error", message: `chat settings failed: ${err?.message || err}` });
     });
 }
+function openSearchFromLauncher(e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  loadFind({ shortcut: false })
+    .then((m) => m.openWithQuery?.())
+    .catch((err) => {
+      console.error("[find] launcher failed:", err);
+      toast({ kind: "error", message: `search failed: ${err?.message || err}` });
+    });
+}
 function openCohortMirrorFromLauncher(e) {
   if (e) { e.preventDefault(); e.stopPropagation(); }
   loadCohortChat()
@@ -5465,13 +5480,38 @@ function openCohortMirrorFromLauncher(e) {
       toast({ kind: "error", message: `mirror failed: ${err?.message || err}` });
     });
 }
-function openCohortUpdatesFromLauncher(e) {
+function setLauncherActionState(action, { state = "", label = "", hint = "", ttl = 0 } = {}) {
+  const btn = document.querySelector(`[data-cohort-chat-action="${action}"]`);
+  if (!btn) return;
+  const labelEl = btn.querySelector(".cc-radial-label");
+  const hintEl = btn.querySelector(".cc-radial-hint");
+  if (labelEl && !btn.dataset.defaultLabel) btn.dataset.defaultLabel = labelEl.textContent || "";
+  if (hintEl && !btn.dataset.defaultHint) btn.dataset.defaultHint = hintEl.textContent || "";
+  if (state) btn.dataset.state = state;
+  else delete btn.dataset.state;
+  if (labelEl && label) labelEl.textContent = label;
+  if (hintEl && hint) hintEl.textContent = hint;
+  if (ttl > 0) {
+    window.setTimeout(() => {
+      if (state && btn.dataset.state !== state) return;
+      delete btn.dataset.state;
+      if (labelEl) labelEl.textContent = btn.dataset.defaultLabel || labelEl.textContent;
+      if (hintEl) hintEl.textContent = btn.dataset.defaultHint || hintEl.textContent;
+    }, ttl);
+  }
+}
+function openCohortSyncFromLauncher(e) {
   if (e) { e.preventDefault(); e.stopPropagation(); }
+  setLauncherActionState("sync", { state: "busy", label: "syncing", hint: "opening review" });
   loadCohortChat()
     .then((m) => (m.openCohortUpdates ? m.openCohortUpdates() : m.openCohortChat()))
+    .then(() => {
+      setLauncherActionState("sync", { state: "done", label: "sync", hint: "review draft", ttl: 5000 });
+    })
     .catch((err) => {
-      console.error("[cohort-chat] updates failed:", err);
-      toast({ kind: "error", message: `updates failed: ${err?.message || err}` });
+      setLauncherActionState("sync", { state: "error", label: "sync", hint: "try again", ttl: 5000 });
+      console.error("[cohort-chat] sync failed:", err);
+      toast({ kind: "error", message: `sync failed: ${err?.message || err}` });
     });
 }
 // The corner radial dial toggles the popup (open ↔ close) rather than only opening.
@@ -5486,10 +5526,23 @@ function toggleCohortChatFromLauncher(e) {
 }
 function routeCohortChatAction(e) {
   const action = e.currentTarget && e.currentTarget.getAttribute("data-cohort-chat-action");
+  const dialWrap = document.getElementById("cohort-chat-dial-wrap");
+  const radialMenu = document.getElementById("cohort-chat-radial-menu");
+  const dial = document.getElementById("cohort-chat-dial");
+  if (dialWrap) {
+    dialWrap.classList.remove("is-expanded");
+    dialWrap.classList.add("is-suppressed");
+  }
+  if (radialMenu) radialMenu.setAttribute("aria-hidden", "true");
+  if (dial && !document.documentElement.classList.contains("cohort-chat-open")) {
+    dial.setAttribute("aria-expanded", "false");
+  }
+  for (const actionBtn of document.querySelectorAll("[data-cohort-chat-action]")) actionBtn.tabIndex = -1;
+  if (action === "search") return openSearchFromLauncher(e);
   if (action === "settings") return openCohortChatSettingsFromLauncher(e);
-  if (action === "updates") return openCohortUpdatesFromLauncher(e);
+  if (action === "sync" || action === "updates") return openCohortSyncFromLauncher(e);
   if (action === "mirror") return openCohortMirrorFromLauncher(e);
-  return toggleCohortChatFromLauncher(e);
+  return openCohortChatFromLauncher(e);
 }
 // "Ask the cohort" — its own button in the search controls + a GLOBAL
 // Cmd/Ctrl+Shift+K (unlike the swarm's A, which is search-view-only) since
@@ -5506,31 +5559,44 @@ function wireCohortChatLauncher() {
   // paint (no unstyled flash); warming here only preloads the JS module.
   const dial = document.getElementById("cohort-chat-dial");
   if (dial) {
-    dial.addEventListener("pointerover", warmCohortChat, { passive: true });
-    dial.addEventListener("focus", warmCohortChat);
+    dial.addEventListener("pointerover", warmCohortChatAfterPaint, { passive: true });
+    dial.addEventListener("focus", warmCohortChatAfterPaint);
     dial.addEventListener("click", toggleCohortChatFromLauncher);
   }
   const dialWrap = document.getElementById("cohort-chat-dial-wrap");
   const radialMenu = document.getElementById("cohort-chat-radial-menu");
   const actionBtns = Array.from(document.querySelectorAll("[data-cohort-chat-action]"));
   const setRadialMenuOpen = (open) => {
+    if (open && dialWrap) dialWrap.classList.remove("is-suppressed");
+    if (dialWrap) dialWrap.classList.toggle("is-expanded", open);
     if (radialMenu) radialMenu.setAttribute("aria-hidden", open ? "false" : "true");
+    if (dial) {
+      const chatOpen = document.documentElement.classList.contains("cohort-chat-open");
+      dial.setAttribute("aria-expanded", open || chatOpen ? "true" : "false");
+    }
     for (const actionBtn of actionBtns) actionBtn.tabIndex = open ? 0 : -1;
   };
   setRadialMenuOpen(false);
   if (dialWrap) {
     dialWrap.addEventListener("pointerenter", () => setRadialMenuOpen(true), { passive: true });
-    dialWrap.addEventListener("pointerleave", () => setRadialMenuOpen(false), { passive: true });
+    dialWrap.addEventListener("pointerleave", () => {
+      setRadialMenuOpen(false);
+    }, { passive: true });
     dialWrap.addEventListener("focusin", () => setRadialMenuOpen(true));
     dialWrap.addEventListener("focusout", () => {
       setTimeout(() => {
-        if (!dialWrap.contains(document.activeElement)) setRadialMenuOpen(false);
+        if (!dialWrap.contains(document.activeElement)) {
+          setRadialMenuOpen(false);
+        }
       }, 0);
     });
   }
   for (const actionBtn of actionBtns) {
-    actionBtn.addEventListener("pointerover", warmCohortChat, { passive: true });
-    actionBtn.addEventListener("focus", warmCohortChat);
+    const warmAction = actionBtn.getAttribute("data-cohort-chat-action") === "search"
+      ? () => loadFind({ shortcut: false }).catch(() => {})
+      : warmCohortChatAfterPaint;
+    actionBtn.addEventListener("pointerover", warmAction, { passive: true });
+    actionBtn.addEventListener("focus", warmAction);
     actionBtn.addEventListener("click", routeCohortChatAction);
   }
   document.addEventListener("keydown", (e) => {

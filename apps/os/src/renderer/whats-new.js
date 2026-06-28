@@ -138,6 +138,26 @@ export function unreadCounts(surface) {
   return out;
 }
 
+/** Records newer than what the user has seen for a mode. Does not prime. */
+export function unreadRecordsForMode(mode, surface) {
+  mode = normalizeMode(mode);
+  const lists = MODE_SOURCES[mode];
+  if (!lists || !surface) return [];
+  const seen = loadSeen();
+  const prev = seen[mode];
+  if (!Array.isArray(prev)) return [];
+  const prevSet = new Set(prev);
+  const out = [];
+  for (const key of lists) {
+    for (const record of (surface[key] || [])) {
+      if (!record?.record_id) continue;
+      const fingerprint = fingerprintRecord(key, record);
+      if (!prevSet.has(fingerprint)) out.push({ listKey: key, record, fingerprint });
+    }
+  }
+  return out.sort((a, b) => String(a.fingerprint).localeCompare(String(b.fingerprint)));
+}
+
 /** The user is looking at `mode` right now — its current content is seen. */
 export function markModeSeen(mode, surface) {
   mode = normalizeMode(mode);

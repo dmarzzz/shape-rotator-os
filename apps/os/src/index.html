@@ -71,20 +71,15 @@
           <span class="ar-label">mirror</span>
           <span class="ar-hint">say / did / shipped</span>
         </button>
-        <button class="alchemy-rail-btn" data-alch-mode="onboarding" type="button" aria-selected="false">
-          <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"/><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"/><path d="M16 17h4"/><path d="M4 13h4"/></svg></span>
-          <span class="ar-label">onboarding</span>
-          <span class="ar-hint">your first week</span>
-        </button>
         <button class="alchemy-rail-btn" data-alch-mode="program" type="button" aria-selected="false">
           <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg></span>
           <span class="ar-label">program info</span>
-          <span class="ar-hint">handbook · rules · rhythm</span>
+          <span class="ar-hint">onboarding / handbook / rules</span>
         </button>
         <button class="alchemy-rail-btn" data-alch-mode="context" type="button" aria-selected="false">
           <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg></span>
           <span class="ar-label">context</span>
-          <span class="ar-hint">articles · transcripts · intel</span>
+          <span class="ar-hint">articles · transcripts · evidence</span>
         </button>
         <button class="alchemy-rail-btn" data-alch-mode="activity" type="button" aria-selected="false">
           <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg></span>
@@ -390,14 +385,14 @@
       </div>
     </section>
 
-    <!-- The radial dial launcher: a persistent corner control that toggles the chat
-         popup. Hover/focus expands it into four quick-action quadrants. Its CSS
+    <!-- The chat launcher: a persistent corner control that toggles the chat
+         popup. Hover/focus reveals a compact system popover. Its CSS
          (renderer/cohort-chat.css) is eager-linked in <head> so the glyph is styled
          at first paint - no unstyled flash. -->
     <div id="cohort-chat-dial-wrap" class="cohort-chat-dial-wrap" aria-label="cohort chat quick actions">
       <button id="cohort-chat-dial" class="cohort-chat-dial" type="button"
               aria-label="ask the cohort" aria-expanded="false" aria-haspopup="menu"
-              aria-controls="cohort-chat-radial-menu" title="Ask the cohort (Ctrl+Shift+K)">
+              aria-controls="cohort-chat-radial-menu cohort-chat-panel" title="Ask the cohort (Ctrl+Shift+K)">
         <svg class="cc-dial-ring" viewBox="0 0 56 56" fill="none" aria-hidden="true">
           <circle class="cc-dial-track" cx="28" cy="28" r="22" stroke-width="2"/>
           <circle class="cc-dial-arc" cx="28" cy="28" r="22" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="34 200"/>
@@ -407,25 +402,25 @@
         </svg>
       </button>
       <div id="cohort-chat-radial-menu" class="cohort-chat-radial-menu" role="menu" aria-label="cohort chat quick actions">
-        <button class="cc-radial-action" data-cohort-chat-action="settings" type="button" role="menuitem"
-                aria-label="open chat settings" title="Chat settings">
-          <span class="cc-radial-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></span>
-          <span class="cc-radial-label">settings</span>
+        <button class="cc-radial-action is-primary" data-cohort-chat-action="chat" type="button" role="menuitem"
+                aria-label="ask the cohort" title="Ask the cohort">
+          <span class="cc-radial-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg></span>
+          <span class="cc-radial-copy"><span class="cc-radial-label">ask</span><span class="cc-radial-hint">local cohort agent</span></span>
         </button>
-        <button class="cc-radial-action" data-cohort-chat-action="updates" type="button" role="menuitem"
-                aria-label="sync updates from remembered choices" title="Updates">
+        <button class="cc-radial-action" data-cohort-chat-action="search" type="button" role="menuitem"
+                aria-label="open search" title="Search">
+          <span class="cc-radial-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg></span>
+          <span class="cc-radial-copy"><span class="cc-radial-label">search</span><span class="cc-radial-hint">jump anywhere</span></span>
+        </button>
+        <button class="cc-radial-action" data-cohort-chat-action="sync" type="button" role="menuitem"
+                aria-label="sync your profile with the platform" title="Sync">
           <span class="cc-radial-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M16 8h5V3"/></svg></span>
-          <span class="cc-radial-label">updates</span>
+          <span class="cc-radial-copy"><span class="cc-radial-label">sync</span><span class="cc-radial-hint">recent work -> profile</span></span>
         </button>
         <button class="cc-radial-action" data-cohort-chat-action="mirror" type="button" role="menuitem"
                 aria-label="open profile mirror" title="Mirror">
           <span class="cc-radial-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0-6 6v4a6 6 0 0 0 12 0V9a6 6 0 0 0-6-6Z"/><path d="M8 21h8"/><path d="M12 19v2"/><path d="M9 9h.01"/><path d="M15 9h.01"/></svg></span>
-          <span class="cc-radial-label">mirror</span>
-        </button>
-        <button class="cc-radial-action" data-cohort-chat-action="chat" type="button" role="menuitem"
-                aria-label="ask the cohort" title="Ask the cohort">
-          <span class="cc-radial-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg></span>
-          <span class="cc-radial-label">chat</span>
+          <span class="cc-radial-copy"><span class="cc-radial-label">mirror</span><span class="cc-radial-hint">review identity</span></span>
         </button>
       </div>
     </div>

@@ -1,6 +1,10 @@
 import { SANITIZED_INTEL_DATA } from "./intel-data.js";
 import { INTEL_SIGNALS } from "./intel-signals.js";
 
+// Removal-bound (2026-06-28): context "signals" and "data" are no longer
+// linked from the OS. Legacy routes normalize to Context > evidence; delete
+// this module with intel-data.js/intel-signals.js in the cleanup pass.
+
 const state = {
   data: SANITIZED_INTEL_DATA,
   panel: "signals",
