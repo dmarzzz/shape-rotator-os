@@ -1487,3 +1487,104 @@
   .rr-wk, .rr-pbar, .rr-tick, .rr-rel { transition: none; }
   .rr-wk:active { transform: none; }
 }
+
+/* cohort timeline band - the former standalone timeline now lives at the bottom
+   of the calendar stack, sharing the same full-program axis. */
+.rr-timeline {
+  --ctl-cat-release: #6f9f6a;
+  --ctl-cat-commit:  #7d93b8;
+  --ctl-cat-insight: #b48bb0;
+  --ctl-cat-ask:     #c2a872;
+  --ctl-cat-event:   #6fa8a0;
+  position: relative;
+  border-top: 1px solid var(--ed-rule-2);
+  padding-top: 12px;
+}
+.rr-timeline-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 32px;
+  padding: 0 10px 3px;
+}
+.rr-timeline-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-family: var(--ds-font-mono);
+}
+.rr-timeline-title span {
+  font-size: var(--ds-text-xs);
+  letter-spacing: var(--ds-track-caps);
+  text-transform: uppercase;
+  color: var(--ds-ink-1);
+}
+.rr-timeline-title em {
+  font-style: normal;
+  font-size: var(--ds-text-2xs);
+  color: var(--rr-faint);
+}
+.rr-timeline-prefs { position: relative; flex: 0 0 auto; }
+.rr-timeline-prefbtn {
+  appearance: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid var(--ed-rule-2);
+  border-radius: var(--ds-radius-sm);
+  background: transparent;
+  color: var(--rr-faint);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  letter-spacing: var(--ds-track-caps);
+  text-transform: uppercase;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.rr-timeline-prefbtn:hover,
+.rr-timeline-prefbtn[aria-expanded="true"] {
+  color: var(--ds-ink-1);
+  border-color: var(--ed-rule-3);
+  background: color-mix(in oklch, var(--ds-ink-1) 4%, transparent);
+}
+.rr-timeline-prefbtn:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 2px; }
+.rr-timeline-menu { left: auto; right: 0; min-width: 250px; max-height: 340px; overflow-y: auto; }
+.rr-timeline-opt { min-width: 0; width: 100%; }
+.rr-timeline-opt-label { overflow: hidden; text-overflow: ellipsis; }
+.rr-timeline-opt-count {
+  margin-left: auto;
+  font-style: normal;
+  color: var(--rr-faint-2);
+  font-size: var(--ds-text-2xs);
+  font-variant-numeric: tabular-nums;
+}
+.rr-timeline-swatch {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--rr-faint-2);
+}
+.rr-timeline-swatch[data-track="activity"] { background: var(--ctl-cat-event); }
+.rr-timeline-swatch[data-track="insights"] { background: transparent; border: 1px solid var(--ctl-cat-insight); }
+.rr-timeline-swatch[data-track="standing"] { width: 7px; height: 13px; border-radius: 2px 2px 0 0; background: var(--rr-ox); opacity: 0.62; }
+.rr-timeline-swatch[data-track="presence"] { width: 13px; height: 6px; border-radius: 1px; background: var(--rr-pres); opacity: 0.55; }
+.rr-timeline-swatch[data-track="sessions"] { background: var(--ds-accent); border-radius: 2px; transform: rotate(45deg); }
+.rr-timeline-swatch[data-cat="release"] { background: var(--ctl-cat-release); }
+.rr-timeline-swatch[data-cat="commit"] { background: var(--ctl-cat-commit); }
+.rr-timeline-swatch[data-cat="insight"] { background: var(--ctl-cat-insight); }
+.rr-timeline-swatch[data-cat="ask"] { background: var(--ctl-cat-ask); }
+.rr-timeline-swatch[data-cat="event"] { background: var(--ctl-cat-event); }
+.rr-timeline-swatch[data-cat="session"] { background: var(--ds-accent); border-radius: 2px; transform: rotate(45deg); }
+.rr-timeline-view .ctl { padding: 4px 10px 14px; }
+.rr-timeline-view .ctl-axis { margin-left: 96px; }
+.rr-timeline-view .ctl-lane-label { flex-basis: 96px; }
+.rr-timeline-view .ctl-legend { margin-left: 96px; }
+@media (max-width: 720px) {
+  .rr-timeline { min-width: 708px; }
+}
