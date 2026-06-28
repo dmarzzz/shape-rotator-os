@@ -49,8 +49,9 @@ const MODE_LABEL = {
   membrane: "membrane", shapes: "cohort",
   constellation: "cohort",
   calendar: "calendar", profile: "profile", onboarding: "onboarding",
-  program: "program info", asks: "asks", context: "context", icons: "icons",
-  activity: "activity",
+  mirror: "mirror",
+  program: "program info", asks: "asks & activity", context: "context", icons: "icons",
+  activity: "asks & activity",
 };
 
 // Short suffixes for the cohort page's constellation views and the context
@@ -68,6 +69,7 @@ const ICON_PATHS = {
   onboarding: '<path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"/><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"/><path d="M16 17h4"/><path d="M4 13h4"/>',
   program: '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
   asks: '<path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/>',
+  mirror: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
   context: '<path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/>',
   activity: '<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>',
   apps: '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>',
@@ -111,6 +113,13 @@ function normalizeLocation(loc) {
   if (!loc || loc.blank) return loc || { blank: true };
   if (loc.tab === "alchemy" && loc.mode === "collab") {
     return { ...loc, mode: "constellation", constellationMode: "collab" };
+  }
+  if (loc.tab === "alchemy" && loc.mode === "asks") {
+    return { ...loc, mode: "activity" };
+  }
+  if (loc.tab === "alchemy" && loc.mode === "constellation" && String(loc.constellationMode || "").toLowerCase() === "shipped") {
+    const { constellationMode, ...rest } = loc;
+    return { ...rest, mode: "mirror" };
   }
   if (loc.tab === "alchemy" && loc.mode === "pulse") {
     const { constellationMode, ...rest } = loc;

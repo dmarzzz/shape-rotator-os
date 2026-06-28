@@ -11404,17 +11404,15 @@ button.cb-cell:disabled { cursor: default; }
 }
 
 .alch-collab .cb-scroll {
-  display: grid;
-  /* Matrix + inspector both always visible; matrix fills its column (no h-scroll). */
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 332px);
+  display: block;
+  max-width: 100%;
   overflow: visible;
   border-radius: 10px;
   border-color: var(--alchemy-rule);
   background: rgba(14, 11, 12, 0.64);
-  /* No vertical height cap: the matrix renders full-height so the PAGE scrolls
-     (one vertical scroller via #alchemy-canvas). Capping this pane forced the
-     matrix into its own nested vertical scroll, which trapped the wheel. The
-     matrix still scrolls horizontally on its own (wide columns). */
+  /* The route sheet now lives in .cb-rail beside the board. Keep this wrapper
+     as a plain viewport so the matrix gets the full left column; .cb-grid-wrap
+     owns horizontal scrolling for wide team sets. */
   max-height: none;
 }
 
@@ -11877,7 +11875,6 @@ html, body { background: var(--ed-bg-0); color: var(--ed-ink-2); }
 @media (max-width: 1180px) {
   .alch-collab .cb-scroll {
     display: block;
-    grid-template-columns: minmax(0, 1fr);
     max-height: none;
     width: 100%;
   }

@@ -35,9 +35,13 @@ const LS_KEY = "srwk:whatsnew:seen_v2";
 
 const MODE_SOURCES = {
   shapes:   ["teams", "people", "clusters"],
-  asks:     ["asks"],
+  activity: ["asks"],
   program:  ["program"],
 };
+
+function normalizeMode(mode) {
+  return mode === "asks" ? "activity" : mode;
+}
 
 function fnv1a(s) {
   let h = 2166136261;
@@ -85,6 +89,7 @@ function fingerprintRecord(listKey, r) {
 // first later record is counted as unread instead of silently becoming
 // the new baseline.
 function setForMode(mode, surface) {
+  mode = normalizeMode(mode);
   const lists = MODE_SOURCES[mode];
   if (!lists || !surface) return null;
   const out = [];
@@ -135,6 +140,7 @@ export function unreadCounts(surface) {
 
 /** The user is looking at `mode` right now — its current content is seen. */
 export function markModeSeen(mode, surface) {
+  mode = normalizeMode(mode);
   const cur = setForMode(mode, surface);
   if (!cur) return;
   const seen = loadSeen();

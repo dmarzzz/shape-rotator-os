@@ -24,6 +24,11 @@ import { emitSelfReport } from "./cohort-emit.mjs";
 import { getAppContext } from "./app-context.mjs";
 import { getClaimTokenHash } from "./claim-token.mjs";
 import { refreshCohortFromGithub } from "./cohort-source.js";
+import {
+  coerceAutoUpdateChoices,
+  getAutoUpdateChoices,
+  rememberAutoUpdateChoices,
+} from "./self-report-autoupdate.mjs";
 
 // Expose the entry on a global so the cohort-chat bot's opt-in flow can route into
 // it: window.__srwkOpenSelfReport?.({ person, githubDigest }) — a graceful no-op
@@ -68,7 +73,7 @@ export function closeSelfReport() {
   document.removeEventListener("keydown", onKey);
 }
 
-export async function openSelfReport({ person, githubDigest = "" } = {}) {
+export async function openSelfReport({ person, githubDigest = "", autoRunPrevious = false, sourceChoices = null } = {}) {
   if (!person || !person.record_id) return;
   await ensureStylesheet();
   closeSelfReport();
@@ -80,6 +85,15 @@ export async function openSelfReport({ person, githubDigest = "" } = {}) {
   document.addEventListener("keydown", onKey);
   // Click the backdrop (not the card) to dismiss.
   host.addEventListener("mousedown", (e) => { if (e.target === host) closeSelfReport(); });
+  const previous = coerceAutoUpdateChoices(sourceChoices) || getAutoUpdateChoices(person.record_id);
+  if (autoRunPrevious && previous) {
+    runSelfReport(person, {
+      useSessions: previous.useSessions,
+      useGithub: previous.useGithub,
+      githubFallback: githubDigest,
+    });
+    return;
+  }
   renderConsent(person, githubDigest);
 }
 
@@ -91,6 +105,9 @@ function card(inner) {
 function renderConsent(person, githubFallback) {
   const handle = resolvePersonHandle(person);
   const hasGithub = !!handle || !!(githubFallback && githubFallback.trim());
+  const remembered = getAutoUpdateChoices(person.record_id);
+  const rememberedSessions = !!(remembered && remembered.useSessions);
+  const rememberedGithub = !!(remembered && remembered.useGithub);
   const ghSmall = handle
     ? `Reads your recent <em>public</em> GitHub activity — one call to github.com for <b>@${esc(handle)}</b>’s public events. Nothing private, no token, nothing uploaded.`
     : (githubFallback ? "Uses the public commit/release signal already on your profile." : "No public GitHub handle on your profile yet.");
@@ -101,17 +118,24 @@ function renderConsent(person, githubFallback) {
     </header>
     <p class="selfrep-lede">I can draft an update to your profile from this week's work — you review and approve every change. Pick what I may read:</p>
     <label class="selfrep-consent">
-      <input type="checkbox" data-sr-sessions>
+      <input type="checkbox" data-sr-sessions ${rememberedSessions ? "checked" : ""}>
       <span>
         <b>My local AI sessions this week</b>
         <small>Reads your Claude Code / Codex logs <em>on this machine</em>, scrubbed into a short summary. Raw content never leaves your computer.</small>
       </span>
     </label>
     <label class="selfrep-consent${hasGithub ? "" : " is-disabled"}">
-      <input type="checkbox" data-sr-github ${hasGithub ? "checked" : "disabled"}>
+      <input type="checkbox" data-sr-github ${hasGithub ? (remembered ? (rememberedGithub ? "checked" : "") : "checked") : "disabled"}>
       <span>
         <b>My public GitHub activity</b>
         <small>${ghSmall}</small>
+      </span>
+    </label>
+    <label class="selfrep-consent selfrep-remember">
+      <input type="checkbox" data-sr-remember ${remembered ? "checked" : ""}>
+      <span>
+        <b>Remember for Updates shortcut</b>
+        <small>The chat dial's Updates quadrant may rerun only the sources checked above. Uncheck this to clear the shortcut.</small>
       </span>
     </label>
     <div class="selfrep-actions">
@@ -122,15 +146,22 @@ function renderConsent(person, githubFallback) {
   `);
   const sessions = host.querySelector("[data-sr-sessions]");
   const github = host.querySelector("[data-sr-github]");
+  const remember = host.querySelector("[data-sr-remember]");
   const run = host.querySelector("[data-sr-run]");
   const refresh = () => { run.disabled = !(sessions.checked || (github && github.checked)); };
   sessions.addEventListener("change", refresh);
   if (github) github.addEventListener("change", refresh);
+  refresh();
   for (const b of host.querySelectorAll("[data-sr-close]")) b.addEventListener("click", closeSelfReport);
   run.addEventListener("click", () => {
-    runSelfReport(person, {
+    const choices = {
       useSessions: sessions.checked,
       useGithub: !!(github && github.checked),
+    };
+    if (remember && remember.checked) rememberAutoUpdateChoices(person.record_id, choices);
+    else rememberAutoUpdateChoices(person.record_id, null);
+    runSelfReport(person, {
+      ...choices,
       githubFallback,
     });
   });

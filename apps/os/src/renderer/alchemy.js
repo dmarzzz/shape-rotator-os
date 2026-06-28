@@ -35,6 +35,13 @@ import { saveSphere, SPHERE_DIALS, SPHERE_DEFAULTS, SPHERE_BG_DEFAULT, SPHERE_BG
 import { highlightGLSL } from "./shader-dsl.mjs";
 import { getSubscriptions, addSubscription, removeSubscription, reorderSubscriptions } from "./calendar-subscriptions.js";
 import {
+  CALENDAR_TIMELINE_CATEGORIES,
+  CALENDAR_TIMELINE_LANES,
+  getCalendarTimelinePrefs,
+  toggleCalendarTimelineCategory,
+  toggleCalendarTimelineLane,
+} from "./calendar-timeline-prefs.js";
+import {
   aggregateSkillAreas, buildCohortIndex, buildCollabModel, collabAffKey, collabHasText,
   dependencyPairKey, dependencySafeToken,
   constellationDependencyEdges, constellationIndegree, constellationModel, teamKind, teamsOfKind,
@@ -59,7 +66,7 @@ import { unreadCounts, markModeSeen, fingerprintItems, unreadCountForFingerprint
 import { indexCohortEvidence, teamEvidence, recentClaims, teamTimeline, claimLane, teamProgressRollup } from "./cohort-evidence-index.mjs";
 import { cardTraceBodyHtml, cardTraceHtml } from "./cohort-trace-view.mjs";
 import { getCohortTimeline } from "./cohort-timeline.js";
-import { isPresent, buildDefaultTimeline } from "./cohort-timeline-tracks.mjs";
+import { isPresent, buildDefaultTimeline, filterTimelineByPrefs } from "./cohort-timeline-tracks.mjs";
 import { renderTimelineLanesHtml } from "./cohort-timeline-render.mjs";
 import { getStandingWeekly } from "./cohort-standing-weekly.js";
 import { periodScrubberHtml, wireScrubber, weekStopsFrom, snapshotStopsFrom } from "./cohort-period-scrubber.mjs";
@@ -84,7 +91,7 @@ import { loadStylesheetOnce } from "./stylesheet-loader.js";
 
 const ALCHEMY_LS_KEY  = "srwk:alchemy_mode";
 const CONTEXT_VIEW_LS_KEY = "srwk:context_view"; // context page view: "articles" | "raw" | "signals" | "data"
-const CONST_MODE_LS_KEY = "srwk:const_mode";  // constellation sub-view: "map" | "ring" | "journey" | "stack" | "targets" | "shipped" | "collab"
+const CONST_MODE_LS_KEY = "srwk:const_mode";  // constellation sub-view: "map" | "ring" | "journey" | "stack" | "targets" | "collab" ("shipped" migrates to mirror)
 const CONST_SCOPE_LS_KEY = "srwk:const_scope"; // network scope: "projects" | "people"
 const CONST_LENS_LS_KEY = "srwk:const_lens";  // map lens: "all" | "relies" | "works" | "substrate"
 const CONST_TIER_LS_KEY = "srwk:const_tier";  // pinned line-source tier: "all" | "record" | "mention"
@@ -174,7 +181,7 @@ function normalizeDirCols(stored, defaultKeys) {
 // section below this constant for the disabled hooks.
 // `collab` is a Constellation sub-view, not a standalone OS mode. Legacy
 // saved locations that still say "collab" are normalized on restore.
-const ALCHEMY_MODES   = ["membrane", "shapes", "constellation", "calendar", "profile", "onboarding", "program", "asks", "context", "activity"];
+const ALCHEMY_MODES   = ["membrane", "shapes", "constellation", "calendar", "mirror", "profile", "onboarding", "program", "asks", "context", "activity"];
 const MEMBRANE_INTRO_LS_KEY = "srwk:membrane_seen_v1";
 const membraneLazy = createLazyModule(() =>
   Promise.all([
@@ -190,8 +197,9 @@ const calendarLazy = createLazyModule(() =>
   Promise.all([
     loadStylesheetOnce("vendor/shape-ui/cohort-calendar-week.css"),
     loadStylesheetOnce("renderer/calendar.css"),
+    loadStylesheetOnce("renderer/cohort-timeline-view.css"),
     import("./calendar.js"),
-  ]).then(([, , module]) => module));
+  ]).then(([, , , module]) => module));
 const calendarSupabaseLazy = createLazyModule(() => import("./calendar-supabase.mjs"));
 const githubUserLazy = createLazyModule(() => import("./gh-user.js"));
 const githubForkLazy = createLazyModule(() => import("./gh-fork.js"));
@@ -295,7 +303,7 @@ const state = {
   atlasFocus: null,    // active tag in the atlas view (null = whole-graph mode)
   onboardingJustToggled: null,  // step key that was just marked/unmarked done; consumed by wireOnboarding to scroll-into-view the next step
   openAskComposer: false, // one-shot landing state when membrane sends someone to post
-  constellationMode: "map",   // top-level constellation view: "map" | "ring" | "journey" | "stack" | "targets" | "shipped" | "collab"
+  constellationMode: "map",   // top-level constellation view: "map" | "ring" | "journey" | "stack" | "targets" | "collab"
   constellationScope: "projects", // network entity layer: projects/teams vs people-to-project membership
   constellationLens: "all",   // map line lens: "all" | "relies" | "works" | "substrate" — changes which relationship claim is foregrounded
   constPeopleLinkFilter: "all", // people-map legend/filter: "all" | "same-team" | "profile" | "shared-context"
@@ -321,6 +329,9 @@ const state = {
     catHidden: [],                // category keys the legend-filter has switched off
     scope: null,                  // team record_id the signals are focused on (null = all cohort)
     subscriptions: null,          // configurable feed rows; lazily loaded from localStorage (calendar-subscriptions.js)
+    timelinePrefs: null,          // persisted bottom timeline lanes/categories (calendar-timeline-prefs.js)
+    timelinePrefsMenuOpen: false,
+    timelinePrefsLastToggled: "",
   },
   events: [],          // normalized feed items, latest-first
   fetchedAt: 0,
@@ -396,6 +407,16 @@ export function mount(container) {
     if (saved === "pulse")     { state.mode = "shapes"; localStorage.setItem(ALCHEMY_LS_KEY, "shapes"); }
     // calendar2 graduated to THE calendar (2026-06); old saved modes land there.
     if (saved === "calendar2") { state.mode = "calendar"; localStorage.setItem(ALCHEMY_LS_KEY, "calendar"); }
+    // asks merged into the activity feed (2026-06); old saved modes land on
+    // the combined asks & activity page.
+    if (saved === "asks")      { state.mode = "activity"; localStorage.setItem(ALCHEMY_LS_KEY, "activity"); }
+    // say/did/shipped moved out of cohort into its own Mirror rail page.
+    if (saved === "constellation" && String(localStorage.getItem(CONST_MODE_LS_KEY) || "").toLowerCase() === "shipped") {
+      state.mode = "mirror";
+      state.constellationMode = "map";
+      localStorage.setItem(ALCHEMY_LS_KEY, "mirror");
+      localStorage.setItem(CONST_MODE_LS_KEY, "map");
+    }
     // Context page view (articles | raw | signals | data) survives reloads.
     state.contextVault.mode = contextNormalizeView(localStorage.getItem(CONTEXT_VIEW_LS_KEY) || state.contextVault.mode);
     // intel folded into the context page (2026-06): old intel users land on
@@ -467,7 +488,7 @@ export function mount(container) {
           localStorage.setItem(DETAIL_LS_KEY, JSON.stringify({ recordId: state.detailRecordId, returnMode: "context" }));
         }
       } else if (d?.returnMode && ALCHEMY_MODES.includes(d.returnMode)) {
-        state.detailReturnMode = d.returnMode;
+        state.detailReturnMode = normalizeDetailReturnMode(d.returnMode);
       }
     }
   } catch {}
@@ -639,6 +660,7 @@ export function notifyDataChanged() {
 export function getLocation() {
   let mode = state.mode === "collab" ? "constellation" : state.mode;
   if (mode === "intel") mode = "context";
+  if (mode === "asks") mode = "activity";
   const loc = { mode, recordId: state.detailRecordId || null };
   if (mode === "constellation") loc.constellationMode = constNormalizeConstellationMode(state.constellationMode);
   if (mode === "program" && state.programPage) loc.programPage = state.programPage;
@@ -653,10 +675,14 @@ export function applyLocation(loc = {}) {
   const legacyCollab = loc.mode === "collab";
   const legacyPulse = loc.mode === "pulse";
   const legacyIntel = loc.mode === "intel";
+  const legacyAsks = loc.mode === "asks";
+  const legacyShipped = loc.mode === "constellation" && String(loc.constellationMode || "").toLowerCase() === "shipped";
   const mode = legacyCollab ? "constellation"
     : (legacyPulse ? "shapes"
     : (legacyIntel ? "context"
-    : (ALCHEMY_MODES.includes(loc.mode) ? loc.mode : state.mode)));
+    : (legacyAsks ? "activity"
+    : (legacyShipped ? "mirror"
+    : (ALCHEMY_MODES.includes(loc.mode) ? loc.mode : state.mode)))));
   if (mode === "program" && loc.programPage) {
     state.programPage = String(loc.programPage);
     try { localStorage.setItem(PROGRAM_PAGE_LS_KEY, state.programPage); } catch {}
@@ -870,7 +896,9 @@ function previousConstellationSnapshot() {
 }
 
 function activeDetailCohort() {
-  return state.detailReturnMode === "constellation" ? activeConstellationCohort() : state.cohort;
+  return (state.detailReturnMode === "constellation" || state.detailReturnMode === "mirror")
+    ? activeConstellationCohort()
+    : state.cohort;
 }
 
 // What's-new: a mode whose cohort content changed since the user last
@@ -926,6 +954,7 @@ function syncRailSelection() {
   let activeMode = state.mode === "collab" ? "constellation" : state.mode;
   if (activeMode === "constellation") activeMode = "shapes";
   if (activeMode === "intel") activeMode = "context";
+  if (activeMode === "asks") activeMode = "activity";
   for (const btn of state.rail.querySelectorAll(".alchemy-rail-btn")) {
     btn.setAttribute("aria-selected", btn.dataset.alchMode === activeMode ? "true" : "false");
   }
@@ -966,6 +995,15 @@ function clearDetailIfOpen() {
 // Switch to one of the six cohort views. Shared by the rail submenu and the
 // in-page view tabs. Returns false when already on that exact view (no-op).
 function selectCohortView(constMode) {
+  if (String(constMode || "").toLowerCase() === "shipped") {
+    if (state.mode === "mirror" && !state.detailRecordId) return false;
+    state.mode = "mirror";
+    clearDetailIfOpen();
+    try { localStorage.setItem(ALCHEMY_LS_KEY, "mirror"); } catch {}
+    syncRailSelection();
+    render();
+    return true;
+  }
   if (constMode === "directory") {
     if (state.mode === "shapes" && !state.detailRecordId) return false;
     state.mode = "shapes";
@@ -1357,17 +1395,20 @@ function renderActivityMode() {
   const empty = events.length === 0;
   const newBadge = view.newCount ? ` · <strong>${view.newCount} new</strong>` : "";
   canvas.innerHTML = `
-    <section class="alch-activity" data-activity>
+    <section class="alch-activity alch-asks-activity" data-activity>
       <header class="alch-activity-head">
         <div>
-          <h2 class="alch-activity-title">activity</h2>
-          <p class="alch-activity-sub">what the cohort is contributing${newBadge}</p>
+          <h2 class="alch-activity-title">asks &amp; activity</h2>
+          <p class="alch-activity-sub">open asks and cohort contributions${newBadge}</p>
         </div>
         <div class="alch-activity-modes" role="group" aria-label="feed mode">
           <button type="button" class="alch-activity-mode${view.mode === "for_you" ? " is-on" : ""}" data-activity-mode="for_you">for you</button>
           <button type="button" class="alch-activity-mode${view.mode === "global" ? " is-on" : ""}" data-activity-mode="global">everyone</button>
         </div>
       </header>
+      <div class="alch-asks-activity-board">
+        ${renderAsksHtml()}
+      </div>
       ${empty
         ? `<div class="alch-activity-empty">No activity yet. Edit your profile, share a transcript, or contest a claim — it shows up here for the whole cohort.</div>`
         : `<ul class="alch-activity-list">
@@ -1395,6 +1436,7 @@ function wireActivityMode() {
       // spam the prefs timeline; the agent seam emits when IT sets a pref).
       setPrefs({ feed_mode: mode }, { emit: false });
       renderActivityMode();
+      wireAsks();
       wireActivityMode();
     });
   }
@@ -1421,7 +1463,8 @@ function renderModeContent() {
     else if (state.mode === "profile") renderProfile();
     else if (state.mode === "onboarding") renderOnboarding();
     else if (state.mode === "program") renderProgram();
-    else if (state.mode === "asks") renderAsks();
+    else if (state.mode === "mirror") renderSayDidShipped();
+    else if (state.mode === "asks") renderActivityMode();
     else if (state.mode === "context") renderContextVault();
     else if (state.mode === "activity") renderActivityMode();
     // Index cards for the staggered entrance.
@@ -1444,9 +1487,9 @@ function renderModeContent() {
       if (state.mode === "calendar") wireCalendar();
       if (state.mode === "onboarding") wireOnboarding();
       if (state.mode === "program") wireProgram();
-      if (state.mode === "asks") wireAsks();
+      if (state.mode === "asks") { wireAsks(); wireActivityMode(); }
       if (state.mode === "context") wireContextVault();
-      if (state.mode === "activity") wireActivityMode();
+      if (state.mode === "activity") { wireAsks(); wireActivityMode(); }
     }
     // Mount shape shaders LAST — every <canvas data-shape-fam> emitted by the
     // renderers above gets one WebGL2 context here.
@@ -1467,6 +1510,7 @@ function renderModeContent() {
       let seenMode = state.mode === "collab" ? "constellation" : state.mode;
       if (seenMode === "constellation") seenMode = "shapes";
       if (seenMode === "intel") seenMode = "context";
+      if (seenMode === "asks") seenMode = "activity";
       markModeSeen(seenMode, state.cohort);
       if (seenMode === "context") markFingerprintsSeen("context", contextVaultFingerprints());
       if (seenMode === "calendar") markFingerprintsSeen("calendar-grid", calendarFingerprints());
@@ -2172,7 +2216,7 @@ function buildWhatsNewFeed(c) {
       date, kind: 'ask',
       label: a.topic || a.verb || 'ask',
       meta: `${a.verb || 'ask'} · ask`,
-      nav: { mode: 'asks' },
+      nav: { mode: 'activity' },
     });
   }
 
@@ -2497,6 +2541,8 @@ window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode, opts) {
   }
   // intel lives inside the context page now — jump to its view there.
   if (mode === "intel") { mode = "context"; opts = { ...(opts || {}), contextView: opts?.contextView || "signals" }; }
+  if (mode === "asks") mode = "activity";
+  if (mode === "constellation" && String(opts?.constellationMode || "").toLowerCase() === "shipped") mode = "mirror";
   if (!ALCHEMY_MODES.includes(mode)) return;
   clearDetailForNavigation();
   state.mode = mode;
@@ -2537,7 +2583,7 @@ window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode, opts) {
       localStorage.setItem(CONST_LENS_LS_KEY, state.constellationLens);
     } catch {}
   }
-  if (mode === "asks" && opts && opts.openComposer) {
+  if ((mode === "asks" || mode === "activity") && opts && opts.openComposer) {
     state.openAskComposer = true;
   }
   try { localStorage.setItem(ALCHEMY_LS_KEY, state.mode); } catch {}
@@ -3241,9 +3287,8 @@ const CONST_VIEWS = [
   { mode: "stack",   glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>', label: "standing", hint: "status + gap to target" },
   // "targets" folded into "standing" as a projection toggle (2026-06): same
   // goal model, same chips — it was a second tab for one dataset. The gap view
-  // is now the "gap to target" toggle inside standing. Mode kept valid in
-  // constNormalizeConstellationMode so old deep-links still resolve.
-  { mode: "shipped", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>', label: "say / did / shipped", hint: "intent vs public proof" },
+  // is now the "gap to target" toggle inside standing. Mode kept valid below
+  // so old deep-links still resolve. Say/did/shipped moved to Mirror.
   { mode: "timeline", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" x2="21" y1="6" y2="6"/><line x1="3" x2="21" y1="12" y2="12"/><line x1="3" x2="21" y1="18" y2="18"/><circle cx="8" cy="6" r="1.4" fill="currentColor"/><circle cx="15" cy="12" r="1.4" fill="currentColor"/><circle cx="11" cy="18" r="1.4" fill="currentColor"/></svg>', label: "timeline", hint: "activity, insights, standing & presence on one axis" },
 ];
 function constNormalizeConstellationMode(raw) {
@@ -3251,7 +3296,7 @@ function constNormalizeConstellationMode(raw) {
   // The node-link "ring"/"map" layouts are retired in favour of the nested
   // bubble map; old saved state and deep-links resolve to the relationship map.
   if (mode === "circle" || mode === "ring" || mode === "wells" || mode === "clusters" || mode === "dependencies" || mode === "source") return "map";
-  if (mode === "journey" || mode === "stack" || mode === "targets" || mode === "shipped" || mode === "collab" || mode === "timeline") return mode;
+  if (mode === "journey" || mode === "stack" || mode === "targets" || mode === "collab" || mode === "timeline") return mode;
   return "map";
 }
 // The cohort views used to render as an in-page tab strip here
@@ -7739,8 +7784,8 @@ function renderSayDidShipped() {
   const empty = rows.length ? "" : `
     <p class="ac-stack-empty">no say / did / shipped cards yet. Run <code>npm run build:cohort-insights</code>.</p>`;
   state.canvas.innerHTML = `
-    <div class="alch-cohort-page" data-cohort-view="shipped">
-      ${cohortPageHead("shipped")}
+    <div class="alch-cohort-page" data-cohort-view="mirror" data-mirror-page>
+      ${cohortPageHead("mirror")}
       <div class="alch-view-controls" data-shape-occluder>${sentenceBar}${programScrubberHtml({ needsSnapshots: true })}</div>
       ${mirrorHtml}
       ${mirrorVm.mode === "browse" ? `<div class="alch-constellation" data-constellation-view="shipped">
@@ -7760,6 +7805,18 @@ function renderSayDidShipped() {
     </div>`;
   wireMirrorPanel();
   wireMirrorSwitch();
+  wireMirrorRows();
+}
+
+function wireMirrorRows() {
+  const root = state.canvas?.querySelector?.("[data-mirror-page]");
+  if (!root) return;
+  root.addEventListener("click", (e) => {
+    const openTarget = e.target?.closest?.("[data-const-open-record]");
+    if (!openTarget) return;
+    const rid = openTarget.getAttribute("data-const-open-record");
+    if (rid) openDetail(rid, "mirror");
+  });
 }
 
 function renderProductStack() {
@@ -8445,16 +8502,15 @@ const BUBBLE_LABEL_R_MIN = 12.5;
 // it like every other cohort view. The pure data + HTML layers are unit-tested;
 // this only wires them to the canvas. The session-insights lane lights up from
 // the attributed transcript_evidence_cards (empty until those are present).
-function renderCohortTimeline() {
-  loadStylesheetOnce("renderer/cohort-timeline-view.css");
-  const cohort = activeConstellationCohort();
+function buildCohortTimelineModel(cohort = state.cohort) {
+  cohort = cohort || {};
   const teams = cohort.teams || [];
   const people = cohort.people || [];
   const teamNameById = new Map(
     teams.filter((t) => t && t.record_id).map((t) => [t.record_id, t.name || t.record_id]),
   );
   const nowMs = Date.now();
-  const timeline = buildDefaultTimeline(
+  return buildDefaultTimeline(
     {
       whatsNew: cohort.whats_new || [],
       standingWeekly: state.standingWeekly,
@@ -8464,6 +8520,49 @@ function renderCohortTimeline() {
     },
     { startMs: PROGRAM_START_MS, endMs: PROGRAM_END_MS, nowMs },
   );
+}
+
+function timelineLaneCount(lane) {
+  return ((lane?.items || lane?.points || lane?.samples || []).length);
+}
+
+function timelinePointCount(timeline) {
+  return (timeline?.lanes || []).reduce((n, lane) => n + timelineLaneCount(lane), 0);
+}
+
+function calendarTimelineOptions(rawTimeline, prefs) {
+  const hiddenLanes = new Set(Array.isArray(prefs?.hiddenLanes) ? prefs.hiddenLanes : []);
+  const hiddenCategories = new Set(Array.isArray(prefs?.hiddenCategories) ? prefs.hiddenCategories : []);
+  const lanesByKey = new Map((rawTimeline?.lanes || []).map((lane) => [lane.trackKey, lane]));
+  const categoryCounts = new Map();
+  for (const lane of rawTimeline?.lanes || []) {
+    for (const item of Array.isArray(lane?.items) ? lane.items : []) {
+      const key = item?.category;
+      if (!key) continue;
+      categoryCounts.set(key, (categoryCounts.get(key) || 0) + 1);
+    }
+  }
+  return {
+    lanes: CALENDAR_TIMELINE_LANES
+      .filter((opt) => lanesByKey.has(opt.key) || hiddenLanes.has(opt.key))
+      .map((opt) => ({
+        ...opt,
+        count: timelineLaneCount(lanesByKey.get(opt.key)),
+        hidden: hiddenLanes.has(opt.key),
+      })),
+    categories: CALENDAR_TIMELINE_CATEGORIES
+      .filter((opt) => categoryCounts.has(opt.key) || hiddenCategories.has(opt.key))
+      .map((opt) => ({
+        ...opt,
+        count: categoryCounts.get(opt.key) || 0,
+        hidden: hiddenCategories.has(opt.key),
+      })),
+  };
+}
+
+function renderCohortTimeline() {
+  loadStylesheetOnce("renderer/cohort-timeline-view.css");
+  const timeline = buildCohortTimelineModel(activeConstellationCohort());
   const points = timeline.lanes.reduce(
     (n, l) => n + ((l.items || l.points || l.samples || []).length),
     0,
@@ -9114,6 +9213,7 @@ function normalizeDetailReturnMode(mode) {
   if (mode === "collab") return "constellation";
   if (mode === "pulse") return "shapes";
   if (mode === "intel") return "context";
+  if (mode === "asks") return "activity";
   return ALCHEMY_MODES.includes(mode) ? mode : "shapes";
 }
 
@@ -10735,6 +10835,9 @@ function paintCalendarView({ wire = false } = {}) {
   if (cal.view !== "presence" && cal.view !== "cal") cal.view = "cal";
   const presence = cal.view === "presence";
   if (cal.subscriptions == null) cal.subscriptions = getSubscriptions();
+  if (cal.timelinePrefs == null) cal.timelinePrefs = getCalendarTimelinePrefs();
+  const rawTimeline = buildCohortTimelineModel(state.cohort);
+  const calendarTimeline = filterTimelineByPrefs(rawTimeline, cal.timelinePrefs);
   state.canvas.innerHTML = calendarModule.renderCalendarPage({
     data: cal.data,
     calendarGoogleEvents: state.cohort?.calendar_google_events || {},
@@ -10746,6 +10849,12 @@ function paintCalendarView({ wire = false } = {}) {
     catHidden: Array.isArray(cal.catHidden) ? cal.catHidden : [],
     signals: presence ? null : computeCalendarSignals(),
     subscriptions: cal.subscriptions,
+    timelineHtml: presence ? "" : renderTimelineLanesHtml(calendarTimeline),
+    timelineOptions: presence ? null : calendarTimelineOptions(rawTimeline, cal.timelinePrefs),
+    timelineSummary: presence ? null : {
+      lanes: calendarTimeline.lanes.length,
+      points: timelinePointCount(calendarTimeline),
+    },
   });
   if (presence) {
     mountAvailabilityCanvas();
@@ -11035,6 +11144,73 @@ function wireCalendar() {
         el?.focus?.();
       }
       cal.rowsRefocus = null;
+    }
+
+    for (const dot of state.canvas.querySelectorAll(".rr-timeline [data-const-team]")) {
+      dot.addEventListener("click", () => {
+        const rid = dot.getAttribute("data-const-team");
+        if (rid) openDetail(rid, "calendar");
+      });
+    }
+
+    const timelineBtn = state.canvas.querySelector("[data-c2-timeline-prefs-toggle]");
+    const timelineMenu = state.canvas.querySelector(".rr-timeline-menu");
+    if (timelineBtn && timelineMenu) {
+      const opts = [...timelineMenu.querySelectorAll("[data-c2-timeline-pref]")];
+      const setTimelineOpen = (open) => {
+        timelineMenu.toggleAttribute("hidden", !open);
+        timelineBtn.setAttribute("aria-expanded", open ? "true" : "false");
+        cal.timelinePrefsMenuOpen = open;
+        if (open) opts[0]?.focus();
+      };
+      timelineBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        setTimelineOpen(timelineMenu.hasAttribute("hidden"));
+      });
+      timelineBtn.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+          e.preventDefault();
+          setTimelineOpen(true);
+        }
+      });
+      for (const opt of opts) {
+        opt.addEventListener("click", () => {
+          const kind = opt.getAttribute("data-c2-timeline-pref");
+          const key = opt.getAttribute("data-c2-timeline-key") || "";
+          cal.timelinePrefsMenuOpen = true;
+          cal.timelinePrefsLastToggled = kind + ":" + key;
+          cal.timelinePrefs = kind === "lane"
+            ? toggleCalendarTimelineLane(key)
+            : toggleCalendarTimelineCategory(key);
+          refreshCalendarView();
+        });
+      }
+      timelineMenu.addEventListener("keydown", (e) => {
+        const i = opts.indexOf(document.activeElement);
+        if (e.key === "ArrowDown") { e.preventDefault(); opts[Math.min(opts.length - 1, i + 1)]?.focus(); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); opts[Math.max(0, i - 1)]?.focus(); }
+        else if (e.key === "Home") { e.preventDefault(); opts[0]?.focus(); }
+        else if (e.key === "End") { e.preventDefault(); opts[opts.length - 1]?.focus(); }
+        else if (e.key === "Escape") { e.preventDefault(); setTimelineOpen(false); timelineBtn.focus(); }
+      });
+      if (!state.c2TimelinePrefsOutsideBound) {
+        state.c2TimelinePrefsOutsideBound = true;
+        document.addEventListener("click", (e) => {
+          if (state.mode !== "calendar") return;
+          const mn = state.canvas?.querySelector(".rr-timeline-menu");
+          if (mn && !mn.hasAttribute("hidden") && !e.target.closest("[data-c2-timeline-ctl]")) {
+            mn.setAttribute("hidden", "");
+            state.calendar.timelinePrefsMenuOpen = false;
+            state.canvas.querySelector("[data-c2-timeline-prefs-toggle]")?.setAttribute("aria-expanded", "false");
+          }
+        });
+      }
+      if (cal.timelinePrefsMenuOpen) {
+        setTimelineOpen(true);
+        const want = cal.timelinePrefsLastToggled;
+        const target = want ? opts.find(o => (o.getAttribute("data-c2-timeline-pref") + ":" + (o.getAttribute("data-c2-timeline-key") || "")) === want) : null;
+        (target || opts[0])?.focus();
+      }
     }
   }
 
@@ -13777,6 +13953,11 @@ function wireCollab() {
 }
 
 function renderAsks() {
+  if (!state.canvas) return;
+  state.canvas.innerHTML = renderAsksHtml();
+}
+
+function renderAsksHtml() {
   const asks = asksWithStatus(state.cohort?.asks);
   const { people, askIdentity, myHandle, authorSlug } = currentAskContext();
 
@@ -13889,7 +14070,7 @@ function renderAsks() {
   const openComposer = state.openAskComposer === true;
   state.openAskComposer = false;
 
-  state.canvas.innerHTML = `
+  return `
     <form class="alch-asks-compose" data-author-slug="${escAttr(authorSlug)}" data-today="${escAttr(todayIso)}" data-autofocus="${openComposer ? "1" : "0"}">
       <details class="alch-asks-compose-shell" data-asks-compose-details${openComposer ? " open" : ""}>
         <summary class="alch-asks-compose-head">
@@ -16940,12 +17121,21 @@ function renderDependencyLinks(ids) {
 
 // Whether the open dossier shows the constellation time-scrubber. It belongs to
 // the graph sub-views (map / journey / stack / collab), which time-travel the
-// cohort. Say/did/shipped is snapshot-aware too, but its full-width project
-// cards open as the normal project page — no scrubber on top — so dossiers
-// reached from there suppress it while still returning to the shipped list.
+// cohort. Mirror is snapshot-aware too, but its full-width project cards open
+// as the normal project page, so dossiers reached from there suppress it.
 function detailShowsConstellationTimeline() {
-  return state.detailReturnMode === "constellation"
-    && constNormalizeConstellationMode(state.constellationMode) !== "shipped";
+  return state.detailReturnMode === "constellation";
+}
+
+function detailReturnPageLabel() {
+  if (state.detailReturnMode === "constellation") return "constellation";
+  if (state.detailReturnMode === "mirror") return "mirror";
+  return "cohort";
+}
+
+function detailReturnPageAria() {
+  return state.detailReturnMode === "constellation" ? "back to constellation"
+    : (state.detailReturnMode === "mirror" ? "back to mirror" : "back to cohort directory");
 }
 
 function renderDetail(recordId) {
@@ -17060,12 +17250,12 @@ function renderTeamDetail(team) {
 
   state.canvas.innerHTML = `
     <header class="alch-detail-bar alch-trailbar">
-      <button class="alch-trail-back" type="button" id="alch-detail-back" aria-label="${state.detailReturnMode === "constellation" ? "back to constellation" : "back to cohort grid"}">
+      <button class="alch-trail-back" type="button" id="alch-detail-back" aria-label="${detailReturnPageAria()}">
         <span class="atb-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg></span>
         <span class="atb-word">back</span>
       </button>
       <nav class="alch-trail-path" aria-label="location">
-        <button type="button" class="atb-root" aria-label="${state.detailReturnMode === "constellation" ? "back to constellation" : "back to cohort directory"}">${state.detailReturnMode === "constellation" ? "constellation" : "cohort"}</button>
+        <button type="button" class="atb-root" aria-label="${detailReturnPageAria()}">${detailReturnPageLabel()}</button>
         <span class="atb-sep" aria-hidden="true">/</span>
         <span class="atb-here" aria-current="page">${escHtml(team.record_id.toLowerCase())}</span>
         ${team.is_mentor ? `<span class="atb-sep" aria-hidden="true">·</span><span class="atb-kind">mentor</span>` : ""}
@@ -17199,12 +17389,12 @@ function renderPersonDetail(person) {
 
   state.canvas.innerHTML = `
     <header class="alch-detail-bar alch-trailbar">
-      <button class="alch-trail-back" type="button" id="alch-detail-back" aria-label="${state.detailReturnMode === "constellation" ? "back to constellation" : "back to cohort grid"}">
+      <button class="alch-trail-back" type="button" id="alch-detail-back" aria-label="${detailReturnPageAria()}">
         <span class="atb-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg></span>
         <span class="atb-word">back</span>
       </button>
       <nav class="alch-trail-path" aria-label="location">
-        <button type="button" class="atb-root" aria-label="${state.detailReturnMode === "constellation" ? "back to constellation" : "back to cohort directory"}">${state.detailReturnMode === "constellation" ? "constellation" : "cohort"}</button>
+        <button type="button" class="atb-root" aria-label="${detailReturnPageAria()}">${detailReturnPageLabel()}</button>
         <span class="atb-sep" aria-hidden="true">/</span>
         <span class="atb-here" aria-current="page">${escHtml(recordId.toLowerCase())}</span>
       </nav>

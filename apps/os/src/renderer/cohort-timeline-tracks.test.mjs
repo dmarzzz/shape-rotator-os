@@ -11,6 +11,7 @@ import {
   buildPresenceLane,
   buildSessionsLane,
   buildDefaultTimeline,
+  filterTimelineByPrefs,
 } from "./cohort-timeline-tracks.mjs";
 
 const DAY = 86400000;
@@ -187,4 +188,25 @@ test("buildDefaultTimeline appends the sessions lane only when local sessions ar
     WINDOW,
   );
   assert.equal(withSessions.lanes.at(-1).trackKey, "sessions");
+});
+
+test("filterTimelineByPrefs hides lanes and marker categories without mutating the source", () => {
+  const timeline = buildDefaultTimeline(
+    {
+      whatsNew: [
+        { date: "2026-06-13", kind: "release", label: "release", nav: { mode: "shapes", recordId: "abra" } },
+        { date: "2026-06-14", kind: "commit", label: "commit", nav: { mode: "shapes", recordId: "abra" } },
+      ],
+      standingWeekly: STANDING,
+      people: [],
+    },
+    WINDOW,
+  );
+  const filtered = filterTimelineByPrefs(timeline, {
+    hiddenLanes: ["presence"],
+    hiddenCategories: ["commit"],
+  });
+  assert.deepEqual(filtered.lanes.map((l) => l.trackKey), ["activity", "standing"]);
+  assert.deepEqual(filtered.lanes[0].items.map((i) => i.category), ["release"]);
+  assert.deepEqual(timeline.lanes[0].items.map((i) => i.category), ["release", "commit"]);
 });
