@@ -23,6 +23,7 @@
     "check:packaging": "node scripts/check-packaging-files.js",
     "check:intel": "node scripts/check-intel-signals.cjs",
     "smoke": "electron . --smoke-test",
+    "smoke:launcher": "electron scripts/launcher-visual-smoke.cjs",
     "bundle:check": "node scripts/bundle-renderer.cjs --check"
   },
   "dependencies": {
