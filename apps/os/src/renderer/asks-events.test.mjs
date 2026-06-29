@@ -11,7 +11,7 @@ function ev(record_id, action, extra = {}) {
 
 test("buildAskEventValue(post) whitelists + bounds fields", () => {
   const v = buildAskEventValue("post", {
-    intent: "ask", verb: "🤝 pair on", topic: "help with dstack",
+    intent: "ask", verb: "pair on", topic: "help with dstack",
     skill_areas: ["DStack", "dstack", "TEE"], body: "x".repeat(5000),
     author: "ada", junk: "nope",
   });
@@ -43,7 +43,7 @@ test("reduceAsks: come_join post seeds joined_by with the author", () => {
   assert.deepEqual(ask.joined_by, ["ada"]);
 });
 
-test("reduceAsks: claim → claimed, join → unioned, done → done (any order)", () => {
+test("reduceAsks: claim -> claimed, join -> unioned, done -> done (any order)", () => {
   const asks = reduceAsks([
     ev("a1", "done", { actor: "ben", created_at: at("23") }),
     ev("a1", "post", { actor: "ada", intent: "ask", topic: "t", created_at: at("20") }),
