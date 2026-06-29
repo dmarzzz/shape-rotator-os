@@ -404,7 +404,14 @@ export function flattenScheduleEvents(data) {
 // People presence + per-week PMF live outside this module's data, so the host
 // (alchemy.js) computes them and passes the shaped result in; this module stays
 // presentation-only.
-export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 0, source = null, view = "cal", presenceHtml = "", activity = [], catHidden = [], signals = null, subscriptions = null, timelineHtml = "", timelineOptions = null, timelineSummary = null } = {}) {
+//
+// The bottom of the page is the FOLLOW BOARD: the user's followed lanes rendered
+// on the shared program axis (timelineHtml, built by the host with interactive:true)
+// plus a "+ add a lane" picker. The picker options come from `laneKinds` (the store's
+// SUBSCRIPTION_KINDS, shaped { kind, label, needsSubject, glyph }); `subscriptions`
+// marks which kinds/teams are already followed. The week-grid feed rows + the old
+// timeline "view" prefs menu are gone — adding/removing lanes replaces both.
+export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 0, source = null, view = "cal", presenceHtml = "", activity = [], catHidden = [], signals = null, subscriptions = null, timelineHtml = "", laneKinds = null, timelineSummary = null } = {}) {
   const tab = data?.tabs?.[PRIMARY_TAB] || [];
   const safeWeekIdx = Math.max(0, Math.min(WEEK_COUNT - 1, weekIdx | 0));
   const week = parseWeekRow(tab[2 + safeWeekIdx] || [], safeWeekIdx);
@@ -634,21 +641,20 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
   const weekEndMs = Number.isFinite(days[6]?.dayMs) ? days[6].dayMs : null;
   const rangeLabel = (weekStartMs != null && weekEndMs != null) ? `${shortDate(weekStartMs)} – ${shortDate(weekEndMs)}` : "";
   const WEEK_TITLES = ["First light", "Settling in", "Finding the shape", "Into the work", "The middle weeks", "Past the midpoint", "Pushing to fit", "Sharpening the pitch", "The final stretch", "Toward demo night"];
-  const NAV_MID = ["the opening days", "still arriving", "finding the rhythm", "into the work", "halfway up the residency", "past the midpoint", "the push begins", "sharpening the pitch", "the final stretch", "demo week"];
   const weekTitle = WEEK_TITLES[safeWeekIdx] || `Week ${safeWeekIdx + 1}`;
 
   const rosterTotal = Math.max(1, Number(signals?.rosterTotal) || perDaySig.reduce((m, s) => Math.max(m, Number(s?.inTown) || 0), 1));
 
-  // stats — who's here, what shipped, how much we gathered
-  const todayIdx = days.findIndex(d => d.isToday);
-  const refIdx = todayIdx >= 0 ? todayIdx : 6;
-  const inTownToday = Number(perDaySig[refIdx]?.inTown) || perDaySig.reduce((m, s) => Math.max(m, Number(s?.inTown) || 0), 0);
-  const satPct = rosterTotal ? Math.round((inTownToday / rosterTotal) * 100) : 0;
+  // The subtitle still reads the week's rhythm (how gathered vs build-heavy it is)
+  // — a one-line descriptor next to the date range. The numeric in-town/shipped/
+  // gathered stat cards were removed (the follow board below carries those signals
+  // now), so only this descriptor's gatherCount survives.
   const gatherCount = days.reduce((n, d) => n + d.timed.length, 0);
-  const gatherHrs = Math.round(days.reduce((n, d) => n + d.timed.reduce((s, ev) => s + (ev.timing.endMin - ev.timing.startMin), 0), 0) / 60);
-  const shipCount = days.reduce((n, d) => n + (d.activity || []).filter(a => a.kind === "release").length, 0);
   const descriptor = gatherCount === 0 ? "a pure build week" : gatherCount <= 6 ? "mostly building, lightly gathered" : "a gathering-heavy week";
 
+  // Header — title + subtitle on the left, controls (scope + subscribe) on the
+  // right. No stat cards: the follow board is where in-town / shipped / gathered
+  // live now, as followable lanes rather than fixed numbers.
   const headHtml = `
     <header class="rr-head">
       <div class="rr-head-l">
@@ -659,11 +665,6 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
         <div class="rr-controls">
           ${scopeChip}
           ${subscribeAction}
-        </div>
-        <div class="rr-stats">
-          <div class="rr-stat rr-stat--pres"><div class="rr-stat-lab">in town</div><div class="rr-stat-big">${inTownToday}<small> /${rosterTotal}</small></div><div class="rr-stat-note rr-tone-pres">${satPct}% of the house</div></div>
-          <div class="rr-stat rr-stat--ship"><div class="rr-stat-lab">shipped</div><div class="rr-stat-big">${shipCount}</div><div class="rr-stat-note rr-tone-ship">release${shipCount === 1 ? "" : "s"} this wk</div></div>
-          <div class="rr-stat rr-stat--gather"><div class="rr-stat-lab">gathered</div><div class="rr-stat-big">${gatherCount}</div><div class="rr-stat-note">${gatherHrs}h together</div></div>
         </div>
       </div>
     </header>`;
@@ -722,237 +723,108 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
     return `<div class="${cls}"${d.isToday ? ` data-rr-win="${bWinStart}:${bWinEnd}"` : ""}>${ground}${banners}${ticks}${nowEls}</div>`;
   }).join("");
 
-  // ── subscribable rows — the configurable lane stack under the week grid ──
-  // The week panel used to hard-code two strips (presence ribbon + shipped). Those
-  // are now the two DEFAULT rows in a user-controlled stack: each row subscribes to
-  // a feed (a team, github pushes, releases, meeting transcripts, presence) and the
-  // "+ subscribe a row" control adds more. Every row resolves from data already
-  // loaded — `activity` (whats_new), the public transcript anchors, and per-day
-  // presence — so this module stays presentation-only (no new fetches). The host
-  // (alchemy.js) owns persistence + add/remove wiring; we just render the model and
-  // stash it on _model.rows so the reveal can read the clicked item back.
-  const subList = (Array.isArray(subscriptions) && subscriptions.length)
-    ? subscriptions
-    : [{ id: "row-presence", kind: "presence" }, { id: "row-shipped", kind: "shipped" }];
-  const dayIsos = days.map(d => isoDay(d.dayMs));
-  const teamNameOf = (id) => (scopeTeams.find(t => t.id === id)?.name) || id || "team";
-  const actToItem = (a) => ({ kind: a.kind, label: a.label || "", team: a.meta || "", recordId: a.nav?.recordId || null, date: a.date });
-  const transcriptsForDay = (iso, subjectId = null) => CALENDAR_TRANSCRIPT_MATCHES
-    .filter(e => e && e.date === iso)
-    .filter(e => {
-      if (!subjectId) return true;
-      const want = new Set([subjectId, slug(teamNameOf(subjectId))]);
-      return (e.sources || []).some(s => [...(s.mentions_any || []), ...(s.mentions_direct || [])].some(m => want.has(m)));
-    })
-    .map(e => ({ kind: "transcript", label: e.section || (e.title_contains || [])[0] || "session",
-                 title: (e.title_contains || []).join(" · "), confidence: e.confidence || "",
-                 sourceCount: (e.sources || []).length, date: e.date }));
-
-  const resolveRow = (sub) => {
-    const kind = sub.kind;
-    const subjectId = sub.subjectId || null;
-    let label = sub.label || "";
-    let render = "feed";
-    const perDay = dayIsos.map(() => ({ items: [] }));
-    if (kind === "presence") { render = "presence"; label = label || "in town"; }
-    else if (kind === "shipped") {
-      label = label || "shipped";
-      dayIsos.forEach((iso, di) => { for (const a of activityList) if (a && a.date === iso && ACT_KINDS.has(a.kind) && (!scopeId || a.nav?.recordId === scopeId)) perDay[di].items.push(actToItem(a)); });
-    } else if (kind === "commits" || kind === "releases") {
-      const want = kind === "commits" ? "commit" : "release";
-      label = label || (kind === "commits" ? "github pushes" : "releases");
-      dayIsos.forEach((iso, di) => { for (const a of activityList) if (a && a.date === iso && a.kind === want && (!scopeId || a.nav?.recordId === scopeId)) perDay[di].items.push(actToItem(a)); });
-    } else if (kind === "transcripts") {
-      label = label || "meetings";
-      dayIsos.forEach((iso, di) => { for (const t of transcriptsForDay(iso)) perDay[di].items.push(t); });
-    } else if (kind === "team") {
-      label = label || teamNameOf(subjectId);
-      dayIsos.forEach((iso, di) => {
-        for (const a of activityList) if (a && a.date === iso && ACT_KINDS.has(a.kind) && (a.nav?.recordId === subjectId)) perDay[di].items.push(actToItem(a));
-        for (const t of transcriptsForDay(iso, subjectId)) perDay[di].items.push(t);
-      });
-    }
-    const count = perDay.reduce((n, c) => n + c.items.length, 0);
-    return { id: sub.id, kind, subjectId, label, hidden: !!sub.hidden, builtin: !!sub.builtin, render, perDay, count };
-  };
-  const rowModels = subList.filter((s) => !s.hidden).map(resolveRow);
-  _model.rows = rowModels;
-
-  // 16px line glyphs per row kind (matches the app's lucide-ish stroke set).
-  const ROW_ICON = {
+  // ── follow board picker — the "+ add a lane" checklist ────────────────────
+  // The week-grid feed-row stack is gone; the user's followed lanes now live in the
+  // timeline below (built by the host, rendered with interactive:true). This picker
+  // adds/removes/toggles lanes. It REUSES the design-system dropdown family
+  // (.c2-rowsctl-*) + the same data-c2-subrow-* contract the host already wires, so
+  // wiring carries over: each option is a checkbox reflecting whether that lane kind
+  // (and team, for the team kind) is already followed. Options come from `laneKinds`
+  // (the store's SUBSCRIPTION_KINDS) — calendar.js stays presentation-only and never
+  // imports the store. `subscriptions` marks the already-followed kinds/subjects.
+  const followList = Array.isArray(subscriptions) ? subscriptions : [];
+  const laneKindList = Array.isArray(laneKinds) ? laneKinds : [];
+  const subOn = (kind, subjectId = null) => followList.some(s => s.kind === kind && (s.subjectId || null) === (subjectId || null));
+  // 16px line glyph per lane kind — matches the render layer's LANE_GLYPH so the
+  // picker icon and the lane icon agree. Kept local (calendar.js doesn't import the
+  // render module) but the path set is the same lucide-ish stroke family.
+  const GLYPH = {
+    release: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>',
+    commit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M3 12h6"/><path d="M15 12h6"/></svg>',
+    transcript: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+    insight: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg>',
+    standing: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="4" width="3" height="14"/></svg>',
     presence: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>',
-    shipped: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>',
-    commits: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M3 12h6"/><path d="M15 12h6"/></svg>',
-    releases: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>',
-    transcripts: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
     team: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
   };
-  const rowIcon = (kind) => ROW_ICON[kind] || ROW_ICON.team;
-
-  // presence row — a compact per-day occupancy bar + count (sleeker than the old
-  // SVG ribbon, and consistent with every other lane). Click still opens presence.
-  const presenceCells = days.map((d, di) => {
-    const n = Number(perDaySig[di]?.inTown) || 0;
-    const frac = rosterTotal ? Math.max(0, Math.min(1, n / rosterTotal)) : 0;
-    const lbl = n ? `${cap(d.name)} ${d.date.replace(/^[a-z]+\s+/, "")} · ${n} of ${rosterTotal} in town — open presence`
-                  : `${cap(d.name)} · nobody in town — open presence`;
-    // a continuous occupancy stripe — each day's fill opacity scales with how full
-    // the house is, so the seven segments read as one intensity ribbon along the row.
-    const fill = (0.08 + frac * 0.82).toFixed(3);
-    return `<button class="rr-fcell rr-fcell-pres${d.isToday ? " today" : ""}" data-c2-intown="${di}" type="button" aria-label="${escAttr(lbl)}"><span class="rr-pres-fill" style="opacity:${fill}"></span><span class="rr-fcell-n">${n || ""}</span></button>`;
-  }).join("");
-
-  // feed row — per-day cells of clickable items (release/commit/team chips, or a
-  // transcript anchor), mirroring the old shipped lane but driven by the feed.
-  const feedCells = (row) => row.perDay.map((c, di) => {
-    const today = days[di]?.isToday ? " today" : "";
-    if (!c.items.length) return `<div class="rr-fcell rr-fcell-empty${today}"></div>`;
-    const pulses = `<div class="rr-pulses">${c.items.slice(0, 5).map(() => `<span class="rr-pulse"></span>`).join("")}</div>`;
-    const lines = c.items.map((it, ii) => {
-      const inner = it.kind === "transcript"
-        ? escHtml(it.label)
-        : `${it.team ? `<span class="rr-rel-team">${escHtml(it.team)}</span> ` : ""}${escHtml(it.label)}`;
-      const title = it.kind === "transcript" ? it.label : `${it.team ? it.team + " " : ""}${it.label}`;
-      return `<button class="rr-rel" data-c2-rowitem="${row.__ri}:${di}:${ii}" type="button" title="${escAttr(title)}">${inner}</button>`;
-    }).join("");
-    return `<div class="rr-fcell has${today}">${pulses}<div class="rr-rels">${lines}</div></div>`;
-  }).join("");
-
-  const rowsHtml = rowModels.map((row, ri) => {
-    row.__ri = ri;
-    const cells = row.render === "presence" ? presenceCells : feedCells(row);
-    // A row reads "active" when it has something this week (presence is a
-    // continuous signal, so it's always live); quiet rows dim so the eye lands on
-    // what actually happened. The count badge is the at-a-glance weight.
-    const active = row.render === "presence" || row.count > 0;
-    const badge = row.render === "presence"
-      ? ""
-      : (row.count > 0 ? `<span class="rr-row-count" title="${row.count} this week" aria-label="${row.count} this week">${row.count}</span>` : "");
-    return `
-      <div class="rr-row rr-frow ${active ? "is-active" : "is-quiet"}" data-rr-row="${ri}" data-c2-subrow-id="${escAttr(row.id)}" data-row-kind="${escAttr(row.kind)}">
-        <div class="rr-rowlab rr-frowlab" draggable="true" tabindex="0" role="button" title="drag to reorder · ${escAttr(row.label)}" aria-label="${escAttr(row.label)} row — drag, click ▴▾, or Alt+↑/↓ to reorder">
-          <span class="rr-row-move" aria-hidden="true">
-            <button class="rr-row-mv" data-c2-subrow-move="up" type="button" tabindex="-1" draggable="false" title="move up">▴</button>
-            <button class="rr-row-mv" data-c2-subrow-move="down" type="button" tabindex="-1" draggable="false" title="move down">▾</button>
-          </span>
-          <span class="rr-rowlab-ico" aria-hidden="true">${rowIcon(row.kind)}</span>
-          <span class="rr-rowlab-tx">${escHtml(row.label)}</span>
-          ${badge}
-          <button class="rr-rowlab-x" data-c2-subrow-remove="${escAttr(row.id)}" type="button" draggable="false" title="remove row" aria-label="remove ${escAttr(row.label)} row">×</button>
-        </div>
-        ${cells}
-      </div>`;
-  }).join("");
-
-  // rows control — the "rows ⌄" checklist that adds/removes feed lanes. Reuses the
-  // design-system dropdown family (.c2-rowsctl-*) the calendar already ships (and ds.css
-  // styles), so it inherits the unified panel / option / selected-wash look; each
-  // option is a checkbox reflecting whether that lane is subscribed. Toggle + menu
-  // wiring live in wireCalendar().
-  const subOn = (kind, subjectId = null) => subList.some(s => s.kind === kind && (s.subjectId || null) === (subjectId || null));
-  const rowOpt = (kind, label, subjectId = null) => `
+  const glyphFor = (key) => GLYPH[key] || GLYPH.team;
+  const laneOpt = (kind, label, glyph, subjectId = null) => `
     <button class="c2-rowsctl-opt" role="menuitemcheckbox" aria-checked="${subOn(kind, subjectId) ? "true" : "false"}"
             data-c2-subrow-toggle data-c2-subrow-kind="${escAttr(kind)}"${subjectId ? ` data-c2-subrow-subject="${escAttr(subjectId)}"` : ""} data-c2-subrow-label="${escAttr(label)}" type="button">
       <i class="c2-rowsctl-check" aria-hidden="true">✓</i>
-      <span class="rr-rowlab-ico" aria-hidden="true">${rowIcon(kind)}</span>
+      <span class="rr-rowlab-ico" aria-hidden="true">${glyphFor(glyph)}</span>
       <span>${escHtml(label)}</span>
     </button>`;
-  const addKinds = [
-    { kind: "commits", label: "github pushes" },
-    { kind: "releases", label: "products / releases" },
-    { kind: "transcripts", label: "meetings · transcripts" },
-    { kind: "presence", label: "in town" },
-    { kind: "shipped", label: "shipped" },
-  ];
-  // Add affordance — a full-width "+ add a feed row" sits as the last lane in the
-  // stack (in-context, not a stray corner button), opening the same checklist so
-  // you tick feeds + teams on/off. Aligned to the grid so it reads as the next row.
-  const addRowControl = `
-    <div class="rr-addrow" data-c2-subrow-ctl>
-      <button class="rr-addrow-trigger" data-c2-subrow-add type="button" aria-haspopup="menu" aria-expanded="false" aria-label="add or remove calendar rows">
+  // Cohort-wide kinds come straight from laneKinds (in store order); the team kind
+  // explodes into one option per scoped team (so a click follows that specific team).
+  const cohortKinds = laneKindList.filter(k => k && !k.needsSubject);
+  const teamKind = laneKindList.find(k => k && k.kind === "team");
+  const addLaneControl = `
+    <div class="rr-fb-add rr-addrow" data-c2-subrow-ctl>
+      <button class="rr-fb-add-trigger rr-addrow-trigger" data-c2-subrow-add type="button" aria-haspopup="menu" aria-expanded="false" aria-label="add or remove follow lanes">
         <span class="rr-addrow-plus" aria-hidden="true">+</span>
-        <span class="rr-addrow-tx">add a feed row</span>
+        <span class="rr-addrow-tx">add a lane</span>
         <i class="c2-chev" aria-hidden="true"></i>
       </button>
-      <div class="c2-rowsctl-menu rr-addrow-menu" role="menu" aria-label="calendar rows" hidden>
+      <div class="c2-rowsctl-menu rr-addrow-menu" role="menu" aria-label="follow lanes" hidden>
         <div class="c2-rowsctl-grp">cohort feeds</div>
-        ${addKinds.map(k => rowOpt(k.kind, k.label)).join("")}
-        ${scopeTeams.length ? `<div class="c2-rowsctl-grp">teams — commits · releases · meetings</div>${scopeTeams.map(t => rowOpt("team", t.name, t.id)).join("")}` : ""}
+        ${cohortKinds.map(k => laneOpt(k.kind, k.label, k.glyph)).join("")}
+        ${teamKind && scopeTeams.length ? `<div class="c2-rowsctl-grp">teams — releases · commits · insights · meetings</div>${scopeTeams.map(t => laneOpt("team", t.name, teamKind.glyph, t.id)).join("")}` : ""}
       </div>
     </div>`;
 
-  const laneOpts = Array.isArray(timelineOptions?.lanes) ? timelineOptions.lanes : [];
-  const catOpts = Array.isArray(timelineOptions?.categories) ? timelineOptions.categories : [];
-  const timelineOpt = (kind, opt) => {
-    const key = String(opt?.key || "");
-    const label = String(opt?.label || key);
-    const count = Number.isFinite(opt?.count) ? String(opt.count) : "";
-    const checked = !opt?.hidden;
-    return `
-      <button class="c2-rowsctl-opt rr-timeline-opt" role="menuitemcheckbox" aria-checked="${checked ? "true" : "false"}"
-              data-c2-timeline-pref="${escAttr(kind)}" data-c2-timeline-key="${escAttr(key)}" type="button">
-        <i class="c2-rowsctl-check" aria-hidden="true">&#10003;</i>
-        <span class="rr-timeline-swatch" ${kind === "category" ? `data-cat="${escAttr(key)}"` : `data-track="${escAttr(key)}"`} aria-hidden="true"></span>
-        <span class="rr-timeline-opt-label">${escHtml(label)}</span>
-        ${count ? `<em class="rr-timeline-opt-count">${escHtml(count)}</em>` : ""}
-      </button>`;
-  };
-  const timelineControls = (laneOpts.length || catOpts.length) ? `
-    <div class="rr-timeline-prefs" data-c2-timeline-ctl>
-      <button class="rr-timeline-prefbtn" data-c2-timeline-prefs-toggle type="button" aria-haspopup="menu" aria-expanded="false" aria-label="choose timeline view">
-        <span>view</span><i class="c2-chev" aria-hidden="true"></i>
-      </button>
-      <div class="c2-rowsctl-menu rr-timeline-menu" role="menu" aria-label="timeline view" hidden>
-        ${laneOpts.length ? `<div class="c2-rowsctl-grp">lanes</div>${laneOpts.map((opt) => timelineOpt("lane", opt)).join("")}` : ""}
-        ${catOpts.length ? `<div class="c2-rowsctl-grp">points</div>${catOpts.map((opt) => timelineOpt("category", opt)).join("")}` : ""}
-      </div>
-    </div>` : "";
-  const timelineBits = [
+  // ── follow board ──────────────────────────────────────────────────────────
+  // The single bottom component: the followed lanes on the program axis (rendered
+  // by the host with interactive:true and passed in as timelineHtml) plus the lane
+  // picker in the head. The head summary reads "{N lanes · M points · program axis}"
+  // from timelineSummary (computed host-side by summing lane counts).
+  const fbBits = [
     Number.isFinite(timelineSummary?.lanes) ? `${timelineSummary.lanes} lanes` : "",
     Number.isFinite(timelineSummary?.points) ? `${timelineSummary.points} points` : "",
     "program axis",
   ].filter(Boolean).join(" &middot; ");
-  const timelinePanel = timelineHtml ? `
-    <section class="rr-timeline" data-c2-timeline aria-label="cohort timeline">
-      <header class="rr-timeline-head">
-        <div class="rr-timeline-title">
-          <span>cohort timeline</span>
-          <em>${timelineBits}</em>
-        </div>
-        ${timelineControls}
+  const followBoard = `
+    <section class="rr-followboard" data-c2-timeline aria-label="follow board">
+      <header class="rr-fb-head">
+        <div class="rr-fb-title"><span>follow</span><em>${fbBits}</em></div>
+        ${addLaneControl}
       </header>
       <div class="alch-timeline-view rr-timeline-view">${timelineHtml}</div>
-    </section>` : "";
+    </section>`;
 
-  const navHtml = `
-    <div class="rr-nav">
-      <button class="rr-navbtn rr-prev" data-c2-nav="prev"${safeWeekIdx === 0 ? " disabled" : ""} type="button">${safeWeekIdx === 0 ? "start of residency" : `← wk ${String(safeWeekIdx).padStart(2, "0")} · ${escHtml(weekStartMs != null ? shortDate(weekStartMs - 7 * DAY_MS) : "")}`}</button>
-      <span class="rr-nav-mid">${escHtml(NAV_MID[safeWeekIdx] || "")}</span>
-      <button class="rr-navbtn rr-next" data-c2-nav="next"${safeWeekIdx === WEEK_COUNT - 1 ? " disabled" : ""} type="button">${safeWeekIdx === WEEK_COUNT - 1 ? "demo week" : `wk ${String(safeWeekIdx + 2).padStart(2, "0")} · ${escHtml(weekStartMs != null ? shortDate(weekStartMs + 7 * DAY_MS) : "")} →`}</button>
-    </div>`;
-
-  // ── week dot-rail — the restored navigator: ← 1 2 … 10 → on a hairline rail.
-  // The week containing today keeps an under-dot; the VIEWED week is the oxide
-  // bead (glides between weeks via scrubberSweep). Reuses the c2-scrub data attrs
-  // (data-c2-week / data-c2-nav) so the existing click + keyboard wiring carries.
+  // ── filmstrip week hero — the program-week navigator ──────────────────────
+  // Replaces the c2-scrub dot-rail: a horizontally-scrollable strip of 10 week
+  // cards (week #, date range, one-line theme); the active card is enlarged and
+  // scrolled to center on mount (attachCalendarPageBehavior). Click a card to jump;
+  // ‹ / › arrows step. Reuses the dot-rail data attrs (data-c2-week / data-c2-nav)
+  // so the existing click + keyboard wiring in alchemy carries over unchanged.
   const nowWeekIdx = currentWeekIdx();
-  const scrubDots = Array.from({ length: WEEK_COUNT }, (_, i) => `
-    <button class="c2-scrub-dot${i === nowWeekIdx ? " is-now" : ""}" data-c2-week="${i}"
-            aria-selected="${i === safeWeekIdx}" aria-label="week ${i + 1}" type="button">${i + 1}</button>`).join("");
-  const weekRailHtml = `
-    <header class="c2-masthead">
-      <div class="c2-scrub" role="tablist" aria-label="program week">
-        <button class="c2-scrub-arrow" data-c2-nav="prev" aria-label="previous week" ${safeWeekIdx === 0 ? "disabled" : ""} type="button">←</button>
-        ${scrubDots}
-        <button class="c2-scrub-arrow" data-c2-nav="next" aria-label="next week" ${safeWeekIdx === WEEK_COUNT - 1 ? "disabled" : ""} type="button">→</button>
+  const heroCards = Array.from({ length: WEEK_COUNT }, (_, i) => {
+    const startMs = Number.isFinite(weekStartMs) ? weekStartMs + (i - safeWeekIdx) * 7 * DAY_MS : null;
+    const endMs = startMs != null ? startMs + 6 * DAY_MS : null;
+    const dates = (startMs != null && endMs != null) ? `${shortDate(startMs)} – ${shortDate(endMs)}` : "";
+    const cls = ["rr-hero-card", i === safeWeekIdx ? "is-active" : "", i === nowWeekIdx ? "is-now" : ""].filter(Boolean).join(" ");
+    return `
+      <button class="${cls}" role="tab" aria-selected="${i === safeWeekIdx ? "true" : "false"}" data-c2-week="${i}" type="button">
+        <span class="rr-hero-wk">wk ${i + 1}</span>
+        <span class="rr-hero-dates">${escHtml(dates)}</span>
+        <span class="rr-hero-title">${escHtml(WEEK_TITLES[i] || `Week ${i + 1}`)}</span>
+      </button>`;
+  }).join("");
+  const heroHtml = `
+    <section class="rr-hero" aria-label="program week navigator">
+      <button class="rr-hero-arrow c2-scrub-arrow rr-hero-prev" data-c2-nav="prev" aria-label="previous week"${safeWeekIdx === 0 ? " disabled" : ""} type="button">‹</button>
+      <div class="rr-hero-strip" role="tablist" aria-label="program week">
+        ${heroCards}
       </div>
-    </header>`;
+      <button class="rr-hero-arrow c2-scrub-arrow rr-hero-next" data-c2-nav="next" aria-label="next week"${safeWeekIdx === WEEK_COUNT - 1 ? " disabled" : ""} type="button">›</button>
+    </section>`;
 
   return `
     <section class="c2 rr-cal" data-phase="${escAttr(phase)}">
       ${staleBanner}
       ${headHtml}
-      ${weekRailHtml}
+      ${heroHtml}
       <section class="rr-panel">
         <div class="rr-panel-head">
           ${filterBar}
@@ -964,13 +836,8 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
             ${spineHtml}
             ${fieldsHtml}
           </div>
-          <div class="rr-rows" role="group" aria-label="subscribed feed rows">
-            ${rowsHtml}
-          </div>
-          ${addRowControl}
-          ${timelinePanel}
+          ${followBoard}
         </div>
-        ${navHtml}
       </section>
     </section>`;
 }
@@ -983,6 +850,21 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
 // so intervals don't stack.
 export function attachCalendarPageBehavior(root) {
   if (!root) return () => {};
+  // Center the active filmstrip card on mount — the hero scrolls horizontally and
+  // the viewed week may sit off-screen after a paint. Honor reduced-motion by
+  // snapping instead of animating. Guarded so a missing/short strip is a no-op.
+  try {
+    const active = root.querySelector(".rr-hero-card.is-active");
+    if (active && typeof active.scrollIntoView === "function") {
+      let reduce = false;
+      try {
+        reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          || document.documentElement.getAttribute("data-reduce-motion") === "1";
+      } catch {}
+      active.scrollIntoView({ inline: "center", block: "nearest", behavior: reduce ? "auto" : "smooth" });
+    }
+  } catch {}
+
   const field = root.querySelector(".rr-field.today");
   const line = field?.querySelector(".rr-now");
   const dot = field?.querySelector(".rr-now-dot");
@@ -1303,26 +1185,37 @@ export function openCalendarActivity(ref, { anchor = null, anchorRect = null, on
   overlay.querySelector(".c2-modal-close")?.focus?.({ preventScroll: true });
 }
 
-// Reveal a subscribed-row item. release/commit/team items drill to the team
-// dossier (same secondary "open team →" as the shipped reveal); a transcript item
-// shows its public anchor (the body is held in the private vault). Reads the
-// clicked item back from _model.rows so every row kind shares one click path.
-export function openCalendarRowItem(ref, { anchor = null, anchorRect = null, onOpenTeam = null } = {}) {
-  if (!_model || typeof document === "undefined") return;
-  const m = String(ref || "").match(/^(\d+):(\d+):(\d+)$/);
-  if (!m) return;
-  const row = (_model.rows || [])[+m[1]];
-  const day = _model.days[+m[2]];
-  const item = row?.perDay?.[+m[2]]?.items?.[+m[3]];
-  if (!row || !day || !item) return;
+// Reveal a follow-board timeline marker (.ctl-dot[data-c2-timeline-item]). Reads the
+// payload straight off the clicked marker's data-* attrs (title/detail/date/kind/team)
+// rather than a model index, so the render layer (cohort-timeline-render.mjs) and this
+// reveal share ONE contract — the marker carries everything the popover shows. Opens
+// the SAME c2-modal popover the event/shipped reveals use; a secondary "open team →"
+// drills to the dossier when the marker carries data-team and onOpenTeam is given.
+export function openCalendarTimelineItem(markerEl, { onOpenTeam = null } = {}) {
+  if (!markerEl || typeof document === "undefined") return;
+  const ds = markerEl.dataset || {};
+  const kind = String(ds.kind || ds.cat || "update");
+  const title = String(ds.title || "");
+  const detail = String(ds.detail || "");
+  const dateIso = String(ds.date || "");
+  const recordId = ds.team ? String(ds.team) : "";
 
-  const weekday = DAY_NAMES_FULL[day.name] || day.name;
-  const VERB = { release: "shipped", commit: "committed", transcript: "recorded" };
-  const verb = VERB[item.kind] || item.kind;
-  const isTranscript = item.kind === "transcript";
-  const titleLine = isTranscript ? (item.title || item.label || "session") : (item.team || row.label || "a team");
-  const eventAnchor = anchor || null;
-  const eventAnchorRect = anchorRect || rectFromAnchor(eventAnchor);
+  // Date label — "monday · Jun 24" from the marker's ISO date (UTC, to match the
+  // program axis). Falls back to the kind alone when the marker has no date.
+  const DAY_NAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  let whenLabel = "";
+  if (dateIso) {
+    const d = new Date(dateIso);
+    if (!Number.isNaN(d.getTime())) {
+      whenLabel = `${DAY_NAMES[d.getUTCDay()]} · ${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
+    }
+  }
+  const VERB = { release: "shipped", commit: "committed", transcript: "recorded", insight: "noted" };
+  const verb = VERB[kind] || kind;
+  const titleLine = title || verb;
+  const eventAnchor = markerEl;
+  const eventAnchorRect = rectFromAnchor(eventAnchor);
 
   document.querySelector(".c2-modal")?.remove();
   clearCalendarEventSelection();
@@ -1330,22 +1223,21 @@ export function openCalendarRowItem(ref, { anchor = null, anchorRect = null, onO
   const overlay = document.createElement("div");
   overlay.className = "c2-modal";
   overlay.innerHTML = `
-    <div class="c2-modal-panel c2-modal-panel--act" data-act-kind="${escAttr(item.kind)}" role="dialog" aria-modal="true" aria-label="row item details">
+    <div class="c2-modal-panel c2-modal-panel--act" data-act-kind="${escAttr(kind)}" role="dialog" aria-modal="true" aria-label="timeline item details">
       <button class="c2-modal-close" type="button" aria-label="close">×</button>
       <div class="c2-modal-meta">
-        <div class="c2-modal-when">${escHtml(weekday)} · ${escHtml(day.date)}</div>
+        <div class="c2-modal-when">${whenLabel ? escHtml(whenLabel) : escHtml(verb)}</div>
         <div class="c2-modal-cat"><i class="c2-act-dot" aria-hidden="true"></i>${escHtml(verb)}</div>
       </div>
       <h3 class="c2-modal-title"><em>${escHtml(titleLine)}</em></h3>
-      ${!isTranscript && item.label ? `<p class="c2-modal-actlabel">${escHtml(item.label)}</p>` : ""}
-      ${isTranscript ? `<p class="c2-modal-actlabel">${escHtml(item.label || "")}${item.sourceCount ? ` · ${item.sourceCount} source${item.sourceCount === 1 ? "" : "s"}` : ""}${item.confidence ? ` · ${escHtml(item.confidence)} confidence` : ""}</p>` : ""}
-      ${item.recordId && typeof onOpenTeam === "function" ? `
+      ${detail ? `<p class="c2-modal-actlabel">${escHtml(detail)}</p>` : ""}
+      ${recordId && typeof onOpenTeam === "function" ? `
         <div class="c2-modal-actions">
-          <button class="c2-modal-team" type="button" data-open-team="${escAttr(item.recordId)}">
+          <button class="c2-modal-team" type="button" data-open-team="${escAttr(recordId)}">
             <span class="c2-action-glyph" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
             </span>
-            <span class="c2-action-copy"><strong>open ${escHtml(item.team || row.label || "team")}</strong><small>team dossier</small></span>
+            <span class="c2-action-copy"><strong>open team</strong><small>team dossier</small></span>
           </button>
         </div>` : ""}
     </div>`;

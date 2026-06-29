@@ -33,14 +33,8 @@ import {
 } from "@shape-rotator/shape-ui";
 import { saveSphere, SPHERE_DIALS, SPHERE_DEFAULTS, SPHERE_BG_DEFAULT, SPHERE_BG_MIX_DEFAULT, SPHERE_TIME_DEFAULT, SPHERE_BG_PRESETS, normalizeHex } from "./supabase-sphere.mjs";
 import { highlightGLSL } from "./shader-dsl.mjs";
-import { getSubscriptions, addSubscription, removeSubscription, reorderSubscriptions } from "./calendar-subscriptions.js";
-import {
-  CALENDAR_TIMELINE_CATEGORIES,
-  CALENDAR_TIMELINE_LANES,
-  getCalendarTimelinePrefs,
-  toggleCalendarTimelineCategory,
-  toggleCalendarTimelineLane,
-} from "./calendar-timeline-prefs.js";
+import { getSubscriptions, addSubscription, removeSubscription, reorderSubscriptions, SUBSCRIPTION_KINDS } from "./calendar-subscriptions.js";
+import { CALENDAR_TRANSCRIPT_MATCHES } from "../content/context/calendar-transcript-matches.js";
 import {
   aggregateSkillAreas, buildCohortIndex, buildCollabModel, collabAffKey, collabHasText,
   dependencyPairKey, dependencySafeToken,
@@ -66,7 +60,7 @@ import { unreadCounts, unreadRecordsForMode, markModeSeen, fingerprintItems, unr
 import { evidenceMoveCards, indexCohortEvidence, rankEvidenceNeighbors, teamEvidence, recentClaims, teamTimeline, claimLane, teamProgressRollup } from "./cohort-evidence-index.mjs";
 import { cardTraceBodyHtml, cardTraceHtml } from "./cohort-trace-view.mjs";
 import { getCohortTimeline } from "./cohort-timeline.js";
-import { isPresent, buildDefaultTimeline, filterTimelineByPrefs } from "./cohort-timeline-tracks.mjs";
+import { isPresent, buildDefaultTimeline, buildFollowedTimeline } from "./cohort-timeline-tracks.mjs";
 import { renderTimelineLanesHtml } from "./cohort-timeline-render.mjs";
 import { getStandingWeekly } from "./cohort-standing-weekly.js";
 import { periodScrubberHtml, wireScrubber, weekStopsFrom, snapshotStopsFrom } from "./cohort-period-scrubber.mjs";
@@ -76,17 +70,18 @@ import { getTheme, toggleTheme } from "./theme.js";
 import { getIdentity, setIdentity, hasSkippedIdentityOnboarding, mountResealInline } from "./identity.js";
 import {
   askAgeLabel, askCapacityLabel, askContact, askDisplayVerb, askExpiresLabel,
-  askHasJoined, askIntent, askIntentLabel, askIntentSection, askIsCurrent,
+  askHasJoined, askIntent, askIntentLabel, askIsCurrent,
   askIsOpen, askJoinedBy, askLocation, askPrimaryActionLabel, askStatus,
   askTimeLabel, askTopic,
   asksWithStatus,
   isAskMine, normalizeAskIdentity, resolveAskAuthor, resolveAskIdentityPerson,
 } from "./asks.js";
 import { submitContest } from "./supabase-contest.mjs";
-import { emitProfileEdit, emitContest, emitTranscript } from "./cohort-emit.mjs";
+import { emitProfileEdit, emitContest, emitTranscript, emitAskPost, emitAskClaim, emitAskJoin, emitAskDone } from "./cohort-emit.mjs";
+import { reduceAsks } from "./asks-events.mjs";
 import { getAppContext } from "./app-context.mjs";
 import { getPrefs, setPrefs } from "./cohort-prefs.mjs";
-import { buildViewer, buildAuthorMeta, buildFeedView, feedItemLabel, getLastSeen, markSeen } from "./activity-feed.mjs";
+import { buildViewer, buildAuthorMeta, buildBlendedFeed, feedItemLabel, getLastSeen, markSeen } from "./activity-feed.mjs";
 import { mirrorViewModel, subjectEyebrow, isSelfSubject } from "./mirror-view.mjs";
 import { openSelfReport } from "./self-report.js";
 import { createLazyModule } from "./lazy-module.js";
@@ -201,14 +196,6 @@ const membraneLazy = createLazyModule(() =>
     loadStylesheetOnce("renderer/membrane/membrane.css"),
     import("./membrane/index.js"),
   ]).then(([, module]) => module));
-const intelLazy = createLazyModule(() =>
-  Promise.all([
-    loadStylesheetOnce("renderer/intel/intel.css"),
-    import("./intel/intel.js"),
-  ]).then(([, module]) => module));
-// Removal-bound (2026-06-28): context signals/data links now normalize to the
-// evidence view. Keep the bundled intel renderer only until its files can be
-// deleted in a follow-up cleanup without breaking old route shims.
 const calendarLazy = createLazyModule(() =>
   Promise.all([
     loadStylesheetOnce("vendor/shape-ui/cohort-calendar-week.css"),
@@ -219,7 +206,6 @@ const calendarLazy = createLazyModule(() =>
 const calendarSupabaseLazy = createLazyModule(() => import("./calendar-supabase.mjs"));
 const githubUserLazy = createLazyModule(() => import("./gh-user.js"));
 const githubForkLazy = createLazyModule(() => import("./gh-fork.js"));
-let intelMetaCache = null;
 
 function warmLazySurface(label, lazy) {
   return lazy.load().catch((error) => {
@@ -344,10 +330,7 @@ const state = {
     detach: null,                 // teardown returned by attachCalendarPageBehavior
     catHidden: [],                // category keys the legend-filter has switched off
     scope: null,                  // team record_id the signals are focused on (null = all cohort)
-    subscriptions: null,          // configurable feed rows; lazily loaded from localStorage (calendar-subscriptions.js)
-    timelinePrefs: null,          // persisted bottom timeline lanes/categories (calendar-timeline-prefs.js)
-    timelinePrefsMenuOpen: false,
-    timelinePrefsLastToggled: "",
+    subscriptions: null,          // followed lanes for the program-axis board; lazily loaded from localStorage (calendar-subscriptions.js)
   },
   events: [],          // normalized feed items, latest-first
   fetchedAt: 0,
@@ -1043,10 +1026,10 @@ function notifyUnreadComeJoin(rows, unreadCount) {
   const notified = loadComeJoinNotificationSet();
   const fresh = rows.filter((row) => row?.fingerprint && !notified.has(row.fingerprint));
   if (!fresh.length) return;
-  for (const row of fresh) notified.add(row.fingerprint);
-  saveComeJoinNotificationSet(notified);
   const now = Date.now();
   if (now - lastComeJoinNotificationMs() < COME_JOIN_NOTIFY_COOLDOWN_MS) return;
+  for (const row of fresh) notified.add(row.fingerprint);
+  saveComeJoinNotificationSet(notified);
   saveComeJoinNotificationMs(now);
   try { window.api?.notifyCohortPost?.(comeJoinNotificationPayload(fresh, unreadCount)); } catch {}
 }
@@ -1113,8 +1096,8 @@ function syncRailSelection() {
 }
 
 // ─── cohort rail sub-nav ───────────────────────────────────────────────────
-// The "cohort" rail row reveals the cohort page's six views (CONST_VIEWS) as
-// an indented disclosure nested directly under it — the same six tabs the
+// The "cohort" rail row reveals the cohort page's four views (CONST_VIEWS) as
+// an indented disclosure nested directly under it — the same four tabs the
 // page shows in-line, surfaced in the persistent left menu. One source of
 // truth for the switch (selectCohortView) keeps the rail submenu and the
 // in-page tab bar in lock-step. Open on clicking "cohort", collapse on
@@ -1532,44 +1515,58 @@ function activityRelTime(iso) {
   return `${Math.floor(s / 86400)}d`;
 }
 
+// The asks & activity page: ONE blended, ranked feed. Asks (rich, actionable cards)
+// and cohort updates (event rows) are merged and ordered together (activity-feed
+// buildBlendedFeed); the for-you/everyone toggle ranks the WHOLE feed. Closed/expired
+// asks fold into a bottom disclosure; the viewer's own events peel into "your activity".
 function renderActivityMode() {
   const canvas = state.canvas;
   if (!canvas) return;
   const cohort = state.cohort || {};
   const events = Array.isArray(cohort.cohort_events) ? cohort.cohort_events : [];
+  const asks = asksWithStatus(Array.isArray(cohort.asks) ? cohort.asks : []);
   const identity = getIdentity();
   const prefs = getPrefs();
   const authorMeta = buildAuthorMeta(cohort);
   const viewer = buildViewer(cohort, identity);
+  const ctx = currentAskContext();
   let view;
   try {
-    view = buildFeedView(events, viewer, prefs, { now: Date.now(), lastSeen: getLastSeen(), authorMeta });
+    view = buildBlendedFeed({ events, asks, viewer, prefs, opts: { now: Date.now(), lastSeen: getLastSeen(), authorMeta } });
   } catch {
-    view = { items: [], mine: [], quietCount: 0, newCount: 0, mode: prefs.feed_mode || "for_you" };
+    view = { items: [], mine: [], quietCount: 0, closed: [], newCount: 0, mode: prefs.feed_mode || "for_you" };
   }
   const nameOf = (id) => (authorMeta[id] && authorMeta[id].name) || id;
-  const itemRow = (ev) => `
+  const eventRow = (ev) => `
     <li class="alch-activity-item${ev._isNew ? " is-new" : ""}" data-kind="${escAttr(ev.event_type)}" data-weight="${escAttr(ev.weight)}">
       <span class="alch-activity-dot" aria-hidden="true"></span>
       <span class="alch-activity-label">${escHtml(feedItemLabel(ev, nameOf))}</span>
       <time class="alch-activity-time">${escHtml(activityRelTime(ev.created_at))}</time>
     </li>`;
-  const empty = events.length === 0;
+  const feedItem = (it) => it && it._feedKind === "ask"
+    ? `<li class="alch-activity-ask${it._isNew ? " is-new" : ""}">${renderAskCard(it._ask, ctx)}</li>`
+    : eventRow(it);
   const newBadge = view.newCount ? ` · <strong>${view.newCount} new</strong>` : "";
-  const activityCount = view.items.length + view.quietCount;
-  const activitySummary = empty
-    ? "waiting"
-    : `${activityCount} ${activityCount === 1 ? "update" : "updates"}${view.newCount ? ` - ${view.newCount} new` : ""}`;
-  const activityBody = empty
-    ? `<div class="alch-activity-empty">No activity yet. Edit your profile, share a transcript, or contest a claim; it shows up here for the whole cohort.</div>`
-    : `<ul class="alch-activity-list">
-        ${view.items.map(itemRow).join("")}
+  const feedBody = view.items.length
+    ? `<ul class="alch-activity-list">
+        ${view.items.map(feedItem).join("")}
         ${view.quietCount ? `<li class="alch-activity-quiet">+ ${view.quietCount} quiet profile ${view.quietCount === 1 ? "tidy" : "tidies"}</li>` : ""}
-      </ul>`;
+      </ul>`
+    : `<div class="alch-activity-empty">Nothing here yet. Post an ask, edit your profile, or share a transcript — it shows up here for the whole cohort.</div>`;
+  const closedBody = view.closed.length
+    ? `<details class="alch-asks-section alch-activity-closed">
+        <summary class="alch-asks-section-head">
+          <span class="alch-asks-section-caret" aria-hidden="true"></span>
+          <h3 class="alch-asks-section-title">closed</h3>
+          <span class="alch-asks-section-count">${view.closed.length}</span>
+        </summary>
+        <div class="alch-asks-list">${view.closed.map((a) => renderAskCard(a, ctx)).join("")}</div>
+      </details>`
+    : "";
   const mineBody = view.mine.length
     ? `<div class="alch-activity-yours">
         <h3 class="alch-activity-yours-title">your activity</h3>
-        <ul class="alch-activity-list">${view.mine.map(itemRow).join("")}</ul>
+        <ul class="alch-activity-list">${view.mine.map(eventRow).join("")}</ul>
       </div>`
     : "";
   canvas.innerHTML = `
@@ -1577,26 +1574,19 @@ function renderActivityMode() {
       <header class="alch-activity-head">
         <div>
           <h2 class="alch-activity-title">asks &amp; activity</h2>
-          <p class="alch-activity-sub">open asks and cohort contributions${newBadge}</p>
+          <p class="alch-activity-sub">open asks and cohort updates${newBadge}</p>
         </div>
         <div class="alch-activity-modes" role="group" aria-label="feed mode">
           <button type="button" class="alch-activity-mode${view.mode === "for_you" ? " is-on" : ""}" data-activity-mode="for_you">for you</button>
           <button type="button" class="alch-activity-mode${view.mode === "global" ? " is-on" : ""}" data-activity-mode="global">everyone</button>
         </div>
       </header>
-      <div class="alch-asks-activity-board">
-        ${renderAsksHtml()}
+      ${renderAskComposer()}
+      <div class="alch-activity-feed">
+        ${feedBody}
       </div>
-      <details class="alch-activity-stream"${view.newCount ? " open" : ""}>
-        <summary class="alch-activity-stream-head">
-          <span class="alch-activity-stream-title">cohort updates</span>
-          <span class="alch-activity-stream-count">${escHtml(activitySummary)}</span>
-        </summary>
-        <div class="alch-activity-stream-body">
-          ${activityBody}
-          ${mineBody}
-        </div>
-      </details>
+      ${closedBody}
+      ${mineBody}
     </section>`;
   markSeen(Date.now());
 }
@@ -3456,24 +3446,29 @@ function journeyDetailSection(rec) {
 // collab = who can unblock whom?
 // The cohort page's views. "directory" is the roster grid (shapes mode);
 // the rest are the constellation perspectives on the same records. One
-// page, five ways of understanding the cohort.
+// page, four ways of understanding the cohort.
 const CONST_VIEWS = [
   { mode: "directory", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>', label: "directory", hint: "teams, projects, people" },
   { mode: "collab",  glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>', label: "collab board", hint: "asks, offers, dependencies" },
   { mode: "map",     glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>', label: "ecosystem map", hint: "where every team sits, grouped by what it builds" },
   { mode: "journey", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>', label: "pmf evidence", hint: "market-fit signal coverage" },
-  { mode: "stack",   glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>', label: "standing", hint: "status + gap to target" },
-  // "targets" folded into "standing" as a projection toggle (2026-06): same
-  // goal model, same chips — it was a second tab for one dataset. The gap view
-  // is now the "gap to target" toggle inside standing. Say/did/shipped moved to
-  // Mirror; timeline moved to the bottom of Calendar.
+  // "standing" (the "stack" view) was retired from the cohort nav (2026-06):
+  // renderProductStack + its goal-model helpers are kept for now (slated for
+  // full removal later) but no longer appear as a view; stale saved-state /
+  // deep-links to it fall back to the map (see constNormalizeConstellationMode).
+  // Earlier consolidations still hold: "targets" folded into standing as a
+  // projection toggle, say/did/shipped → Mirror, timeline → bottom of Calendar.
 ];
 function constNormalizeConstellationMode(raw) {
   const mode = String(raw || "").toLowerCase();
   // The node-link "ring"/"map" layouts are retired in favour of the nested
   // bubble map; old saved state and deep-links resolve to the relationship map.
   if (mode === "circle" || mode === "ring" || mode === "wells" || mode === "clusters" || mode === "dependencies" || mode === "source") return "map";
-  if (mode === "journey" || mode === "stack" || mode === "targets" || mode === "collab") return mode;
+  // "standing" (stack) + its legacy "targets" alias are retired from the cohort
+  // nav (2026-06). renderProductStack is kept but unreachable; stale saved state
+  // / deep-links to either fall back to the relationship map.
+  if (mode === "stack" || mode === "targets") return "map";
+  if (mode === "journey" || mode === "collab") return mode;
   return "map";
 }
 // The cohort views used to render as an in-page tab strip here
@@ -7668,6 +7663,7 @@ function mirrorPanelHtml(subjectTeamId, cardByTeam, { eyebrow = "your mirror", r
         <span class="ac-mirror-eyebrow">${escHtml(eyebrow)}</span>
         <span class="ac-mirror-team">${escHtml(team.name || teamId)}</span>
       </div>
+      ${readOnly ? "" : `<p class="ac-mirror-lede">What you said you’re building, beside what your public work shows — a nudge to keep the record accurate, never a score.</p>`}
       <div class="ac-mirror-strip">
         <span class="ac-sds-cell"><b>you said</b><span>${escHtml(constShortText(content.say || team.now || team.focus || "not declared", 160))}</span></span>
         <span class="ac-sds-cell${observedClass}"><b>repo shows</b><span>${escHtml(constShortText(content.did || "not observed", 160))}</span>${mixHtml}</span>
@@ -7943,10 +7939,10 @@ function renderSayDidShipped() {
         </span>
         <span class="ac-sds-proof-strip">
           <span class="ac-sds-cell">
-            <b>say</b><span>${escHtml(constShortText(content.say || team.now || team.focus || "not declared", 120))}</span>
+            <b>said</b><span>${escHtml(constShortText(content.say || team.now || team.focus || "not declared", 120))}</span>
           </span>
           <span class="ac-sds-cell${observedClass}">
-            <b>did</b><span>${escHtml(constShortText(content.did || "not observed", 120))}</span>${didMixHtml}${didSessionsHtml}
+            <b>repo shows</b><span>${escHtml(constShortText(content.did || "not observed", 120))}</span>${didMixHtml}${didSessionsHtml}
           </span>
           <span class="ac-sds-cell${observedClass}">
             <b>shipped</b><span>${escHtml(constShortText(content.shipped || "not observed", 110))}</span>
@@ -7963,7 +7959,7 @@ function renderSayDidShipped() {
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="mirror" data-mirror-page>
       ${cohortPageHead("mirror")}
-      <div class="alch-view-controls" data-shape-occluder>${sentenceBar}${programScrubberHtml({ needsSnapshots: true })}</div>
+      <div class="alch-view-controls" data-shape-occluder>${programScrubberHtml({ needsSnapshots: true })}</div>
       ${mirrorHtml}
       ${mirrorVm.mode === "browse" ? `<div class="alch-constellation" data-constellation-view="shipped">
         <div class="alch-const-workbench is-single">
@@ -7978,6 +7974,7 @@ function renderSayDidShipped() {
           </div>
         </div>
       </div>` : ""}
+      <div class="ac-mirror-ctx-lead">${sentenceBar}</div>
       ${mirrorContextBandHtml()}
     </div>`;
   wireMirrorPanel();
@@ -8699,44 +8696,6 @@ function buildCohortTimelineModel(cohort = state.cohort) {
   );
 }
 
-function timelineLaneCount(lane) {
-  return ((lane?.items || lane?.points || lane?.samples || []).length);
-}
-
-function timelinePointCount(timeline) {
-  return (timeline?.lanes || []).reduce((n, lane) => n + timelineLaneCount(lane), 0);
-}
-
-function calendarTimelineOptions(rawTimeline, prefs) {
-  const hiddenLanes = new Set(Array.isArray(prefs?.hiddenLanes) ? prefs.hiddenLanes : []);
-  const hiddenCategories = new Set(Array.isArray(prefs?.hiddenCategories) ? prefs.hiddenCategories : []);
-  const lanesByKey = new Map((rawTimeline?.lanes || []).map((lane) => [lane.trackKey, lane]));
-  const categoryCounts = new Map();
-  for (const lane of rawTimeline?.lanes || []) {
-    for (const item of Array.isArray(lane?.items) ? lane.items : []) {
-      const key = item?.category;
-      if (!key) continue;
-      categoryCounts.set(key, (categoryCounts.get(key) || 0) + 1);
-    }
-  }
-  return {
-    lanes: CALENDAR_TIMELINE_LANES
-      .filter((opt) => lanesByKey.has(opt.key) || hiddenLanes.has(opt.key))
-      .map((opt) => ({
-        ...opt,
-        count: timelineLaneCount(lanesByKey.get(opt.key)),
-        hidden: hiddenLanes.has(opt.key),
-      })),
-    categories: CALENDAR_TIMELINE_CATEGORIES
-      .filter((opt) => categoryCounts.has(opt.key) || hiddenCategories.has(opt.key))
-      .map((opt) => ({
-        ...opt,
-        count: categoryCounts.get(opt.key) || 0,
-        hidden: hiddenCategories.has(opt.key),
-      })),
-  };
-}
-
 function legacyCohortTimelinePreview() {
   loadStylesheetOnce("renderer/cohort-timeline-view.css");
   const timeline = buildCohortTimelineModel(activeConstellationCohort());
@@ -8777,6 +8736,11 @@ function renderConstellation() {
   // Collab Board is a peer Constellation sub-view (#216).
   if (mode === "collab") { renderCollab(); return; }
   if (mode === "journey") { renderJourney(); return; }
+  // "standing" (stack) was retired from the cohort nav (2026-06): the normalizer
+  // now redirects "stack"/"targets" → "map", so the next two branches are
+  // currently unreachable. They (and renderProductStack) are kept verbatim so the
+  // view can be restored by re-listing it in CONST_VIEWS + the normalizer; slated
+  // for full removal later.
   if (mode === "stack") { renderProductStack(); return; }
   // Legacy "targets" mode (old deep-links / saved state) → standing with the
   // gap-to-target projection preselected. Migrate the mode to "stack" so the
@@ -11002,9 +10966,31 @@ function paintCalendarView({ wire = false } = {}) {
   if (cal.view !== "presence" && cal.view !== "cal") cal.view = "cal";
   const presence = cal.view === "presence";
   if (cal.subscriptions == null) cal.subscriptions = getSubscriptions();
-  if (cal.timelinePrefs == null) cal.timelinePrefs = getCalendarTimelinePrefs();
-  const rawTimeline = buildCohortTimelineModel(state.cohort);
-  const calendarTimeline = filterTimelineByPrefs(rawTimeline, cal.timelinePrefs);
+  // The bottom of the page is now a single program-axis "follow board": the
+  // user's followed lanes (the subscription store) rendered on the shared
+  // cohort-timeline axis. Build it from the followed (un-hidden) lanes + the
+  // cohort surface; each lane resolves to points/bars/band via the per-kind
+  // builders in cohort-timeline-tracks.mjs. (No more lane/category prefs — the
+  // picker adds/removes lanes instead; calendar-timeline-prefs is retired here.)
+  const cohort = state.cohort || {};
+  const teamNameById = new Map(
+    (cohort.teams || [])
+      .filter((t) => t && t.record_id)
+      .map((t) => [t.record_id, t.name || t.record_id]),
+  );
+  const followed = (cal.subscriptions || []).filter((s) => !s.hidden);
+  const followedTimeline = buildFollowedTimeline(
+    followed,
+    {
+      whatsNew: cohort.whats_new || [],
+      standingWeekly: state.standingWeekly,
+      people: cohort.people || [],
+      evidenceCards: cohort.transcript_evidence_cards || [],
+      teamNameById,
+      transcriptMatches: CALENDAR_TRANSCRIPT_MATCHES,
+    },
+    { startMs: PROGRAM_START_MS, endMs: PROGRAM_END_MS, nowMs: Date.now() },
+  );
   state.canvas.innerHTML = calendarModule.renderCalendarPage({
     data: cal.data,
     calendarGoogleEvents: state.cohort?.calendar_google_events || {},
@@ -11016,11 +11002,11 @@ function paintCalendarView({ wire = false } = {}) {
     catHidden: Array.isArray(cal.catHidden) ? cal.catHidden : [],
     signals: presence ? null : computeCalendarSignals(),
     subscriptions: cal.subscriptions,
-    timelineHtml: presence ? "" : renderTimelineLanesHtml(calendarTimeline),
-    timelineOptions: presence ? null : calendarTimelineOptions(rawTimeline, cal.timelinePrefs),
+    laneKinds: SUBSCRIPTION_KINDS,
+    timelineHtml: presence ? "" : renderTimelineLanesHtml(followedTimeline, { interactive: true }),
     timelineSummary: presence ? null : {
-      lanes: calendarTimeline.lanes.length,
-      points: timelinePointCount(calendarTimeline),
+      lanes: followedTimeline.lanes.length,
+      points: followedTimeline.lanes.reduce((n, lane) => n + (lane.count || 0), 0),
     },
   });
   if (presence) {
@@ -11109,22 +11095,6 @@ function wireCalendar() {
         else if (e.key === "Escape") { e.preventDefault(); setOpen(false); scopeBtn.focus(); }
       });
     }
-    // in-town signal cells: hover/focus reveals WHO is in town + the week-by-week
-    // occupancy arc (openCalendarInTown); click/Enter commits to the presence gantt.
-    const showInTown = (cell) => calendarLazy.peek()?.openCalendarInTown?.(cell.getAttribute("data-c2-intown"), { anchor: cell });
-    const hideInTown = () => calendarLazy.peek()?.closeCalendarInTown?.();
-    const goPresence = () => { hideInTown(); cal.view = "presence"; refreshCalendarView(); };
-    for (const cell of state.canvas.querySelectorAll("[data-c2-intown]")) {
-      cell.addEventListener("mouseenter", () => showInTown(cell));
-      cell.addEventListener("mouseleave", hideInTown);
-      cell.addEventListener("focus", () => showInTown(cell));
-      cell.addEventListener("blur", hideInTown);
-      cell.addEventListener("click", goPresence);
-      cell.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") { e.preventDefault(); goPresence(); }
-        else if (e.key === "Escape") hideInTown();
-      });
-    }
     if (!state.c2ScopeOutsideBound) {
       state.c2ScopeOutsideBound = true;
       document.addEventListener("click", (e) => {
@@ -11137,11 +11107,13 @@ function wireCalendar() {
       });
     }
 
-    // ── subscribed feed rows: open an item, remove a row, add a new row ──
-    for (const chip of state.canvas.querySelectorAll("[data-c2-rowitem]")) {
-      chip.addEventListener("click", (event) => {
-        calendarLazy.peek()?.openCalendarRowItem?.(chip.dataset.c2Rowitem, {
-          anchor: event.currentTarget,
+    // ── follow-board lanes: reveal a marker, remove a lane, add/reorder lanes ──
+    // Click a marker (.ctl-dot[data-c2-timeline-item]) to expand it in the shared
+    // calendar popover; "open team →" routes to the dossier when the point is
+    // team-attributed. Replaces the old per-day feed-item reveal.
+    for (const m of state.canvas.querySelectorAll("[data-c2-timeline-item]")) {
+      m.addEventListener("click", (e) => {
+        calendarLazy.peek()?.openCalendarTimelineItem?.(e.currentTarget, {
           onOpenTeam: (rid) => openDetail(rid, "calendar"),
         });
       });
@@ -11162,14 +11134,14 @@ function wireCalendar() {
     // row from its old position to its new one so the swap reads as motion.
     const flipReorder = (apply) => {
       const before = new Map();
-      for (const el of state.canvas.querySelectorAll(".rr-frow[data-c2-subrow-id]")) {
+      for (const el of state.canvas.querySelectorAll("[data-c2-subrow-id]")) {
         before.set(el.getAttribute("data-c2-subrow-id"), el.getBoundingClientRect().top);
       }
       apply();   // mutate cal.subscriptions + refreshCalendarView() (replaces the DOM)
       let reduce = false;
       try { reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.getAttribute("data-reduce-motion") === "1"; } catch {}
       if (reduce) return;
-      const rows = [...state.canvas.querySelectorAll(".rr-frow[data-c2-subrow-id]")];
+      const rows = [...state.canvas.querySelectorAll("[data-c2-subrow-id]")];
       for (const el of rows) {
         const old = before.get(el.getAttribute("data-c2-subrow-id"));
         if (old == null) continue;
@@ -11190,12 +11162,12 @@ function wireCalendar() {
     const moveRow = (rowEl, dir) => {
       const id = rowEl.getAttribute("data-c2-subrow-id");
       const sib = dir === "up" ? rowEl.previousElementSibling : rowEl.nextElementSibling;
-      if (!sib || !sib.matches?.(".rr-frow[data-c2-subrow-id]")) return;
+      if (!sib || !sib.matches?.("[data-c2-subrow-id]")) return;
       cal.rowsRefocus = "row:" + id;
       flipReorder(() => { cal.subscriptions = reorderSubscriptions(id, sib.getAttribute("data-c2-subrow-id"), dir === "down"); refreshCalendarView(); });
     };
     let dragRowId = null;
-    for (const row of state.canvas.querySelectorAll(".rr-frow[data-c2-subrow-id]")) {
+    for (const row of state.canvas.querySelectorAll("[data-c2-subrow-id]")) {
       const handle = row.querySelector(".rr-frowlab[draggable]") || row;
       handle.addEventListener("dragstart", (e) => {
         dragRowId = row.getAttribute("data-c2-subrow-id");
@@ -11235,14 +11207,14 @@ function wireCalendar() {
         moveRow(row, e.key === "ArrowUp" ? "up" : "down");
       });
     }
-    // dropping onto the "+ add a feed row" affordance moves the row to the end
-    const addRowEl = state.canvas.querySelector(".rr-addrow");
+    // dropping onto the "+ add a lane" affordance moves the row to the end
+    const addRowEl = state.canvas.querySelector(".rr-fb-add, .rr-addrow");
     if (addRowEl) {
       addRowEl.addEventListener("dragover", (e) => { if (dragRowId) { e.preventDefault(); try { e.dataTransfer.dropEffect = "move"; } catch {} } });
       addRowEl.addEventListener("drop", (e) => {
         if (!dragRowId) return;
         e.preventDefault();
-        const rows = state.canvas.querySelectorAll(".rr-frow[data-c2-subrow-id]");
+        const rows = state.canvas.querySelectorAll("[data-c2-subrow-id]");
         const lastId = rows[rows.length - 1]?.getAttribute("data-c2-subrow-id");
         const dId = dragRowId;
         if (lastId && lastId !== dId) { cal.rowsRefocus = "row:" + dId; flipReorder(() => { cal.subscriptions = reorderSubscriptions(dId, lastId, true); refreshCalendarView(); }); }
@@ -11307,78 +11279,12 @@ function wireCalendar() {
       } else if (cal.rowsRefocus) {
         const ref = cal.rowsRefocus;
         const el = ref === "add" ? addBtn
-          : ref.startsWith("row:") ? state.canvas.querySelector(`.rr-frow[data-c2-subrow-id="${ref.slice(4)}"] .rr-frowlab`) : null;
+          : ref.startsWith("row:") ? state.canvas.querySelector(`[data-c2-subrow-id="${ref.slice(4)}"] .rr-frowlab`) : null;
         el?.focus?.();
       }
       cal.rowsRefocus = null;
     }
 
-    for (const dot of state.canvas.querySelectorAll(".rr-timeline [data-const-team]")) {
-      dot.addEventListener("click", () => {
-        const rid = dot.getAttribute("data-const-team");
-        if (rid) openDetail(rid, "calendar");
-      });
-    }
-
-    const timelineBtn = state.canvas.querySelector("[data-c2-timeline-prefs-toggle]");
-    const timelineMenu = state.canvas.querySelector(".rr-timeline-menu");
-    if (timelineBtn && timelineMenu) {
-      const opts = [...timelineMenu.querySelectorAll("[data-c2-timeline-pref]")];
-      const setTimelineOpen = (open) => {
-        timelineMenu.toggleAttribute("hidden", !open);
-        timelineBtn.setAttribute("aria-expanded", open ? "true" : "false");
-        cal.timelinePrefsMenuOpen = open;
-        if (open) opts[0]?.focus();
-      };
-      timelineBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        setTimelineOpen(timelineMenu.hasAttribute("hidden"));
-      });
-      timelineBtn.addEventListener("keydown", (e) => {
-        if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
-          e.preventDefault();
-          setTimelineOpen(true);
-        }
-      });
-      for (const opt of opts) {
-        opt.addEventListener("click", () => {
-          const kind = opt.getAttribute("data-c2-timeline-pref");
-          const key = opt.getAttribute("data-c2-timeline-key") || "";
-          cal.timelinePrefsMenuOpen = true;
-          cal.timelinePrefsLastToggled = kind + ":" + key;
-          cal.timelinePrefs = kind === "lane"
-            ? toggleCalendarTimelineLane(key)
-            : toggleCalendarTimelineCategory(key);
-          refreshCalendarView();
-        });
-      }
-      timelineMenu.addEventListener("keydown", (e) => {
-        const i = opts.indexOf(document.activeElement);
-        if (e.key === "ArrowDown") { e.preventDefault(); opts[Math.min(opts.length - 1, i + 1)]?.focus(); }
-        else if (e.key === "ArrowUp") { e.preventDefault(); opts[Math.max(0, i - 1)]?.focus(); }
-        else if (e.key === "Home") { e.preventDefault(); opts[0]?.focus(); }
-        else if (e.key === "End") { e.preventDefault(); opts[opts.length - 1]?.focus(); }
-        else if (e.key === "Escape") { e.preventDefault(); setTimelineOpen(false); timelineBtn.focus(); }
-      });
-      if (!state.c2TimelinePrefsOutsideBound) {
-        state.c2TimelinePrefsOutsideBound = true;
-        document.addEventListener("click", (e) => {
-          if (state.mode !== "calendar") return;
-          const mn = state.canvas?.querySelector(".rr-timeline-menu");
-          if (mn && !mn.hasAttribute("hidden") && !e.target.closest("[data-c2-timeline-ctl]")) {
-            mn.setAttribute("hidden", "");
-            state.calendar.timelinePrefsMenuOpen = false;
-            state.canvas.querySelector("[data-c2-timeline-prefs-toggle]")?.setAttribute("aria-expanded", "false");
-          }
-        });
-      }
-      if (cal.timelinePrefsMenuOpen) {
-        setTimelineOpen(true);
-        const want = cal.timelinePrefsLastToggled;
-        const target = want ? opts.find(o => (o.getAttribute("data-c2-timeline-pref") + ":" + (o.getAttribute("data-c2-timeline-key") || "")) === want) : null;
-        (target || opts[0])?.focus();
-      }
-    }
   }
 
   // presence-view extras — gantt export + the "edit my availability" jump.
@@ -11396,24 +11302,25 @@ function wireCalendar() {
     });
   }
 
+  // Filmstrip week hero: ‹ / › arrows step the active week; clicking a card jumps
+  // to it. No bead glide to sweep anymore (the dot-rail is gone) — just repaint;
+  // attachCalendarPageBehavior re-centers the active card on each paint.
   for (const btn of state.canvas.querySelectorAll("[data-c2-nav]")) {
     btn.addEventListener("click", () => {
       const dir = btn.dataset.c2Nav;
       if (dir === "prev" && cal.weekIdx > 0) cal.weekIdx -= 1;
       else if (dir === "next" && cal.weekIdx < WEEKS_TOTAL - 1) cal.weekIdx += 1;
       else return;
-      // Glide the oxide week-bead to its new dot (the grid swaps under it),
-      // matching the constellation scrubber's sweep. Reduced-motion repaints flat.
-      scrubberSweep(refreshCalendarView);
+      refreshCalendarView();
     });
   }
 
-  for (const dot of state.canvas.querySelectorAll("[data-c2-week]")) {
-    dot.addEventListener("click", () => {
-      const i = Number(dot.dataset.c2Week);
+  for (const card of state.canvas.querySelectorAll("[data-c2-week]")) {
+    card.addEventListener("click", () => {
+      const i = Number(card.dataset.c2Week);
       if (Number.isFinite(i) && i !== cal.weekIdx) {
         cal.weekIdx = i;
-        scrubberSweep(refreshCalendarView);
+        refreshCalendarView();
       }
     });
   }
@@ -11424,8 +11331,8 @@ function wireCalendar() {
     });
   }
 
-  // (Shipped/feed chips now use [data-c2-rowitem] → openCalendarRowItem, wired in
-  // the rows block above; the old [data-c2-act] reveal is no longer emitted.)
+  // (Follow-board markers use [data-c2-timeline-item] → openCalendarTimelineItem,
+  // wired in the lanes block above; the old feed-row + dot-rail reveals are gone.)
 
   for (const btn of state.canvas.querySelectorAll("[data-c2-retry]")) {
     btn.addEventListener("click", () => {
@@ -14136,24 +14043,15 @@ function wireCollab() {
   });
 }
 
-function renderAsks() {
-  if (!state.canvas) return;
-  state.canvas.innerHTML = renderAsksHtml();
-}
-
-function renderAsksHtml() {
-  const asks = asksWithStatus(state.cohort?.asks);
-  const { people, askIdentity, myHandle, authorSlug } = currentAskContext();
-
-  const open = asks.filter(askIsOpen);
-  const openByIntent = {
-    come_join: open.filter((a) => askIntent(a) === "come_join"),
-    ask: open.filter((a) => askIntent(a) === "ask"),
-  };
-  const closed = asks.filter(a => !askIsOpen(a));
-
-  const renderAsk = (a) => {
-    const author = resolveAskAuthor(a, people);
+// One ask card (a <details> row) rendered inside the blended activity feed (and the
+// closed disclosure). ctx carries the resolved cohort context — people, the viewer's
+// ask identity, their author slug — so the card can name the author, decide ownership,
+// and gate claim / join / done. Module-level (was an inner closure of renderAsksHtml)
+// so the feed renders identical cards wherever an ask appears.
+function renderAskCard(a, ctx = {}) {
+  if (!a) return "";
+  const { people = [], askIdentity = {}, authorSlug = "your-slug" } = ctx;
+  const author = resolveAskAuthor(a, people);
     const authorLabel = author ? (author.name || author.record_id) : (a.author || a.owner || "unknown");
     const dm = dmLinkForPerson(author);
     const intent = askIntent(a);
@@ -14238,30 +14136,14 @@ function renderAsksHtml() {
         </div>
       </details>
     `;
-  };
+}
 
-  const section = (title, list, emptyText, opts = {}) => {
-    if (!list.length && opts.hideEmpty) return "";
-    const openAttr = opts.open === false ? "" : " open";
-    return `
-    <details class="alch-asks-section"${openAttr}>
-      <summary class="alch-asks-section-head">
-        <span class="alch-asks-section-caret" aria-hidden="true"></span>
-        <h3 class="alch-asks-section-title">${escHtml(title)}</h3>
-        <span class="alch-asks-section-count">${list.length}</span>
-      </summary>
-      ${list.length
-        ? `<div class="alch-asks-list">${list.map(renderAsk).join("")}</div>`
-        : `<p class="alch-asks-empty">${escHtml(emptyText)}</p>`}
-    </details>
-  `;
-  };
-
-  // Author slug: prefer the cohort-resolved person record_id (so the
-  // ask's `author` field actually points at a record), fall back to
-  // their github handle, then a literal "your-slug" the user edits in
-  // the github web editor. (Old code injected a stale branch name here;
-  // both /new/ and /edit/ now target `main`.)
+// The "New ask" composer (collapsible). Reads/writes state.askComposer.draft so an
+// in-progress ask survives a re-render. Submitted by wireAsks → submitAskCompose,
+// which posts the ask to the cohort_events spine (PR fallback on failure). authorSlug
+// = the cohort-resolved person record_id (else "your-slug" until the member claims).
+function renderAskComposer() {
+  const { authorSlug } = currentAskContext();
   const todayIso = new Date().toISOString().slice(0, 10);
 
   // Common verbs the compose form offers as quick picks. Stays in code
@@ -14384,8 +14266,6 @@ function renderAsksHtml() {
         </div>
       </details>
     </form>
-
-    ${asksBodyHtml}
   `;
 }
 
@@ -14467,23 +14347,12 @@ function askRowNote(el, html, kind = "info") {
   note.innerHTML = html;
 }
 
-async function launchAskStatusUpdate(el, recordId, nextStatus) {
-  const ask = findRenderedAsk(recordId);
-  if (!ask) {
-    askRowNote(el, `<span class="alch-onb-inline-tag">missing</span> ask record not found.`, "error");
-    return;
-  }
-  const { authorSlug } = currentAskContext();
-  if (authorSlug === "your-slug") {
-    askRowNote(el, `<span class="alch-onb-inline-tag">profile</span> claim your profile before changing ask status.`, "error");
-    return;
-  }
-  const path = askMarkdownPath(recordId);
-  askRowNote(el, `<span class="alch-onb-inline-tag">preparing</span> building status update...`);
+// Fallback for an ask mutation that couldn't reach the spine: rebuild the markdown
+// with the overrides and open the GitHub edit flow (the original path). Keeps asks
+// mutable offline / before the migration is applied.
+async function launchAskEditPRFallback(el, ask, overrides, label) {
+  const path = askMarkdownPath(ask.record_id);
   const body = await fetchExistingBody(path);
-  const overrides = { status: nextStatus };
-  if (nextStatus === "claimed") overrides.claimed_by = authorSlug;
-  if (nextStatus === "done") overrides.claimed_by = ask.claimed_by || authorSlug;
   const markdown = buildAskMarkdown(ask, overrides, body);
   let copied = false;
   try {
@@ -14498,10 +14367,10 @@ async function launchAskStatusUpdate(el, recordId, nextStatus) {
     return;
   }
   askRowNote(el, `
-    <span class="alch-onb-inline-tag">github opened</span>
+    <span class="alch-onb-inline-tag">offline — filed via github</span>
     ${copied
-      ? `replacement markdown copied — paste it over the file in github, then commit the ${escHtml(nextStatus)} update and create the PR.`
-      : `copy the replacement markdown below, paste it over the file in github, then commit the ${escHtml(nextStatus)} update and create the PR.`}
+      ? `couldn't reach the cohort — replacement markdown copied. paste it over the file in github, then commit the ${escHtml(label)} update and create the PR.`
+      : `couldn't reach the cohort — copy the replacement markdown below, paste it over the file in github, then commit the ${escHtml(label)} update and create the PR.`}
     <a class="alch-onb-inline-link" href="${escAttr(launched.url)}" data-external>reopen</a>
     <details class="alch-asks-compose-preview">
       <summary>replacement markdown</summary>
@@ -14510,6 +14379,31 @@ async function launchAskStatusUpdate(el, recordId, nextStatus) {
   `, "success");
   const note = el?.closest?.(".alch-asks-card")?.querySelector?.("[data-asks-row-note]");
   if (note) wireExternalLinks(note);
+}
+
+async function launchAskStatusUpdate(el, recordId, nextStatus) {
+  const ask = findRenderedAsk(recordId);
+  if (!ask) {
+    askRowNote(el, `<span class="alch-onb-inline-tag">missing</span> ask record not found.`, "error");
+    return;
+  }
+  const { authorSlug } = currentAskContext();
+  if (authorSlug === "your-slug") {
+    askRowNote(el, `<span class="alch-onb-inline-tag">profile</span> claim your profile before changing ask status.`, "error");
+    return;
+  }
+  askRowNote(el, `<span class="alch-onb-inline-tag">updating</span> sending the ${escHtml(nextStatus)} update...`);
+  // Primary path: append a claim/done event to the spine; the reducer flips status.
+  const res = nextStatus === "done" ? await emitAskDone(recordId) : await emitAskClaim(recordId);
+  if (res.ok) {
+    applyOptimisticAskEvent(res.event);
+    rerenderAsksActivity(recordId);
+    return;
+  }
+  const overrides = { status: nextStatus };
+  if (nextStatus === "claimed") overrides.claimed_by = authorSlug;
+  if (nextStatus === "done") overrides.claimed_by = ask.claimed_by || authorSlug;
+  await launchAskEditPRFallback(el, ask, overrides, nextStatus);
 }
 
 async function launchAskJoinUpdate(el, recordId) {
@@ -14523,40 +14417,20 @@ async function launchAskJoinUpdate(el, recordId) {
     askRowNote(el, `<span class="alch-onb-inline-tag">profile</span> claim your profile before joining.`, "error");
     return;
   }
+  askRowNote(el, `<span class="alch-onb-inline-tag">joining</span> adding you to this plan...`);
+  // Primary path: append a join event; the reducer unions you into joined_by.
+  const res = await emitAskJoin(recordId);
+  if (res.ok) {
+    applyOptimisticAskEvent(res.event);
+    rerenderAsksActivity(recordId);
+    return;
+  }
   const current = askJoinedBy(ask);
   const mine = normalizeAskIdentity(authorSlug);
   const joined = current.some((value) => normalizeAskIdentity(value) === mine)
     ? current
     : [...current, authorSlug];
-  const path = askMarkdownPath(recordId);
-  askRowNote(el, `<span class="alch-onb-inline-tag">preparing</span> adding you to this plan...`);
-  const body = await fetchExistingBody(path);
-  const markdown = buildAskMarkdown(ask, { joined_by: joined, status: askStatus(ask) }, body);
-  let copied = false;
-  try {
-    if (window.api?.clipboardWrite) {
-      const res = await window.api.clipboardWrite(markdown);
-      copied = !res || res.ok !== false;
-    }
-  } catch {}
-  const launched = await launchPRFlow({ kind: "edit", path, value: markdown });
-  if (!launched.ok) {
-    askRowNote(el, `<span class="alch-onb-inline-tag">fork first</span> create your fork, then click join again.`, "error");
-    return;
-  }
-  askRowNote(el, `
-    <span class="alch-onb-inline-tag">github opened</span>
-    ${copied
-      ? `replacement markdown copied — paste it over the file in github, then commit the join update and create the PR.`
-      : `copy the replacement markdown below, paste it over the file in github, then commit the join update and create the PR.`}
-    <a class="alch-onb-inline-link" href="${escAttr(launched.url)}" data-external>reopen</a>
-    <details class="alch-asks-compose-preview">
-      <summary>replacement markdown</summary>
-      <pre class="alch-onb-inline-patch">${escHtml(markdown)}</pre>
-    </details>
-  `, "success");
-  const note = el?.closest?.(".alch-asks-card")?.querySelector?.("[data-asks-row-note]");
-  if (note) wireExternalLinks(note);
+  await launchAskEditPRFallback(el, ask, { joined_by: joined, status: askStatus(ask) }, "join");
 }
 
 async function loadAskContextForCard(card, recordId) {
@@ -14569,7 +14443,11 @@ async function loadAskContextForCard(card, recordId) {
   panel.hidden = false;
   panel.dataset.loaded = "0";
   panel.innerHTML = `<span class="alch-onb-inline-tag">loading</span> reading context...`;
-  const body = cleanAskBody(await fetchExistingBody(askMarkdownPath(recordId)));
+  // Supabase asks carry their body inline (from the post event); legacy markdown
+  // asks read it from the committed file.
+  const ask = findRenderedAsk(recordId);
+  let body = cleanAskBody(ask?.body || "");
+  if (!body) body = cleanAskBody(await fetchExistingBody(askMarkdownPath(recordId)));
   panel.dataset.loaded = "1";
   panel.innerHTML = body
     ? `<pre>${escHtml(body)}</pre>`
@@ -14577,10 +14455,34 @@ async function loadAskContextForCard(card, recordId) {
   return panel;
 }
 
-// Compose-form submit. Reads verb/topic/skill_areas, derives a stable
-// slug for the file (author + date + 4-char topic hash to dedupe same-day
-// asks from the same author), builds the full ask markdown, and opens
-// github's /new/ URL with that content prefilled.
+// Fold one freshly-emitted ask event into the in-memory board so the change shows
+// instantly (the durable record reads back from app_cohort_feed on the next refresh
+// tick, where reduceAsks reproduces the same state). reduceAsks([event], current)
+// creates the ask for a `post` and mutates it for claim/join/done.
+function applyOptimisticAskEvent(event) {
+  if (!event || !state.cohort) return;
+  const base = Array.isArray(state.cohort.asks) ? state.cohort.asks : [];
+  state.cohort.asks = reduceAsks([event], base);
+}
+
+// Re-render the asks & activity page after an optimistic change, re-opening the
+// affected card so the member keeps their place (the render rebuilds the DOM).
+function rerenderAsksActivity(openRecordId = null) {
+  if (state.mode !== "activity" && state.mode !== "asks") return;
+  renderActivityMode();
+  wireAsks();
+  wireActivityMode();
+  if (openRecordId) {
+    const card = state.canvas?.querySelector(`[data-asks-record="${cssAttr(openRecordId)}"]`);
+    if (card) { try { card.open = true; } catch {} }
+  }
+}
+
+// Compose-form submit. Posts the ask to the cohort_events spine (instant, anon
+// write) and updates the board optimistically. Derives a stable record_id (author +
+// date + 4-char topic hash) so a re-submit edits rather than duplicates. If the
+// Supabase write can't land (offline / unconfigured / migration not yet applied) it
+// falls back to the original GitHub-PR markdown path so asks always work.
 async function submitAskCompose(form) {
   const authorSlug = form.dataset.authorSlug || "your-slug";
   const todayIso   = form.dataset.today || new Date().toISOString().slice(0, 10);
@@ -14612,15 +14514,15 @@ async function submitAskCompose(form) {
     ? tagsRaw.split(",").map(s => s.trim().toLowerCase()).filter(Boolean)
     : [];
 
-  // 4-char hash of the topic so two asks the same day from the same author
-  // don't collide on filename. Deterministic so re-submits land on the
-  // same path (lets the user edit instead of duplicating if they reopen).
+  // 4-char hash of the topic so two asks the same day from the same author don't
+  // collide on record_id. Deterministic so re-submits land on the same id (edit,
+  // not duplicate).
   let h = 2166136261 >>> 0;
   for (let i = 0; i < topic.length; i++) { h ^= topic.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
   const hash = h.toString(36).slice(0, 4);
   const recordId = `${authorSlug}-${todayIso}-${hash}`;
 
-  const askMarkdown = buildAskMarkdown({
+  const ask = {
     record_id: recordId,
     record_type: "ask",
     schema_version: 1,
@@ -14636,16 +14538,28 @@ async function submitAskCompose(form) {
     contact,
     capacity,
     status: "open",
+    body: bodyRaw,
     joined_by: intent === "come_join" ? [authorSlug] : [],
-  }, {}, bodyRaw || null);
-  const filename = `cohort-data/asks/${recordId}.md`;
+  };
 
-  // Fork-aware launch. needs-fork pops a modal; ready opens the URL on
-  // the user's fork (with the prefilled markdown) and we render the
-  // preview panel below for confidence.
+  result.hidden = false;
+  result.innerHTML = `<p class="alch-onb-inline-line"><span class="alch-onb-inline-tag">posting</span> sending your ask to the cohort...</p>`;
+
+  // Primary path: append the ask to the spine. Instant, no PR.
+  const res = await emitAskPost(ask);
+  if (res.ok) {
+    applyOptimisticAskEvent(res.event);
+    state.askComposer = { open: false, detailsOpen: false, draft: {} };
+    rerenderAsksActivity(recordId); // re-renders the page; `result` is replaced
+    return;
+  }
+
+  // Fallback: Supabase didn't take the write — keep the original GitHub-PR path so
+  // asks still work offline / before the migration is applied.
+  const askMarkdown = buildAskMarkdown({ ...ask }, {}, bodyRaw || null);
+  const filename = `cohort-data/asks/${recordId}.md`;
   const launched = await launchPRFlow({ kind: "new", path: filename, value: askMarkdown });
   if (!launched.ok) {
-    result.hidden = false;
     result.innerHTML = `
       <p class="alch-onb-inline-line">
         <span class="alch-onb-inline-tag">fork first</span>
@@ -14654,19 +14568,17 @@ async function submitAskCompose(form) {
     `;
     return;
   }
-  const newUrl = launched.url;
-  result.hidden = false;
   result.innerHTML = `
     <p class="alch-onb-inline-line">
-      <span class="alch-onb-inline-tag">github opened</span>
-      review the prefilled markdown, then <strong>commit new file</strong> → github walks you into a PR.
+      <span class="alch-onb-inline-tag">offline — filed via github</span>
+      couldn't reach the cohort, so this opened a PR instead. review the prefilled markdown, then <strong>commit new file</strong>.
     </p>
     <details class="alch-asks-compose-preview">
       <summary>preview the file</summary>
       <pre class="alch-onb-inline-patch">${escHtml(askMarkdown)}</pre>
     </details>
     <div class="alch-onb-inline-row">
-      <a class="alch-onb-inline-link" href="${escAttr(newUrl)}" data-external>reopen editor</a>
+      <a class="alch-onb-inline-link" href="${escAttr(launched.url)}" data-external>reopen editor</a>
     </div>
   `;
   wireExternalLinks(result);
@@ -14958,12 +14870,13 @@ async function selectContextSource(sourceId) {
 }
 
 // The context page's views. Articles + transcripts come from the local vault;
-// evidence is the reviewed/public-safe transcript-card lane. The old
-// signals/data intel views are hidden and normalize here for compatibility.
+// evidence is the reviewed/public-safe transcript-card lane. Retired names
+// (signals/data/intel/cards) normalize to evidence so old links keep working.
 function contextNormalizeView(raw) {
   const v = String(raw || "").toLowerCase();
-  if (v === "transcripts") return "raw";
-  if (v === "cards") return "evidence";
+  if (v === "article") return "articles";
+  if (v === "transcript" || v === "transcripts") return "raw";
+  if (v === "card" || v === "cards") return "evidence";
   if (v === "intel" || v === "signals" || v === "data") return "evidence";
   return (v === "articles" || v === "raw" || v === "evidence") ? v : "articles";
 }
@@ -14973,19 +14886,6 @@ const CONTEXT_VIEWS = [
   { view: "raw",      glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="21" x2="3" y1="6" y2="6"/><line x1="15" x2="3" y1="12" y2="12"/><line x1="17" x2="3" y1="18" y2="18"/></svg>', label: "transcripts", hint: "your local raw vault + the cohort's distilled readouts (live)" },
   { view: "evidence", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg>', label: "evidence", hint: "distilled evidence cards, live from Supabase" },
 ];
-
-function contextViewNav(active, counts = {}) {
-  return `
-    <nav class="alch-page-views" role="tablist" aria-label="context view">
-      ${CONTEXT_VIEWS.map(v => {
-        const n = counts[v.view];
-        return `
-        <button class="alch-page-view-btn" data-cv-mode="${v.view}" role="tab" aria-selected="${active === v.view}" aria-label="${escAttr(`${v.label}: ${v.hint}`)}" title="${escAttr(v.hint)}" type="button">
-          <span class="apv-glyph" aria-hidden="true">${v.glyph}</span><span class="apv-label">${v.label}</span>${Number.isFinite(n) ? `<span class="apv-count">${n}</span>` : ""}
-        </button>`;
-      }).join("")}
-    </nav>`;
-}
 
 function setContextVaultMode(mode) {
   const nextMode = contextNormalizeView(mode);
@@ -15977,62 +15877,6 @@ function renderContextEvidence(tier, t3cards, t2cards, insights) {
   return `${toggle}${body}`;
 }
 
-function contextIntelHooks() {
-  return {
-    onPanelChange: (panel) => {
-      const next = panel === "data" ? "data" : "signals";
-      if (state.contextVault.mode !== next) setContextVaultMode(next);
-    },
-  };
-}
-
-function contextIntelMeta() {
-  const intelModule = intelLazy.peek();
-  if (!intelModule) return intelMetaCache || {};
-  intelMetaCache = intelModule.intelSnapshotMeta?.() || {};
-  return intelMetaCache;
-}
-
-function renderContextIntel(view) {
-  const host = state.canvas?.querySelector(".alch-cv-intel");
-  if (!host) return;
-  const intelModule = intelLazy.peek();
-  if (intelModule) {
-    intelMetaCache = intelModule.intelSnapshotMeta?.() || intelMetaCache;
-    intelModule.renderIntelEmbedded?.(host, view);
-    return;
-  }
-
-  const loadError = intelLazy.error();
-  if (loadError) {
-    host.innerHTML = `<p class="alch-callout"><strong>context signals failed to load: ${escHtml(loadError?.message || String(loadError))}</strong></p>`;
-    return;
-  }
-
-  host.innerHTML = `<p class="alch-callout"><strong>loading context signals...</strong></p>`;
-  intelLazy.load()
-    .then((module) => {
-      intelMetaCache = module.intelSnapshotMeta?.() || intelMetaCache;
-      if (!state.mounted || state.mode !== "context" || state.detailRecordId) return;
-      const activeView = contextNormalizeView(state.contextVault.mode);
-      if (activeView !== "signals" && activeView !== "data") return;
-      renderContextVault();
-      wireContextVault();
-    })
-    .catch((error) => {
-      console.warn("[alchemy] context signals failed to load:", error?.message || error);
-      if (state.mounted && state.mode === "context" && !state.detailRecordId) {
-        renderContextIntel(view);
-      }
-    });
-}
-
-function wireContextIntel(host) {
-  const intelModule = intelLazy.peek();
-  if (!host || !intelModule) return;
-  intelModule.wireIntelEmbedded?.(host, contextIntelHooks());
-}
-
 function renderContextVault() {
   const cv = state.contextVault;
   const view = contextNormalizeView(cv.mode);
@@ -16044,13 +15888,13 @@ function renderContextVault() {
   const manifest = cv.manifest || null;
   const sources = contextArticleSources(manifest);
   const rawScripts = manifest?.raw_scripts || [];
-  // Context views moved to the rail sub-nav (left panel) — the page no longer
-  // renders its own in-page tab strip. (contextViewNav is retired.)
+  // Context views live in the rail sub-nav. Keep the page body about the
+  // selected lane instead of rendering a second tab strip here.
   const nav = "";
 
   // Evidence view — distilled transcript cards read live from Supabase
   // (cohort-source.js overlays them onto the surface). Full-width under the
-  // shared page header, same as the intel views.
+  // shared page header, with the rail sub-nav owning view switches.
   if (view === "evidence") {
     const tier = contextEvidenceTier();
     const { t2cards, t3cards, insights } = contextEvidenceData();
@@ -16060,19 +15904,6 @@ function renderContextVault() {
         ${renderContextEvidence(tier, t3cards, t2cards, insights)}
       </section>
     `;
-    return;
-  }
-
-  // Removal-bound compatibility: signals/data normalize to evidence before this
-  // point. Keep this branch only until the bundled intel files are deleted.
-  if (view === "signals" || view === "data") {
-    state.canvas.innerHTML = `
-      <section class="alch-cv">
-        ${pageHeadHtml({ nav })}
-        <div class="alch-cv-intel"></div>
-      </section>
-    `;
-    renderContextIntel(view);
     return;
   }
 
@@ -16195,12 +16026,6 @@ function wireContextVault() {
       e.preventDefault();
       submitCohortKeyForm(keyForm);
     });
-  }
-  // Embedded intel (signals/data views) wires its own internals; the page
-  // nav stays in sync when an intel cross-link jumps data → signals.
-  const intelHost = state.canvas.querySelector(".alch-cv-intel");
-  if (intelHost) {
-    wireContextIntel(intelHost);
   }
   const composeForm = state.canvas.querySelector("form[data-cv-compose]");
   if (composeForm) {
@@ -18949,7 +18774,7 @@ function wireSphereEditor(root, recordId) {
   // Pull a short, human line out of the multi-line GLSL compile log.
   const firstGlslError = (log) => {
     const line = String(log || "").split("\n").find((l) => /error/i.test(l)) || String(log || "");
-    return line.replace(/ /g, "").replace(/^ERROR:\s*\d+:\d+:\s*/i, "").trim().slice(0, 90) || "compile error";
+    return line.replace(/\x00/g, "").replace(/^ERROR:\s*\d+:\d+:\s*/i, "").trim().slice(0, 90) || "compile error";
   };
   // Live preview (NO blink): the orb context is mounted ONCE with smooth:true (a
   // persistent, EMA-smoothed context); every shader edit HOT-SWAPS the program in

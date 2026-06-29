@@ -323,6 +323,49 @@
 
 /* Onboarding card — the "set up your own AI" / first-run intro. */
 .cc-card.is-onboard { border-left-color: var(--ds-accent); }
+.cc-card.is-transcript-upload { width: min(88%, 340px); }
+.cc-upload-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 9px;
+}
+.cc-upload-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-family: var(--ds-font-ui);
+  font-size: var(--ds-text-2xs);
+  color: var(--ds-ink-3);
+}
+.cc-upload-field span {
+  font-family: var(--ds-font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.cc-upload-input {
+  width: 100%;
+  min-height: 34px;
+  box-sizing: border-box;
+  border: 1px solid var(--ds-border);
+  border-radius: 8px;
+  background: var(--ds-surface-1);
+  color: var(--ds-ink-1);
+  font-family: var(--ds-font-ui);
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-lh-xs);
+  padding: 7px 9px;
+}
+.cc-upload-input:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 1px;
+}
+.cc-upload-route {
+  min-height: 14px;
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  color: var(--ds-ink-4);
+  overflow-wrap: anywhere;
+}
 .cc-onboard-steps {
   display: flex;
   flex-direction: column;
@@ -549,6 +592,7 @@
   transition: background 0.12s ease, color 0.12s ease, transform 0.12s ease;
 }
 .cc-launcher-action[data-cohort-chat-action="search"] { --cc-action-tint: #8ab4ff; }
+.cc-launcher-action[data-cohort-chat-action="transcript"] { --cc-action-tint: #f0c46f; }
 .cc-launcher-action[data-cohort-chat-action="sync"] { --cc-action-tint: #73d69a; }
 .cc-launcher-action[data-cohort-chat-action="mirror"] { --cc-action-tint: #c7a7ff; }
 .cc-launcher-action.is-primary {

@@ -18,12 +18,24 @@ import { resolveChatFocus } from "./cohort-chat-focus.mjs";
 import { getIdentity } from "./identity.js";
 import { getClaimTokenHash } from "./claim-token.mjs";
 import { saveProfileProposal } from "./supabase-self-report.mjs";
+import { savePrivateContactEmail } from "./private-contact-submit.mjs";
 import { emitConnection, emitContest, emitSelfReport } from "./cohort-emit.mjs";
 import { submitContest } from "./supabase-contest.mjs";
 import { scanGithubActivity, resolvePersonHandle, summarizeEvents, digestFromEvents } from "./gh-self-report.mjs";
 
 let stylesheetPromise = null;
 let controller = null;
+
+const FALLBACK_TRANSCRIPT_TYPES = [
+  { key: "weekly_standup", label: "Weekly standup", routePath: "raw_transcripts/weekly_standup" },
+  { key: "office_hours", label: "Office hours", routePath: "raw_transcripts/office_hours" },
+  { key: "private_1on1", label: "Private 1:1", routePath: "do_not_publish/private_1on1" },
+  { key: "salon", label: "Salon", routePath: "raw_transcripts/salon" },
+  { key: "rd_jam", label: "R&D / jam", routePath: "raw_transcripts/rd_jam" },
+  { key: "demo_presentation", label: "Demo / presentation", routePath: "raw_transcripts/demo_presentation" },
+  { key: "user_interview", label: "User interview", routePath: "raw_transcripts/user_interview" },
+  { key: "planning_strategy", label: "Planning / strategy", routePath: "do_not_publish/planning_strategy" },
+];
 
 function $(id) { return document.getElementById(id); }
 
@@ -397,6 +409,10 @@ function createController() {
       const who = a.origin && a.origin.is_self ? "your profile" : `${a.subject_record_id}’s profile`;
       return `Propose update to ${who} — ${fields}`;
     }
+    if (a.action === "submit_private_contact") {
+      const details = [a.email, a.telegram].filter(Boolean).join(" · ");
+      return `Save private contact for ${a.display_name || a.subject_record_id} — ${details}`;
+    }
     if (a.action === "propose_connection") return `Suggest connection — ${a.from_record_id} ↔ ${a.to_record_id}`;
     if (a.action === "file_contest") return `Flag ${a.subject_record_id}’s card — ${a.contest_kind.replace(/_/g, " ")}`;
     if (a.action === "request_scan") {
@@ -428,6 +444,19 @@ function createController() {
         // the daily review surfaces it, so we don't broadcast it as applied.
         if (res && res.ok && o.is_self) { try { emitSelfReport(a.subject_record_id, Object.keys(a.delta)); } catch {} }
         return res;
+      }
+      if (a.action === "submit_private_contact") {
+        const o = a.origin || {};
+        return savePrivateContactEmail({
+          subjectRecordId: a.subject_record_id,
+          email: a.email,
+          telegram: a.telegram,
+          displayName: a.display_name,
+          note: a.note,
+          proposerRecordId: o.proposer_record_id,
+          proposerClaimHash: o.proposer_claim_hash,
+          sourceKinds: ["cohort_chat_explicit"],
+        });
       }
       if (a.action === "propose_connection") {
         emitConnection({ fromId: a.from_record_id, toId: a.to_record_id, reason: a.reason });
@@ -467,15 +496,18 @@ function createController() {
   // reads as a direct "apply" and a proposal about someone else reads as "propose".
   function ctaLabel(a) {
     if (a.action === "request_scan") return isGithubScan(a) ? "Check my GitHub →" : "Choose what to share →";
+    if (a.action === "submit_private_contact") return "Save privately";
     if (isSelfApply(a)) return "Apply";
     return "Propose";
   }
   function pendingLabel(a) {
     if (a.action === "request_scan") return isGithubScan(a) ? "checking…" : "opening…";
+    if (a.action === "submit_private_contact") return "saving privately…";
     return isSelfApply(a) ? "applying…" : "sending…";
   }
   function successMsg(a) {
     if (a.action === "request_scan") return isGithubScan(a) ? "checking your GitHub…" : "opened — pick what to share.";
+    if (a.action === "submit_private_contact") return "saved to the private contact intake.";
     if (a.action === "propose_profile_update") return isSelfApply(a)
       ? "✓ updated — live on the next refresh."
       : a.subject_type === "team"
@@ -490,12 +522,13 @@ function createController() {
   // member clicks the CTA (request_scan re-asks its own per-source consent).
   function renderActionReview(actions) {
     const reviewable = (actions || []).filter((a) =>
-      ["propose_profile_update", "propose_connection", "file_contest", "request_scan"].includes(a.action));
+      ["propose_profile_update", "submit_private_contact", "propose_connection", "file_contest", "request_scan"].includes(a.action));
     if (!reviewable.length) return;
     for (const a of reviewable) {
       const card = document.createElement("div");
       card.className = "cc-card";
       const tag = isSelfApply(a) ? "applies now"
+        : a.action === "submit_private_contact" ? "private contact"
         : a.action === "request_scan" ? "needs your ok"
         : "queued for review";
       card.innerHTML = `
@@ -553,6 +586,122 @@ function createController() {
     });
     log.appendChild(card);
     log.scrollTop = log.scrollHeight;
+  }
+
+  async function transcriptUploadOptions() {
+    try {
+      const res = window.api && window.api.getTranscriptUploadOptions
+        ? await window.api.getTranscriptUploadOptions()
+        : null;
+      if (res && res.ok && Array.isArray(res.sessionTypes) && res.sessionTypes.length) return res.sessionTypes;
+    } catch {}
+    return FALLBACK_TRANSCRIPT_TYPES;
+  }
+
+  async function renderTranscriptUploadCard() {
+    const types = await transcriptUploadOptions();
+    if (empty && empty.parentNode) empty.remove();
+    log.querySelectorAll(".cc-card.is-transcript-upload").forEach((el) => el.remove());
+
+    const card = document.createElement("div");
+    card.className = "cc-card is-transcript-upload";
+    card.innerHTML = `
+      <div class="cc-card-eyebrow">add transcript</div>
+      <div class="cc-upload-grid">
+        <label class="cc-upload-field">
+          <span>type</span>
+          <select class="cc-upload-input" data-cc-transcript-type>
+            <option value="">Choose transcript type</option>
+            ${types.map((type) => `<option value="${esc(type.key)}">${esc(type.label || type.key)}</option>`).join("")}
+          </select>
+        </label>
+        <label class="cc-upload-field">
+          <span>label</span>
+          <input class="cc-upload-input" data-cc-transcript-label type="text" placeholder="optional file label" autocomplete="off" spellcheck="false" />
+        </label>
+      </div>
+      <div class="cc-upload-route" data-cc-transcript-route></div>
+      <div class="cc-card-actions">
+        <button type="button" class="btn ds-ghost" data-cc-transcript-cancel>Cancel</button>
+        <button type="button" class="btn ds-primary" data-cc-transcript-upload disabled>Upload file</button>
+        <button type="button" class="btn ds-ghost" data-cc-transcript-open hidden>Open in Drive</button>
+      </div>
+      <div class="cc-card-status" data-cc-transcript-status hidden></div>`;
+
+    const select = card.querySelector("[data-cc-transcript-type]");
+    const label = card.querySelector("[data-cc-transcript-label]");
+    const route = card.querySelector("[data-cc-transcript-route]");
+    const upload = card.querySelector("[data-cc-transcript-upload]");
+    const cancel = card.querySelector("[data-cc-transcript-cancel]");
+    const openDrive = card.querySelector("[data-cc-transcript-open]");
+    const stat = card.querySelector("[data-cc-transcript-status]");
+    let driveLink = "";
+
+    function selectedType() {
+      return types.find((type) => type.key === select.value) || null;
+    }
+    function syncUploadState() {
+      const type = selectedType();
+      upload.disabled = !type;
+      route.textContent = type && type.routePath ? `route: ${type.routePath}` : "";
+    }
+
+    select.addEventListener("change", syncUploadState);
+    cancel.addEventListener("click", () => card.remove());
+    openDrive.addEventListener("click", () => {
+      if (driveLink && window.api && window.api.openExternal) window.api.openExternal(driveLink);
+    });
+    upload.addEventListener("click", async () => {
+      const type = selectedType();
+      if (!type) {
+        stat.hidden = false;
+        stat.className = "cc-card-status is-error";
+        stat.textContent = "Choose a transcript type first.";
+        return;
+      }
+      if (!window.api || !window.api.uploadTranscriptToDrive) {
+        stat.hidden = false;
+        stat.className = "cc-card-status is-error";
+        stat.textContent = "Drive upload is unavailable in this build.";
+        return;
+      }
+      upload.disabled = true;
+      select.disabled = true;
+      label.disabled = true;
+      stat.hidden = false;
+      stat.className = "cc-card-status";
+      stat.textContent = "opening file picker...";
+      try {
+        const res = await window.api.uploadTranscriptToDrive({
+          sessionType: type.key,
+          label: (label.value || "").trim(),
+        });
+        if (res && res.ok) {
+          driveLink = res.webViewLink || res.webContentLink || "";
+          stat.className = "cc-card-status is-ok";
+          stat.textContent = `uploaded: ${res.targetPath || res.name || "transcript"}`;
+          card.classList.add("is-done");
+          if (driveLink) openDrive.hidden = false;
+          return;
+        }
+        const reason = res && (res.detail || res.reason);
+        stat.className = "cc-card-status" + (res && res.reason === "canceled" ? "" : " is-error");
+        stat.textContent = res && res.reason === "canceled" ? "canceled." : `upload failed: ${reason || "unknown error"}`;
+        upload.disabled = false;
+        select.disabled = false;
+        label.disabled = false;
+      } catch (error) {
+        stat.className = "cc-card-status is-error";
+        stat.textContent = `upload failed: ${error?.message || error}`;
+        upload.disabled = false;
+        select.disabled = false;
+        label.disabled = false;
+      }
+    });
+    syncUploadState();
+    log.appendChild(card);
+    log.scrollTop = log.scrollHeight;
+    setTimeout(() => { try { select.focus(); } catch {} }, 30);
   }
 
   function openSettings() {
@@ -864,6 +1013,10 @@ function createController() {
       open();
       appendBubble("assistant", text);
     },
+    showTranscriptUpload() {
+      open();
+      void renderTranscriptUploadCard();
+    },
   };
 }
 
@@ -909,6 +1062,13 @@ export async function openCohortMirror() {
 export async function openCohortUpdates() {
   await warmCohortChat();
   await openSelfReportForMe({ autoRunPrevious: true });
+}
+
+export async function openCohortTranscriptUpload() {
+  await warmCohortChat();
+  const c = getController();
+  if (!c) { console.warn("[cohort-chat] panel markup missing"); return; }
+  c.showTranscriptUpload();
 }
 
 // Toggle for the corner launcher: open when closed, close when open.

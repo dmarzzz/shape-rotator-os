@@ -4535,6 +4535,14 @@ const NAV_ALCH_LS_KEY = "srwk:alchemy_mode"; // mirrors alchemy.js ALCHEMY_LS_KE
 const NAV_CONST_MODE_LS_KEY = "srwk:const_mode"; // mirrors alchemy.js CONST_MODE_LS_KEY
 const navHist = { stack: [], index: -1, last: null, restoring: false };
 
+function navContextView(raw) {
+  const v = String(raw || "").toLowerCase();
+  if (v === "article") return "articles";
+  if (v === "transcript" || v === "transcripts") return "raw";
+  if (v === "card" || v === "cards" || v === "intel" || v === "signals" || v === "data") return "evidence";
+  return v === "articles" || v === "raw" || v === "evidence" ? v : "";
+}
+
 function navSnapshot() {
   const b = document.body;
   const tab = TOP_TABS.has(b.dataset.activeTab) ? b.dataset.activeTab : "alchemy";
@@ -4574,7 +4582,7 @@ function navSnapshot() {
       ctxView = "evidence";
     }
     if (alchMode !== "constellation") constMode = "";
-    if (alchMode !== "context") ctxView = "";
+    ctxView = alchMode === "context" ? navContextView(ctxView) : "";
     snap.alchMode = alchMode || "membrane";
     snap.constMode = constMode || "";
     snap.ctxView = ctxView || "";
@@ -4626,7 +4634,7 @@ function navApplyLocation(snap) {
       instant: true,
     };
     if (mode === "constellation" && snap.constMode) loc.constellationMode = snap.constMode;
-    if (mode === "context" && (snap.ctxView || legacyIntel)) loc.contextView = legacyIntel ? "evidence" : snap.ctxView;
+    if (mode === "context" && (snap.ctxView || legacyIntel)) loc.contextView = legacyIntel ? "evidence" : navContextView(snap.ctxView);
     if (mode === "program" && snap.programPage) loc.programPage = snap.programPage;
     try { Alchemy.applyLocation(loc); } catch {}
   }
@@ -4689,7 +4697,7 @@ function applyDeepLink(url) {
   if (snap.tab === "alchemy") {
     loc.mode = snap.alchMode || "membrane";
     if (snap.constMode) loc.constellationMode = snap.constMode;
-    if (snap.ctxView) loc.contextView = snap.ctxView;
+    if (snap.ctxView) loc.contextView = navContextView(snap.ctxView);
     if (snap.programPage) loc.programPage = snap.programPage;
     if (snap.recordId) loc.recordId = snap.recordId;
   } else if (snap.tab === "apps") {
@@ -5514,6 +5522,15 @@ function openCohortSyncFromLauncher(e) {
       toast({ kind: "error", message: `sync failed: ${err?.message || err}` });
     });
 }
+function openTranscriptUploadFromLauncher(e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  loadCohortChat()
+    .then((m) => (m.openCohortTranscriptUpload ? m.openCohortTranscriptUpload() : m.openCohortChat()))
+    .catch((err) => {
+      console.error("[cohort-chat] transcript upload failed:", err);
+      toast({ kind: "error", message: `transcript upload failed: ${err?.message || err}` });
+    });
+}
 // The corner launcher toggles the chat popup (open <-> close) rather than only opening.
 function toggleCohortChatFromLauncher(e) {
   if (e) { e.preventDefault(); e.stopPropagation(); }
@@ -5546,6 +5563,7 @@ function routeCohortChatAction(e) {
   if (action === "search") return openSearchFromLauncher(e);
   if (action === "settings") return openCohortChatSettingsFromLauncher(e);
   if (action === "sync" || action === "updates") return openCohortSyncFromLauncher(e);
+  if (action === "transcript") return openTranscriptUploadFromLauncher(e);
   if (action === "mirror") return openCohortMirrorFromLauncher(e);
   return openCohortChatFromLauncher(e);
 }

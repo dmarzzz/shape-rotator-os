@@ -31,6 +31,9 @@ function assertSourceGuards() {
   if (!boot.includes('m.openWithQuery?.(null, { scope: "global" })')) {
     fail("launcher search no longer forces global scope");
   }
+  if (!boot.includes("openCohortTranscriptUpload")) {
+    fail("launcher transcript upload no longer routes through the chat module");
+  }
   if (!/setActionMenuOpen\(false\);\s*toggleCohortChatFromLauncher\(e\);/.test(boot)) {
     fail("orb click no longer collapses the action menu before chat opens");
   }
@@ -175,7 +178,7 @@ app.whenReady().then(async () => {
     `);
 
     const labels = metrics.actions.map((item) => item.action);
-    const expected = ["chat", "search", "sync", "mirror"];
+    const expected = ["chat", "search", "transcript", "sync", "mirror"];
     if (JSON.stringify(labels) !== JSON.stringify(expected)) fail("unexpected action order", metrics);
     if (metrics.menu.x < 0 || metrics.menu.y < 0 || metrics.menu.right > metrics.viewport.width || metrics.menu.bottom > metrics.viewport.height) {
       fail("menu overflows viewport", metrics);
@@ -186,7 +189,7 @@ app.whenReady().then(async () => {
       metrics.menu.bottom <= metrics.dial.y ||
       metrics.menu.y >= metrics.dial.bottom;
     if (!separated) fail("menu overlaps launcher orb", metrics);
-    if (metrics.menu.width > 240 || metrics.menu.height > 220) fail("menu is too large", metrics);
+    if (metrics.menu.width > 240 || metrics.menu.height > 280) fail("menu is too large", metrics);
     if (metrics.initial.ariaHidden !== "true" || !metrics.initial.inert || metrics.initial.tabIndexes.some((value) => value !== -1)) {
       fail("initial hidden menu is reachable", metrics);
     }

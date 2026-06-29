@@ -10965,9 +10965,9 @@ textarea.cb-intake-input {
 }
 .ac-sds-row:hover { background: rgba(var(--ink-rgb), 0.035); }
 .ac-sds-row:focus-visible {
-  outline: none;
+  outline: 2px solid var(--ds-focus);
+  outline-offset: -2px;
   background: rgba(var(--ink-rgb), 0.05);
-  box-shadow: inset 0 0 0 1px rgba(214,189,134,0.45);
 }
 .ac-sds-row:active { background: rgba(var(--ink-rgb), 0.07); }
 .ac-sds-row.is-declared { opacity: 0.64; }
@@ -10991,8 +10991,8 @@ textarea.cb-intake-input {
 .ac-sds-proof-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; min-width: 0; }
 .ac-sds-cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .ac-sds-cell b {
-  font-family: var(--font-mono); font-size: 8px; font-weight: 800;
-  letter-spacing: 0.12em; text-transform: uppercase; color: rgba(214,189,134,0.6);
+  font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); font-weight: 800;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--ds-ink-3);
 }
 .ac-sds-cell > span {
   color: rgba(var(--ink-rgb), 0.62); font-size: 11px; line-height: 1.34;
@@ -11023,7 +11023,7 @@ textarea.cb-intake-input {
   font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.07em;
   text-transform: uppercase; color: var(--alchemy-ink-mute); text-align: right;
 }
-.ac-sds-state { color: rgba(214,189,134,0.6); }
+.ac-sds-state { color: var(--ds-ink-3); }
 .ac-sds-row.is-declared .ac-sds-state { color: rgba(var(--ink-rgb), 0.42); }
 /* Review state (confidence · approval) is secondary to the status pill and
    orthogonal to observed signal — keep it the most-muted element in the foot. */
@@ -11062,113 +11062,137 @@ html.jweek-vt .ac-cmp-grid { animation: none; }
 /* Mirror subject switcher (you · browse · compare) + compare layout. */
 .ac-mirror-wrap { margin: 0 0 14px; }
 .ac-mirror-switch {
-  display: inline-flex; gap: 2px; padding: 2px; margin: 0 0 10px;
-  border: 1px solid rgba(214,189,134,0.30); border-radius: 9px; background: rgba(214,189,134,0.05);
+  display: inline-flex; gap: 2px; padding: 2px; margin: 0 0 12px;
+  border: 1px solid var(--ds-border); border-radius: 9px; background: var(--ds-surface-3);
 }
 .ac-mirror-mode {
   appearance: none; border: 0; background: transparent; cursor: pointer;
-  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em;
-  color: rgba(var(--ink-rgb), 0.6); padding: 5px 13px; border-radius: 7px;
+  font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); letter-spacing: 0.04em;
+  color: var(--ds-ink-3); padding: 5px 13px; border-radius: 7px;
   transition: background 150ms var(--ease), color 150ms var(--ease);
 }
-.ac-mirror-mode:hover { color: var(--alchemy-paper-warm); }
-.ac-mirror-mode.is-on { background: rgba(214,189,134,0.85); color: rgba(27,20,17,0.92); }
+.ac-mirror-mode:hover { color: var(--ds-ink-1); }
+/* selected = the design system's soft-wash convention, not a fill — reads as
+   state, never as a second accent. */
+.ac-mirror-mode.is-on { background: var(--ds-accent-soft); color: var(--ds-ink-1); }
 .ac-mirror-pickrow {
   display: flex; align-items: center; gap: 9px; margin: 0 0 10px;
-  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.06em;
-  text-transform: uppercase; color: rgba(var(--ink-rgb), 0.55);
+  font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--ds-ink-3);
 }
-.ac-mirror-vs { color: rgba(214,189,134,0.9); font-weight: 700; }
+.ac-mirror-vs { color: var(--ds-ink-3); font-weight: 700; }
 .ac-mirror-pick {
-  font-size: 12px; padding: 5px 9px; border: 1px solid rgba(var(--ink-rgb), 0.18);
-  border-radius: 7px; background: transparent; color: var(--alchemy-paper-warm); cursor: pointer;
+  font-size: var(--ds-text-sm); padding: 5px 9px; border: 1px solid var(--ds-border);
+  border-radius: 7px; background: var(--ds-surface-3); color: var(--ds-ink-1); cursor: pointer;
 }
 .ac-mirror-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
 .ac-mirror-compare .ac-mirror { margin: 0; }
-.ac-mirror-hint { margin: 6px 0 14px; font-size: 12px; line-height: 1.5; color: rgba(var(--ink-rgb), 0.6); }
+.ac-mirror-hint { margin: 6px 0 14px; font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); color: var(--ds-ink-3); }
 @media (max-width: 640px) { .ac-mirror-compare { grid-template-columns: 1fr; } }
 
-/* Phase 2: the cohort-context band folded onto the Mirror page. */
-.ac-mirror-ctx { margin: 18px 0 4px; padding-top: 14px; border-top: 1px solid rgba(var(--ink-rgb), 0.10); }
+/* Phase 2: the cohort-context band, demoted to a quiet footer (the personal
+   mirror leads the page; cohort stats group here). */
+.ac-mirror-ctx { margin: 24px 0 4px; padding-top: 16px; border-top: 1px solid var(--ds-border); }
 .ac-mirror-ctx-eyebrow {
-  font-family: var(--font-mono); font-size: 8.5px; font-weight: 800; letter-spacing: 0.14em;
-  text-transform: uppercase; color: rgba(var(--ink-rgb), 0.45);
+  font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); font-weight: 800; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--ds-ink-4);
 }
 .ac-mirror-ctx-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 10px; }
 .ac-mirror-ctx-tile {
   display: flex; flex-direction: column; gap: 3px; padding: 9px 12px;
-  border: 1px solid rgba(var(--ink-rgb), 0.12); border-radius: 9px; background: rgba(var(--ink-rgb), 0.02);
+  border: 1px solid var(--ds-border); border-radius: 9px; background: var(--ds-surface-2);
 }
-.ac-mirror-ctx-k { font-size: 10.5px; color: rgba(var(--ink-rgb), 0.5); }
-.ac-mirror-ctx-v { font-size: 13px; color: var(--light-1); line-height: 1.35; }
+.ac-mirror-ctx-k { font-size: var(--ds-text-2xs); color: var(--ds-ink-3); }
+.ac-mirror-ctx-v { font-size: var(--ds-text-md); color: var(--ds-ink-1); line-height: 1.35; }
+/* the cohort say/did/shipped aggregate, moved out of the page lead into the
+   footer; it shares the context band's one divider (no double rule). */
+.ac-mirror-ctx-lead { margin: 24px 0 0; padding-top: 16px; border-top: 1px solid var(--ds-border); }
+.ac-mirror-ctx-lead + .ac-mirror-ctx { margin-top: 14px; padding-top: 0; border-top: 0; }
 
 .ac-mirror {
   margin: 0 0 14px;
-  padding: 13px 15px;
-  border: 1px solid rgba(214,189,134,0.30);
+  padding: 16px 18px;
+  border: 1px solid var(--ds-border);
   border-radius: 10px;
-  background: rgba(214,189,134,0.05);
+  background: var(--ds-surface-2);
 }
-.ac-mirror-head { display: flex; align-items: baseline; gap: 9px; margin-bottom: 9px; }
+.ac-mirror-head { display: flex; align-items: baseline; gap: 9px; margin-bottom: 8px; }
+/* the one accent eyebrow that names the card. */
 .ac-mirror-eyebrow {
-  font-family: var(--font-mono); font-size: 8.5px; font-weight: 800;
-  letter-spacing: 0.14em; text-transform: uppercase; color: rgba(214,189,134,0.85);
+  font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); font-weight: 800;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--ds-accent);
 }
-.ac-mirror-team { color: var(--alchemy-paper-warm); font-size: 13px; font-weight: 700; }
-.ac-mirror-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; min-width: 0; }
+.ac-mirror-team { color: var(--ds-ink-1); font-size: var(--ds-text-base); font-weight: 700; }
+/* one-line metaphor: explains "your mirror" once so the page never needs decoding. */
+.ac-mirror-lede {
+  margin: 0 0 14px; max-width: 64ch;
+  font-size: var(--ds-text-xs); line-height: var(--ds-lh-sm); color: var(--ds-ink-3);
+}
+/* the say/repo-shows/shipped evidence, framed by a hairline so it reads as a unit. */
+.ac-mirror-strip {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; min-width: 0;
+  padding-top: 12px; border-top: 1px solid var(--ds-border);
+}
+/* the calibration prompt — kept calm: tone is carried by ink level + weight only,
+   never colour or red, so it stays a nudge and never reads as a score. */
 .ac-mirror-cal {
-  margin: 11px 0 0; font-size: 11.5px; line-height: 1.45; color: rgba(var(--ink-rgb), 0.72); max-width: 70ch;
+  margin: 12px 0 0; font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); color: var(--ds-ink-2); max-width: 70ch;
 }
-.ac-mirror-cal[data-tone="drift"] { color: var(--alchemy-paper-warm); }
+.ac-mirror-cal[data-tone="drift"] { color: var(--ds-ink-1); font-weight: 600; }
+/* quiet text link — never competes with the primary Update action. */
 .ac-mirror-flag {
-  appearance: none; margin-top: 10px; padding: 5px 10px;
-  border: 1px solid rgba(var(--ink-rgb), 0.18); border-radius: 6px;
-  background: transparent; color: rgba(var(--ink-rgb), 0.7); cursor: pointer;
-  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.04em;
-  transition: background 150ms var(--ease), color 150ms var(--ease);
+  appearance: none; margin-top: 12px; padding: 0;
+  border: 0; background: transparent; color: var(--ds-ink-3); cursor: pointer;
+  font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); letter-spacing: 0.04em;
+  transition: color 150ms var(--ease);
 }
-.ac-mirror-flag:hover { background: rgba(var(--ink-rgb), 0.05); color: var(--alchemy-paper-warm); }
+.ac-mirror-flag:hover { color: var(--ds-ink-1); text-decoration: underline; }
 .ac-mirror-contest { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; max-width: 52ch; }
 .ac-mirror-contest[hidden] { display: none; }
 .ac-mirror-contest select,
 .ac-mirror-contest textarea {
-  width: 100%; font: inherit; font-size: 11.5px; color: inherit;
-  background: rgba(var(--ink-rgb), 0.04);
-  border: 1px solid rgba(var(--ink-rgb), 0.18); border-radius: 6px; padding: 6px 8px;
+  width: 100%; font: inherit; font-size: var(--ds-text-xs); color: inherit;
+  background: var(--ds-surface-3);
+  border: 1px solid var(--ds-border); border-radius: 6px; padding: 6px 8px;
 }
 .ac-mirror-contest textarea { min-height: 54px; resize: vertical; }
 .ac-mirror-actions { display: flex; align-items: center; gap: 10px; }
 .ac-mirror-send {
-  appearance: none; padding: 5px 12px; border-radius: 6px; border: 0; cursor: pointer;
-  background: rgba(214,189,134,0.85); color: #1a1206;
-  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em;
+  appearance: none; padding: 5px 12px; border-radius: 6px; cursor: pointer;
+  background: transparent; border: 1px solid var(--ds-border-strong); color: var(--ds-ink-1);
+  font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); font-weight: 700; letter-spacing: 0.04em;
+  transition: background 150ms var(--ease), border-color 150ms var(--ease);
 }
+.ac-mirror-send:hover { background: var(--ds-surface-3); }
 .ac-mirror-send:disabled { opacity: 0.5; cursor: default; }
-.ac-mirror-status { font-family: var(--font-mono); font-size: 9.5px; color: var(--alchemy-ink-mute); }
+.ac-mirror-status { font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); color: var(--ds-ink-4); }
 .ac-mirror-contested {
-  margin: 10px 0 0; font-family: var(--font-mono); font-size: 10.5px; line-height: 1.45;
-  letter-spacing: 0.01em; color: rgba(214,189,134,0.9); max-width: 64ch;
+  margin: 12px 0 0; font-family: var(--ds-font-mono); font-size: var(--ds-text-xs); line-height: 1.45;
+  letter-spacing: 0.01em; color: var(--ds-ink-2); max-width: 64ch;
 }
 /* "how this reads" — the card's reasoning trace (move 8), collapsed by default. */
-.ac-mirror-trace { margin-top: 10px; }
+.ac-mirror-trace { margin-top: 12px; }
 .ac-mirror-trace > summary {
   cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 5px;
-  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase;
-  color: var(--alchemy-ink-mute);
+  font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ds-ink-4);
 }
+.ac-mirror-trace > summary:hover { color: var(--ds-ink-2); }
 .ac-mirror-trace > summary::-webkit-details-marker { display: none; }
 .ac-mirror-trace > summary::before { content: "▸"; font-size: 8px; }
 .ac-mirror-trace[open] > summary::before { content: "▾"; }
 .ac-mirror-trace-body { margin-top: 8px; }
-.ac-mirror-actions-row { margin-top: 11px; }
+.ac-mirror-actions-row { margin-top: 14px; }
+/* the one filled CTA — the single warm action, matching the self-report modal's
+   primary it opens (.selfrep-primary). */
 .ac-mirror-update {
-  appearance: none; cursor: pointer; padding: 6px 13px; border-radius: 7px;
-  border: 1px solid rgba(214,189,134,0.5); background: rgba(214,189,134,0.14);
-  color: var(--alchemy-paper-warm);
-  font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.03em;
-  transition: background 150ms var(--ease);
+  appearance: none; cursor: pointer; padding: 7px 14px; border-radius: 7px;
+  border: 1px solid var(--ds-accent); background: var(--ds-accent);
+  color: var(--ds-on-accent);
+  font-family: var(--ds-font-mono); font-size: var(--ds-text-xs); font-weight: 700; letter-spacing: 0.03em;
+  transition: background 150ms var(--ease), border-color 150ms var(--ease);
 }
-.ac-mirror-update:hover { background: rgba(214,189,134,0.24); }
+.ac-mirror-update:hover { background: var(--ds-accent-hover); border-color: var(--ds-accent-hover); }
 @media (max-width: 720px) {
   .ac-mirror-strip { grid-template-columns: 1fr; gap: 8px; }
 }
@@ -19580,16 +19604,6 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
 
 /* The context page header now uses the shared .alch-page-head (2026-06);
    the content-release line lives in the header's side meta. */
-
-
-
-
-/* Host for the embedded intel module (signals/data views). */
-.alch-cv-intel {
-  min-height: 0;
-  flex: 1 1 auto;
-}
-
 .alch-cv-message,
 .alch-cv-error {
   margin: 0;
@@ -22055,50 +22069,26 @@ html[data-theme="light"] .alch-trailbar .alch-trail-back {
 .alch-activity-mode { appearance: none; border: 0; background: transparent; color: var(--light-3); font: inherit; font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 7px; cursor: pointer; transition: background .15s, color .15s; }
 .alch-activity-mode:hover { color: var(--light-1); }
 .alch-activity-mode.is-on { background: var(--accent); color: #fff; }
-.alch-asks-activity-board { margin-bottom: 16px; }
-.alch-activity-stream {
-  margin-top: 18px;
-  border-top: 1px dashed rgba(var(--ink-rgb), 0.12);
-  padding-top: 10px;
+/* The composer sits between the header and the blended feed. */
+.alch-asks-compose { margin: 4px 0 16px; }
+.alch-activity-feed { margin-top: 4px; }
+/* An ask hosted as a feed row reads as a distinct, actionable CARD among the lighter
+   event rows: give it a contained border/radius (the flat bottom-border variant is
+   for the board/closed disclosure). The card carries its own summary padding. */
+.alch-activity-ask { padding: 0; }
+.alch-activity-ask .alch-asks-card {
+  border: 1px solid rgba(var(--ink-rgb), 0.12);
+  border-radius: 10px;
+  background: rgba(var(--ink-rgb), 0.02);
 }
-.alch-activity-stream-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  list-style: none;
-  cursor: pointer;
-  padding: 4px 0 10px;
+.alch-activity-ask .alch-asks-card[open] {
+  background: rgba(var(--ink-rgb), 0.035);
+  border-color: rgba(var(--ink-rgb), 0.20);
 }
-.alch-activity-stream-head::-webkit-details-marker { display: none; }
-.alch-activity-stream-title {
-  margin-right: auto;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--light-3);
-}
-.alch-activity-stream-count {
-  font-family: var(--ed-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.10em;
-  text-transform: lowercase;
-  color: var(--light-4);
-}
-.alch-activity-stream-head::before {
-  content: ">";
-  flex: 0 0 auto;
-  color: var(--light-4);
-  transition: transform 150ms ease;
-}
-.alch-activity-stream[open] .alch-activity-stream-head::before {
-  transform: rotate(90deg);
-}
-.alch-activity-stream-body {
-  padding-bottom: 4px;
-}
-.alch-activity-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.alch-activity-ask.is-new .alch-asks-card { border-color: var(--accent); }
+/* Closed / expired asks fold into a disclosure at the foot of the feed. */
+.alch-activity-closed { margin-top: 18px; }
+.alch-activity-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .alch-activity-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 9px; border: 1px solid transparent; transition: background .15s, border-color .15s; }
 .alch-activity-item:hover { background: rgba(var(--ink-rgb), 0.04); border-color: rgba(var(--ink-rgb), 0.10); }
 .alch-activity-item.is-new { background: rgba(var(--ink-rgb), 0.03); }

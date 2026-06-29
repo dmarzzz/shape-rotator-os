@@ -141,6 +141,8 @@ contextBridge.exposeInMainWorld("api", {
   // Private GitHub via the member's own `gh` login — returns raw events the
   // renderer scrubs + scopes (nothing leaves the box but a scrubbed digest).
   scanPrivateGithub:   (o) => ipcRenderer.invoke("fg:gh:scan-private", o || {}),
+  getTranscriptUploadOptions: () => ipcRenderer.invoke("fg:transcript-upload:options"),
+  uploadTranscriptToDrive: (o) => ipcRenderer.invoke("fg:transcript-upload:drive", o || {}),
   onCohortChatOutput: (cb) => {
     const h = (_e, p) => { try { cb(p); } catch {} };
     ipcRenderer.on("fg:cohort-chat:output", h);

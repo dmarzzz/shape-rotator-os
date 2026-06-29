@@ -2,13 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   PROPOSABLE_PROFILE_FIELDS, ACTION_TYPES, MAX_ACTIONS_PER_TURN,
-  normalizeGithubHandle, normalizeGithubRepo, sanitizeProfileFields,
+  normalizeGithubHandle, normalizeGithubRepo, normalizeEmail, normalizeTelegram, sanitizeProfileFields,
   sanitizeAction, extractJsonChunks, parseChatActions,
 } from "./cohort-chat-actions.mjs";
 
 const known = new Set(["dmarz", "ada", "loom"]);
 const selfCtx = { proposerRecordId: "dmarz", proposerClaimHash: "abc123", knownRecordIds: known };
 const otherCtx = { proposerRecordId: "ada", proposerClaimHash: "def456", knownRecordIds: known };
+const withTeamCtx = { ...selfCtx, knownTeamIds: new Set(["loom"]) };
 
 // ── github normalizers ────────────────────────────────────────────────────────
 test("normalizeGithubHandle strips @, URL, and rejects junk", () => {
@@ -27,6 +28,21 @@ test("normalizeGithubRepo yields owner/repo or empty", () => {
   assert.equal(normalizeGithubRepo("a/b/c"), "");
 });
 
+test("normalizeEmail keeps safe addresses only", () => {
+  assert.equal(normalizeEmail("  MailTo:ADA+demo@Example.COM "), "ada+demo@example.com");
+  assert.equal(normalizeEmail("ada@example"), "");
+  assert.equal(normalizeEmail("ada @example.com"), "");
+  assert.equal(normalizeEmail("ada@example.com,other@example.com"), "");
+});
+
+test("normalizeTelegram keeps handle/link details only", () => {
+  assert.equal(normalizeTelegram("@Ada_Builds"), "@Ada_Builds");
+  assert.equal(normalizeTelegram("https://t.me/Ada_Builds"), "@Ada_Builds");
+  assert.equal(normalizeTelegram("t.me/Ada_Builds"), "");
+  assert.equal(normalizeTelegram("@bad"), "");
+  assert.equal(normalizeTelegram("not a handle"), "");
+});
+
 // ── field whitelist ───────────────────────────────────────────────────────────
 test("sanitizeProfileFields keeps only whitelisted fields and drops junk", () => {
   const out = sanitizeProfileFields({
@@ -41,6 +57,8 @@ test("sanitizeProfileFields keeps only whitelisted fields and drops junk", () =>
     team: "cube",               // off-whitelist
     geo: "NYC",
     links: { github: "@dmarz", repo: "dmarzzz/shape-rotator-os", website: "evil.com" },
+    email: "private@example.com", // private contact info belongs to submit_private_contact
+    telegram: "@private_telegram", // private contact info belongs to submit_private_contact
   });
   assert.deepEqual(out, {
     comm_style: "async first",
@@ -53,6 +71,10 @@ test("sanitizeProfileFields keeps only whitelisted fields and drops junk", () =>
     geo: "NYC",
     links: { github: "dmarz", repo: "dmarzzz/shape-rotator-os" }, // website dropped
   });
+});
+
+test("profile update drops private contact info instead of publishing it", () => {
+  assert.deepEqual(sanitizeProfileFields({ email: "ada@example.com", telegram: "@ada_builds" }), {});
 });
 
 test("sanitizeProfileFields drops a links object with nothing valid", () => {
@@ -121,6 +143,36 @@ test("request_scan keeps only sessions/github sources", () => {
   assert.equal(sanitizeAction({ action: "request_scan", sources: ["email"] }), null);
 });
 
+test("submit_private_contact captures valid person contact details privately", () => {
+  const a = sanitizeAction(
+    { action: "submit_private_contact", subject_record_id: "ada", email: "Ada@Example.com", telegram: "https://t.me/AdaBuilds", display_name: "Ada", note: "from intake" },
+    selfCtx,
+  );
+  assert.equal(a.action, "submit_private_contact");
+  assert.equal(a.subject_record_id, "ada");
+  assert.equal(a.email, "ada@example.com");
+  assert.equal(a.telegram, "@AdaBuilds");
+  assert.equal(a.display_name, "Ada");
+  assert.equal(a.note, "from intake");
+  assert.deepEqual(a.origin, { proposer_record_id: "dmarz", proposer_claim_hash: "abc123", is_self: false });
+});
+
+test("submit_private_contact accepts telegram without email", () => {
+  const a = sanitizeAction(
+    { action: "submit_private_contact", subject_record_id: "ada", telegram: "@AdaBuilds" },
+    selfCtx,
+  );
+  assert.equal(a.email, null);
+  assert.equal(a.telegram, "@AdaBuilds");
+});
+
+test("submit_private_contact drops unknown, team, or invalid-contact targets", () => {
+  assert.equal(sanitizeAction({ action: "submit_private_contact", subject_record_id: "ghost", email: "g@example.com" }, selfCtx), null);
+  assert.equal(sanitizeAction({ action: "submit_private_contact", subject_record_id: "loom", email: "team@example.com" }, withTeamCtx), null);
+  assert.equal(sanitizeAction({ action: "submit_private_contact", subject_record_id: "ada", email: "not-email" }, selfCtx), null);
+  assert.equal(sanitizeAction({ action: "submit_private_contact", subject_record_id: "ada", telegram: "not handle" }, selfCtx), null);
+});
+
 test("ask + note pass through clamped; unknown verbs are dropped", () => {
   assert.equal(sanitizeAction({ action: "ask", question: "what shipped this week?" }).question, "what shipped this week?");
   assert.equal(sanitizeAction({ action: "note", text: "looks good" }).text, "looks good");
@@ -145,16 +197,20 @@ test("parseChatActions prefers the LAST batch and sanitizes each", () => {
     "I'll propose two updates.",
     '{"actions":[',
     '  {"action":"propose_profile_update","subject_record_id":"dmarz","fields":{"now":"shipping the agent loop","links":{"github":"dmarz"}}},',
+    '  {"action":"submit_private_contact","subject_record_id":"ada","email":"ada@example.com","telegram":"@AdaBuilds"},',
     '  {"action":"file_contest","subject_record_id":"loom","contest_kind":"stale_declaration"},',
     '  {"action":"hack","subject_record_id":"dmarz"}',
     "]}",
   ].join("\n");
   const { actions } = parseChatActions(raw, selfCtx);
-  assert.equal(actions.length, 2); // the hack verb is dropped
+  assert.equal(actions.length, 3); // the hack verb is dropped
   assert.equal(actions[0].action, "propose_profile_update");
   assert.deepEqual(actions[0].delta, { now: "shipping the agent loop", links: { github: "dmarz" } });
   assert.equal(actions[0].origin.is_self, true);
-  assert.equal(actions[1].action, "file_contest");
+  assert.equal(actions[1].action, "submit_private_contact");
+  assert.equal(actions[1].email, "ada@example.com");
+  assert.equal(actions[1].telegram, "@AdaBuilds");
+  assert.equal(actions[2].action, "file_contest");
 });
 
 test("parseChatActions caps at MAX_ACTIONS_PER_TURN", () => {

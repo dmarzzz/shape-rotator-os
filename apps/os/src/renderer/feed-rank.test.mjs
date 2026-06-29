@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { rankFeed } from "./feed-rank.mjs";
+import { rankFeed, scoreAsk } from "./feed-rank.mjs";
 
 const NOW = Date.parse("2026-06-25T12:00:00Z");
 const hoursAgo = (h) => new Date(NOW - h * 3600000).toISOString();
@@ -89,4 +89,28 @@ test("unseen events are marked _isNew and counted", () => {
 test("empty / non-array input is safe", () => {
   assert.deepEqual(rankFeed(null, {}, { now: NOW }), { feed: [], mine: [], newCount: 0 });
   assert.deepEqual(rankFeed([], { recordId: "me" }, { now: NOW }), { feed: [], mine: [], newCount: 0 });
+});
+
+test("personalize:false (the everyone lens) drops affinity — author no longer boosts", () => {
+  const base = { created_at: hoursAgo(1), weight: "medium" };
+  const events = [
+    ev({ ...base, id: "stranger", actor: "s", record_id: "s" }),
+    ev({ ...base, id: "conn", actor: "c", record_id: "c" }),
+  ];
+  const viewer = { recordId: "me", team: "t1", skillAreas: ["rust"], connectionIds: ["c"] };
+  const { feed } = rankFeed(events, viewer, { now: NOW, personalize: false });
+  assert.equal(feed.find((e) => e.id === "conn")._score, feed.find((e) => e.id === "stranger")._score);
+});
+
+test("scoreAsk: open boost beats closed; for_you lifts skill-matched, everyone ignores it", () => {
+  const item = (over) => ({ created_at: hoursAgo(1), weight: "loud", _open: true, _skillAreas: [], actor: "a", ...over });
+  const viewer = { recordId: "me", skillAreas: ["rust"] };
+  assert.ok(scoreAsk(item({ _open: true }), viewer, { now: NOW })
+          > scoreAsk(item({ _open: false, weight: "quiet" }), viewer, { now: NOW }));
+  // for_you: a skill-matched ask outranks an unmatched one
+  assert.ok(scoreAsk(item({ _skillAreas: ["rust"] }), viewer, { now: NOW, personalize: true })
+          > scoreAsk(item({ _skillAreas: ["design"] }), viewer, { now: NOW, personalize: true }));
+  // everyone: skill match is ignored → equal score
+  assert.equal(scoreAsk(item({ _skillAreas: ["rust"] }), viewer, { now: NOW, personalize: false }),
+               scoreAsk(item({ _skillAreas: ["design"] }), viewer, { now: NOW, personalize: false }));
 });

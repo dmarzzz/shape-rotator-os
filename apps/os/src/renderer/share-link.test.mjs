@@ -78,12 +78,36 @@ test("retired context intel links resolve to evidence", () => {
     serializeLocation({ tab: "alchemy", alchMode: "context", ctxView: "data" }),
     evidenceLink,
   );
+  assert.equal(
+    serializeLocation({ tab: "alchemy", alchMode: "context", ctxView: "cards" }),
+    evidenceLink,
+  );
   assert.deepEqual(parseLocation(evidenceLink), { tab: "alchemy", alchMode: "context", ctxView: "evidence" });
 
   const legacySignalsLink = WEB_BASE + hash5("v:alchemy/context/signals");
   const legacyDataLink = WEB_BASE + hash5("v:alchemy/context/data");
+  const legacyCardsLink = WEB_BASE + hash5("v:alchemy/context/cards");
+  const legacyContextIntelLink = WEB_BASE + hash5("v:alchemy/context/intel");
   const legacyIntelLink = WEB_BASE + hash5("v:alchemy/intel");
   assert.deepEqual(parseLocation(legacySignalsLink), { tab: "alchemy", alchMode: "context", ctxView: "evidence" });
   assert.deepEqual(parseLocation(legacyDataLink), { tab: "alchemy", alchMode: "context", ctxView: "evidence" });
+  assert.deepEqual(parseLocation(legacyCardsLink), { tab: "alchemy", alchMode: "context", ctxView: "evidence" });
+  assert.deepEqual(parseLocation(legacyContextIntelLink), { tab: "alchemy", alchMode: "context", ctxView: "evidence" });
   assert.deepEqual(parseLocation(legacyIntelLink), { tab: "alchemy", alchMode: "context", ctxView: "evidence" });
+});
+
+test("context transcript aliases resolve to raw transcripts", () => {
+  buildLinkIndex([]);
+
+  const rawLink = serializeLocation({ tab: "alchemy", alchMode: "context", ctxView: "raw" });
+  assert.equal(
+    serializeLocation({ tab: "alchemy", alchMode: "context", ctxView: "transcripts" }),
+    rawLink,
+  );
+  assert.deepEqual(parseLocation(rawLink), { tab: "alchemy", alchMode: "context", ctxView: "raw" });
+
+  const legacyTranscriptLink = WEB_BASE + hash5("v:alchemy/context/transcript");
+  const legacyTranscriptsLink = WEB_BASE + hash5("v:alchemy/context/transcripts");
+  assert.deepEqual(parseLocation(legacyTranscriptLink), { tab: "alchemy", alchMode: "context", ctxView: "raw" });
+  assert.deepEqual(parseLocation(legacyTranscriptsLink), { tab: "alchemy", alchMode: "context", ctxView: "raw" });
 });

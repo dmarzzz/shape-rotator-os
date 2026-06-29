@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  buildAuthorMeta, buildViewer, buildFeedView, feedItemLabel,
+  buildAuthorMeta, buildViewer, buildFeedView, buildBlendedFeed, feedItemLabel,
 } from "./activity-feed.mjs";
 import { DEFAULT_PREFS } from "./cohort-prefs.mjs";
 
@@ -71,6 +71,31 @@ test("global mode is raw recency (newest first), not scored", () => {
   const view = buildFeedView(events, { recordId: "me" }, prefs, { now: NOW });
   assert.equal(view.mode, "global");
   assert.equal(view.items[0].id, "newer"); // recency wins regardless of weight
+});
+
+test("buildBlendedFeed merges asks + events: own peels, quiet rolls up, closed splits", () => {
+  const events = [
+    ev({ id: "ev-mine", actor: "me", weight: "loud", event_type: "transcript", created_at: at(1) }),
+    ev({ id: "ev-quiet", actor: "ada", weight: "quiet", event_type: "profile_edit", created_at: at(1) }),
+    ev({ id: "ev-loud", actor: "ada", weight: "loud", event_type: "transcript", created_at: at(2) }),
+  ];
+  // asks are pre-statused (the caller runs asksWithStatus); _expired/status drive splitting.
+  const asks = [
+    { record_id: "ask-open", record_type: "ask", status: "open", intent: "ask", topic: "pair on rust",
+      author: "ben", posted_at: "2026-06-25", skill_areas: ["rust"], _expired: false, _lastEventAt: at(0.5) },
+    { record_id: "ask-done", record_type: "ask", status: "done", topic: "old", author: "ben", _expired: false },
+  ];
+  const viewer = buildViewer(SURFACE, { record_id: "me" });
+  const prefs = { ...DEFAULT_PREFS, feed_mode: "for_you" };
+  const view = buildBlendedFeed({ events, asks, viewer, prefs, opts: { now: NOW, lastSeen: 0, authorMeta: buildAuthorMeta(SURFACE) } });
+
+  assert.ok(view.mine.some((e) => e.id === "ev-mine"), "own event peels into mine");
+  assert.equal(view.quietCount, 1, "quiet event rolled up");
+  assert.equal(view.closed.length, 1, "done ask split into closed");
+  assert.equal(view.closed[0].record_id, "ask-done");
+  const kinds = view.items.map((i) => i._feedKind);
+  assert.ok(kinds.includes("ask") && kinds.includes("event"), "feed blends both kinds");
+  assert.equal(view.items.find((i) => i._feedKind === "ask")._ask.record_id, "ask-open");
 });
 
 test("muted authors/types are filtered before the view is built", () => {

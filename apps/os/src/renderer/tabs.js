@@ -59,6 +59,14 @@ const MODE_LABEL = {
 const CONST_VIEW_LABEL = { map: "map", ring: "map", journey: "journey", stack: "stack", collab: "collab" };
 const CONTEXT_VIEW_LABEL = { raw: "transcripts", evidence: "evidence" };
 
+function normalizeContextView(view) {
+  const v = String(view || "").toLowerCase();
+  if (v === "article") return "articles";
+  if (v === "transcript" || v === "transcripts") return "raw";
+  if (v === "card" || v === "cards" || v === "intel" || v === "signals" || v === "data") return "evidence";
+  return v === "articles" || v === "raw" || v === "evidence" ? v : "";
+}
+
 // Inner SVG markup for each page's Lucide icon (matches the left-nav rail).
 const ICON_PATHS = {
   membrane: '<path d="M20.341 6.484A10 10 0 0 1 10.266 21.85"/><path d="M3.659 17.516A10 10 0 0 1 13.74 2.152"/><circle cx="12" cy="12" r="3"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="19" r="2"/>',
@@ -133,10 +141,9 @@ function normalizeLocation(loc) {
     return { ...loc, mode: "context", contextView: "evidence" };
   }
   if (loc.tab === "alchemy" && loc.mode === "context") {
-    const v = String(loc.contextView || "").toLowerCase();
-    if (v === "signals" || v === "data" || v === "intel" || v === "cards") {
-      return { ...loc, contextView: "evidence" };
-    }
+    const hasContextView = loc.contextView != null && String(loc.contextView) !== "";
+    const contextView = hasContextView ? (normalizeContextView(loc.contextView) || "articles") : "";
+    if (contextView !== (loc.contextView || "")) return { ...loc, contextView };
   }
   // calendar2 graduated to THE calendar (2026-06) — old trial tabs reopen
   // on the calendar page.
@@ -379,7 +386,7 @@ function locToSnapshot(loc) {
   if (snap.tab === "alchemy") {
     snap.alchMode = l.mode || "membrane";
     snap.constMode = l.constellationMode || "";
-    snap.ctxView = l.contextView || "";
+    snap.ctxView = normalizeContextView(l.contextView) || "";
     snap.programPage = l.programPage || "";
   } else if (snap.tab === "apps") {
     snap.appsView = l.appsView || "";

@@ -9,6 +9,7 @@ const cohortChat = require("./cohort-chat-node");
 const ghNode = require("./gh-node");
 const easelNdi = require("./easel-ndi");
 const matrix = require("./matrix");
+const transcriptDriveUpload = require("./transcript-drive-upload");
 // Daybook (apps→daybook): registering this module wires every `daybook:*`
 // ipcMain handler (digest pipeline, scope/redaction, onboarding). Side-effect
 // require, mirroring the prefs/swarm/easel handlers below. See daybook-main.js.
@@ -1822,6 +1823,23 @@ ipcMain.handle("fg:gh:scan-private", async (_e, opts) => ghNode.scanPrivateGithu
 
 cohortChat.onStatus((s) => broadcastSwarm("fg:cohort-chat:status-changed", s));
 cohortChat.onOutput((o) => broadcastSwarm("fg:cohort-chat:output", o));
+
+ipcMain.handle("fg:transcript-upload:options", async () => transcriptDriveUpload.getTranscriptUploadOptions());
+ipcMain.handle("fg:transcript-upload:drive", async (e, opts = {}) => {
+  try {
+    return await transcriptDriveUpload.pickAndUploadTranscript({
+      browserWindow: BrowserWindow.fromWebContents(e.sender),
+      sessionType: opts.sessionType,
+      label: opts.label,
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      reason: error?.code || "upload_failed",
+      detail: error?.message || String(error),
+    };
+  }
+});
 
 // ─── easel · NDI projection (apps/os/easel-ndi.js) ───────────────────
 // Renderer lists capture sources, then streams RGBA frames here to be

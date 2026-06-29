@@ -9,7 +9,7 @@
 // leaves the device. Quiet edits (cosmetic tweaks) are rolled up into one
 // "tidied profile" count rather than given their own lines.
 
-import { rankFeed, isOwn } from "./feed-rank.mjs";
+import { rankFeed, isOwn, scoreAsk } from "./feed-rank.mjs";
 import { filterByPrefs, DEFAULT_PREFS } from "./cohort-prefs.mjs";
 
 const LAST_SEEN_LS_KEY = "srwk:activity_last_seen_v1";
@@ -101,6 +101,77 @@ export function buildFeedView(events, viewer = {}, prefs = DEFAULT_PREFS, opts =
   mine.sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
   const newCount = items.filter((e) => e._isNew).length;
   return { items, mine, quietCount, newCount, mode: prefs.feed_mode || "for_you" };
+}
+
+// Normalize one ask (already run through asksWithStatus, so it carries _expired) into
+// a feed item that scoreAsk + the renderer understand. created_at is the ask's most
+// recent activity (_lastEventAt: a fresh claim/join resurfaces it); a done/expired/
+// cancelled ask is _closed (folded into the bottom disclosure, not the live stream).
+export function normalizeAskFeedItem(ask) {
+  if (!ask || !ask.record_id) return null;
+  const status = String(ask.status || "open").toLowerCase();
+  const closed = !!ask._expired || status === "done" || status === "cancelled";
+  const skillAreas = Array.isArray(ask.skill_areas) ? ask.skill_areas.map((s) => String(s).toLowerCase()) : [];
+  return {
+    _feedKind: "ask",
+    _ask: ask,
+    record_id: String(ask.record_id),
+    actor: ask.author ? String(ask.author) : null,
+    created_at: ask._lastEventAt || ask.posted_at || "",
+    weight: closed ? "quiet" : "loud",
+    _open: !closed && status === "open",
+    _closed: closed,
+    _skillAreas: skillAreas,
+  };
+}
+
+// The blended view-model: asks and cohort updates in ONE ranked stream. Events split
+// the usual way (own → mine, quiet → rollup); live asks are scored on the same scale
+// (scoreAsk) and merged; closed asks peel into `closed` for the bottom disclosure.
+// `prefs.feed_mode` flips personalization for the WHOLE feed: "for_you" applies viewer
+// affinity (skill-matched asks + connections rise), "global"/everyone is weight×recency.
+// `asks` must already be run through asks.js `asksWithStatus` (so each carries _expired
+// + sorted) — that lives in a .js module the bundler loads but node can't import, so the
+// caller statuses them and this stays pure + node-testable.
+export function buildBlendedFeed({ events, asks, viewer = {}, prefs = DEFAULT_PREFS, opts = {} } = {}) {
+  const now = Number.isFinite(opts.now) ? opts.now : Date.now();
+  const lastSeen = Number.isFinite(opts.lastSeen) ? opts.lastSeen : 0;
+  const authorMeta = opts.authorMeta || {};
+  const interestTags = prefs.interest_tags || [];
+  const personalize = (prefs.feed_mode || "for_you") === "for_you";
+  const myId = viewer.recordId || "";
+
+  const filtered = filterByPrefs(events, prefs);
+  const others = [];
+  const mine = [];
+  let quietCount = 0;
+  for (const ev of filtered) {
+    if (!ev || !ev.record_id) continue;
+    if (isOwn(ev, myId)) { mine.push(ev); continue; }
+    if (ev.weight === "quiet") { quietCount += 1; continue; }
+    others.push(ev);
+  }
+  const rankedEvents = rankFeed(others, viewer, { now, lastSeen, authorMeta, interestTags, personalize })
+    .feed.map((ev) => ({ ...ev, _feedKind: "event" }));
+
+  const statused = Array.isArray(asks) ? asks : [];
+  const liveItems = [];
+  const closed = [];
+  for (const ask of statused) {
+    const item = normalizeAskFeedItem(ask);
+    if (!item) continue;
+    if (item._closed) { closed.push(ask); continue; }
+    item._score = scoreAsk(item, viewer, { now, lastSeen, authorMeta, interestTags, personalize });
+    item._isNew = (Date.parse(item.created_at || "") || 0) > lastSeen;
+    liveItems.push(item);
+  }
+
+  const items = [...rankedEvents, ...liveItems].sort((a, b) =>
+    (b._score - a._score) || ((Date.parse(b.created_at || "") || 0) - (Date.parse(a.created_at || "") || 0)));
+
+  mine.sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+  const newCount = items.filter((e) => e._isNew).length;
+  return { items, mine, quietCount, closed, newCount, mode: prefs.feed_mode || "for_you" };
 }
 
 // Map a surface field key to a human phrase for the feed label. Module-private —
