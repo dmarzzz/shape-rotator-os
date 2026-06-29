@@ -936,7 +936,7 @@ async function applyProfileUpdateOverlay(surface) {
     // mutating them would bake an approved delta in permanently (un-revertible if
     // the row is later un-approved, and masking newer markdown/sync edits). Build
     // NEW objects each tick so the overlay is derived-not-accumulated. Re-whitelist
-    // the row (sanitizeProfileFields — the 7 self fields + geo + links{github,repo})
+    // the row (sanitizeProfileFields: self-report fields + geo + links{github,repo})
     // so the read path holds the same "only whitelisted fields move" invariant as
     // the write — never trust a key that lands in the view.
     surface.people = people.map((person) => {

@@ -33,14 +33,8 @@ import {
 } from "@shape-rotator/shape-ui";
 import { saveSphere, SPHERE_DIALS, SPHERE_DEFAULTS, SPHERE_BG_DEFAULT, SPHERE_BG_MIX_DEFAULT, SPHERE_TIME_DEFAULT, SPHERE_BG_PRESETS, normalizeHex } from "./supabase-sphere.mjs";
 import { highlightGLSL } from "./shader-dsl.mjs";
-import { getSubscriptions, addSubscription, removeSubscription, reorderSubscriptions } from "./calendar-subscriptions.js";
-import {
-  CALENDAR_TIMELINE_CATEGORIES,
-  CALENDAR_TIMELINE_LANES,
-  getCalendarTimelinePrefs,
-  toggleCalendarTimelineCategory,
-  toggleCalendarTimelineLane,
-} from "./calendar-timeline-prefs.js";
+import { getSubscriptions, addSubscription, removeSubscription, reorderSubscriptions, SUBSCRIPTION_KINDS } from "./calendar-subscriptions.js";
+import { CALENDAR_TRANSCRIPT_MATCHES } from "../content/context/calendar-transcript-matches.js";
 import {
   aggregateSkillAreas, buildCohortIndex, buildCollabModel, collabAffKey, collabHasText,
   dependencyPairKey, dependencySafeToken,
@@ -66,7 +60,7 @@ import { unreadCounts, unreadRecordsForMode, markModeSeen, fingerprintItems, unr
 import { evidenceMoveCards, indexCohortEvidence, rankEvidenceNeighbors, teamEvidence, recentClaims, teamTimeline, claimLane, teamProgressRollup } from "./cohort-evidence-index.mjs";
 import { cardTraceBodyHtml, cardTraceHtml } from "./cohort-trace-view.mjs";
 import { getCohortTimeline } from "./cohort-timeline.js";
-import { isPresent, buildDefaultTimeline, filterTimelineByPrefs } from "./cohort-timeline-tracks.mjs";
+import { isPresent, buildDefaultTimeline, buildFollowedTimeline } from "./cohort-timeline-tracks.mjs";
 import { renderTimelineLanesHtml } from "./cohort-timeline-render.mjs";
 import { getStandingWeekly } from "./cohort-standing-weekly.js";
 import { periodScrubberHtml, wireScrubber, weekStopsFrom, snapshotStopsFrom } from "./cohort-period-scrubber.mjs";
@@ -201,14 +195,6 @@ const membraneLazy = createLazyModule(() =>
     loadStylesheetOnce("renderer/membrane/membrane.css"),
     import("./membrane/index.js"),
   ]).then(([, module]) => module));
-const intelLazy = createLazyModule(() =>
-  Promise.all([
-    loadStylesheetOnce("renderer/intel/intel.css"),
-    import("./intel/intel.js"),
-  ]).then(([, module]) => module));
-// Removal-bound (2026-06-28): context signals/data links now normalize to the
-// evidence view. Keep the bundled intel renderer only until its files can be
-// deleted in a follow-up cleanup without breaking old route shims.
 const calendarLazy = createLazyModule(() =>
   Promise.all([
     loadStylesheetOnce("vendor/shape-ui/cohort-calendar-week.css"),
@@ -219,7 +205,6 @@ const calendarLazy = createLazyModule(() =>
 const calendarSupabaseLazy = createLazyModule(() => import("./calendar-supabase.mjs"));
 const githubUserLazy = createLazyModule(() => import("./gh-user.js"));
 const githubForkLazy = createLazyModule(() => import("./gh-fork.js"));
-let intelMetaCache = null;
 
 function warmLazySurface(label, lazy) {
   return lazy.load().catch((error) => {
@@ -318,6 +303,7 @@ const state = {
   atlasFocus: null,    // active tag in the atlas view (null = whole-graph mode)
   onboardingJustToggled: null,  // step key that was just marked/unmarked done; consumed by wireOnboarding to scroll-into-view the next step
   openAskComposer: false, // one-shot landing state when membrane sends someone to post
+  askComposer: { open: false, detailsOpen: false, draft: {} },
   constellationMode: "map",   // top-level constellation view: "map" | "ring" | "journey" | "stack" | "targets" | "collab"
   constellationScope: "projects", // network entity layer: projects/teams vs people-to-project membership
   constellationLens: "all",   // map line lens: "all" | "relies" | "works" | "substrate" — changes which relationship claim is foregrounded
@@ -343,10 +329,7 @@ const state = {
     detach: null,                 // teardown returned by attachCalendarPageBehavior
     catHidden: [],                // category keys the legend-filter has switched off
     scope: null,                  // team record_id the signals are focused on (null = all cohort)
-    subscriptions: null,          // configurable feed rows; lazily loaded from localStorage (calendar-subscriptions.js)
-    timelinePrefs: null,          // persisted bottom timeline lanes/categories (calendar-timeline-prefs.js)
-    timelinePrefsMenuOpen: false,
-    timelinePrefsLastToggled: "",
+    subscriptions: null,          // followed lanes for the program-axis board; lazily loaded from localStorage (calendar-subscriptions.js)
   },
   events: [],          // normalized feed items, latest-first
   fetchedAt: 0,
@@ -1042,10 +1025,10 @@ function notifyUnreadComeJoin(rows, unreadCount) {
   const notified = loadComeJoinNotificationSet();
   const fresh = rows.filter((row) => row?.fingerprint && !notified.has(row.fingerprint));
   if (!fresh.length) return;
-  for (const row of fresh) notified.add(row.fingerprint);
-  saveComeJoinNotificationSet(notified);
   const now = Date.now();
   if (now - lastComeJoinNotificationMs() < COME_JOIN_NOTIFY_COOLDOWN_MS) return;
+  for (const row of fresh) notified.add(row.fingerprint);
+  saveComeJoinNotificationSet(notified);
   saveComeJoinNotificationMs(now);
   try { window.api?.notifyCohortPost?.(comeJoinNotificationPayload(fresh, unreadCount)); } catch {}
 }
@@ -1112,8 +1095,8 @@ function syncRailSelection() {
 }
 
 // ─── cohort rail sub-nav ───────────────────────────────────────────────────
-// The "cohort" rail row reveals the cohort page's six views (CONST_VIEWS) as
-// an indented disclosure nested directly under it — the same six tabs the
+// The "cohort" rail row reveals the cohort page's four views (CONST_VIEWS) as
+// an indented disclosure nested directly under it — the same four tabs the
 // page shows in-line, surfaced in the persistent left menu. One source of
 // truth for the switch (selectCohortView) keeps the rail submenu and the
 // in-page tab bar in lock-step. Open on clicking "cohort", collapse on
@@ -3455,24 +3438,29 @@ function journeyDetailSection(rec) {
 // collab = who can unblock whom?
 // The cohort page's views. "directory" is the roster grid (shapes mode);
 // the rest are the constellation perspectives on the same records. One
-// page, five ways of understanding the cohort.
+// page, four ways of understanding the cohort.
 const CONST_VIEWS = [
   { mode: "directory", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>', label: "directory", hint: "teams, projects, people" },
   { mode: "collab",  glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>', label: "collab board", hint: "asks, offers, dependencies" },
   { mode: "map",     glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>', label: "ecosystem map", hint: "where every team sits, grouped by what it builds" },
   { mode: "journey", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>', label: "pmf evidence", hint: "market-fit signal coverage" },
-  { mode: "stack",   glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>', label: "standing", hint: "status + gap to target" },
-  // "targets" folded into "standing" as a projection toggle (2026-06): same
-  // goal model, same chips — it was a second tab for one dataset. The gap view
-  // is now the "gap to target" toggle inside standing. Say/did/shipped moved to
-  // Mirror; timeline moved to the bottom of Calendar.
+  // "standing" (the "stack" view) was retired from the cohort nav (2026-06):
+  // renderProductStack + its goal-model helpers are kept for now (slated for
+  // full removal later) but no longer appear as a view; stale saved-state /
+  // deep-links to it fall back to the map (see constNormalizeConstellationMode).
+  // Earlier consolidations still hold: "targets" folded into standing as a
+  // projection toggle, say/did/shipped → Mirror, timeline → bottom of Calendar.
 ];
 function constNormalizeConstellationMode(raw) {
   const mode = String(raw || "").toLowerCase();
   // The node-link "ring"/"map" layouts are retired in favour of the nested
   // bubble map; old saved state and deep-links resolve to the relationship map.
   if (mode === "circle" || mode === "ring" || mode === "wells" || mode === "clusters" || mode === "dependencies" || mode === "source") return "map";
-  if (mode === "journey" || mode === "stack" || mode === "targets" || mode === "collab") return mode;
+  // "standing" (stack) + its legacy "targets" alias are retired from the cohort
+  // nav (2026-06). renderProductStack is kept but unreachable; stale saved state
+  // / deep-links to either fall back to the relationship map.
+  if (mode === "stack" || mode === "targets") return "map";
+  if (mode === "journey" || mode === "collab") return mode;
   return "map";
 }
 // The cohort views used to render as an in-page tab strip here
@@ -8698,44 +8686,6 @@ function buildCohortTimelineModel(cohort = state.cohort) {
   );
 }
 
-function timelineLaneCount(lane) {
-  return ((lane?.items || lane?.points || lane?.samples || []).length);
-}
-
-function timelinePointCount(timeline) {
-  return (timeline?.lanes || []).reduce((n, lane) => n + timelineLaneCount(lane), 0);
-}
-
-function calendarTimelineOptions(rawTimeline, prefs) {
-  const hiddenLanes = new Set(Array.isArray(prefs?.hiddenLanes) ? prefs.hiddenLanes : []);
-  const hiddenCategories = new Set(Array.isArray(prefs?.hiddenCategories) ? prefs.hiddenCategories : []);
-  const lanesByKey = new Map((rawTimeline?.lanes || []).map((lane) => [lane.trackKey, lane]));
-  const categoryCounts = new Map();
-  for (const lane of rawTimeline?.lanes || []) {
-    for (const item of Array.isArray(lane?.items) ? lane.items : []) {
-      const key = item?.category;
-      if (!key) continue;
-      categoryCounts.set(key, (categoryCounts.get(key) || 0) + 1);
-    }
-  }
-  return {
-    lanes: CALENDAR_TIMELINE_LANES
-      .filter((opt) => lanesByKey.has(opt.key) || hiddenLanes.has(opt.key))
-      .map((opt) => ({
-        ...opt,
-        count: timelineLaneCount(lanesByKey.get(opt.key)),
-        hidden: hiddenLanes.has(opt.key),
-      })),
-    categories: CALENDAR_TIMELINE_CATEGORIES
-      .filter((opt) => categoryCounts.has(opt.key) || hiddenCategories.has(opt.key))
-      .map((opt) => ({
-        ...opt,
-        count: categoryCounts.get(opt.key) || 0,
-        hidden: hiddenCategories.has(opt.key),
-      })),
-  };
-}
-
 function legacyCohortTimelinePreview() {
   loadStylesheetOnce("renderer/cohort-timeline-view.css");
   const timeline = buildCohortTimelineModel(activeConstellationCohort());
@@ -8776,6 +8726,11 @@ function renderConstellation() {
   // Collab Board is a peer Constellation sub-view (#216).
   if (mode === "collab") { renderCollab(); return; }
   if (mode === "journey") { renderJourney(); return; }
+  // "standing" (stack) was retired from the cohort nav (2026-06): the normalizer
+  // now redirects "stack"/"targets" → "map", so the next two branches are
+  // currently unreachable. They (and renderProductStack) are kept verbatim so the
+  // view can be restored by re-listing it in CONST_VIEWS + the normalizer; slated
+  // for full removal later.
   if (mode === "stack") { renderProductStack(); return; }
   // Legacy "targets" mode (old deep-links / saved state) → standing with the
   // gap-to-target projection preselected. Migrate the mode to "stack" so the
@@ -11001,9 +10956,31 @@ function paintCalendarView({ wire = false } = {}) {
   if (cal.view !== "presence" && cal.view !== "cal") cal.view = "cal";
   const presence = cal.view === "presence";
   if (cal.subscriptions == null) cal.subscriptions = getSubscriptions();
-  if (cal.timelinePrefs == null) cal.timelinePrefs = getCalendarTimelinePrefs();
-  const rawTimeline = buildCohortTimelineModel(state.cohort);
-  const calendarTimeline = filterTimelineByPrefs(rawTimeline, cal.timelinePrefs);
+  // The bottom of the page is now a single program-axis "follow board": the
+  // user's followed lanes (the subscription store) rendered on the shared
+  // cohort-timeline axis. Build it from the followed (un-hidden) lanes + the
+  // cohort surface; each lane resolves to points/bars/band via the per-kind
+  // builders in cohort-timeline-tracks.mjs. (No more lane/category prefs — the
+  // picker adds/removes lanes instead; calendar-timeline-prefs is retired here.)
+  const cohort = state.cohort || {};
+  const teamNameById = new Map(
+    (cohort.teams || [])
+      .filter((t) => t && t.record_id)
+      .map((t) => [t.record_id, t.name || t.record_id]),
+  );
+  const followed = (cal.subscriptions || []).filter((s) => !s.hidden);
+  const followedTimeline = buildFollowedTimeline(
+    followed,
+    {
+      whatsNew: cohort.whats_new || [],
+      standingWeekly: state.standingWeekly,
+      people: cohort.people || [],
+      evidenceCards: cohort.transcript_evidence_cards || [],
+      teamNameById,
+      transcriptMatches: CALENDAR_TRANSCRIPT_MATCHES,
+    },
+    { startMs: PROGRAM_START_MS, endMs: PROGRAM_END_MS, nowMs: Date.now() },
+  );
   state.canvas.innerHTML = calendarModule.renderCalendarPage({
     data: cal.data,
     calendarGoogleEvents: state.cohort?.calendar_google_events || {},
@@ -11015,11 +10992,11 @@ function paintCalendarView({ wire = false } = {}) {
     catHidden: Array.isArray(cal.catHidden) ? cal.catHidden : [],
     signals: presence ? null : computeCalendarSignals(),
     subscriptions: cal.subscriptions,
-    timelineHtml: presence ? "" : renderTimelineLanesHtml(calendarTimeline),
-    timelineOptions: presence ? null : calendarTimelineOptions(rawTimeline, cal.timelinePrefs),
+    laneKinds: SUBSCRIPTION_KINDS,
+    timelineHtml: presence ? "" : renderTimelineLanesHtml(followedTimeline, { interactive: true }),
     timelineSummary: presence ? null : {
-      lanes: calendarTimeline.lanes.length,
-      points: timelinePointCount(calendarTimeline),
+      lanes: followedTimeline.lanes.length,
+      points: followedTimeline.lanes.reduce((n, lane) => n + (lane.count || 0), 0),
     },
   });
   if (presence) {
@@ -11108,22 +11085,6 @@ function wireCalendar() {
         else if (e.key === "Escape") { e.preventDefault(); setOpen(false); scopeBtn.focus(); }
       });
     }
-    // in-town signal cells: hover/focus reveals WHO is in town + the week-by-week
-    // occupancy arc (openCalendarInTown); click/Enter commits to the presence gantt.
-    const showInTown = (cell) => calendarLazy.peek()?.openCalendarInTown?.(cell.getAttribute("data-c2-intown"), { anchor: cell });
-    const hideInTown = () => calendarLazy.peek()?.closeCalendarInTown?.();
-    const goPresence = () => { hideInTown(); cal.view = "presence"; refreshCalendarView(); };
-    for (const cell of state.canvas.querySelectorAll("[data-c2-intown]")) {
-      cell.addEventListener("mouseenter", () => showInTown(cell));
-      cell.addEventListener("mouseleave", hideInTown);
-      cell.addEventListener("focus", () => showInTown(cell));
-      cell.addEventListener("blur", hideInTown);
-      cell.addEventListener("click", goPresence);
-      cell.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") { e.preventDefault(); goPresence(); }
-        else if (e.key === "Escape") hideInTown();
-      });
-    }
     if (!state.c2ScopeOutsideBound) {
       state.c2ScopeOutsideBound = true;
       document.addEventListener("click", (e) => {
@@ -11136,11 +11097,13 @@ function wireCalendar() {
       });
     }
 
-    // ── subscribed feed rows: open an item, remove a row, add a new row ──
-    for (const chip of state.canvas.querySelectorAll("[data-c2-rowitem]")) {
-      chip.addEventListener("click", (event) => {
-        calendarLazy.peek()?.openCalendarRowItem?.(chip.dataset.c2Rowitem, {
-          anchor: event.currentTarget,
+    // ── follow-board lanes: reveal a marker, remove a lane, add/reorder lanes ──
+    // Click a marker (.ctl-dot[data-c2-timeline-item]) to expand it in the shared
+    // calendar popover; "open team →" routes to the dossier when the point is
+    // team-attributed. Replaces the old per-day feed-item reveal.
+    for (const m of state.canvas.querySelectorAll("[data-c2-timeline-item]")) {
+      m.addEventListener("click", (e) => {
+        calendarLazy.peek()?.openCalendarTimelineItem?.(e.currentTarget, {
           onOpenTeam: (rid) => openDetail(rid, "calendar"),
         });
       });
@@ -11161,14 +11124,14 @@ function wireCalendar() {
     // row from its old position to its new one so the swap reads as motion.
     const flipReorder = (apply) => {
       const before = new Map();
-      for (const el of state.canvas.querySelectorAll(".rr-frow[data-c2-subrow-id]")) {
+      for (const el of state.canvas.querySelectorAll("[data-c2-subrow-id]")) {
         before.set(el.getAttribute("data-c2-subrow-id"), el.getBoundingClientRect().top);
       }
       apply();   // mutate cal.subscriptions + refreshCalendarView() (replaces the DOM)
       let reduce = false;
       try { reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.getAttribute("data-reduce-motion") === "1"; } catch {}
       if (reduce) return;
-      const rows = [...state.canvas.querySelectorAll(".rr-frow[data-c2-subrow-id]")];
+      const rows = [...state.canvas.querySelectorAll("[data-c2-subrow-id]")];
       for (const el of rows) {
         const old = before.get(el.getAttribute("data-c2-subrow-id"));
         if (old == null) continue;
@@ -11189,12 +11152,12 @@ function wireCalendar() {
     const moveRow = (rowEl, dir) => {
       const id = rowEl.getAttribute("data-c2-subrow-id");
       const sib = dir === "up" ? rowEl.previousElementSibling : rowEl.nextElementSibling;
-      if (!sib || !sib.matches?.(".rr-frow[data-c2-subrow-id]")) return;
+      if (!sib || !sib.matches?.("[data-c2-subrow-id]")) return;
       cal.rowsRefocus = "row:" + id;
       flipReorder(() => { cal.subscriptions = reorderSubscriptions(id, sib.getAttribute("data-c2-subrow-id"), dir === "down"); refreshCalendarView(); });
     };
     let dragRowId = null;
-    for (const row of state.canvas.querySelectorAll(".rr-frow[data-c2-subrow-id]")) {
+    for (const row of state.canvas.querySelectorAll("[data-c2-subrow-id]")) {
       const handle = row.querySelector(".rr-frowlab[draggable]") || row;
       handle.addEventListener("dragstart", (e) => {
         dragRowId = row.getAttribute("data-c2-subrow-id");
@@ -11234,14 +11197,14 @@ function wireCalendar() {
         moveRow(row, e.key === "ArrowUp" ? "up" : "down");
       });
     }
-    // dropping onto the "+ add a feed row" affordance moves the row to the end
-    const addRowEl = state.canvas.querySelector(".rr-addrow");
+    // dropping onto the "+ add a lane" affordance moves the row to the end
+    const addRowEl = state.canvas.querySelector(".rr-fb-add, .rr-addrow");
     if (addRowEl) {
       addRowEl.addEventListener("dragover", (e) => { if (dragRowId) { e.preventDefault(); try { e.dataTransfer.dropEffect = "move"; } catch {} } });
       addRowEl.addEventListener("drop", (e) => {
         if (!dragRowId) return;
         e.preventDefault();
-        const rows = state.canvas.querySelectorAll(".rr-frow[data-c2-subrow-id]");
+        const rows = state.canvas.querySelectorAll("[data-c2-subrow-id]");
         const lastId = rows[rows.length - 1]?.getAttribute("data-c2-subrow-id");
         const dId = dragRowId;
         if (lastId && lastId !== dId) { cal.rowsRefocus = "row:" + dId; flipReorder(() => { cal.subscriptions = reorderSubscriptions(dId, lastId, true); refreshCalendarView(); }); }
@@ -11306,78 +11269,12 @@ function wireCalendar() {
       } else if (cal.rowsRefocus) {
         const ref = cal.rowsRefocus;
         const el = ref === "add" ? addBtn
-          : ref.startsWith("row:") ? state.canvas.querySelector(`.rr-frow[data-c2-subrow-id="${ref.slice(4)}"] .rr-frowlab`) : null;
+          : ref.startsWith("row:") ? state.canvas.querySelector(`[data-c2-subrow-id="${ref.slice(4)}"] .rr-frowlab`) : null;
         el?.focus?.();
       }
       cal.rowsRefocus = null;
     }
 
-    for (const dot of state.canvas.querySelectorAll(".rr-timeline [data-const-team]")) {
-      dot.addEventListener("click", () => {
-        const rid = dot.getAttribute("data-const-team");
-        if (rid) openDetail(rid, "calendar");
-      });
-    }
-
-    const timelineBtn = state.canvas.querySelector("[data-c2-timeline-prefs-toggle]");
-    const timelineMenu = state.canvas.querySelector(".rr-timeline-menu");
-    if (timelineBtn && timelineMenu) {
-      const opts = [...timelineMenu.querySelectorAll("[data-c2-timeline-pref]")];
-      const setTimelineOpen = (open) => {
-        timelineMenu.toggleAttribute("hidden", !open);
-        timelineBtn.setAttribute("aria-expanded", open ? "true" : "false");
-        cal.timelinePrefsMenuOpen = open;
-        if (open) opts[0]?.focus();
-      };
-      timelineBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        setTimelineOpen(timelineMenu.hasAttribute("hidden"));
-      });
-      timelineBtn.addEventListener("keydown", (e) => {
-        if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
-          e.preventDefault();
-          setTimelineOpen(true);
-        }
-      });
-      for (const opt of opts) {
-        opt.addEventListener("click", () => {
-          const kind = opt.getAttribute("data-c2-timeline-pref");
-          const key = opt.getAttribute("data-c2-timeline-key") || "";
-          cal.timelinePrefsMenuOpen = true;
-          cal.timelinePrefsLastToggled = kind + ":" + key;
-          cal.timelinePrefs = kind === "lane"
-            ? toggleCalendarTimelineLane(key)
-            : toggleCalendarTimelineCategory(key);
-          refreshCalendarView();
-        });
-      }
-      timelineMenu.addEventListener("keydown", (e) => {
-        const i = opts.indexOf(document.activeElement);
-        if (e.key === "ArrowDown") { e.preventDefault(); opts[Math.min(opts.length - 1, i + 1)]?.focus(); }
-        else if (e.key === "ArrowUp") { e.preventDefault(); opts[Math.max(0, i - 1)]?.focus(); }
-        else if (e.key === "Home") { e.preventDefault(); opts[0]?.focus(); }
-        else if (e.key === "End") { e.preventDefault(); opts[opts.length - 1]?.focus(); }
-        else if (e.key === "Escape") { e.preventDefault(); setTimelineOpen(false); timelineBtn.focus(); }
-      });
-      if (!state.c2TimelinePrefsOutsideBound) {
-        state.c2TimelinePrefsOutsideBound = true;
-        document.addEventListener("click", (e) => {
-          if (state.mode !== "calendar") return;
-          const mn = state.canvas?.querySelector(".rr-timeline-menu");
-          if (mn && !mn.hasAttribute("hidden") && !e.target.closest("[data-c2-timeline-ctl]")) {
-            mn.setAttribute("hidden", "");
-            state.calendar.timelinePrefsMenuOpen = false;
-            state.canvas.querySelector("[data-c2-timeline-prefs-toggle]")?.setAttribute("aria-expanded", "false");
-          }
-        });
-      }
-      if (cal.timelinePrefsMenuOpen) {
-        setTimelineOpen(true);
-        const want = cal.timelinePrefsLastToggled;
-        const target = want ? opts.find(o => (o.getAttribute("data-c2-timeline-pref") + ":" + (o.getAttribute("data-c2-timeline-key") || "")) === want) : null;
-        (target || opts[0])?.focus();
-      }
-    }
   }
 
   // presence-view extras — gantt export + the "edit my availability" jump.
@@ -11395,24 +11292,25 @@ function wireCalendar() {
     });
   }
 
+  // Filmstrip week hero: ‹ / › arrows step the active week; clicking a card jumps
+  // to it. No bead glide to sweep anymore (the dot-rail is gone) — just repaint;
+  // attachCalendarPageBehavior re-centers the active card on each paint.
   for (const btn of state.canvas.querySelectorAll("[data-c2-nav]")) {
     btn.addEventListener("click", () => {
       const dir = btn.dataset.c2Nav;
       if (dir === "prev" && cal.weekIdx > 0) cal.weekIdx -= 1;
       else if (dir === "next" && cal.weekIdx < WEEKS_TOTAL - 1) cal.weekIdx += 1;
       else return;
-      // Glide the oxide week-bead to its new dot (the grid swaps under it),
-      // matching the constellation scrubber's sweep. Reduced-motion repaints flat.
-      scrubberSweep(refreshCalendarView);
+      refreshCalendarView();
     });
   }
 
-  for (const dot of state.canvas.querySelectorAll("[data-c2-week]")) {
-    dot.addEventListener("click", () => {
-      const i = Number(dot.dataset.c2Week);
+  for (const card of state.canvas.querySelectorAll("[data-c2-week]")) {
+    card.addEventListener("click", () => {
+      const i = Number(card.dataset.c2Week);
       if (Number.isFinite(i) && i !== cal.weekIdx) {
         cal.weekIdx = i;
-        scrubberSweep(refreshCalendarView);
+        refreshCalendarView();
       }
     });
   }
@@ -11423,8 +11321,8 @@ function wireCalendar() {
     });
   }
 
-  // (Shipped/feed chips now use [data-c2-rowitem] → openCalendarRowItem, wired in
-  // the rows block above; the old [data-c2-act] reveal is no longer emitted.)
+  // (Follow-board markers use [data-c2-timeline-item] → openCalendarTimelineItem,
+  // wired in the lanes block above; the old feed-row + dot-rail reveals are gone.)
 
   for (const btn of state.canvas.querySelectorAll("[data-c2-retry]")) {
     btn.addEventListener("click", () => {
@@ -14173,7 +14071,7 @@ function renderAsksHtml() {
     ].join("");
     const isMine = isAskMine(a, askIdentity);
     const claimedByMe = a.claimed_by ? isAskMine({ author: a.claimed_by }, askIdentity) : false;
-    const ageLabel = askTimeLabel(a) || askAgeLabel(a) || "-";
+    const ageLabel = askTimeLabel(a) || askAgeLabel(a) || "";
     const status = askStatus(a);
     const verbDisplay = askDisplayVerb(a);
     const statusBadge = status === "claimed" ? `<span class="alch-asks-status alch-asks-status-claimed">claimed</span>`
@@ -14181,6 +14079,11 @@ function renderAsksHtml() {
                       : a._expired           ? `<span class="alch-asks-status alch-asks-status-fading">fading</span>`
                       : intent !== "ask"     ? `<span class="alch-asks-status alch-asks-status-${escAttr(intent)}">${escHtml(intentLabel)}</span>`
                       : "";
+    const metaMarkup = [
+      `<span class="alch-asks-author">${escHtml(authorLabel)}</span>`,
+      ageLabel ? `<span class="alch-asks-sep">·</span><span class="alch-asks-when">${escHtml(ageLabel)}</span>` : "",
+      statusBadge,
+    ].filter(Boolean).join("");
     const topic = askTopic(a) || "untitled ask";
     const actions = [];
     if (isMine && status !== "done") {
@@ -14219,10 +14122,7 @@ function renderAsksHtml() {
           <span class="alch-asks-body">
             <span class="alch-asks-topic" title="${escAttr(topic)}">${escHtml(topic)}</span>
             <span class="alch-asks-meta">
-              <span class="alch-asks-author">${escHtml(authorLabel)}</span>
-              <span class="alch-asks-sep">·</span>
-              <span class="alch-asks-when">${escHtml(ageLabel)}</span>
-              ${statusBadge}
+              ${metaMarkup}
             </span>
           </span>
           <span class="alch-asks-row-caret" aria-hidden="true"></span>
@@ -14237,8 +14137,11 @@ function renderAsksHtml() {
     `;
   };
 
-  const section = (title, list, emptyText) => `
-    <details class="alch-asks-section" open>
+  const section = (title, list, emptyText, opts = {}) => {
+    if (!list.length && opts.hideEmpty) return "";
+    const openAttr = opts.open === false ? "" : " open";
+    return `
+    <details class="alch-asks-section"${openAttr}>
       <summary class="alch-asks-section-head">
         <span class="alch-asks-section-caret" aria-hidden="true"></span>
         <h3 class="alch-asks-section-title">${escHtml(title)}</h3>
@@ -14249,6 +14152,7 @@ function renderAsksHtml() {
         : `<p class="alch-asks-empty">${escHtml(emptyText)}</p>`}
     </details>
   `;
+  };
 
   // Author slug: prefer the cohort-resolved person record_id (so the
   // ask's `author` field actually points at a record), fall back to
@@ -14260,8 +14164,8 @@ function renderAsksHtml() {
   // Common verbs the compose form offers as quick picks. Stays in code
   // (not cohort-data) since it's a tiny vocab that drives nothing else.
   const ASK_INTENT_OPTIONS = [
-    { key: "ask", label: "ask", hint: "help / pairing" },
-    { key: "come_join", label: "come join", hint: "open plan" },
+    { key: "ask", label: "ask" },
+    { key: "come_join", label: "join" },
   ];
   const ASK_VERB_OPTIONS = {
     ask: [
@@ -14280,99 +14184,105 @@ function renderAsksHtml() {
       "after-hours",
     ],
   };
-  const initialIntent = "ask";
+  const composer = state.askComposer || (state.askComposer = { open: false, detailsOpen: false, draft: {} });
+  const draft = composer.draft || (composer.draft = {});
+  const initialIntent = askIntent({ intent: draft.intent || "ask" });
+  const fallbackVerb = ASK_VERB_OPTIONS[initialIntent]?.[0] || "🤝 pair on";
+  const initialVerb = String(draft.verb || fallbackVerb).trim() || fallbackVerb;
   const intentPills = ASK_INTENT_OPTIONS.map((opt) => `
     <button class="alch-asks-intent-pill" type="button" data-asks-intent="${escAttr(opt.key)}" aria-pressed="${opt.key === initialIntent ? "true" : "false"}">
       <span>${escHtml(opt.label)}</span>
-      <small>${escHtml(opt.hint)}</small>
     </button>
   `).join("");
   const askVerbMenus = Object.entries(ASK_VERB_OPTIONS).map(([intentKey, options]) => `
     <select class="alch-asks-verb-select" data-asks-verb-menu="${escAttr(intentKey)}" aria-label="${escAttr(`${askIntentLabel({ intent: intentKey })} kind`)}"${intentKey === initialIntent ? "" : " hidden disabled"}>
+      ${intentKey === initialIntent && !options.includes(initialVerb) ? `<option value="${escAttr(initialVerb)}" selected>${escHtml(askDisplayVerb(initialVerb, intentKey).label)}</option>` : ""}
       ${options.map((v, i) => {
         const display = askDisplayVerb(v, intentKey);
-        return `<option value="${escAttr(v)}"${i === 0 ? " selected" : ""}>${escHtml(display.label)}</option>`;
+        const selected = intentKey === initialIntent ? v === initialVerb : i === 0;
+        return `<option value="${escAttr(v)}"${selected ? " selected" : ""}>${escHtml(display.label)}</option>`;
       }).join("")}
     </select>
   `).join("");
-  const openComposer = state.openAskComposer === true;
+  if (state.openAskComposer === true) composer.open = true;
+  const openComposer = composer.open === true;
   state.openAskComposer = false;
+  const sectionsHtml = [
+    section(askIntentSection({ intent: "come_join" }), openByIntent.come_join, "no plans open to join.", { hideEmpty: true }),
+    section(askIntentSection({ intent: "ask" }), openByIntent.ask, "no open asks.", { hideEmpty: true }),
+    section("closed", closed, "nothing closed yet.", { hideEmpty: true, open: false }),
+  ].filter(Boolean).join("");
+  const asksBodyHtml = sectionsHtml || `<p class="alch-asks-board-empty">No open asks or plans yet.</p>`;
 
   return `
     <form class="alch-asks-compose" data-author-slug="${escAttr(authorSlug)}" data-today="${escAttr(todayIso)}" data-autofocus="${openComposer ? "1" : "0"}">
       <details class="alch-asks-compose-shell" data-asks-compose-details${openComposer ? " open" : ""}>
         <summary class="alch-asks-compose-head">
-          <span class="alch-asks-compose-title">new post</span>
-          <span class="alch-asks-intent-pills" role="group" aria-label="post intent">
-            ${intentPills}
-          </span>
+          <span class="alch-asks-compose-title">New post</span>
           <span class="alch-asks-compose-caret" aria-hidden="true"></span>
         </summary>
         <input type="hidden" name="intent" value="${escAttr(initialIntent)}" />
-        <input type="hidden" name="verb" value="${escAttr(ASK_VERB_OPTIONS[initialIntent][0])}" />
+        <input type="hidden" name="verb" value="${escAttr(initialVerb)}" />
         <div class="alch-asks-compose-body">
           <div class="alch-asks-compose-grid">
             <label class="alch-asks-compose-field alch-asks-compose-topic">
-              <span class="alch-asks-compose-label" data-asks-topic-label>what do you need?</span>
-              <textarea name="topic" rows="2" class="alch-asks-compose-input"
-                        placeholder="fuzzing the AMM contract — would love 30 min with someone who's done property testing"></textarea>
+              <span class="sr-only" data-asks-topic-label>what do you need?</span>
+              <textarea name="topic" rows="3" class="alch-asks-compose-input"
+                        aria-label="what do you need?"
+                        placeholder="${escAttr(initialIntent === "come_join" ? "What is happening? Time, place, and contact can stay TBD." : "Ask for a pair, a review, or a quick sanity check...")}">${escHtml(draft.topic || "")}</textarea>
             </label>
-            <div class="alch-asks-compose-toolbar">
-              <span class="alch-asks-compose-label alch-asks-compose-toolbar-label">kind</span>
-              <span class="alch-asks-verb-menu-wrap">${askVerbMenus}</span>
+            <div class="alch-asks-compose-accessory">
+              <span class="alch-asks-intent-pills" role="group" aria-label="post intent">
+                ${intentPills}
+              </span>
+              <button class="alch-asks-detail-toggle" type="button" data-asks-detail-toggle aria-expanded="${composer.detailsOpen ? "true" : "false"}" aria-pressed="${composer.detailsOpen ? "true" : "false"}">${composer.detailsOpen ? "hide details" : "details"}</button>
+              <span class="alch-asks-compose-spacer" aria-hidden="true"></span>
+              <button class="alch-feed-btn alch-asks-compose-submit" type="submit">review</button>
             </div>
-            <details class="alch-asks-compose-context alch-asks-compose-more">
-              <summary>details if known <span class="alch-asks-compose-hint">time, place, contact, tags</span></summary>
+            <details class="alch-asks-compose-context alch-asks-compose-more" data-asks-more-details${composer.detailsOpen ? " open" : ""}>
+              <summary class="sr-only">details if known</summary>
               <div class="alch-asks-compose-more-grid">
                 <label class="alch-asks-compose-field">
+                  <span class="alch-asks-compose-label">kind <span class="alch-asks-compose-hint">(optional)</span></span>
+                  <span class="alch-asks-verb-menu-wrap alch-asks-verb-menu-wrap-field">${askVerbMenus}</span>
+                </label>
+                <label class="alch-asks-compose-field">
                   <span class="alch-asks-compose-label">when <span class="alch-asks-compose-hint">(optional)</span></span>
-                  <input name="starts_at" type="text" class="alch-asks-compose-input" placeholder="${escAttr(todayIso)} 18:00, after lunch, next week" />
+                  <input name="starts_at" type="text" class="alch-asks-compose-input" value="${escAttr(draft.starts_at || "")}" placeholder="${escAttr(todayIso)} 18:00, after lunch, next week" />
                 </label>
                 <label class="alch-asks-compose-field">
                   <span class="alch-asks-compose-label">until <span class="alch-asks-compose-hint">(optional)</span></span>
-                  <input name="expires_at" type="text" class="alch-asks-compose-input" placeholder="2026-06-29 20:00 or when filled" />
+                  <input name="expires_at" type="text" class="alch-asks-compose-input" value="${escAttr(draft.expires_at || "")}" placeholder="2026-06-29 20:00 or when filled" />
                 </label>
                 <label class="alch-asks-compose-field">
                   <span class="alch-asks-compose-label">where <span class="alch-asks-compose-hint">(optional)</span></span>
-                  <input name="location" type="text" class="alch-asks-compose-input" placeholder="TBD, online, Brooklyn Boulders" />
+                  <input name="location" type="text" class="alch-asks-compose-input" value="${escAttr(draft.location || "")}" placeholder="TBD, online, Brooklyn Boulders" />
                 </label>
                 <label class="alch-asks-compose-field">
                   <span class="alch-asks-compose-label">contact <span class="alch-asks-compose-hint">(optional)</span></span>
-                  <input name="contact" type="text" class="alch-asks-compose-input" placeholder="@handle, Signal, Discord" />
+                  <input name="contact" type="text" class="alch-asks-compose-input" value="${escAttr(draft.contact || "")}" placeholder="@handle, Signal, Discord" />
                 </label>
                 <label class="alch-asks-compose-field">
                   <span class="alch-asks-compose-label">spots <span class="alch-asks-compose-hint">(optional)</span></span>
-                  <input name="capacity" type="text" class="alch-asks-compose-input" placeholder="3" />
+                  <input name="capacity" type="text" class="alch-asks-compose-input" value="${escAttr(draft.capacity || "")}" placeholder="3" />
                 </label>
                 <label class="alch-asks-compose-field alch-asks-compose-more-full">
                   <span class="alch-asks-compose-label">tags <span class="alch-asks-compose-hint">(optional)</span></span>
-                  <input name="skill_areas" type="text" class="alch-asks-compose-input" placeholder="tee, dstack, social, climbing" />
+                  <input name="skill_areas" type="text" class="alch-asks-compose-input" value="${escAttr(draft.skill_areas || "")}" placeholder="tee, dstack, social, climbing" />
                 </label>
                 <label class="alch-asks-compose-field alch-asks-compose-more-full">
                   <span class="alch-asks-compose-label">context</span>
-                  <textarea name="body" rows="3" class="alch-asks-compose-input" placeholder="links, constraints, what you've tried"></textarea>
+                  <textarea name="body" rows="3" class="alch-asks-compose-input" placeholder="links, constraints, what you've tried">${escHtml(draft.body || "")}</textarea>
                 </label>
               </div>
             </details>
-          </div>
-          <div class="alch-asks-compose-row">
-            <button class="alch-feed-btn alch-asks-compose-submit" type="submit">review post</button>
-            <span class="alch-asks-compose-author">${
-              authorSlug === "your-slug"
-                ? "claim your cohort profile before posting"
-                : `posting as <strong>${escHtml(authorSlug)}</strong>${myHandle && authorSlug !== myHandle ? ` · @${escHtml(myHandle)}` : ""}`
-            }</span>
           </div>
           <div class="alch-asks-compose-result" hidden></div>
         </div>
       </details>
     </form>
 
-    ${section(askIntentSection({ intent: "come_join" }), openByIntent.come_join, "no plans open to join.")}
-
-    ${section(askIntentSection({ intent: "ask" }), openByIntent.ask, "no open asks.")}
-
-    ${section("closed", closed, "nothing closed yet.")}
+    ${asksBodyHtml}
   `;
 }
 
@@ -14666,6 +14576,32 @@ function wireAsks() {
     const intentInput = form.elements.intent;
     const verbInput = form.elements.verb;
     const composeDetails = form.querySelector("[data-asks-compose-details]");
+    const moreDetails = form.querySelector("[data-asks-more-details]");
+    const detailToggle = form.querySelector("[data-asks-detail-toggle]");
+    const syncDetailToggle = () => {
+      if (!detailToggle || !moreDetails) return;
+      const open = moreDetails.open === true;
+      detailToggle.setAttribute("aria-expanded", open ? "true" : "false");
+      detailToggle.setAttribute("aria-pressed", open ? "true" : "false");
+      detailToggle.textContent = open ? "hide details" : "details";
+    };
+    const saveDraft = () => {
+      const composer = state.askComposer || (state.askComposer = { open: false, detailsOpen: false, draft: {} });
+      composer.open = composeDetails?.open === true;
+      composer.detailsOpen = moreDetails?.open === true;
+      composer.draft = {
+        intent: askIntent({ intent: form.elements.intent?.value || "ask" }),
+        verb: String(form.elements.verb?.value || "").trim(),
+        topic: String(form.elements.topic?.value || ""),
+        starts_at: String(form.elements.starts_at?.value || ""),
+        expires_at: String(form.elements.expires_at?.value || ""),
+        location: String(form.elements.location?.value || ""),
+        contact: String(form.elements.contact?.value || ""),
+        capacity: String(form.elements.capacity?.value || ""),
+        skill_areas: String(form.elements.skill_areas?.value || ""),
+        body: String(form.elements.body?.value || ""),
+      };
+    };
     const setIntent = (intent) => {
       const next = askIntent({ intent });
       if (intentInput) intentInput.value = next;
@@ -14683,11 +14619,13 @@ function wireAsks() {
       const topic = form.elements.topic;
       if (topic && !String(topic.value || "").trim()) {
         topic.placeholder = next === "come_join"
-          ? "going rock climbing after lunch — come join if you want to move"
-          : "fuzzing the AMM contract — would love 30 min with someone who's done property testing";
+          ? "What is happening? Time, place, and contact can stay TBD."
+          : "Ask for a pair, a review, or a quick sanity check...";
+        topic.setAttribute("aria-label", next === "come_join" ? "what is happening?" : "what do you need?");
       }
       const topicLabel = form.querySelector("[data-asks-topic-label]");
       if (topicLabel) topicLabel.textContent = next === "come_join" ? "what is happening?" : "what do you need?";
+      saveDraft();
     };
     for (const b of form.querySelectorAll("[data-asks-intent]")) {
       b.addEventListener("click", (e) => {
@@ -14695,17 +14633,36 @@ function wireAsks() {
         e.stopPropagation();
         setIntent(b.dataset.asksIntent || "ask");
         if (composeDetails) composeDetails.open = true;
+        saveDraft();
       });
     }
     for (const menu of form.querySelectorAll("[data-asks-verb-menu]")) {
       menu.addEventListener("change", () => {
         if (verbInput) verbInput.value = menu.value || "";
         if (composeDetails) composeDetails.open = true;
+        saveDraft();
         if (!String(form.elements.topic?.value || "").trim()) {
           requestAnimationFrame(() => form.elements.topic?.focus?.());
         }
       });
     }
+    composeDetails?.addEventListener("toggle", saveDraft);
+    detailToggle?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!moreDetails) return;
+      moreDetails.open = !moreDetails.open;
+      if (composeDetails) composeDetails.open = true;
+      syncDetailToggle();
+      saveDraft();
+    });
+    moreDetails?.addEventListener("toggle", () => {
+      syncDetailToggle();
+      saveDraft();
+    });
+    syncDetailToggle();
+    form.addEventListener("input", saveDraft);
+    form.addEventListener("change", saveDraft);
     form.addEventListener("submit", (e) => {
       e.preventDefault();
       submitAskCompose(form);
@@ -14898,12 +14855,13 @@ async function selectContextSource(sourceId) {
 }
 
 // The context page's views. Articles + transcripts come from the local vault;
-// evidence is the reviewed/public-safe transcript-card lane. The old
-// signals/data intel views are hidden and normalize here for compatibility.
+// evidence is the reviewed/public-safe transcript-card lane. Retired names
+// (signals/data/intel/cards) normalize to evidence so old links keep working.
 function contextNormalizeView(raw) {
   const v = String(raw || "").toLowerCase();
-  if (v === "transcripts") return "raw";
-  if (v === "cards") return "evidence";
+  if (v === "article") return "articles";
+  if (v === "transcript" || v === "transcripts") return "raw";
+  if (v === "card" || v === "cards") return "evidence";
   if (v === "intel" || v === "signals" || v === "data") return "evidence";
   return (v === "articles" || v === "raw" || v === "evidence") ? v : "articles";
 }
@@ -14913,19 +14871,6 @@ const CONTEXT_VIEWS = [
   { view: "raw",      glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="21" x2="3" y1="6" y2="6"/><line x1="15" x2="3" y1="12" y2="12"/><line x1="17" x2="3" y1="18" y2="18"/></svg>', label: "transcripts", hint: "your local raw vault + the cohort's distilled readouts (live)" },
   { view: "evidence", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg>', label: "evidence", hint: "distilled evidence cards, live from Supabase" },
 ];
-
-function contextViewNav(active, counts = {}) {
-  return `
-    <nav class="alch-page-views" role="tablist" aria-label="context view">
-      ${CONTEXT_VIEWS.map(v => {
-        const n = counts[v.view];
-        return `
-        <button class="alch-page-view-btn" data-cv-mode="${v.view}" role="tab" aria-selected="${active === v.view}" aria-label="${escAttr(`${v.label}: ${v.hint}`)}" title="${escAttr(v.hint)}" type="button">
-          <span class="apv-glyph" aria-hidden="true">${v.glyph}</span><span class="apv-label">${v.label}</span>${Number.isFinite(n) ? `<span class="apv-count">${n}</span>` : ""}
-        </button>`;
-      }).join("")}
-    </nav>`;
-}
 
 function setContextVaultMode(mode) {
   const nextMode = contextNormalizeView(mode);
@@ -15917,62 +15862,6 @@ function renderContextEvidence(tier, t3cards, t2cards, insights) {
   return `${toggle}${body}`;
 }
 
-function contextIntelHooks() {
-  return {
-    onPanelChange: (panel) => {
-      const next = panel === "data" ? "data" : "signals";
-      if (state.contextVault.mode !== next) setContextVaultMode(next);
-    },
-  };
-}
-
-function contextIntelMeta() {
-  const intelModule = intelLazy.peek();
-  if (!intelModule) return intelMetaCache || {};
-  intelMetaCache = intelModule.intelSnapshotMeta?.() || {};
-  return intelMetaCache;
-}
-
-function renderContextIntel(view) {
-  const host = state.canvas?.querySelector(".alch-cv-intel");
-  if (!host) return;
-  const intelModule = intelLazy.peek();
-  if (intelModule) {
-    intelMetaCache = intelModule.intelSnapshotMeta?.() || intelMetaCache;
-    intelModule.renderIntelEmbedded?.(host, view);
-    return;
-  }
-
-  const loadError = intelLazy.error();
-  if (loadError) {
-    host.innerHTML = `<p class="alch-callout"><strong>context signals failed to load: ${escHtml(loadError?.message || String(loadError))}</strong></p>`;
-    return;
-  }
-
-  host.innerHTML = `<p class="alch-callout"><strong>loading context signals...</strong></p>`;
-  intelLazy.load()
-    .then((module) => {
-      intelMetaCache = module.intelSnapshotMeta?.() || intelMetaCache;
-      if (!state.mounted || state.mode !== "context" || state.detailRecordId) return;
-      const activeView = contextNormalizeView(state.contextVault.mode);
-      if (activeView !== "signals" && activeView !== "data") return;
-      renderContextVault();
-      wireContextVault();
-    })
-    .catch((error) => {
-      console.warn("[alchemy] context signals failed to load:", error?.message || error);
-      if (state.mounted && state.mode === "context" && !state.detailRecordId) {
-        renderContextIntel(view);
-      }
-    });
-}
-
-function wireContextIntel(host) {
-  const intelModule = intelLazy.peek();
-  if (!host || !intelModule) return;
-  intelModule.wireIntelEmbedded?.(host, contextIntelHooks());
-}
-
 function renderContextVault() {
   const cv = state.contextVault;
   const view = contextNormalizeView(cv.mode);
@@ -15984,13 +15873,13 @@ function renderContextVault() {
   const manifest = cv.manifest || null;
   const sources = contextArticleSources(manifest);
   const rawScripts = manifest?.raw_scripts || [];
-  // Context views moved to the rail sub-nav (left panel) — the page no longer
-  // renders its own in-page tab strip. (contextViewNav is retired.)
+  // Context views live in the rail sub-nav. Keep the page body about the
+  // selected lane instead of rendering a second tab strip here.
   const nav = "";
 
   // Evidence view — distilled transcript cards read live from Supabase
   // (cohort-source.js overlays them onto the surface). Full-width under the
-  // shared page header, same as the intel views.
+  // shared page header, with the rail sub-nav owning view switches.
   if (view === "evidence") {
     const tier = contextEvidenceTier();
     const { t2cards, t3cards, insights } = contextEvidenceData();
@@ -16000,19 +15889,6 @@ function renderContextVault() {
         ${renderContextEvidence(tier, t3cards, t2cards, insights)}
       </section>
     `;
-    return;
-  }
-
-  // Removal-bound compatibility: signals/data normalize to evidence before this
-  // point. Keep this branch only until the bundled intel files are deleted.
-  if (view === "signals" || view === "data") {
-    state.canvas.innerHTML = `
-      <section class="alch-cv">
-        ${pageHeadHtml({ nav })}
-        <div class="alch-cv-intel"></div>
-      </section>
-    `;
-    renderContextIntel(view);
     return;
   }
 
@@ -16135,12 +16011,6 @@ function wireContextVault() {
       e.preventDefault();
       submitCohortKeyForm(keyForm);
     });
-  }
-  // Embedded intel (signals/data views) wires its own internals; the page
-  // nav stays in sync when an intel cross-link jumps data → signals.
-  const intelHost = state.canvas.querySelector(".alch-cv-intel");
-  if (intelHost) {
-    wireContextIntel(intelHost);
   }
   const composeForm = state.canvas.querySelector("form[data-cv-compose]");
   if (composeForm) {
@@ -18889,7 +18759,7 @@ function wireSphereEditor(root, recordId) {
   // Pull a short, human line out of the multi-line GLSL compile log.
   const firstGlslError = (log) => {
     const line = String(log || "").split("\n").find((l) => /error/i.test(l)) || String(log || "");
-    return line.replace(/ /g, "").replace(/^ERROR:\s*\d+:\d+:\s*/i, "").trim().slice(0, 90) || "compile error";
+    return line.replace(/\x00/g, "").replace(/^ERROR:\s*\d+:\d+:\s*/i, "").trim().slice(0, 90) || "compile error";
   };
   // Live preview (NO blink): the orb context is mounted ONCE with smooth:true (a
   // persistent, EMA-smoothed context); every shader edit HOT-SWAPS the program in

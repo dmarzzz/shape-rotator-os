@@ -9,13 +9,16 @@ import {
   buildSelfReportPrompt,
   parseSelfReportDelta,
   sanitizeDelta,
+  sanitizeUsefulness,
   mergeDelta,
+  assessSelfReportCoverage,
   stripAnsi,
 } from "./self-report-synth.mjs";
 
 test("prompt is the member's own AI: names fields, evidence, gh/git, a question, strict JSON", () => {
   const p = buildSelfReportPrompt({
     person: { name: "Dmarz", now: "old now", record_id: "dmarz" },
+    appContextDigest: "App currently links Dmarz to Shape OS and says prior_work has the existing mirror.",
     sessionDigest: "wrote a calibration panel for the shipped view",
     githubDigest: "12 commits to shape-rotator-os",
   });
@@ -26,6 +29,15 @@ test("prompt is the member's own AI: names fields, evidence, gh/git, a question,
   assert.ok(p.includes("old now"));               // current value given for reference
   assert.ok(p.includes("Dmarz"));                 // personalized to the member
   assert.ok(p.includes("gh") && p.includes("git")); // told to gather first-hand
+  assert.ok(p.includes("PROFILE COVERAGE PASS")); // pushed to audit all sections
+  assert.ok(p.includes("APP RELEVANCE / CORRECTION PASS")); // app context is correction input
+  assert.ok(p.includes("PROJECT / TEAM EVIDENCE PASS")); // project lane is separate
+  assert.ok(p.includes("APP USEFULNESS REPORT")); // section health is requested
+  assert.ok(p.includes("\"person\"") && p.includes("\"team\"")); // mature nested output shape
+  assert.ok(p.includes("\"usefulness\""));        // usefulness shape is requested
+  assert.ok(p.includes("App currently links Dmarz")); // app-understanding digest folded in
+  assert.ok(p.includes("Do not backdate or rewrite older timeline items"));
+  assert.ok(p.includes("prior_work"));            // durable shipped-work section called out
   assert.ok(p.includes("question"));              // Router-style: it ASKS
 });
 
@@ -48,6 +60,14 @@ test("stripAnsi removes color codes", () => {
 test("parses a bare JSON object", () => {
   const r = parseSelfReportDelta('{"now":"shipping the mirror"}');
   assert.deepEqual(r, { ok: true, delta: { now: "shipping the mirror" } });
+});
+
+test("parses nested person/team proposal objects", () => {
+  const r = parseSelfReportDelta('{"person":{"working_style":"fast with users"},"team":{"traction":"10 pilots"},"usefulness":{"findability":"improved"}}');
+  assert.ok(r.ok);
+  assert.equal(r.delta.person.working_style, "fast with users");
+  assert.equal(r.delta.team.traction, "10 pilots");
+  assert.equal(r.delta.usefulness.findability, "improved");
 });
 
 test("parses JSON wrapped in prose + a markdown fence + ANSI", () => {
@@ -139,6 +159,41 @@ test("sanitize filters skill_areas to the controlled vocab when provided", () =>
   assert.deepEqual(clean.skill_areas, ["agentic", "tee"]);
 });
 
+test("sanitize allows richer collaboration profile fields", () => {
+  const clean = sanitizeDelta({
+    comm_style: "async first",
+    contribute_interests: ["user research", "demo feedback"],
+    availability_pref: "mornings",
+    go_to_them_for: ["speech practice loops"],
+    recurring_themes: ["practice as product"],
+    working_style: "ships fast with user loops",
+    best_contexts: ["ambiguous consumer product discovery"],
+  });
+  assert.equal(clean.comm_style, "async first");
+  assert.deepEqual(clean.contribute_interests, ["user research", "demo feedback"]);
+  assert.equal(clean.availability_pref, "mornings");
+  assert.deepEqual(clean.go_to_them_for, ["speech practice loops"]);
+  assert.deepEqual(clean.recurring_themes, ["practice as product"]);
+  assert.equal(clean.working_style, "ships fast with user loops");
+  assert.deepEqual(clean.best_contexts, ["ambiguous consumer product discovery"]);
+});
+
+test("sanitizeUsefulness keeps fixed statuses/actions and missing evidence", () => {
+  const clean = sanitizeUsefulness({
+    findability: "improved",
+    collaboration: "made-up",
+    areas: { timeline: "current_state_refresh", project_evidence: "queued_review" },
+    missing_evidence: ["private repo shipping detail", { bad: true }, "usage proof"],
+    suggested_actions: ["Ask Member", "queue-project-evidence", "unknown-action", "ask_member"],
+  });
+  assert.deepEqual(clean.areas, {
+    timeline: "current_state_refresh",
+    project_evidence: "queued_review",
+  });
+  assert.deepEqual(clean.missing_evidence, ["private repo shipping detail", "usage proof"]);
+  assert.deepEqual(clean.suggested_actions, ["ask_member", "queue_project_evidence"]);
+});
+
 test("merge is non-destructive and reports only real changes", () => {
   const person = { now: "old", skills: ["a", "b"], weekly_intention: "same" };
   const { merged, changed } = mergeDelta(person, {
@@ -149,6 +204,15 @@ test("merge is non-destructive and reports only real changes", () => {
   });
   assert.deepEqual(changed.sort(), ["now", "offering"]);
   assert.deepEqual(merged, { now: "new", offering: ["help"] });
+});
+
+test("merge appends prior_work instead of replacing existing history", () => {
+  const person = { prior_work: ["old shipped artifact", "Reusable kit"] };
+  const { merged, changed } = mergeDelta(person, {
+    prior_work: ["Reusable kit", "new private repo launch"],
+  });
+  assert.deepEqual(changed, ["prior_work"]);
+  assert.deepEqual(merged.prior_work, ["old shipped artifact", "Reusable kit", "new private repo launch"]);
 });
 
 test("end-to-end: messy CLI stdout → safe, minimal, approved-shaped delta", () => {
@@ -164,6 +228,21 @@ test("end-to-end: messy CLI stdout → safe, minimal, approved-shaped delta", ()
   assert.ok(!("team" in merged) && !("record_id" in merged)); // privilege escalation blocked
 });
 
+test("assessSelfReportCoverage flags skinny updates and empty durable sections", () => {
+  const person = { now: "old", weekly_intention: "old" };
+  const coverage = assessSelfReportCoverage(person, ["now", "weekly_intention", "seeking", "offering"]);
+  assert.equal(coverage.status, "thin");
+  assert.deepEqual(coverage.missingEmptyDurableFields.sort(), ["prior_work", "skill_areas", "skills"]);
+});
+
+test("assessSelfReportCoverage treats durable profile changes as broad enough", () => {
+  const person = { now: "old", skills: ["js"], skill_areas: ["agentic"], prior_work: ["demo"] };
+  const coverage = assessSelfReportCoverage(person, ["now", "weekly_intention", "skills", "seeking", "offering"]);
+  assert.equal(coverage.status, "broad");
+  assert.equal(coverage.durableTouched, true);
+  assert.deepEqual(coverage.missingEmptyDurableFields, []);
+});
+
 test("sanitize rejects nested objects/arrays (no '[object Object]') + trims lone surrogates (M3)", () => {
   const clean = sanitizeDelta({ now: { evil: "obj" }, skills: [{ a: 1 }, ["x", "y"], "real"], weekly_intention: "ok" });
   assert.ok(!("now" in clean));              // nested object rejected, not coerced to "[object Object]"
@@ -174,16 +253,16 @@ test("sanitize rejects nested objects/arrays (no '[object Object]') + trims lone
   assert.ok(!(last >= 0xD800 && last <= 0xDBFF), "left a dangling high surrogate");
 });
 
-test("the 7-field whitelist agrees across SELF_REPORT_FIELDS, the migration, and schema.yml (drift guard)", () => {
+test("the self-report whitelist agrees across SELF_REPORT_FIELDS, the latest migration, and schema.yml (drift guard)", () => {
   const fields = Object.keys(SELF_REPORT_FIELDS).sort();
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-  const sql = fs.readFileSync(path.join(root, "supabase/migrations/20260625010000_os_profile_updates.sql"), "utf8");
+  const sql = fs.readFileSync(path.join(root, "supabase/migrations/20260629120000_os_profile_updates_collaboration_fields.sql"), "utf8");
   const marker = "delta - array[";
   const at = sql.indexOf(marker);
   assert.ok(at >= 0, "migration whitelist array not found");
   const list = sql.slice(at + marker.length, sql.indexOf("]", at));
-  const sqlFields = list.split("'").filter((_, i) => i % 2 === 1).sort(); // odd splits = quoted values
-  assert.deepEqual(sqlFields, fields, "migration whitelist CHECK drifted from SELF_REPORT_FIELDS");
+  const sqlFields = list.split("'").filter((_, i) => i % 2 === 1).filter((f) => !["geo", "links"].includes(f)).sort(); // odd splits = quoted values
+  assert.deepEqual(sqlFields, fields, "migration person whitelist CHECK drifted from SELF_REPORT_FIELDS");
   const schema = fs.readFileSync(path.join(root, "cohort-data/schema.yml"), "utf8");
   for (const f of fields) assert.ok(schema.includes(f), `${f} missing from schema.yml`);
 });

@@ -107,6 +107,9 @@ function buildCatalog() {
     { title: "pmf evidence", sub: "cohort · journey view", hay: "journey pmf evidence product market fit cohort", jump: ["constellation", { constellationMode: "journey" }] },
     { title: "product layer", sub: "cohort · stack view", hay: "stack product layer cohort", jump: ["constellation", { constellationMode: "stack" }] },
     { title: "collab board", sub: "cohort · seek ↔ offer · intros", hay: "collab board collaboration intros seek offer matrix cohort", jump: ["constellation", { constellationMode: "collab" }] },
+    { title: "context articles", sub: "context · article drafts", hay: "context articles drafts reader vault", jump: ["context", { contextView: "articles" }] },
+    { title: "context transcripts", sub: "context · transcripts", hay: "context transcripts raw vault distilled readouts", jump: ["context", { contextView: "raw" }] },
+    { title: "context evidence", sub: "context · evidence cards", hay: "context evidence cards reviewed published transcript evidence signals data intel", jump: ["context", { contextView: "evidence" }] },
   ];
   for (const v of FOLDED_VIEWS) {
     items.push({

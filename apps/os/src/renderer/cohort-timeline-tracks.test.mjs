@@ -10,7 +10,12 @@ import {
   isPresent,
   buildPresenceLane,
   buildSessionsLane,
+  buildReleasesLane,
+  buildCommitsLane,
+  buildMeetingsLane,
+  buildTeamLane,
   buildDefaultTimeline,
+  buildFollowedTimeline,
   filterTimelineByPrefs,
 } from "./cohort-timeline-tracks.mjs";
 
@@ -209,4 +214,217 @@ test("filterTimelineByPrefs hides lanes and marker categories without mutating t
   assert.deepEqual(filtered.lanes.map((l) => l.trackKey), ["activity", "standing"]);
   assert.deepEqual(filtered.lanes[0].items.map((i) => i.category), ["release"]);
   assert.deepEqual(timeline.lanes[0].items.map((i) => i.category), ["release", "commit"]);
+});
+
+// ── follow-board fixtures + new lane builders ────────────────────────────────
+
+const FOLLOW_WHATS_NEW = [
+  { date: "2026-06-13", kind: "release", label: "0.3.5", meta: "Abra", nav: { mode: "shapes", recordId: "abra" } },
+  { date: "2026-06-14", kind: "commit", label: "7 commits", meta: "Abra", nav: { mode: "shapes", recordId: "abra" } },
+  { date: "2026-06-15", kind: "commit", label: "3 commits", meta: "TeeSQL", nav: { mode: "shapes", recordId: "teesql" } },
+  { date: "2026-07-23", kind: "event", label: "demo day", nav: { mode: "calendar" } },
+];
+
+const FOLLOW_MATCHES = [
+  {
+    date: "2026-06-08",
+    title_contains: ["WDYDLW with Shaw"],
+    section: "wdydlw standup #1",
+    confidence: "high",
+    sources: [{ role: "transcript", mentions_direct: ["abra", "will-cory"], mentions_any: ["abra", "teesql"] }],
+  },
+  {
+    date: "2026-06-10",
+    title_contains: [],
+    section: "icp interviews",
+    confidence: "high",
+    sources: [{ role: "transcript", mentions_direct: ["teesql"], mentions_any: ["teesql"] }],
+  },
+  { date: "bad-date", section: "dropped", sources: [{ mentions_any: ["abra"] }] }, // dropped
+];
+
+const TEAM_NAMES = new Map([["abra", "Abra"], ["teesql", "TeeSQL"]]);
+
+test("buildReleasesLane / buildCommitsLane filter activity to one category, item color stays activity", () => {
+  const rel = buildReleasesLane(FOLLOW_WHATS_NEW, WINDOW);
+  assert.equal(rel.label, "releases");
+  assert.deepEqual(rel.items.map((i) => i.category), ["release"]);
+  assert.equal(rel.items[0].trackKey, "activity"); // color/shape unchanged
+  assert.equal(rel.items[0].team, "abra");
+
+  const com = buildCommitsLane(FOLLOW_WHATS_NEW, WINDOW);
+  assert.equal(com.label, "github commits");
+  assert.deepEqual(com.items.map((i) => i.category), ["commit", "commit"]); // sorted by date
+  assert.deepEqual(com.items.map((i) => i.title), ["7 commits", "3 commits"]);
+});
+
+test("buildMeetingsLane places one transcript anchor per match, joins title_contains, drops bad dates", () => {
+  const lane = buildMeetingsLane(FOLLOW_MATCHES, WINDOW);
+  assert.equal(lane.trackKey, "transcript");
+  assert.equal(lane.label, "meetings");
+  assert.equal(lane.items.length, 2); // bad-date dropped
+  const [a, b] = lane.items; // sorted ascending
+  assert.equal(a.category, "transcript");
+  assert.equal(a.title, "WDYDLW with Shaw");
+  assert.equal(a.detail, "wdydlw standup #1");
+  assert.equal(a.team, null);
+  assert.equal(a.tier, "public");
+  assert.equal(b.title, "icp interviews"); // empty title_contains falls back to section
+  assert.ok(lane.items.every((i) => i.fraction >= 0 && i.fraction <= 1));
+});
+
+test("buildMeetingsLane tolerates non-array input", () => {
+  assert.deepEqual(buildMeetingsLane(null, WINDOW).items, []);
+});
+
+test("buildTeamLane merges a team's releases+commits+insights+meetings, sorted, excludes other teams", () => {
+  const evidence = [
+    { claim_text: "Abra shipped registry", content_json: { week_start: "2026-06-01", teams: ["abra"], teams_basis: "inferred" } },
+    { claim_text: "TeeSQL onboarded", content_json: { week_start: "2026-06-01", teams: ["teesql"] } },
+  ];
+  const lane = buildTeamLane(
+    "abra",
+    { whatsNew: FOLLOW_WHATS_NEW, evidenceCards: evidence, transcriptMatches: FOLLOW_MATCHES, teamNameById: TEAM_NAMES },
+    WINDOW,
+  );
+  assert.equal(lane.trackKey, "team");
+  assert.equal(lane.value, "abra");
+  assert.equal(lane.label, "abra"); // lowercased team name
+  // abra: 1 release + 1 commit + 1 insight + 1 meeting (the jun-08 match mentions abra)
+  assert.equal(lane.items.length, 4);
+  assert.ok(lane.items.every((i) => i.team === "abra"));
+  assert.deepEqual(lane.items.map((i) => i.category), ["insight", "transcript", "release", "commit"]); // sorted by date
+  // teesql's commit, insight + jun-10 meeting must NOT appear on abra's lane
+  assert.ok(!lane.items.some((i) => i.title === "3 commits"));
+  assert.ok(!lane.items.some((i) => i.title === "icp interviews"));
+});
+
+test("buildTeamLane matches transcript mentions by record_id OR slugged team name", () => {
+  const matches = [
+    { date: "2026-06-09", section: "by name", sources: [{ mentions_any: ["abra"], mentions_direct: [] }] },
+    { date: "2026-06-11", section: "by slug", sources: [{ mentions_any: ["abra"], mentions_direct: [] }] },
+  ];
+  // Use a team whose record_id differs from slug(name) to prove name-slug matching.
+  const names = new Map([["abra-team-rec", "Abra"]]);
+  const lane = buildTeamLane(
+    "abra-team-rec",
+    { whatsNew: [], evidenceCards: [], transcriptMatches: matches, teamNameById: names },
+    WINDOW,
+  );
+  // slug("Abra") === "abra" hits both matches even though record_id is "abra-team-rec"
+  assert.equal(lane.items.length, 2);
+});
+
+test("buildTeamLane returns an empty lane for a blank team id", () => {
+  const lane = buildTeamLane("", {}, WINDOW);
+  assert.deepEqual(lane.items, []);
+});
+
+test("buildFollowedTimeline preserves follow order and normalizes each lane's render + payload", () => {
+  const followed = [
+    { id: "lane-1", kind: "releases", subjectId: null, label: "" },
+    { id: "lane-2", kind: "standing", subjectId: null, label: "" },
+    { id: "lane-3", kind: "presence", subjectId: null, label: "" },
+    { id: "lane-4", kind: "meetings", subjectId: null, label: "" },
+  ];
+  const out = buildFollowedTimeline(
+    followed,
+    {
+      whatsNew: FOLLOW_WHATS_NEW,
+      standingWeekly: STANDING,
+      people: [{ name: "A", dates_start: "2026-05-18T00:00:00.000Z", dates_end: "2026-07-25T00:00:00.000Z" }],
+      transcriptMatches: FOLLOW_MATCHES,
+    },
+    WINDOW,
+  );
+  assert.equal(out.axis.startMs, START);
+  assert.ok(out.axis.nowFraction > 0 && out.axis.nowFraction < 1);
+  // order preserved 1:1 with the follow list
+  assert.deepEqual(out.lanes.map((l) => l.id), ["lane-1", "lane-2", "lane-3", "lane-4"]);
+  assert.deepEqual(out.lanes.map((l) => l.render), ["points", "standing", "presence", "points"]);
+  assert.deepEqual(out.lanes.map((l) => l.trackKey), ["points", "standing", "presence", "points"]);
+  assert.ok(out.lanes.every((l) => l.removable === true));
+  // payload key matches render bucket
+  assert.ok(Array.isArray(out.lanes[0].items)); // releases -> items
+  assert.ok(Array.isArray(out.lanes[1].points)); // standing -> points
+  assert.equal(out.lanes[1].stageMax, 8);
+  assert.ok(Array.isArray(out.lanes[2].samples)); // presence -> samples
+  assert.ok(Array.isArray(out.lanes[3].items)); // meetings -> items
+  // count reflects placed markers
+  assert.equal(out.lanes[0].count, 1); // one release
+  assert.equal(out.lanes[3].count, 2); // two meetings
+  // default labels filled per kind
+  assert.equal(out.lanes[0].label, "releases");
+  assert.equal(out.lanes[2].label, "in town");
+});
+
+test("buildFollowedTimeline maps legacy kinds shipped→releases, transcripts→meetings", () => {
+  const out = buildFollowedTimeline(
+    [
+      { id: "a", kind: "shipped", subjectId: null, label: "" },
+      { id: "b", kind: "transcripts", subjectId: null, label: "" },
+    ],
+    { whatsNew: FOLLOW_WHATS_NEW, transcriptMatches: FOLLOW_MATCHES },
+    WINDOW,
+  );
+  assert.deepEqual(out.lanes.map((l) => l.kind), ["releases", "meetings"]);
+  assert.equal(out.lanes[0].label, "releases");
+  assert.equal(out.lanes[1].label, "meetings");
+});
+
+test("buildFollowedTimeline builds a team lane and uses the team name as the default label", () => {
+  const out = buildFollowedTimeline(
+    [{ id: "t", kind: "team", subjectId: "teesql", label: "" }],
+    { whatsNew: FOLLOW_WHATS_NEW, transcriptMatches: FOLLOW_MATCHES, teamNameById: TEAM_NAMES },
+    WINDOW,
+  );
+  assert.equal(out.lanes.length, 1);
+  assert.equal(out.lanes[0].kind, "team");
+  assert.equal(out.lanes[0].subjectId, "teesql");
+  assert.equal(out.lanes[0].label, "teesql"); // lowercased team name
+  assert.equal(out.lanes[0].render, "points");
+});
+
+test("buildFollowedTimeline honors an explicit subscription label (lowercased)", () => {
+  const out = buildFollowedTimeline(
+    [{ id: "x", kind: "activity", subjectId: null, label: "Everything" }],
+    { whatsNew: FOLLOW_WHATS_NEW },
+    WINDOW,
+  );
+  assert.equal(out.lanes[0].label, "everything");
+});
+
+test("buildFollowedTimeline skips a team lane with no subjectId and sessions without localSessions", () => {
+  const out = buildFollowedTimeline(
+    [
+      { id: "noteam", kind: "team", subjectId: null, label: "" },
+      { id: "sess", kind: "sessions", subjectId: null, label: "" },
+      { id: "ok", kind: "activity", subjectId: null, label: "" },
+    ],
+    { whatsNew: FOLLOW_WHATS_NEW },
+    WINDOW,
+  );
+  assert.deepEqual(out.lanes.map((l) => l.id), ["ok"]); // both unbuildable lanes dropped
+});
+
+test("buildFollowedTimeline includes a sessions lane only when localSessions are passed (private opt-in)", () => {
+  const out = buildFollowedTimeline(
+    [{ id: "sess", kind: "sessions", subjectId: null, label: "" }],
+    { localSessions: [{ id: "s1", title: "agent loop", ms: NOW }] },
+    WINDOW,
+  );
+  assert.equal(out.lanes.length, 1);
+  assert.equal(out.lanes[0].kind, "sessions");
+  assert.equal(out.lanes[0].render, "points");
+  assert.ok(out.lanes[0].items.every((i) => i.tier === "local")); // still private
+});
+
+test("buildFollowedTimeline skips unknown kinds and tolerates a non-array follow list", () => {
+  const out = buildFollowedTimeline(
+    [{ id: "weird", kind: "made-up", subjectId: null, label: "" }, null, "junk"],
+    { whatsNew: FOLLOW_WHATS_NEW },
+    WINDOW,
+  );
+  assert.deepEqual(out.lanes, []);
+  assert.deepEqual(buildFollowedTimeline(null, {}, WINDOW).lanes, []);
 });

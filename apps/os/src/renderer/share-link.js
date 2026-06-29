@@ -53,8 +53,12 @@ const VIEW_ALIASES = {
   "alchemy/onboarding": "alchemy/program/onboarding",
   "alchemy/constellation/shipped": "alchemy/mirror",
   "alchemy/intel": "alchemy/context/evidence",
+  "alchemy/context/intel": "alchemy/context/evidence",
   "alchemy/context/signals": "alchemy/context/evidence",
   "alchemy/context/data": "alchemy/context/evidence",
+  "alchemy/context/cards": "alchemy/context/evidence",
+  "alchemy/context/transcript": "alchemy/context/raw",
+  "alchemy/context/transcripts": "alchemy/context/raw",
 };
 
 const RADIX = 36;
@@ -81,8 +85,9 @@ function hash5(str) {
 
 function canonicalContextView(raw) {
   const v = String(raw || "").toLowerCase();
-  if (v === "transcripts") return "raw";
-  if (v === "cards" || v === "intel" || v === "signals" || v === "data") return "evidence";
+  if (v === "article") return "articles";
+  if (v === "transcript" || v === "transcripts") return "raw";
+  if (v === "card" || v === "cards" || v === "intel" || v === "signals" || v === "data") return "evidence";
   return CTX_VIEWS.includes(v) ? v : "";
 }
 

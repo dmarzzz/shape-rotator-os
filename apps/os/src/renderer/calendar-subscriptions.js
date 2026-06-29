@@ -1,32 +1,46 @@
-// Calendar row subscriptions — the user's chosen set of feed "lanes" on the
-// calendar week panel. Each row subscribes to one subject/feed (a team, github
-// pushes, releases, meeting transcripts, presence). Persisted to localStorage so
-// the layout survives relaunches; this is the first calendar-view preference to
-// persist (week/scope/filters stay session-only by design).
+// Calendar follow lanes — the user's chosen set of "lanes" that render on the
+// shared program axis (the follow board). Each lane follows one feed/subject (all
+// activity, releases, commits, meetings, session insights, standing, presence, or
+// one team). Persisted to localStorage so the layout survives relaunches; this is
+// the first calendar-view preference to persist (week/scope/filters stay
+// session-only by design).
 //
-// Pure data layer: no DOM, no fetch. alchemy.js loads the list on mount, resolves
-// each row's items from already-loaded surface data, and passes the resolved rows
-// to calendar.js renderCalendarPage(). Mutations here just rewrite localStorage
-// and notify listeners; the host repaints.
+// Pure data layer: no DOM, no fetch. alchemy.js loads the list on mount, builds
+// the followed timeline from already-loaded surface data, and passes the rendered
+// lanes to calendar.js renderCalendarPage(). Mutations here just rewrite
+// localStorage and notify listeners; the host repaints.
 
-const LS_KEY = "srwk:calendar_subscriptions_v1";
+// Fresh model (lanes on the program axis, not week-grid feed rows). The old key is
+// ignored — no migration; first run seeds the new defaults.
+const LS_KEY = "srwk:calendar_follow_lanes_v1";
 
-// The feed kinds a row can subscribe to. `needsSubject` rows pick a team from the
-// cohort; the rest are cohort-wide. presence/shipped are the two built-in rows the
-// week panel has always shown — now expressed as (removable) subscriptions so the
-// whole stack is one model the user controls.
+// The lane kinds the picker can add. `needsSubject` lanes pick a team from the
+// cohort; the rest are cohort-wide. `glyph` keys the lane icon (LANE_GLYPH in the
+// render layer); `hint` is the picker option subline.
 export const SUBSCRIPTION_KINDS = [
-  { kind: "team", label: "a team", needsSubject: true, glyph: "team", hint: "commits, releases + meetings for one team" },
-  { kind: "commits", label: "github pushes", needsSubject: false, glyph: "commit", hint: "commit digests across the cohort" },
-  { kind: "releases", label: "products / releases", needsSubject: false, glyph: "release", hint: "what shipped" },
-  { kind: "transcripts", label: "meetings · transcripts", needsSubject: false, glyph: "transcript", hint: "recorded sessions" },
-  { kind: "presence", label: "in town", needsSubject: false, glyph: "presence", hint: "who's around each day" },
+  { kind: "activity", label: "all activity", needsSubject: false, glyph: "release", hint: "every whats-new point across the cohort" },
+  { kind: "releases", label: "releases", needsSubject: false, glyph: "release", hint: "what shipped" },
+  { kind: "commits", label: "github commits", needsSubject: false, glyph: "commit", hint: "commit digests across the cohort" },
+  { kind: "meetings", label: "meetings", needsSubject: false, glyph: "transcript", hint: "recorded sessions on the calendar" },
+  { kind: "insights", label: "session insights", needsSubject: false, glyph: "insight", hint: "attributed transcript evidence" },
+  { kind: "standing", label: "standing (pmf)", needsSubject: false, glyph: "standing", hint: "cohort mean pmf stage per week" },
+  { kind: "presence", label: "in town", needsSubject: false, glyph: "presence", hint: "cohort occupancy each week" },
+  { kind: "team", label: "a team", needsSubject: true, glyph: "team", hint: "releases, commits, insights + meetings for one team" },
 ];
 
+// First-run lanes: a cohort-wide overview — all activity, standing, presence.
 export const DEFAULT_SUBSCRIPTIONS = [
-  { id: "row-presence", kind: "presence", subjectId: null, label: "in town", hidden: false, builtin: true },
-  { id: "row-shipped", kind: "shipped", subjectId: null, label: "shipped", hidden: false, builtin: true },
+  { id: "lane-activity", kind: "activity", subjectId: null, label: "all activity", hidden: false, builtin: true },
+  { id: "lane-standing", kind: "standing", subjectId: null, label: "standing", hidden: false, builtin: true },
+  { id: "lane-presence", kind: "presence", subjectId: null, label: "in town", hidden: false, builtin: true },
 ];
+
+// Legacy lane kinds from the old feed-row model normalize to the new kinds so any
+// stray stored value (or hand-edited localStorage) maps cleanly.
+const LEGACY_KIND_MAP = {
+  shipped: "releases",
+  transcripts: "meetings",
+};
 
 let _cache = null;
 const listeners = new Set();
@@ -42,7 +56,10 @@ function sanitize(rows) {
   for (const r of rows) {
     if (!r || typeof r !== "object") continue;
     const id = String(r.id || "").trim();
-    const kind = String(r.kind || "").trim();
+    const rawKind = String(r.kind || "").trim();
+    // Normalize legacy kinds (shipped→releases, transcripts→meetings) so old or
+    // hand-edited stored lanes line up with the current kind set.
+    const kind = LEGACY_KIND_MAP[rawKind] || rawKind;
     if (!id || !kind || seen.has(id)) continue;
     seen.add(id);
     out.push({

@@ -171,3 +171,161 @@
 .ctl-legend span[data-cat="ask"]::before      { background: var(--ctl-cat-ask); }
 .ctl-legend span[data-cat="event"]::before    { background: var(--ctl-cat-event); }
 .ctl-legend-inferred { color: var(--ds-ink-4); }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Interactive follow-board lanes (renderTimelineLanesHtml(_, {interactive}))
+   ─────────────────────────────────────────────────────────────────────────
+   In the calendar's follow board each lane is a controllable row: the label
+   column hosts a drag handle (▴▾), glyph, text, count and a remove ✕. The
+   read-only standalone preview above is untouched — these rules only attach to
+   `.ctl-lane.is-followed`. The label gutter widens from the read-only 92/96px
+   to 116px to fit the move/remove controls; the matching axis/legend gutters
+   come from calendar.css's `.rr-timeline-view` scope (FILE 6/7 note below). */
+.ctl { --ctl-followlabel-w: 116px; }
+
+/* Taller rows so two-line affordances + the count chip breathe. */
+.ctl-lane.is-followed { --ctl-row-h: 52px; }
+.ctl-lane.is-followed .ctl-lane-label { flex-basis: var(--ctl-followlabel-w); }
+/* Keep the axis + legend gutters aligned with the widened followed label.
+   calendar.css sets `.rr-timeline-view .ctl-*` to 96px for the read-only
+   timeline; the interactive board overrides them to match this label width. */
+.rr-timeline-view .ctl-lane.is-followed .ctl-lane-label { flex-basis: var(--ctl-followlabel-w); }
+.rr-timeline-view .ctl:has(.ctl-lane.is-followed) .ctl-axis,
+.rr-timeline-view .ctl:has(.ctl-lane.is-followed) .ctl-legend {
+  margin-left: var(--ctl-followlabel-w);
+}
+
+/* The label becomes a flex control row. The reused control sub-elements
+   (.rr-row-move / .rr-row-mv / .rr-rowlab-ico / .rr-rowlab-x) are styled in
+   calendar.css alongside the old feed rows; here we only ensure they lay out
+   correctly inside `.ctl-lane-label` and that the hover/focus reveal — which
+   calendar.css keys off `.rr-frow` — fires off the lane instead. */
+.ctl-lane-label.rr-frowlab {
+  position: relative;
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 7px;
+  padding: 0 6px 0 10px;
+  min-width: 0;
+  overflow: hidden;
+  text-transform: none;
+  letter-spacing: 0.005em;
+  cursor: grab;
+  user-select: none;
+}
+.ctl-lane-label.rr-frowlab:active { cursor: grabbing; }
+.ctl-lane-label.rr-frowlab:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: -2px;
+  border-radius: var(--ds-radius-sm);
+}
+
+/* Move handle (▴▾): hidden until the lane is hovered or the label is focused,
+   mirroring calendar.css's `.rr-frow:hover .rr-row-move`. */
+.ctl-lane.is-followed .rr-row-move { opacity: 0; }
+.ctl-lane.is-followed:hover .rr-row-move,
+.ctl-lane-label.rr-frowlab:focus-within .rr-row-move { opacity: 1; }
+
+/* Glyph icon — sized to match the feed-row icons. */
+.ctl-lane-ico.rr-rowlab-ico { display: inline-flex; flex: 0 0 auto; color: var(--ds-ink-3); }
+.ctl-lane-ico.rr-rowlab-ico svg { width: 14px; height: 14px; }
+
+/* Label text — ellipsis, normal case (the read-only lanes uppercase; followed
+   lanes read as proper words). */
+.ctl-lane-tx {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--ds-text-xs);
+  letter-spacing: 0.005em;
+  text-transform: none;
+  color: var(--ds-ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Count chip — pushed right, mono tabular; fades out on hover so the move +
+   remove affordances can take its place (same trade as `.rr-row-count`). */
+.ctl-lane-count {
+  flex: 0 0 auto;
+  margin-left: auto;
+  min-width: 17px;
+  height: 16px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--ds-accent-soft);
+  color: var(--ds-ink-1);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  font-variant-numeric: tabular-nums;
+  transition: opacity 120ms ease;
+}
+.ctl-lane.is-followed:hover .ctl-lane-count,
+.ctl-lane-label.rr-frowlab:focus-within .ctl-lane-count { opacity: 0; }
+
+/* Remove ✕ — hidden until lane hover / label focus / the button's own focus,
+   absolutely positioned over the count chip (same slot, mirrors .rr-rowlab-x). */
+.ctl-lane.is-followed .rr-rowlab-x { opacity: 0; }
+.ctl-lane.is-followed:hover .rr-rowlab-x,
+.ctl-lane-label.rr-frowlab:focus-within .rr-rowlab-x,
+.ctl-lane.is-followed .rr-rowlab-x:focus-visible { opacity: 1; transform: translateY(-50%) scale(1); }
+
+/* Drag affordances — match calendar.css `.rr-frow` drop shadows so the board
+   and the (removed) feed rows feel like one interaction. */
+.ctl-lane.is-followed.is-dragging { opacity: 0.4; }
+.ctl-lane.is-followed.drop-before { box-shadow: inset 0 2px 0 0 var(--ds-accent); }
+.ctl-lane.is-followed.drop-after  { box-shadow: inset 0 -2px 0 0 var(--ds-accent); }
+
+/* ─── Marker hover tooltip (data-tip) ───────────────────────────────────────
+   Each interactive `.ctl-dot` carries `data-tip` ("jun 24 · release · title").
+   Show it as a floating bubble above the dot on hover / keyboard focus. The dot
+   already scales on hover; the bubble sits above with a small caret. DS surface
+   + border + ink, mono micro-text, no wrap, never intercepts pointer. */
+.ctl-dot[data-tip]:hover::after,
+.ctl-dot[data-tip]:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  z-index: 6;
+  max-width: 280px;
+  padding: 4px 7px;
+  border: 1px solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-sm);
+  background: var(--ds-surface-1);
+  color: var(--ds-ink-1);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs, 1.3);
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--ds-ink-1) 30%, transparent);
+}
+/* Caret — a small square rotated 45° bridging bubble → dot. */
+.ctl-dot[data-tip]:hover::before,
+.ctl-dot[data-tip]:focus-visible::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 4px);
+  width: 7px;
+  height: 7px;
+  transform: translateX(-50%) rotate(45deg);
+  z-index: 6;
+  border: 1px solid var(--ds-border-strong);
+  border-top: 0;
+  border-left: 0;
+  background: var(--ds-surface-1);
+  pointer-events: none;
+}
+
+/* Reduced motion: the dot scale + tooltip caret are fine; nothing animates the
+   tooltip in/out, so no extra guard is needed — but drop the dot transition so
+   focus reveal is instant for motion-sensitive users. */
+@media (prefers-reduced-motion: reduce) {
+  .ctl-lane.is-followed .ctl-dot { transition: none; }
+}

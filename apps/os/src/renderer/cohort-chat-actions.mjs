@@ -27,18 +27,25 @@
 // then routes approved actions to the existing gated channels.
 
 // ── field whitelist (the os_profile_updates delta surface) ────────────────────
-// The seven self-declared self-report fields (self-report-synth.mjs
-// SELF_REPORT_FIELDS) PLUS the three identity-location fields the agent keeps
+// The self-declared self-report fields (self-report-synth.mjs SELF_REPORT_FIELDS)
+// PLUS the identity-location fields the agent keeps
 // current — geo + links.github + links.repo. This MUST stay in lockstep with the
-// os_profile_updates delta whitelist CHECK (migration
-// 20260626120000_os_profile_updates_provenance.sql); the DB re-asserts it.
+// os_profile_updates delta whitelist CHECK (latest os_profile_updates migration);
+// the DB re-asserts it.
 export const PROPOSABLE_PROFILE_FIELDS = Object.freeze({
+  comm_style: "string",
+  contribute_interests: "list",
   now: "string",
   weekly_intention: "string",
+  availability_pref: "string",
   skills: "list",
   skill_areas: "list", // controlled vocab — filtered to allowedSkillAreas when provided
   seeking: "list",
   offering: "list",
+  go_to_them_for: "list",
+  recurring_themes: "list",
+  working_style: "string",
+  best_contexts: "list",
   prior_work: "list",
   geo: "string",
   links: "links", // object, scoped to { github, repo }
@@ -106,6 +113,7 @@ export function sanitizeTeamFields(fields) {
 // The verbs the agent may emit. Anything else parsed from stdout is discarded.
 export const ACTION_TYPES = Object.freeze([
   "propose_profile_update", // draft a delta for ANY member's profile (provenance-stamped)
+  "submit_private_contact", // capture explicit private email/telegram details, never profile surface
   "propose_connection",     // "X should talk to Y" → cohort_events connection event
   "file_contest",           // "this card looks off" → public_card_contests
   "request_scan",           // ask to read local sessions / public github (consent-gated tool)
@@ -119,6 +127,8 @@ const ITEM_MAX = 140;
 const REASON_MAX = 400;
 const ID_MAX = 128;
 export const MAX_ACTIONS_PER_TURN = 6;
+const EMAIL_MAX = 200; // context_submissions.contact table CHECK is <= 200
+const TELEGRAM_MAX = 34; // @ + Telegram's 5-32 char username bound
 
 // The contest reason vocab — mirrors supabase-contest.mjs CONTEST_KINDS (kept
 // inline so this security module stays import-free; the durable write re-checks).
@@ -174,6 +184,25 @@ export function normalizeGithubRepo(raw) {
   const repo = parts[1].trim();
   if (!owner || !/^[\w.-]{1,100}$/.test(repo)) return "";
   return `${owner}/${repo}`;
+}
+
+export function normalizeEmail(raw) {
+  let s = String(raw == null ? "" : raw).trim();
+  if (!s) return "";
+  s = s.replace(/^mailto:/i, "").trim();
+  if (!s || s.length > EMAIL_MAX || /[\s<>"'(),;:]/.test(s)) return "";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) return "";
+  return s.toLowerCase();
+}
+
+export function normalizeTelegram(raw) {
+  let s = String(raw == null ? "" : raw).trim();
+  if (!s) return "";
+  s = s.replace(/^https?:\/\/(?:www\.)?(?:t\.me|telegram\.me)\//i, "");
+  s = s.replace(/^@+/, "").split(/[/?#]/)[0].trim();
+  if (!/^[a-z][a-z0-9_]{4,31}$/i.test(s)) return "";
+  const out = `@${s}`;
+  return out.length <= TELEGRAM_MAX ? out : "";
 }
 
 // Whitelist + coerce a proposed profile delta to PROPOSABLE_PROFILE_FIELDS. Drops
@@ -250,6 +279,23 @@ const ACTIONS = {
       subject_type: isTeam ? "team" : "person",
       delta,
       rationale: clampOne(args.rationale || args.reason, REASON_MAX),
+      origin: stampOrigin(subject, ctx),
+    };
+  },
+  submit_private_contact(args, ctx) {
+    const subject = clampId(args.subject_record_id || args.record_id);
+    if (!subjectOk(subject, ctx.knownRecordIds)) return null;
+    if (ctx.knownTeamIds instanceof Set && ctx.knownTeamIds.has(subject)) return null;
+    const email = normalizeEmail(args.email || args.contact || args.value);
+    const telegram = normalizeTelegram(args.telegram || args.telegram_handle || args.telegram_username);
+    if (!email && !telegram) return null;
+    return {
+      action: "submit_private_contact",
+      subject_record_id: subject,
+      email: email || null,
+      telegram: telegram || null,
+      display_name: clampOne(args.display_name || args.name, STRING_MAX) || null,
+      note: clampOne(args.note || args.rationale || args.reason, REASON_MAX),
       origin: stampOrigin(subject, ctx),
     };
   },

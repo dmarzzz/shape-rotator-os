@@ -33,6 +33,59 @@
 
 .selfrep-lede { font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); color: var(--ds-ink-2); margin: 0 0 14px; }
 
+.selfrep-sources {
+  display: flex; flex-direction: column; gap: 4px;
+  margin: -4px 0 12px; font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs); color: var(--ds-ink-4);
+}
+.selfrep-sources span { overflow-wrap: anywhere; }
+
+.selfrep-coverage {
+  display: flex; gap: 8px; align-items: baseline;
+  margin: 0 0 12px; padding: 9px 11px;
+  border: 1px solid var(--ds-border); border-radius: 9px;
+  background: color-mix(in srgb, var(--ds-accent) 7%, var(--ds-surface-3));
+  font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs);
+}
+.selfrep-coverage b { flex: none; color: var(--ds-ink-1); }
+.selfrep-coverage span { color: var(--ds-ink-3); overflow-wrap: anywhere; }
+
+.selfrep-section { margin: 0 0 14px; }
+.selfrep-section h3 {
+  display: flex; align-items: baseline; gap: 8px; margin: 0 0 8px;
+  font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--ds-ink-2);
+}
+.selfrep-section h3 small {
+  font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs);
+  letter-spacing: 0; text-transform: none; color: var(--ds-ink-4);
+}
+
+.selfrep-health {
+  margin: 0 0 14px; padding: 10px 11px;
+  border: 1px solid var(--ds-border); border-radius: 9px;
+  background: var(--ds-surface-3);
+}
+.selfrep-health h3 {
+  margin: 0 0 8px; font-size: var(--ds-text-xs);
+  line-height: var(--ds-lh-xs); color: var(--ds-ink-2);
+}
+.selfrep-health-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 6px; margin-bottom: 8px;
+}
+.selfrep-health-grid span {
+  display: flex; flex-direction: column; gap: 2px;
+  font-size: var(--ds-text-xs); color: var(--ds-ink-3);
+}
+.selfrep-health-grid b,
+.selfrep-health p b { color: var(--ds-ink-1); font-weight: 600; }
+.selfrep-health p {
+  margin: 6px 0 0; font-size: var(--ds-text-xs);
+  line-height: var(--ds-lh-xs); color: var(--ds-ink-3);
+}
+
 .selfrep-consent {
   display: flex; gap: 11px; align-items: flex-start;
   padding: 12px 13px; margin-bottom: 9px;

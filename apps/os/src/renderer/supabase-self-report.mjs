@@ -57,7 +57,7 @@ export async function saveSelfReportUpdate(
 // Append one AGENT proposal to the inbox — the write door behind the cohort chat's
 // propose_profile_update action. Same pending/operator-approved model as
 // saveSelfReportUpdate, with two differences: (1) the delta may carry the extended
-// agent whitelist (the 7 self fields + geo + links{github,repo}) — sanitized here
+// agent whitelist (self-report fields + geo + links{github,repo}) — sanitized here
 // with sanitizeProfileFields and re-asserted by the DB CHECK; and (2) it carries
 // PROVENANCE — proposer_record_id + proposer_claim_hash — so a proposal about
 // ANOTHER member (is_self computed false server-side) is checkable before approval.
