@@ -89,8 +89,10 @@ test("feedItemLabel renders a human line per event type", () => {
     "Ada updated their focus");
   assert.equal(feedItemLabel(ev({ actor: "ada", event_type: "profile_edit", field: "now", value: { fields: ["now", "skills"] } }), nameOf),
     "Ada updated their focus +1 more");
-  assert.equal(feedItemLabel(ev({ actor: "ben", event_type: "self_report" }), nameOf),
-    "Ben refreshed their profile from recent work");
+  assert.equal(feedItemLabel(ev({ actor: "ben", event_type: "self_report", value: { mode: "current_state_refresh" } }), nameOf),
+    "Ben refreshed where they are now from recent work");
+  assert.equal(feedItemLabel(ev({ actor: "ben", event_type: "self_report", value: { mode: "current_state_refresh", team_fields: ["traction"] } }), nameOf),
+    "Ben refreshed where they are now and queued project evidence");
   assert.equal(feedItemLabel(ev({ actor: "ben", event_type: "transcript", value: { title: "Call" } }), nameOf),
     "Ben shared a transcript: “Call”");
   assert.equal(feedItemLabel(ev({ actor: "ada", event_type: "contest" }), nameOf), "Ada contested a claim");

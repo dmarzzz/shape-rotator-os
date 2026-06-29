@@ -130,6 +130,12 @@ export function feedItemLabel(ev, nameOf = (id) => id) {
       return `${who} updated ${humanField(ev.field)}${extra}`;
     }
     case "self_report":
+      if (ev.value && ev.value.mode === "current_state_refresh") {
+        if (Array.isArray(ev.value.team_fields) && ev.value.team_fields.length) {
+          return `${who} refreshed where they are now and queued project evidence`;
+        }
+        return `${who} refreshed where they are now from recent work`;
+      }
       return `${who} refreshed their profile from recent work`;
     case "transcript": {
       const title = ev.value && ev.value.title ? `: “${ev.value.title}”` : "";

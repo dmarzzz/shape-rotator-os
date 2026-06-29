@@ -36,7 +36,7 @@ test("posts a whitelisted, pending delta with anon headers", async () => {
   const fetchImpl = captureFetch();
   const r = await saveSelfReportUpdate(
     "  dmarz  ",
-    { now: "building the receive loop", skills: ["supabase"], team: "HIJACK", status: "approved" },
+    { now: "building the receive loop", working_style: "local-first, review-heavy", skills: ["supabase"], team: "HIJACK", status: "approved" },
     { question: "emphasize what?", sourceKinds: ["sessions", "github"] },
     { config: CONFIG, fetchImpl },
   );
@@ -49,7 +49,7 @@ test("posts a whitelisted, pending delta with anon headers", async () => {
   assert.equal(init.headers.prefer, "return=minimal");
   const body = JSON.parse(init.body);
   assert.equal(body.record_id, "dmarz");                 // trimmed
-  assert.deepEqual(body.delta, { now: "building the receive loop", skills: ["supabase"] }); // team/status stripped
+  assert.deepEqual(body.delta, { now: "building the receive loop", working_style: "local-first, review-heavy", skills: ["supabase"] }); // team/status stripped
   assert.ok(!("status" in body));                        // can't preset status — DB defaults pending
   assert.equal(body.question, "emphasize what?");
   assert.deepEqual(body.source_kinds, ["sessions", "github"]);

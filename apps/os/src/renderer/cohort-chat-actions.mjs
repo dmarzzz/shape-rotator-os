@@ -27,18 +27,25 @@
 // then routes approved actions to the existing gated channels.
 
 // ── field whitelist (the os_profile_updates delta surface) ────────────────────
-// The seven self-declared self-report fields (self-report-synth.mjs
-// SELF_REPORT_FIELDS) PLUS the three identity-location fields the agent keeps
+// The self-declared self-report fields (self-report-synth.mjs SELF_REPORT_FIELDS)
+// PLUS the identity-location fields the agent keeps
 // current — geo + links.github + links.repo. This MUST stay in lockstep with the
-// os_profile_updates delta whitelist CHECK (migration
-// 20260626120000_os_profile_updates_provenance.sql); the DB re-asserts it.
+// os_profile_updates delta whitelist CHECK (latest os_profile_updates migration);
+// the DB re-asserts it.
 export const PROPOSABLE_PROFILE_FIELDS = Object.freeze({
+  comm_style: "string",
+  contribute_interests: "list",
   now: "string",
   weekly_intention: "string",
+  availability_pref: "string",
   skills: "list",
   skill_areas: "list", // controlled vocab — filtered to allowedSkillAreas when provided
   seeking: "list",
   offering: "list",
+  go_to_them_for: "list",
+  recurring_themes: "list",
+  working_style: "string",
+  best_contexts: "list",
   prior_work: "list",
   geo: "string",
   links: "links", // object, scoped to { github, repo }

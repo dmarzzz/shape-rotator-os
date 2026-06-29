@@ -524,7 +524,7 @@ export const ACTION_CONTRACT = [
   '{"actions":[ {"action":"<verb>", ...args} ]}',
   "```",
   "Verbs (use real record_id values from the cohort context above — never invent people):",
-  '- propose_profile_update — a PERSON: {"subject_record_id":<person_id>,"fields":{"now"?,"weekly_intention"?,"skills"?[],"skill_areas"?[],"seeking"?[],"offering"?[],"prior_work"?[],"geo"?,"links"?:{"github"?,"repo"?}},"rationale"}',
+  '- propose_profile_update — a PERSON: {"subject_record_id":<person_id>,"fields":{"comm_style"?,"contribute_interests"?[],"now"?,"weekly_intention"?,"availability_pref"?,"skills"?[],"skill_areas"?[],"seeking"?[],"offering"?[],"go_to_them_for"?[],"recurring_themes"?[],"working_style"?,"best_contexts"?[],"prior_work"?[],"geo"?,"links"?:{"github"?,"repo"?}},"rationale"}',
   '- propose_profile_update — the FOCUSED TEAM/project: {"subject_record_id":<the focused team id>,"fields":{"journey"?:{"stage"?:1-8,"evidence_quality"?:1-5,"market_upside"?:1-5,"primary_bottleneck"?,"company_type"?,"confidence"?:"Low|Medium|High","icp"?,"problem"?,"solution"?,"evidence_notes"?,"next_milestone"?},"traction"?,"prior_shipping"?[],"success_dimensions"?[]},"rationale"}   (journey = the shape-rotation evidence; traction/shipping = team–product-fit. Propose a team update ONLY for the focused project below, only when the evidence is relevant to that project, and only grounded in real work.)',
   '- propose_connection — {"from_record_id","to_record_id","reason"}',
   '- file_contest — {"subject_record_id","contest_kind","note"}  (contest_kind ∈ stale_declaration | off_github_work | wrong_attribution | context_missing)',
