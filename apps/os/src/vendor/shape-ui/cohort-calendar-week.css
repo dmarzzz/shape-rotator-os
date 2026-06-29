@@ -1069,26 +1069,34 @@
   .cal-day-empty .cde-line { font-size: 26px; }
 }
 
-/* ── recurring rituals footer ────────────────────────────────────────── */
-.cal-recur {
-  margin: 36px 0 0;
-  padding: 18px 0 0;
+/* Bottom tray: one adaptive interface instead of stacked footer rows. */
+.cal-bottom-tray {
+  margin: 32px 0 0;
+  padding: 14px 0;
   border-top: 1px solid var(--ed-rule);
+  border-bottom: 1px solid var(--ed-rule);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(210px, max-content);
+  gap: 14px 28px;
+  align-items: start;
+}
+.cal-recur {
+  min-width: 0;
 }
 .cal-recur-h {
   font-family: var(--ed-mono); font-size: 9.5px;
-  letter-spacing: 0.24em; text-transform: lowercase;
-  color: var(--ed-ink-1); opacity: 0.4;
-  margin: 0 0 12px;
+  letter-spacing: 0.2em; text-transform: lowercase;
+  color: var(--ed-ink-1); opacity: 0.46;
+  margin: 0 0 8px;
   font-weight: 400;
 }
 .cal-recur-list {
   list-style: none; padding: 0; margin: 0;
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 4px 24px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 3px 18px;
 }
 .cal-recur-item {
-  font-family: var(--ed-mono); font-size: 11px; line-height: 1.6;
+  font-family: var(--ed-mono); font-size: 10.5px; line-height: 1.55;
   color: var(--ed-ink-2);
   display: flex; gap: 8px; align-items: baseline;
 }
@@ -1097,16 +1105,22 @@
   font-variant-numeric: tabular-nums;
 }
 .cal-recur-empty {
-  font-family: var(--ed-mono); font-size: 11px;
+  margin: 0;
+  font-family: var(--ed-mono); font-size: 10.5px;
   color: var(--ed-ink-3); font-style: italic;
 }
 
 .cal-page-foot {
-  margin-top: 28px;
+  margin: 0;
   font-family: var(--ed-mono); font-size: 10px;
-  letter-spacing: 0.18em; text-transform: lowercase;
-  color: var(--ed-ink-1); opacity: 0.4;
-  display: flex; gap: 12px; flex-wrap: wrap;
+  letter-spacing: 0.14em; text-transform: lowercase;
+  color: var(--ed-ink-1); opacity: 0.48;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 7px;
+  text-align: right;
+  white-space: nowrap;
 }
 .cal-page-foot a {
   color: inherit; border-bottom: 1px solid var(--ed-rule-2);
@@ -1171,6 +1185,15 @@
    * scrubber claims its own row between tabs (left) and nav (right). */
   .cal-scrub { order: 3; flex-basis: 100%; justify-content: flex-start; }
   .cal-day { min-height: 180px; }
+  .cal-bottom-tray { grid-template-columns: 1fr; }
+  .cal-page-foot {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+    white-space: normal;
+  }
 }
 @media (max-width: 760px) {
   :root { --cal-page-px: 18px; }
@@ -1286,8 +1309,8 @@
   .cal-event-extra,
   .cal-event .cal-bullets { margin-left: 0; }
 
-  /* Recurring + footer compress to one column. */
-  .cal-recur { margin-top: 24px; }
+  /* Bottom tray compresses without becoming separate rows. */
+  .cal-bottom-tray { margin-top: 24px; gap: 11px; padding: 12px 0; }
   .cal-recur-list { grid-template-columns: 1fr; }
   .cal-page-foot { font-size: 9.5px; gap: 8px; }
 
