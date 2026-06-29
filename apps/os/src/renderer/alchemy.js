@@ -70,17 +70,18 @@ import { getTheme, toggleTheme } from "./theme.js";
 import { getIdentity, setIdentity, hasSkippedIdentityOnboarding, mountResealInline } from "./identity.js";
 import {
   askAgeLabel, askCapacityLabel, askContact, askDisplayVerb, askExpiresLabel,
-  askHasJoined, askIntent, askIntentLabel, askIntentSection, askIsCurrent,
+  askHasJoined, askIntent, askIntentLabel, askIsCurrent,
   askIsOpen, askJoinedBy, askLocation, askPrimaryActionLabel, askStatus,
   askTimeLabel, askTopic,
   asksWithStatus,
   isAskMine, normalizeAskIdentity, resolveAskAuthor, resolveAskIdentityPerson,
 } from "./asks.js";
 import { submitContest } from "./supabase-contest.mjs";
-import { emitProfileEdit, emitContest, emitTranscript } from "./cohort-emit.mjs";
+import { emitProfileEdit, emitContest, emitTranscript, emitAskPost, emitAskClaim, emitAskJoin, emitAskDone } from "./cohort-emit.mjs";
+import { reduceAsks } from "./asks-events.mjs";
 import { getAppContext } from "./app-context.mjs";
 import { getPrefs, setPrefs } from "./cohort-prefs.mjs";
-import { buildViewer, buildAuthorMeta, buildFeedView, feedItemLabel, getLastSeen, markSeen } from "./activity-feed.mjs";
+import { buildViewer, buildAuthorMeta, buildBlendedFeed, feedItemLabel, getLastSeen, markSeen } from "./activity-feed.mjs";
 import { mirrorViewModel, subjectEyebrow, isSelfSubject } from "./mirror-view.mjs";
 import { openSelfReport } from "./self-report.js";
 import { createLazyModule } from "./lazy-module.js";
@@ -1514,44 +1515,58 @@ function activityRelTime(iso) {
   return `${Math.floor(s / 86400)}d`;
 }
 
+// The asks & activity page: ONE blended, ranked feed. Asks (rich, actionable cards)
+// and cohort updates (event rows) are merged and ordered together (activity-feed
+// buildBlendedFeed); the for-you/everyone toggle ranks the WHOLE feed. Closed/expired
+// asks fold into a bottom disclosure; the viewer's own events peel into "your activity".
 function renderActivityMode() {
   const canvas = state.canvas;
   if (!canvas) return;
   const cohort = state.cohort || {};
   const events = Array.isArray(cohort.cohort_events) ? cohort.cohort_events : [];
+  const asks = asksWithStatus(Array.isArray(cohort.asks) ? cohort.asks : []);
   const identity = getIdentity();
   const prefs = getPrefs();
   const authorMeta = buildAuthorMeta(cohort);
   const viewer = buildViewer(cohort, identity);
+  const ctx = currentAskContext();
   let view;
   try {
-    view = buildFeedView(events, viewer, prefs, { now: Date.now(), lastSeen: getLastSeen(), authorMeta });
+    view = buildBlendedFeed({ events, asks, viewer, prefs, opts: { now: Date.now(), lastSeen: getLastSeen(), authorMeta } });
   } catch {
-    view = { items: [], mine: [], quietCount: 0, newCount: 0, mode: prefs.feed_mode || "for_you" };
+    view = { items: [], mine: [], quietCount: 0, closed: [], newCount: 0, mode: prefs.feed_mode || "for_you" };
   }
   const nameOf = (id) => (authorMeta[id] && authorMeta[id].name) || id;
-  const itemRow = (ev) => `
+  const eventRow = (ev) => `
     <li class="alch-activity-item${ev._isNew ? " is-new" : ""}" data-kind="${escAttr(ev.event_type)}" data-weight="${escAttr(ev.weight)}">
       <span class="alch-activity-dot" aria-hidden="true"></span>
       <span class="alch-activity-label">${escHtml(feedItemLabel(ev, nameOf))}</span>
       <time class="alch-activity-time">${escHtml(activityRelTime(ev.created_at))}</time>
     </li>`;
-  const empty = events.length === 0;
+  const feedItem = (it) => it && it._feedKind === "ask"
+    ? `<li class="alch-activity-ask${it._isNew ? " is-new" : ""}">${renderAskCard(it._ask, ctx)}</li>`
+    : eventRow(it);
   const newBadge = view.newCount ? ` · <strong>${view.newCount} new</strong>` : "";
-  const activityCount = view.items.length + view.quietCount;
-  const activitySummary = empty
-    ? "waiting"
-    : `${activityCount} ${activityCount === 1 ? "update" : "updates"}${view.newCount ? ` - ${view.newCount} new` : ""}`;
-  const activityBody = empty
-    ? `<div class="alch-activity-empty">No activity yet. Edit your profile, share a transcript, or contest a claim; it shows up here for the whole cohort.</div>`
-    : `<ul class="alch-activity-list">
-        ${view.items.map(itemRow).join("")}
+  const feedBody = view.items.length
+    ? `<ul class="alch-activity-list">
+        ${view.items.map(feedItem).join("")}
         ${view.quietCount ? `<li class="alch-activity-quiet">+ ${view.quietCount} quiet profile ${view.quietCount === 1 ? "tidy" : "tidies"}</li>` : ""}
-      </ul>`;
+      </ul>`
+    : `<div class="alch-activity-empty">Nothing here yet. Post an ask, edit your profile, or share a transcript — it shows up here for the whole cohort.</div>`;
+  const closedBody = view.closed.length
+    ? `<details class="alch-asks-section alch-activity-closed">
+        <summary class="alch-asks-section-head">
+          <span class="alch-asks-section-caret" aria-hidden="true"></span>
+          <h3 class="alch-asks-section-title">closed</h3>
+          <span class="alch-asks-section-count">${view.closed.length}</span>
+        </summary>
+        <div class="alch-asks-list">${view.closed.map((a) => renderAskCard(a, ctx)).join("")}</div>
+      </details>`
+    : "";
   const mineBody = view.mine.length
     ? `<div class="alch-activity-yours">
         <h3 class="alch-activity-yours-title">your activity</h3>
-        <ul class="alch-activity-list">${view.mine.map(itemRow).join("")}</ul>
+        <ul class="alch-activity-list">${view.mine.map(eventRow).join("")}</ul>
       </div>`
     : "";
   canvas.innerHTML = `
@@ -1559,26 +1574,19 @@ function renderActivityMode() {
       <header class="alch-activity-head">
         <div>
           <h2 class="alch-activity-title">asks &amp; activity</h2>
-          <p class="alch-activity-sub">open asks and cohort contributions${newBadge}</p>
+          <p class="alch-activity-sub">open asks and cohort updates${newBadge}</p>
         </div>
         <div class="alch-activity-modes" role="group" aria-label="feed mode">
           <button type="button" class="alch-activity-mode${view.mode === "for_you" ? " is-on" : ""}" data-activity-mode="for_you">for you</button>
           <button type="button" class="alch-activity-mode${view.mode === "global" ? " is-on" : ""}" data-activity-mode="global">everyone</button>
         </div>
       </header>
-      <div class="alch-asks-activity-board">
-        ${renderAsksHtml()}
+      ${renderAskComposer()}
+      <div class="alch-activity-feed">
+        ${feedBody}
       </div>
-      <details class="alch-activity-stream"${view.newCount ? " open" : ""}>
-        <summary class="alch-activity-stream-head">
-          <span class="alch-activity-stream-title">cohort updates</span>
-          <span class="alch-activity-stream-count">${escHtml(activitySummary)}</span>
-        </summary>
-        <div class="alch-activity-stream-body">
-          ${activityBody}
-          ${mineBody}
-        </div>
-      </details>
+      ${closedBody}
+      ${mineBody}
     </section>`;
   markSeen(Date.now());
 }
@@ -14035,24 +14043,15 @@ function wireCollab() {
   });
 }
 
-function renderAsks() {
-  if (!state.canvas) return;
-  state.canvas.innerHTML = renderAsksHtml();
-}
-
-function renderAsksHtml() {
-  const asks = asksWithStatus(state.cohort?.asks);
-  const { people, askIdentity, myHandle, authorSlug } = currentAskContext();
-
-  const open = asks.filter(askIsOpen);
-  const openByIntent = {
-    come_join: open.filter((a) => askIntent(a) === "come_join"),
-    ask: open.filter((a) => askIntent(a) === "ask"),
-  };
-  const closed = asks.filter(a => !askIsOpen(a));
-
-  const renderAsk = (a) => {
-    const author = resolveAskAuthor(a, people);
+// One ask card (a <details> row) rendered inside the blended activity feed (and the
+// closed disclosure). ctx carries the resolved cohort context — people, the viewer's
+// ask identity, their author slug — so the card can name the author, decide ownership,
+// and gate claim / join / done. Module-level (was an inner closure of renderAsksHtml)
+// so the feed renders identical cards wherever an ask appears.
+function renderAskCard(a, ctx = {}) {
+  if (!a) return "";
+  const { people = [], askIdentity = {}, authorSlug = "your-slug" } = ctx;
+  const author = resolveAskAuthor(a, people);
     const authorLabel = author ? (author.name || author.record_id) : (a.author || a.owner || "unknown");
     const dm = dmLinkForPerson(author);
     const intent = askIntent(a);
@@ -14137,30 +14136,14 @@ function renderAsksHtml() {
         </div>
       </details>
     `;
-  };
+}
 
-  const section = (title, list, emptyText, opts = {}) => {
-    if (!list.length && opts.hideEmpty) return "";
-    const openAttr = opts.open === false ? "" : " open";
-    return `
-    <details class="alch-asks-section"${openAttr}>
-      <summary class="alch-asks-section-head">
-        <span class="alch-asks-section-caret" aria-hidden="true"></span>
-        <h3 class="alch-asks-section-title">${escHtml(title)}</h3>
-        <span class="alch-asks-section-count">${list.length}</span>
-      </summary>
-      ${list.length
-        ? `<div class="alch-asks-list">${list.map(renderAsk).join("")}</div>`
-        : `<p class="alch-asks-empty">${escHtml(emptyText)}</p>`}
-    </details>
-  `;
-  };
-
-  // Author slug: prefer the cohort-resolved person record_id (so the
-  // ask's `author` field actually points at a record), fall back to
-  // their github handle, then a literal "your-slug" the user edits in
-  // the github web editor. (Old code injected a stale branch name here;
-  // both /new/ and /edit/ now target `main`.)
+// The "New ask" composer (collapsible). Reads/writes state.askComposer.draft so an
+// in-progress ask survives a re-render. Submitted by wireAsks → submitAskCompose,
+// which posts the ask to the cohort_events spine (PR fallback on failure). authorSlug
+// = the cohort-resolved person record_id (else "your-slug" until the member claims).
+function renderAskComposer() {
+  const { authorSlug } = currentAskContext();
   const todayIso = new Date().toISOString().slice(0, 10);
 
   // Common verbs the compose form offers as quick picks. Stays in code
@@ -14209,18 +14192,12 @@ function renderAsksHtml() {
   if (state.openAskComposer === true) composer.open = true;
   const openComposer = composer.open === true;
   state.openAskComposer = false;
-  const sectionsHtml = [
-    section(askIntentSection({ intent: "come_join" }), openByIntent.come_join, "no plans open to join.", { hideEmpty: true }),
-    section(askIntentSection({ intent: "ask" }), openByIntent.ask, "no open asks.", { hideEmpty: true }),
-    section("closed", closed, "nothing closed yet.", { hideEmpty: true, open: false }),
-  ].filter(Boolean).join("");
-  const asksBodyHtml = sectionsHtml || `<p class="alch-asks-board-empty">No open asks or plans yet.</p>`;
 
   return `
     <form class="alch-asks-compose" data-author-slug="${escAttr(authorSlug)}" data-today="${escAttr(todayIso)}" data-autofocus="${openComposer ? "1" : "0"}">
       <details class="alch-asks-compose-shell" data-asks-compose-details${openComposer ? " open" : ""}>
         <summary class="alch-asks-compose-head">
-          <span class="alch-asks-compose-title">New post</span>
+          <span class="alch-asks-compose-title">New ask</span>
           <span class="alch-asks-compose-caret" aria-hidden="true"></span>
         </summary>
         <input type="hidden" name="intent" value="${escAttr(initialIntent)}" />
@@ -14283,8 +14260,6 @@ function renderAsksHtml() {
         </div>
       </details>
     </form>
-
-    ${asksBodyHtml}
   `;
 }
 
@@ -14366,23 +14341,12 @@ function askRowNote(el, html, kind = "info") {
   note.innerHTML = html;
 }
 
-async function launchAskStatusUpdate(el, recordId, nextStatus) {
-  const ask = findRenderedAsk(recordId);
-  if (!ask) {
-    askRowNote(el, `<span class="alch-onb-inline-tag">missing</span> ask record not found.`, "error");
-    return;
-  }
-  const { authorSlug } = currentAskContext();
-  if (authorSlug === "your-slug") {
-    askRowNote(el, `<span class="alch-onb-inline-tag">profile</span> claim your profile before changing ask status.`, "error");
-    return;
-  }
-  const path = askMarkdownPath(recordId);
-  askRowNote(el, `<span class="alch-onb-inline-tag">preparing</span> building status update...`);
+// Fallback for an ask mutation that couldn't reach the spine: rebuild the markdown
+// with the overrides and open the GitHub edit flow (the original path). Keeps asks
+// mutable offline / before the migration is applied.
+async function launchAskEditPRFallback(el, ask, overrides, label) {
+  const path = askMarkdownPath(ask.record_id);
   const body = await fetchExistingBody(path);
-  const overrides = { status: nextStatus };
-  if (nextStatus === "claimed") overrides.claimed_by = authorSlug;
-  if (nextStatus === "done") overrides.claimed_by = ask.claimed_by || authorSlug;
   const markdown = buildAskMarkdown(ask, overrides, body);
   let copied = false;
   try {
@@ -14397,10 +14361,10 @@ async function launchAskStatusUpdate(el, recordId, nextStatus) {
     return;
   }
   askRowNote(el, `
-    <span class="alch-onb-inline-tag">github opened</span>
+    <span class="alch-onb-inline-tag">offline — filed via github</span>
     ${copied
-      ? `replacement markdown copied — paste it over the file in github, then commit the ${escHtml(nextStatus)} update and create the PR.`
-      : `copy the replacement markdown below, paste it over the file in github, then commit the ${escHtml(nextStatus)} update and create the PR.`}
+      ? `couldn't reach the cohort — replacement markdown copied. paste it over the file in github, then commit the ${escHtml(label)} update and create the PR.`
+      : `couldn't reach the cohort — copy the replacement markdown below, paste it over the file in github, then commit the ${escHtml(label)} update and create the PR.`}
     <a class="alch-onb-inline-link" href="${escAttr(launched.url)}" data-external>reopen</a>
     <details class="alch-asks-compose-preview">
       <summary>replacement markdown</summary>
@@ -14409,6 +14373,31 @@ async function launchAskStatusUpdate(el, recordId, nextStatus) {
   `, "success");
   const note = el?.closest?.(".alch-asks-card")?.querySelector?.("[data-asks-row-note]");
   if (note) wireExternalLinks(note);
+}
+
+async function launchAskStatusUpdate(el, recordId, nextStatus) {
+  const ask = findRenderedAsk(recordId);
+  if (!ask) {
+    askRowNote(el, `<span class="alch-onb-inline-tag">missing</span> ask record not found.`, "error");
+    return;
+  }
+  const { authorSlug } = currentAskContext();
+  if (authorSlug === "your-slug") {
+    askRowNote(el, `<span class="alch-onb-inline-tag">profile</span> claim your profile before changing ask status.`, "error");
+    return;
+  }
+  askRowNote(el, `<span class="alch-onb-inline-tag">updating</span> sending the ${escHtml(nextStatus)} update...`);
+  // Primary path: append a claim/done event to the spine; the reducer flips status.
+  const res = nextStatus === "done" ? await emitAskDone(recordId) : await emitAskClaim(recordId);
+  if (res.ok) {
+    applyOptimisticAskEvent(res.event);
+    rerenderAsksActivity(recordId);
+    return;
+  }
+  const overrides = { status: nextStatus };
+  if (nextStatus === "claimed") overrides.claimed_by = authorSlug;
+  if (nextStatus === "done") overrides.claimed_by = ask.claimed_by || authorSlug;
+  await launchAskEditPRFallback(el, ask, overrides, nextStatus);
 }
 
 async function launchAskJoinUpdate(el, recordId) {
@@ -14422,40 +14411,20 @@ async function launchAskJoinUpdate(el, recordId) {
     askRowNote(el, `<span class="alch-onb-inline-tag">profile</span> claim your profile before joining.`, "error");
     return;
   }
+  askRowNote(el, `<span class="alch-onb-inline-tag">joining</span> adding you to this plan...`);
+  // Primary path: append a join event; the reducer unions you into joined_by.
+  const res = await emitAskJoin(recordId);
+  if (res.ok) {
+    applyOptimisticAskEvent(res.event);
+    rerenderAsksActivity(recordId);
+    return;
+  }
   const current = askJoinedBy(ask);
   const mine = normalizeAskIdentity(authorSlug);
   const joined = current.some((value) => normalizeAskIdentity(value) === mine)
     ? current
     : [...current, authorSlug];
-  const path = askMarkdownPath(recordId);
-  askRowNote(el, `<span class="alch-onb-inline-tag">preparing</span> adding you to this plan...`);
-  const body = await fetchExistingBody(path);
-  const markdown = buildAskMarkdown(ask, { joined_by: joined, status: askStatus(ask) }, body);
-  let copied = false;
-  try {
-    if (window.api?.clipboardWrite) {
-      const res = await window.api.clipboardWrite(markdown);
-      copied = !res || res.ok !== false;
-    }
-  } catch {}
-  const launched = await launchPRFlow({ kind: "edit", path, value: markdown });
-  if (!launched.ok) {
-    askRowNote(el, `<span class="alch-onb-inline-tag">fork first</span> create your fork, then click join again.`, "error");
-    return;
-  }
-  askRowNote(el, `
-    <span class="alch-onb-inline-tag">github opened</span>
-    ${copied
-      ? `replacement markdown copied — paste it over the file in github, then commit the join update and create the PR.`
-      : `copy the replacement markdown below, paste it over the file in github, then commit the join update and create the PR.`}
-    <a class="alch-onb-inline-link" href="${escAttr(launched.url)}" data-external>reopen</a>
-    <details class="alch-asks-compose-preview">
-      <summary>replacement markdown</summary>
-      <pre class="alch-onb-inline-patch">${escHtml(markdown)}</pre>
-    </details>
-  `, "success");
-  const note = el?.closest?.(".alch-asks-card")?.querySelector?.("[data-asks-row-note]");
-  if (note) wireExternalLinks(note);
+  await launchAskEditPRFallback(el, ask, { joined_by: joined, status: askStatus(ask) }, "join");
 }
 
 async function loadAskContextForCard(card, recordId) {
@@ -14468,7 +14437,11 @@ async function loadAskContextForCard(card, recordId) {
   panel.hidden = false;
   panel.dataset.loaded = "0";
   panel.innerHTML = `<span class="alch-onb-inline-tag">loading</span> reading context...`;
-  const body = cleanAskBody(await fetchExistingBody(askMarkdownPath(recordId)));
+  // Supabase asks carry their body inline (from the post event); legacy markdown
+  // asks read it from the committed file.
+  const ask = findRenderedAsk(recordId);
+  let body = cleanAskBody(ask?.body || "");
+  if (!body) body = cleanAskBody(await fetchExistingBody(askMarkdownPath(recordId)));
   panel.dataset.loaded = "1";
   panel.innerHTML = body
     ? `<pre>${escHtml(body)}</pre>`
@@ -14476,10 +14449,34 @@ async function loadAskContextForCard(card, recordId) {
   return panel;
 }
 
-// Compose-form submit. Reads verb/topic/skill_areas, derives a stable
-// slug for the file (author + date + 4-char topic hash to dedupe same-day
-// asks from the same author), builds the full ask markdown, and opens
-// github's /new/ URL with that content prefilled.
+// Fold one freshly-emitted ask event into the in-memory board so the change shows
+// instantly (the durable record reads back from app_cohort_feed on the next refresh
+// tick, where reduceAsks reproduces the same state). reduceAsks([event], current)
+// creates the ask for a `post` and mutates it for claim/join/done.
+function applyOptimisticAskEvent(event) {
+  if (!event || !state.cohort) return;
+  const base = Array.isArray(state.cohort.asks) ? state.cohort.asks : [];
+  state.cohort.asks = reduceAsks([event], base);
+}
+
+// Re-render the asks & activity page after an optimistic change, re-opening the
+// affected card so the member keeps their place (the render rebuilds the DOM).
+function rerenderAsksActivity(openRecordId = null) {
+  if (state.mode !== "activity" && state.mode !== "asks") return;
+  renderActivityMode();
+  wireAsks();
+  wireActivityMode();
+  if (openRecordId) {
+    const card = state.canvas?.querySelector(`[data-asks-record="${cssAttr(openRecordId)}"]`);
+    if (card) { try { card.open = true; } catch {} }
+  }
+}
+
+// Compose-form submit. Posts the ask to the cohort_events spine (instant, anon
+// write) and updates the board optimistically. Derives a stable record_id (author +
+// date + 4-char topic hash) so a re-submit edits rather than duplicates. If the
+// Supabase write can't land (offline / unconfigured / migration not yet applied) it
+// falls back to the original GitHub-PR markdown path so asks always work.
 async function submitAskCompose(form) {
   const authorSlug = form.dataset.authorSlug || "your-slug";
   const todayIso   = form.dataset.today || new Date().toISOString().slice(0, 10);
@@ -14511,15 +14508,15 @@ async function submitAskCompose(form) {
     ? tagsRaw.split(",").map(s => s.trim().toLowerCase()).filter(Boolean)
     : [];
 
-  // 4-char hash of the topic so two asks the same day from the same author
-  // don't collide on filename. Deterministic so re-submits land on the
-  // same path (lets the user edit instead of duplicating if they reopen).
+  // 4-char hash of the topic so two asks the same day from the same author don't
+  // collide on record_id. Deterministic so re-submits land on the same id (edit,
+  // not duplicate).
   let h = 2166136261 >>> 0;
   for (let i = 0; i < topic.length; i++) { h ^= topic.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
   const hash = h.toString(36).slice(0, 4);
   const recordId = `${authorSlug}-${todayIso}-${hash}`;
 
-  const askMarkdown = buildAskMarkdown({
+  const ask = {
     record_id: recordId,
     record_type: "ask",
     schema_version: 1,
@@ -14535,16 +14532,28 @@ async function submitAskCompose(form) {
     contact,
     capacity,
     status: "open",
+    body: bodyRaw,
     joined_by: intent === "come_join" ? [authorSlug] : [],
-  }, {}, bodyRaw || null);
-  const filename = `cohort-data/asks/${recordId}.md`;
+  };
 
-  // Fork-aware launch. needs-fork pops a modal; ready opens the URL on
-  // the user's fork (with the prefilled markdown) and we render the
-  // preview panel below for confidence.
+  result.hidden = false;
+  result.innerHTML = `<p class="alch-onb-inline-line"><span class="alch-onb-inline-tag">posting</span> sending your ask to the cohort...</p>`;
+
+  // Primary path: append the ask to the spine. Instant, no PR.
+  const res = await emitAskPost(ask);
+  if (res.ok) {
+    applyOptimisticAskEvent(res.event);
+    state.askComposer = { open: false, detailsOpen: false, draft: {} };
+    rerenderAsksActivity(recordId); // re-renders the page; `result` is replaced
+    return;
+  }
+
+  // Fallback: Supabase didn't take the write — keep the original GitHub-PR path so
+  // asks still work offline / before the migration is applied.
+  const askMarkdown = buildAskMarkdown({ ...ask }, {}, bodyRaw || null);
+  const filename = `cohort-data/asks/${recordId}.md`;
   const launched = await launchPRFlow({ kind: "new", path: filename, value: askMarkdown });
   if (!launched.ok) {
-    result.hidden = false;
     result.innerHTML = `
       <p class="alch-onb-inline-line">
         <span class="alch-onb-inline-tag">fork first</span>
@@ -14553,19 +14562,17 @@ async function submitAskCompose(form) {
     `;
     return;
   }
-  const newUrl = launched.url;
-  result.hidden = false;
   result.innerHTML = `
     <p class="alch-onb-inline-line">
-      <span class="alch-onb-inline-tag">github opened</span>
-      review the prefilled markdown, then <strong>commit new file</strong> → github walks you into a PR.
+      <span class="alch-onb-inline-tag">offline — filed via github</span>
+      couldn't reach the cohort, so this opened a PR instead. review the prefilled markdown, then <strong>commit new file</strong>.
     </p>
     <details class="alch-asks-compose-preview">
       <summary>preview the file</summary>
       <pre class="alch-onb-inline-patch">${escHtml(askMarkdown)}</pre>
     </details>
     <div class="alch-onb-inline-row">
-      <a class="alch-onb-inline-link" href="${escAttr(newUrl)}" data-external>reopen editor</a>
+      <a class="alch-onb-inline-link" href="${escAttr(launched.url)}" data-external>reopen editor</a>
     </div>
   `;
   wireExternalLinks(result);

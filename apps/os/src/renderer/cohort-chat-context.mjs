@@ -268,6 +268,174 @@ function evidenceCardLine(c) {
   return bits.join(" | ");
 }
 
+const PIVOT_CUE_RE = /\b(pivot|pivoted|reposition(?:ed|ing)?|reframe(?:d|s|ing)?|shift(?:ed|ing)?|switch(?:ed|ing)?|changed|narrow(?:ed|ing)?|broaden(?:ed|ing)?|wedge|contested|moved from|from\s+.{3,80}\s+to\s+.{3,80}|testing|experiment(?:ing)?|invalidated?)\b/i;
+const STRONG_OBSERVED_TYPES = new Set(["github progress", "transcript", "ask", "evidence"]);
+
+function timelineDate(item) {
+  return String(item?.date || item?.week_start || "").slice(0, 10);
+}
+
+function isoWeekStart(dateText) {
+  const s = String(dateText || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return "";
+  const d = new Date(`${s}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return "";
+  const day = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() - day + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function timelineFor(map, id) {
+  const value = object(map)[id];
+  return Array.isArray(value) ? value : [];
+}
+
+function timelineItemText(item, max = 160) {
+  const type = String(item?.type || "item").trim();
+  const title = shortText(item?.title || "", 72);
+  const detail = shortText(item?.detail || item?.summary || "", max);
+  return shortText([type && `${type}: ${title || "activity"}`, detail].filter(Boolean).join(" - "), max);
+}
+
+function isObservedTimelineItem(item) {
+  const type = String(item?.type || "").toLowerCase();
+  if (!timelineDate(item)) return false;
+  if (type === "profile" || type === "team" || type === "availability" || type === "onboarding") return false;
+  return true;
+}
+
+function uniqueBits(values, limit = 4) {
+  const seen = new Set();
+  const out = [];
+  for (const value of values) {
+    const bit = shortText(value, 180);
+    const key = bit.toLowerCase();
+    if (!bit || seen.has(key)) continue;
+    seen.add(key);
+    out.push(bit);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+function recordDeclarationBits(record, kind) {
+  const r = object(record);
+  if (kind === "team") {
+    const j = object(r.journey);
+    return uniqueBits([
+      r.now && `now: ${r.now}`,
+      ...list(r.weekly_goals).map((goal) => `weekly goal: ${goal}`),
+      j.primary_bottleneck && `bottleneck: ${j.primary_bottleneck}`,
+      j.next_milestone && `next: ${j.next_milestone}`,
+      r.traction && `traction: ${r.traction}`,
+    ], 5);
+  }
+  return uniqueBits([
+    r.now && `now: ${r.now}`,
+    r.weekly_intention && `weekly intention: ${r.weekly_intention}`,
+    ...list(r.seeking).slice(0, 2).map((value) => `seeking: ${value}`),
+    ...list(r.offering).slice(0, 2).map((value) => `offering: ${value}`),
+  ], 5);
+}
+
+function timelineDeclarationBits(timeline) {
+  return uniqueBits(timeline
+    .filter((item) => {
+      const type = String(item?.type || "").toLowerCase();
+      const title = String(item?.title || "").toLowerCase();
+      const source = String(item?.source || "").toLowerCase();
+      if (type === "profile") return true;
+      if (type === "team" && /current work|weekly|seeking|offering/.test(title)) return true;
+      return source.includes("record") && /current work|weekly|goal|milestone|seeking|offering|traction|shipping/.test(title);
+    })
+    .map((item) => `${item.title || item.type}: ${item.detail || ""}`), 5);
+}
+
+function weeklyObservedRows(timeline, limitWeeks = 3) {
+  const byWeek = new Map();
+  for (const item of timeline.filter(isObservedTimelineItem)) {
+    const week = isoWeekStart(timelineDate(item));
+    if (!week) continue;
+    if (!byWeek.has(week)) byWeek.set(week, []);
+    byWeek.get(week).push(item);
+  }
+  return [...byWeek.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .slice(0, limitWeeks)
+    .map(([week, entries]) => {
+      const summaries = entries
+        .sort((a, b) => timelineDate(b).localeCompare(timelineDate(a)))
+        .slice(0, 2)
+        .map((item) => timelineItemText(item, 145));
+      return `${week}: ${summaries.join(" / ")}`;
+    });
+}
+
+function pivotCues(declarations, timeline) {
+  return uniqueBits([
+    ...declarations,
+    ...timeline.map((item) => timelineItemText(item, 170)),
+  ].filter((text) => PIVOT_CUE_RE.test(String(text || ""))), 2);
+}
+
+function trajectoryGaps(record, kind, declarations, observedRows, timeline) {
+  const gaps = [];
+  const declarationText = declarations.join(" ").toLowerCase();
+  if (kind === "team" && !list(record?.weekly_goals).length && !/\bweekly goals?\b/.test(declarationText)) gaps.push("weekly_goals missing");
+  if (kind === "person" && !shortText(record?.weekly_intention || "") && !/\bweekly intention\b/.test(declarationText)) gaps.push("weekly_intention missing");
+  if (declarations.length && !observedRows.length) gaps.push("no dated follow-up activity in bundled timeline");
+  if (!declarations.length && observedRows.length) gaps.push("activity exists without a clear current declaration");
+  const strongObserved = timeline.some((item) => isObservedTimelineItem(item) && STRONG_OBSERVED_TYPES.has(String(item?.type || "").toLowerCase()));
+  if (observedRows.length && !strongObserved) gaps.push("only weak event/calendar mentions; no transcript/GitHub/ask evidence");
+  return gaps.slice(0, 3);
+}
+
+function trajectoryRecordLine(record, timeline, kind) {
+  const id = String(record?.record_id || "");
+  const name = record?.name || id;
+  const declarations = uniqueBits([
+    ...recordDeclarationBits(record, kind),
+    ...timelineDeclarationBits(timeline),
+  ], 5);
+  const observedRows = weeklyObservedRows(timeline);
+  const cues = pivotCues(declarations, timeline);
+  const gaps = trajectoryGaps(record, kind, declarations, observedRows, timeline);
+  const bits = [
+    `declared: ${declarations.join("; ") || "none loaded"}`,
+    `observed by week: ${observedRows.join(" | ") || "none dated"}`,
+    cues.length ? `pivot cues: ${cues.join(" / ")}` : "",
+    gaps.length ? `gaps: ${gaps.join("; ")}` : "",
+  ].filter(Boolean);
+  return `- ${name} (${kind}${id ? `, id:${id}` : ""}): ${bits.join(" | ")}`;
+}
+
+function weeklyTrajectoryBlock(s, { topTeamIds = new Set(), topPeopleIds = new Set(), focusId = "" } = {}) {
+  const teamTimeline = object(s.team_timeline);
+  const personTimeline = object(s.person_timeline);
+  if (!Object.keys(teamTimeline).length && !Object.keys(personTimeline).length) return "";
+
+  const teams = Array.isArray(s.teams) ? s.teams : [];
+  const people = Array.isArray(s.people) ? s.people : [];
+  const teamById = new Map(teams.map((team) => [String(team.record_id || ""), team]));
+  const personById = new Map(people.map((person) => [String(person.record_id || ""), person]));
+  const teamIds = uniqueBits([focusId, ...topTeamIds].filter(Boolean).map(String), 6);
+  const personIds = uniqueBits([...topPeopleIds].filter(Boolean).map(String), 5);
+
+  const lines = [
+    "\n## Weekly say/did trajectory",
+    'Use as a gap/pivot checklist: "declared" comes from current profile/team records; "observed" comes from dated timeline activity already in the cohort surface. Never infer a pivot from silence; name missing follow-up as a gap.',
+  ];
+  for (const id of teamIds) {
+    const team = teamById.get(id);
+    if (team) lines.push(trajectoryRecordLine(team, timelineFor(teamTimeline, id), "team"));
+  }
+  for (const id of personIds) {
+    const person = personById.get(id);
+    if (person) lines.push(trajectoryRecordLine(person, timelineFor(personTimeline, id), "person"));
+  }
+  return lines.length > 2 ? lines.join("\n") : "";
+}
+
 function projectProgressLine(row) {
   const coverage = object(row.coverage);
   const name = row.project_name || row.project_id;
@@ -369,6 +537,7 @@ export function buildCohortContext(surface, { question = "", maxChars = 22000, f
   const teams = Array.isArray(s.teams) ? s.teams : [];
   const people = Array.isArray(s.people) ? s.people : [];
   const qset = qTokens(question);
+  const wantsPeopleTrajectory = /\b(people|person|persons|member|members|founder|founders|intention|intentions)\b/i.test(String(question || ""));
   const focusId = focus && focus.teamId ? String(focus.teamId) : "";
   const focusedTeam = focusId ? teams.find((t) => String(t.record_id) === focusId) : null;
 
@@ -389,6 +558,7 @@ export function buildCohortContext(surface, { question = "", maxChars = 22000, f
   const topPeopleSeed = [
     ...rankedPeople.filter((x) => x.score > 0).map((x) => x.p),
     ...focusPeople,
+    ...(wantsPeopleTrajectory ? rankedPeople.slice(0, fullPeople).map((x) => x.p) : []),
   ];
   const seenPeople = new Set();
   const topPeople = [];
@@ -417,6 +587,9 @@ export function buildCohortContext(surface, { question = "", maxChars = 22000, f
     parts.push("\n## Most relevant people");
     parts.push(topPeople.map(personDetailLine).join("\n"));
   }
+
+  const trajectory = weeklyTrajectoryBlock(s, { focusId, topTeamIds, topPeopleIds });
+  if (trajectory) parts.push(trajectory);
 
   // Recent distilled session insights ("what's happening" substrate).
   const cards = Array.isArray(s.transcript_evidence_cards) ? s.transcript_evidence_cards : [];
@@ -466,7 +639,7 @@ export function classifyChatIntent(question = "") {
     && /\b(my|me|i|profile|github|work|project|team|cohort|week|shape|os)\b/.test(q)) {
     return "refresh_update";
   }
-  if (/\b(what'?s happening|what is happening|progress|status|what did|ship|shipped|shipping|new|recent)\b/.test(q)) return "status_lookup";
+  if (/\b(what'?s happening|what is happening|progress|status|what did|ship|shipped|shipping|new|recent|week by week|weekly|pivot|pivots|declared|declaration|declarations|gaps?)\b/.test(q)) return "status_lookup";
   return "answer";
 }
 
@@ -508,6 +681,7 @@ const SYSTEM = [
   "When describing a project, prefer this shape: what it is, who it serves, what it is doing now, strongest evidence, current bottleneck/gap, and next useful check. Skip generic praise unless the context names the evidence.",
   "When asked who to connect with / who to talk to, use each team's `seeking`/`offering` and its `suggested connections`, and explain the specific reason for each suggestion (the need met, the shared problem, the dependency).",
   "When asked what's happening or how something is progressing, ground it in the distilled session insights, recent activity, and each team's progress (stage / bottleneck / next milestone).",
+  "When the weekly say/did trajectory block appears, use it to compare what people or teams declared against dated observed activity. It is a gap checklist: surface missing weekly intentions/goals, thin follow-up evidence, and possible pivot cues; do not claim a pivot unless the context names the change and some supporting activity.",
   "The cohort's central lens is its two awards: Best Shape Rotation (a substantiated pivot toward product–market fit — a team that changed shape in response to real feedback and can SHOW it) and Best Team–Product Fit (the right team for this problem, evidenced by how they work, what they ship, and how they take feedback). Treat award help as an evidence dossier, not a pitch deck: identify supported evidence, missing evidence, and unrelated/out-of-scope signal; make the pivot, trigger, shipping, and team-fit evidence legible only when the grounded work supports it.",
 ].join("\n");
 

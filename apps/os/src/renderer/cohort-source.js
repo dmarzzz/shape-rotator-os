@@ -32,6 +32,7 @@ import { fetchCohortDistillations } from "./supabase-distillations.mjs";
 import { fetchAllSpheres } from "./supabase-sphere.mjs";
 import { fetchApprovedProfileUpdates } from "./supabase-self-report.mjs";
 import { fetchCohortFeed } from "./supabase-cohort-events.mjs";
+import { reduceAsks } from "./asks-events.mjs";
 import { sanitizeDelta } from "./self-report-synth.mjs";
 import { sanitizeProfileFields, sanitizeTeamFields } from "./cohort-chat-actions.mjs";
 import { fetchReleasesFeed } from "./supabase-releases.mjs";
@@ -987,8 +988,21 @@ async function applyCohortEventsOverlay(surface) {
   try {
     const { events, source } = await fetchCohortFeed();
     if (source === "supabase") {
-      surface.cohort_events = events;
+      // Asks now ride the same spine (event_type 'ask'). Split them out: ask events
+      // fold into the ask BOARD (asks-events.reduceAsks, over the committed markdown
+      // asks as the baseline) rather than rendering as generic "contributed" feed
+      // lines; everything else stays the activity feed. reduceAsks is idempotent, so
+      // reducing over an already-reduced baseline on a cache-derived refresh is safe.
+      const askEvents = [];
+      const otherEvents = [];
+      for (const ev of events) {
+        if (ev && ev.event_type === "ask") askEvents.push(ev);
+        else otherEvents.push(ev);
+      }
+      surface.cohort_events = otherEvents;
+      surface.asks = reduceAsks(askEvents, Array.isArray(surface.asks) ? surface.asks : []);
       surface._cohortEventsSource = "supabase-live";
+      surface._asksSource = askEvents.length ? "supabase-live" : (surface._asksSource || "baseline");
     }
   } catch {
     // keep whatever the surface already carries

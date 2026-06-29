@@ -12,7 +12,7 @@
 // transcript outranks a one-word tweak), and unseen (anything since last visit is
 // marked "new"). The viewer's OWN events peel into a separate "your activity" rail.
 
-const WEIGHT_SCORE = Object.freeze({ loud: 3, medium: 1.5, quiet: 0.5 });
+export const WEIGHT_SCORE = Object.freeze({ loud: 3, medium: 1.5, quiet: 0.5 });
 
 function ts(ev) {
   const t = Date.parse(ev && ev.created_at ? ev.created_at : "");
@@ -58,6 +58,9 @@ export function rankFeed(events, viewer = {}, opts = {}) {
   const halfLife = Number.isFinite(opts.halfLifeHours) && opts.halfLifeHours > 0 ? opts.halfLifeHours : 36;
   const authorMeta = opts.authorMeta && typeof opts.authorMeta === "object" ? opts.authorMeta : {};
   const interestSet = new Set((opts.interestTags || []).map((s) => String(s).toLowerCase()));
+  // personalize=false (the "everyone" lens) drops affinity so the score is just
+  // weight × recency — the same path, minus the on-device viewer signal.
+  const personalize = opts.personalize !== false;
 
   const myId = viewer.recordId || "";
   const myTeam = viewer.team || "";
@@ -77,15 +80,17 @@ export function rankFeed(events, viewer = {}, opts = {}) {
     const weightScore = WEIGHT_SCORE[ev.weight] != null ? WEIGHT_SCORE[ev.weight] : 1;
 
     let affinity = 0;
-    const actor = ev.actor || "";
-    if (actor && conns.has(actor)) affinity += 5;            // a direct connection
-    const meta = authorMeta[actor] || {};
-    if (myTeam && meta.team && meta.team === myTeam) affinity += 3; // same team
-    if (mySkills.size && Array.isArray(meta.skillAreas)) {   // shared skill-areas (≤3)
-      const overlap = meta.skillAreas.filter((s) => mySkills.has(String(s).toLowerCase())).length;
-      affinity += Math.min(overlap, 3);
+    if (personalize) {
+      const actor = ev.actor || "";
+      if (actor && conns.has(actor)) affinity += 5;            // a direct connection
+      const meta = authorMeta[actor] || {};
+      if (myTeam && meta.team && meta.team === myTeam) affinity += 3; // same team
+      if (mySkills.size && Array.isArray(meta.skillAreas)) {   // shared skill-areas (≤3)
+        const overlap = meta.skillAreas.filter((s) => mySkills.has(String(s).toLowerCase())).length;
+        affinity += Math.min(overlap, 3);
+      }
+      if (mentionsInterest(ev, interestSet)) affinity += 2;    // an agent-set interest tag
     }
-    if (mentionsInterest(ev, interestSet)) affinity += 2;    // an agent-set interest tag
 
     const score = (1 + affinity) * weightScore * recency;
     scored.push({ ...ev, _score: score, _isNew: eventTs > lastSeen });
@@ -94,4 +99,40 @@ export function rankFeed(events, viewer = {}, opts = {}) {
   scored.sort((a, b) => (b._score - a._score) || (ts(b) - ts(a)));
   mine.sort((a, b) => ts(b) - ts(a));
   return { feed: scored, mine, newCount: scored.filter((e) => e._isNew).length };
+}
+
+// Score one ask feed-item on the SAME scale as an event, so asks and updates merge
+// into one ranked list. An ask carries its own affinity inputs (the ask's
+// skill_areas, the author's connection/team) and an open-ask boost so a live ask
+// clearly outranks ambient "tidied profile" noise while a fresh high-affinity event
+// can still compete. item: { created_at, actor, weight, _open, _skillAreas }.
+export function scoreAsk(item = {}, viewer = {}, opts = {}) {
+  const now = Number.isFinite(opts.now) ? opts.now : Date.now();
+  const halfLife = Number.isFinite(opts.halfLifeHours) && opts.halfLifeHours > 0 ? opts.halfLifeHours : 36;
+  const authorMeta = opts.authorMeta && typeof opts.authorMeta === "object" ? opts.authorMeta : {};
+  const interestSet = new Set((opts.interestTags || []).map((s) => String(s).toLowerCase()));
+  const personalize = opts.personalize !== false;
+
+  const myTeam = viewer.team || "";
+  const mySkills = new Set((viewer.skillAreas || []).map((s) => String(s).toLowerCase()));
+  const conns = new Set((viewer.connectionIds || []).map(String));
+  const skills = Array.isArray(item._skillAreas) ? item._skillAreas.map((s) => String(s).toLowerCase()) : [];
+
+  const ageHours = Math.max(0, (now - ts(item)) / 3600000);
+  const recency = Math.pow(0.5, ageHours / halfLife);
+  const weightScore = WEIGHT_SCORE[item.weight] != null ? WEIGHT_SCORE[item.weight] : 1;
+
+  let affinity = 0;
+  if (personalize) {
+    const actor = item.actor || "";
+    if (actor && conns.has(actor)) affinity += 5;
+    const meta = authorMeta[actor] || {};
+    if (myTeam && meta.team && meta.team === myTeam) affinity += 3;
+    if (mySkills.size && skills.length) {
+      affinity += Math.min(skills.filter((s) => mySkills.has(s)).length, 3);
+    }
+    if (interestSet.size && skills.some((s) => interestSet.has(s))) affinity += 2;
+  }
+  const kindBoost = item._open ? 1.6 : 1; // a live, actionable ask floats above ambient updates
+  return (1 + affinity) * weightScore * recency * kindBoost;
 }

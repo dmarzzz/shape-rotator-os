@@ -14,6 +14,7 @@
 // profile-value overwrite channel.
 
 import { appendCohortEvent, defaultWeightFor } from "./supabase-cohort-events.mjs";
+import { buildAskEventValue } from "./asks-events.mjs";
 import { getClaimTokenHash } from "./claim-token.mjs";
 import { getPrefs, shouldEmit } from "./cohort-prefs.mjs";
 import { getIdentity } from "./identity.js";
@@ -166,3 +167,42 @@ export function emitConnection({ fromId, toId, reason = "" } = {}) {
     weight: "medium",
   });
 }
+
+// ── asks (on the spine) ────────────────────────────────────────────────────────
+// An ask action — post / edit / claim / join / done / cancel — is ONE appended
+// `ask` event on record_id = the ask's id; the reducer (asks-events.reduceAsks)
+// folds them into current state on read. Unlike the fire-and-forget emitters above,
+// these AWAIT and RETURN { ok, error, event }: the caller needs the result to update
+// optimistically and fall back to the GitHub-PR path if the write didn't land. They
+// also bypass the emit_policy gate — an ask is an intentional action the member is
+// taking, not a broadcast they might silence. `event` is the local optimistic row,
+// shaped exactly like a feed read so it can be reduced before the next refresh tick.
+async function emitAsk(action, askId, ask = {}, weight) {
+  const actor = myRecordId();
+  if (!actor) return { ok: false, error: "no_identity", event: null };
+  const recordId = String(askId || ask.record_id || "").slice(0, 128);
+  if (!recordId) return { ok: false, error: "no_record_id", event: null };
+  const value = buildAskEventValue(action, { ...ask, actor });
+  const w = weight || defaultWeightFor("ask");
+  let appVersion = null;
+  let platform = null;
+  try { ({ appVersion, platform } = await getAppContext()); } catch { /* context optional */ }
+  const res = await appendCohortEvent({
+    recordId, actor, eventType: "ask", value, weight: w,
+    claimTokenHash: getClaimTokenHash(), appVersion, platform,
+  });
+  const ok = !!res && res.ok !== false;
+  const event = {
+    id: `local:${recordId}:${action}:${value && value.action ? value.action : action}`,
+    record_id: recordId, actor, event_type: "ask",
+    value, weight: w, created_at: new Date().toISOString(),
+  };
+  return { ok, error: ok ? null : (res && res.error) || "write_failed", event };
+}
+
+export function emitAskPost(ask) { return emitAsk("post", ask && ask.record_id, ask, "loud"); }
+export function emitAskEdit(askId, fields = {}) { return emitAsk("edit", askId, fields, "quiet"); }
+export function emitAskClaim(askId) { return emitAsk("claim", askId, {}, "medium"); }
+export function emitAskJoin(askId) { return emitAsk("join", askId, {}, "medium"); }
+export function emitAskDone(askId) { return emitAsk("done", askId, {}, "quiet"); }
+export function emitAskCancel(askId) { return emitAsk("cancel", askId, {}, "quiet"); }

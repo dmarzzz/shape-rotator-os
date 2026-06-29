@@ -12,6 +12,7 @@ test("defaultWeightFor follows the noise line", () => {
   assert.equal(defaultWeightFor("contest"), "loud");
   assert.equal(defaultWeightFor("self_report"), "loud");
   assert.equal(defaultWeightFor("connection"), "medium");
+  assert.equal(defaultWeightFor("ask"), "loud");
   assert.equal(defaultWeightFor("prefs"), "quiet");
   assert.equal(defaultWeightFor("profile_edit", "weekly_intention"), "loud");
   assert.equal(defaultWeightFor("profile_edit", "now"), "loud");
@@ -23,7 +24,7 @@ test("defaultWeightFor follows the noise line", () => {
 
 test("the vocab constants match the migration CHECK sets", () => {
   assert.deepEqual([...COHORT_EVENT_TYPES].sort(),
-    ["connection", "contest", "prefs", "profile_edit", "self_report", "transcript"]);
+    ["ask", "connection", "contest", "prefs", "profile_edit", "self_report", "transcript"]);
   assert.deepEqual([...COHORT_EVENT_WEIGHTS].sort(), ["loud", "medium", "quiet"]);
 });
 

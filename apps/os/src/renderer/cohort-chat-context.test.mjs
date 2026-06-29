@@ -29,6 +29,22 @@ const surface = {
     { claim_type: "product_signal", claim_text: "Abra validated the registry spec against a TeeSQL dependency.", summary: "Project-specific validation signal.", evidence_level: "observed", confidence: 0.82, surface_tier: "T2", attribution_scope: "team", content_json: { week_start: "2026-06-14", teams: ["abra"], themes: ["TEE registry"], claims: [{ text: "TeeSQL beta access is the next validation dependency." }] } },
   ],
   whats_new: [{ date: "2026-06-20", label: "teesql v0.2.0", meta: "TeeSQL", kind: "release" }],
+  team_timeline: {
+    abra: [
+      { date: "", type: "profile", title: "weekly goals", detail: "validate the registry against TeeSQL", source: "team record" },
+      { date: "2026-06-17", type: "github progress", title: "abra-org/abra: 4 commits", detail: "added registry comparator and TeeSQL fixture", source: "github distillation" },
+      { date: "2026-06-22", type: "transcript", title: "team mentioned in transcript", detail: "shifted from registry spec writing to TeeSQL beta validation", source: "transcript" },
+    ],
+    elocute: [
+      { date: "2026-06-20", type: "event", title: "user interviews", detail: "speaking practice research check-in", source: "event" },
+    ],
+  },
+  person_timeline: {
+    "albiona-hoti": [
+      { date: "2026-06-16", type: "profile", title: "weekly intention", detail: "finish three interview cycles", source: "person record" },
+      { date: "2026-06-20", type: "event", title: "user interviews", detail: "declared pivot from generic speaking practice to interview reps", source: "event" },
+    ],
+  },
   cohort_intel: {
     project_week_snapshots: [{
       project_id: "abra",
@@ -114,6 +130,26 @@ test("buildCohortContext ranks the question-relevant team into full detail", () 
   assert.match(ctx, /teams: abra/);
   assert.match(ctx, /meta: tier T2; type product_signal; level observed; confidence 0.82; scope team/);
   assert.match(ctx, /Recent activity/);
+});
+
+test("buildCohortContext includes weekly say/did trajectory for relevant projects", () => {
+  const ctx = buildCohortContext(surface, { question: "what changed week by week for Abra?" });
+  assert.match(ctx, /Weekly say\/did trajectory/);
+  assert.match(ctx, /declared: now: writing the verification registry spec/);
+  assert.match(ctx, /weekly goals: validate the registry against TeeSQL/);
+  assert.match(ctx, /observed by week: 2026-06-22: transcript: team mentioned in transcript/);
+  assert.match(ctx, /2026-06-15: github progress: abra-org\/abra: 4 commits/);
+  assert.match(ctx, /pivot cues: transcript: team mentioned in transcript - shifted from registry spec writing to TeeSQL beta validation/);
+  assert.doesNotMatch(ctx, /Abra .*weekly_goals missing/);
+});
+
+test("buildCohortContext brings member trajectories into broad people questions and marks gaps", () => {
+  const ctx = buildCohortContext(surface, { question: "can it see what people declared week by week and spot pivots or gaps?" });
+  assert.match(ctx, /Most relevant people/);
+  assert.match(ctx, /Albiona Hoti/);
+  assert.match(ctx, /weekly intention: finish three interview cycles/);
+  assert.match(ctx, /pivot cues: event: user interviews - declared pivot from generic speaking practice to interview reps/);
+  assert.match(ctx, /Elocute .*weekly_goals missing/);
 });
 
 test("buildCohortContext includes focused project trajectory and evidence snapshots", () => {
@@ -207,6 +243,7 @@ test("chat routing classifies update scans and asks for a project when default f
 
 test("chat routing keeps status questions read-only even when they mention this week", () => {
   assert.equal(classifyChatIntent("what did dmarz ship this week for Shape OS?"), "status_lookup");
+  assert.equal(classifyChatIntent("show people declarations week by week and spot pivots"), "status_lookup");
 });
 
 // ── local AI CLI resolver ──────────────────────────────────────────────────

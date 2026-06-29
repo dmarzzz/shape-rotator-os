@@ -24,6 +24,7 @@ export const COHORT_EVENT_TYPES = Object.freeze([
   "self_report",  // an AI self-report refresh applied (a batch)
   "connection",   // RESERVED — no emit door yet; v0 carries collaboration as a transcript's with_whom
   "prefs",        // the agent-override seam: feed/broadcast preferences (echo is dormant until the agent seam, see cohort-prefs.setPrefs)
+  "ask",          // a cohort ask/come-join, mutated by appended action rows + reduced on-device (asks-events.mjs)
 ]);
 
 export const COHORT_EVENT_WEIGHTS = Object.freeze(["loud", "medium", "quiet"]);
@@ -39,6 +40,7 @@ export function defaultWeightFor(eventType, field = null) {
     case "transcript":
     case "contest":
     case "self_report":
+    case "ask":
       return "loud";
     case "connection":
       return "medium";

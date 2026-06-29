@@ -160,9 +160,10 @@
 
 /* The week dot-rail (.c2-scrub / .c2-scrub-dot) was retired in the follow-board
    redesign — the filmstrip hero (.rr-hero, below) is the week navigator now. The
-   round ghost ARROW survives: the hero reuses .c2-scrub-arrow for its ‹ / › so
-   they read identically to the old rail (see the .rr-hero rules at the foot). */
-.c2-scrub-arrow {
+   round ghost ARROW survives: the hero's ‹ / › (class .rr-hero-arrow) share this
+   exact rule set so they read identically to the old rail. */
+.c2-scrub-arrow,
+.rr-hero-arrow {
   appearance: none; cursor: pointer;
   width: 32px; height: 44px; padding: 0;
   border: 1px solid transparent; border-radius: 22px;
@@ -173,9 +174,13 @@
   transition: color 140ms ease, border-color 140ms ease,
               transform 110ms cubic-bezier(0.19, 1, 0.22, 1);
 }
-.c2-scrub-arrow:hover:not(:disabled) { color: var(--ed-ink-1); border-color: var(--ed-rule-3); }
-.c2-scrub-arrow:active:not(:disabled) { transform: scale(0.92); }
-.c2-scrub-arrow:disabled { opacity: 0.3; cursor: default; }
+.c2-scrub-arrow:hover:not(:disabled),
+.rr-hero-arrow:hover:not(:disabled) { color: var(--ed-ink-1); border-color: var(--ed-rule-3); }
+.c2-scrub-arrow:active:not(:disabled),
+.rr-hero-arrow:active:not(:disabled) { transform: scale(0.92); }
+.c2-scrub-arrow:disabled,
+.rr-hero-arrow:disabled { opacity: 0.3; cursor: default; }
+.rr-hero-arrow:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 2px; }
 
 /* ── stale banner / loading ─────────────────────────────────────────── */
 .c2-stale {
@@ -1249,35 +1254,20 @@
 .rr-sw-ship { width: 6px; height: 6px; background: var(--rr-ship); border-radius: 1px; transform: rotate(45deg); }
 
 /* ── filmstrip hero — the week navigator ───────────────────────────────────
-   Replaces the week dot-rail (.c2-scrub) AND the standalone sparkline arc: a
-   horizontally-scrollable strip of ten week cards (wk # · date range · one-line
-   theme), the viewed card enlarged and centered, ‹ / › arrows + scroll to move.
-   It sits between the header and the week panel. The round ghost arrows mirror
-   the retired rail's .c2-scrub-arrow look. */
+   Replaces the week dot-rail (.c2-scrub): a horizontally-scrollable strip of ten
+   week cards (wk # · date range · one-line theme), the viewed card enlarged and
+   centered, ‹ / › arrows + scroll to move. It sits between the header and the week
+   panel. The round ghost arrows mirror the retired rail's .c2-scrub-arrow look. */
 .rr-hero {
   display: flex; align-items: stretch; gap: 4px;
   margin: 0 0 18px;
   padding: 4px 0 6px;
   border-bottom: 1px solid var(--ed-rule);
 }
-/* the arrows — same round ghost button as the old rail (markup uses the
-   .rr-hero-arrow class, mirrored from .c2-scrub-arrow so they read identically) */
-.rr-hero-arrow {
-  appearance: none; cursor: pointer;
-  flex: 0 0 auto; align-self: center;
-  width: 32px; height: 44px; padding: 0;
-  border: 1px solid transparent; border-radius: 22px;
-  background: transparent;
-  color: var(--rr-faint);
-  font-family: var(--ed-mono); font-size: 22px;
-  display: inline-flex; align-items: center; justify-content: center;
-  transition: color 140ms ease, border-color 140ms ease,
-              transform 110ms cubic-bezier(0.19, 1, 0.22, 1);
-}
-.rr-hero-arrow:hover:not(:disabled) { color: var(--ed-ink-1); border-color: var(--ed-rule-3); }
-.rr-hero-arrow:active:not(:disabled) { transform: scale(0.92); }
-.rr-hero-arrow:disabled { opacity: 0.3; cursor: default; }
-.rr-hero-arrow:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 2px; }
+/* the arrows reuse the .c2-scrub-arrow rule set (grouped at the top of this file
+   so the hero ‹ / › look identical to the retired rail's). Here we only add the
+   flex layout glue so they sit centered at each end of the strip. */
+.rr-hero-arrow { flex: 0 0 auto; align-self: center; }
 /* the strip — horizontal scroll with snap; the active card centers (scroll-padding
    reserves the half-track on each side so it can sit dead-center). The scrollbar
    is hidden — the arrows + snap carry the affordance. */
@@ -1447,6 +1437,10 @@
 .rr-row-mv:focus-visible { outline: none; color: var(--ds-ink-1); background: color-mix(in oklch, var(--ds-ink-1) 12%, transparent); }
 .rr-frowlab .rr-rowlab-ico { display: inline-flex; flex: 0 0 auto; color: var(--rr-faint); }
 .rr-frowlab .rr-rowlab-ico svg { width: 14px; height: 14px; }
+/* count badge — kept per the build contract's reuse list. The interactive lane
+   shows its marker count via .ctl-lane-count (styled in cohort-timeline-view.css);
+   this base style stays for any label that reuses the shared .rr-row-count class. */
+.rr-frowlab .rr-row-count { flex: 0 0 auto; margin-left: auto; min-width: 17px; height: 16px; padding: 0 5px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--ds-accent-soft); color: var(--ds-ink-1); font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); font-variant-numeric: tabular-nums; transition: opacity 120ms ease; }
 .rr-frowlab .rr-rowlab-x { position: absolute; right: 5px; top: 50%; transform: translateY(-50%) scale(0.8); appearance: none; background: transparent; border: 0; cursor: pointer; color: var(--rr-faint-2); font-size: 14px; line-height: 1; padding: 1px 3px; border-radius: var(--ds-radius-sm); opacity: 0; transition: opacity 120ms ease, color 120ms ease, background 120ms ease, transform 120ms ease; }
 .rr-frowlab:focus-within .rr-rowlab-x, .rr-frowlab .rr-rowlab-x:focus-visible { opacity: 1; transform: translateY(-50%) scale(1); }
 .rr-frowlab .rr-rowlab-x:hover, .rr-frowlab .rr-rowlab-x:focus-visible { outline: none; color: var(--ds-danger); background: color-mix(in srgb, var(--ds-danger) 14%, transparent); }
@@ -1494,11 +1488,20 @@
   .rr-weekscroll { overflow-x: auto; scrollbar-width: thin; padding-bottom: 2px; }
   .rr-grid { min-width: 708px; }
   .rr-panel-head .rr-filter { max-width: 100%; justify-content: flex-start; }
+  /* the hero strip is already a horizontal scroller — just tighten the cards so
+     more than one shows in the narrow viewport. */
+  .rr-hero-card { min-width: 108px; }
+  .rr-hero-card.is-active { min-width: 138px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .rr-now-dot { animation: none; box-shadow: 0 0 7px -1px color-mix(in srgb, var(--rr-ox) 32%, transparent); }
-  .rr-wk, .rr-pbar, .rr-tick, .rr-rel { transition: none; }
+  .rr-wk, .rr-pbar, .rr-tick { transition: none; }
   .rr-wk:active { transform: none; }
+  /* hero filmstrip — drop the card lift + arrow press (the strip still scrolls;
+     JS centers the active card with behavior:"auto" under reduced-motion). */
+  .rr-hero-card { transition: border-color 140ms ease, background 140ms ease, opacity 140ms ease; }
+  .rr-hero-card:hover, .rr-hero-card:active { transform: none; }
+  .rr-hero-arrow:active:not(:disabled) { transform: none; }
 }
 
 /* ── follow board — the single bottom component ────────────────────────────

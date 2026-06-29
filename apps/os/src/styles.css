@@ -22069,50 +22069,26 @@ html[data-theme="light"] .alch-trailbar .alch-trail-back {
 .alch-activity-mode { appearance: none; border: 0; background: transparent; color: var(--light-3); font: inherit; font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 7px; cursor: pointer; transition: background .15s, color .15s; }
 .alch-activity-mode:hover { color: var(--light-1); }
 .alch-activity-mode.is-on { background: var(--accent); color: #fff; }
-.alch-asks-activity-board { margin-bottom: 16px; }
-.alch-activity-stream {
-  margin-top: 18px;
-  border-top: 1px dashed rgba(var(--ink-rgb), 0.12);
-  padding-top: 10px;
+/* The composer sits between the header and the blended feed. */
+.alch-asks-compose { margin: 4px 0 16px; }
+.alch-activity-feed { margin-top: 4px; }
+/* An ask hosted as a feed row reads as a distinct, actionable CARD among the lighter
+   event rows: give it a contained border/radius (the flat bottom-border variant is
+   for the board/closed disclosure). The card carries its own summary padding. */
+.alch-activity-ask { padding: 0; }
+.alch-activity-ask .alch-asks-card {
+  border: 1px solid rgba(var(--ink-rgb), 0.12);
+  border-radius: 10px;
+  background: rgba(var(--ink-rgb), 0.02);
 }
-.alch-activity-stream-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  list-style: none;
-  cursor: pointer;
-  padding: 4px 0 10px;
+.alch-activity-ask .alch-asks-card[open] {
+  background: rgba(var(--ink-rgb), 0.035);
+  border-color: rgba(var(--ink-rgb), 0.20);
 }
-.alch-activity-stream-head::-webkit-details-marker { display: none; }
-.alch-activity-stream-title {
-  margin-right: auto;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--light-3);
-}
-.alch-activity-stream-count {
-  font-family: var(--ed-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.10em;
-  text-transform: lowercase;
-  color: var(--light-4);
-}
-.alch-activity-stream-head::before {
-  content: ">";
-  flex: 0 0 auto;
-  color: var(--light-4);
-  transition: transform 150ms ease;
-}
-.alch-activity-stream[open] .alch-activity-stream-head::before {
-  transform: rotate(90deg);
-}
-.alch-activity-stream-body {
-  padding-bottom: 4px;
-}
-.alch-activity-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.alch-activity-ask.is-new .alch-asks-card { border-color: var(--accent); }
+/* Closed / expired asks fold into a disclosure at the foot of the feed. */
+.alch-activity-closed { margin-top: 18px; }
+.alch-activity-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .alch-activity-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 9px; border: 1px solid transparent; transition: background .15s, border-color .15s; }
 .alch-activity-item:hover { background: rgba(var(--ink-rgb), 0.04); border-color: rgba(var(--ink-rgb), 0.10); }
 .alch-activity-item.is-new { background: rgba(var(--ink-rgb), 0.03); }

@@ -187,7 +187,7 @@ const PANEL_TEMPLATES = {
     stats: [
       { key: 'open',  val: '—', dataKey: 'openAskCount', details: (data) => renderAsksInline(data), open: true },
       { key: 'mine',  val: '—', dataKey: 'myAskCount' },
-      { key: 'ask', label: 'post', mode: 'asks', opts: { openComposer: true } },
+      { key: 'ask', label: 'post', mode: 'activity', opts: { openComposer: true } },
     ],
     inline: null,
     actions: [],
