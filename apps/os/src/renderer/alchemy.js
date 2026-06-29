@@ -7655,6 +7655,7 @@ function mirrorPanelHtml(subjectTeamId, cardByTeam, { eyebrow = "your mirror", r
         <span class="ac-mirror-eyebrow">${escHtml(eyebrow)}</span>
         <span class="ac-mirror-team">${escHtml(team.name || teamId)}</span>
       </div>
+      ${readOnly ? "" : `<p class="ac-mirror-lede">What you said you’re building, beside what your public work shows — a nudge to keep the record accurate, never a score.</p>`}
       <div class="ac-mirror-strip">
         <span class="ac-sds-cell"><b>you said</b><span>${escHtml(constShortText(content.say || team.now || team.focus || "not declared", 160))}</span></span>
         <span class="ac-sds-cell${observedClass}"><b>repo shows</b><span>${escHtml(constShortText(content.did || "not observed", 160))}</span>${mixHtml}</span>
@@ -7930,10 +7931,10 @@ function renderSayDidShipped() {
         </span>
         <span class="ac-sds-proof-strip">
           <span class="ac-sds-cell">
-            <b>say</b><span>${escHtml(constShortText(content.say || team.now || team.focus || "not declared", 120))}</span>
+            <b>said</b><span>${escHtml(constShortText(content.say || team.now || team.focus || "not declared", 120))}</span>
           </span>
           <span class="ac-sds-cell${observedClass}">
-            <b>did</b><span>${escHtml(constShortText(content.did || "not observed", 120))}</span>${didMixHtml}${didSessionsHtml}
+            <b>repo shows</b><span>${escHtml(constShortText(content.did || "not observed", 120))}</span>${didMixHtml}${didSessionsHtml}
           </span>
           <span class="ac-sds-cell${observedClass}">
             <b>shipped</b><span>${escHtml(constShortText(content.shipped || "not observed", 110))}</span>
@@ -7950,7 +7951,7 @@ function renderSayDidShipped() {
   state.canvas.innerHTML = `
     <div class="alch-cohort-page" data-cohort-view="mirror" data-mirror-page>
       ${cohortPageHead("mirror")}
-      <div class="alch-view-controls" data-shape-occluder>${sentenceBar}${programScrubberHtml({ needsSnapshots: true })}</div>
+      <div class="alch-view-controls" data-shape-occluder>${programScrubberHtml({ needsSnapshots: true })}</div>
       ${mirrorHtml}
       ${mirrorVm.mode === "browse" ? `<div class="alch-constellation" data-constellation-view="shipped">
         <div class="alch-const-workbench is-single">
@@ -7965,6 +7966,7 @@ function renderSayDidShipped() {
           </div>
         </div>
       </div>` : ""}
+      <div class="ac-mirror-ctx-lead">${sentenceBar}</div>
       ${mirrorContextBandHtml()}
     </div>`;
   wireMirrorPanel();
