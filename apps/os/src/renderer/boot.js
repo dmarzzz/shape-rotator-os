@@ -5524,11 +5524,16 @@ function openCohortSyncFromLauncher(e) {
 }
 function openTranscriptUploadFromLauncher(e) {
   if (e) { e.preventDefault(); e.stopPropagation(); }
+  setLauncherActionState("transcript", { state: "busy", label: "opening", hint: "intake form" });
   loadCohortChat()
     .then((m) => (m.openCohortTranscriptUpload ? m.openCohortTranscriptUpload() : m.openCohortChat()))
+    .then(() => {
+      setLauncherActionState("transcript", { state: "done", label: "transcript", hint: "intake ready", ttl: 5000 });
+    })
     .catch((err) => {
-      console.error("[cohort-chat] transcript upload failed:", err);
-      toast({ kind: "error", message: `transcript upload failed: ${err?.message || err}` });
+      setLauncherActionState("transcript", { state: "error", label: "transcript", hint: "try again", ttl: 5000 });
+      console.error("[cohort-chat] transcript intake failed:", err);
+      toast({ kind: "error", message: `transcript intake failed: ${err?.message || err}` });
     });
 }
 // The corner launcher toggles the chat popup (open <-> close) rather than only opening.

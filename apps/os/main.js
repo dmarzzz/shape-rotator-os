@@ -9,7 +9,7 @@ const cohortChat = require("./cohort-chat-node");
 const ghNode = require("./gh-node");
 const easelNdi = require("./easel-ndi");
 const matrix = require("./matrix");
-const transcriptDriveUpload = require("./transcript-drive-upload");
+const transcriptIntake = require("./transcript-intake");
 // Daybook (apps→daybook): registering this module wires every `daybook:*`
 // ipcMain handler (digest pipeline, scope/redaction, onboarding). Side-effect
 // require, mirroring the prefs/swarm/easel handlers below. See daybook-main.js.
@@ -1824,18 +1824,23 @@ ipcMain.handle("fg:gh:scan-private", async (_e, opts) => ghNode.scanPrivateGithu
 cohortChat.onStatus((s) => broadcastSwarm("fg:cohort-chat:status-changed", s));
 cohortChat.onOutput((o) => broadcastSwarm("fg:cohort-chat:output", o));
 
-ipcMain.handle("fg:transcript-upload:options", async () => transcriptDriveUpload.getTranscriptUploadOptions());
-ipcMain.handle("fg:transcript-upload:drive", async (e, opts = {}) => {
+ipcMain.handle("fg:transcript-intake:options", async () => transcriptIntake.getTranscriptIntakeOptions());
+ipcMain.handle("fg:transcript-intake:submit", async (e, opts = {}) => {
   try {
-    return await transcriptDriveUpload.pickAndUploadTranscript({
+    return await transcriptIntake.pickAndSubmitTranscriptIntake({
       browserWindow: BrowserWindow.fromWebContents(e.sender),
       sessionType: opts.sessionType,
       label: opts.label,
+      declaredDate: opts.declaredDate,
+      relatedText: opts.relatedText,
+      confidence: opts.confidence,
+      sessionId: opts.sessionId,
+      supabase: opts.supabase,
     });
   } catch (error) {
     return {
       ok: false,
-      reason: error?.code || "upload_failed",
+      reason: error?.code || "intake_failed",
       detail: error?.message || String(error),
     };
   }
