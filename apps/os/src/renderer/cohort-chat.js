@@ -911,7 +911,7 @@ export async function openCohortUpdates() {
   await openSelfReportForMe({ autoRunPrevious: true });
 }
 
-// Toggle for the radial dial launcher: open when closed, close when open.
+// Toggle for the corner launcher: open when closed, close when open.
 export async function toggleCohortChat() {
   await warmCohortChat();
   const c = getController();

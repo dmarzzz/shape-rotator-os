@@ -3,7 +3,7 @@
 
 /* Corner popup widget (bottom-right), not a full-screen modal. The panel layer is
    non-blocking (pointer-events:none) so the app behind stays usable; only the card
-   and the dial capture clicks. Opened/closed by the radial dial launcher. */
+   and the dial capture clicks. Opened/closed by the compact chat launcher. */
 .cohort-chat-panel {
   position: fixed;
   inset: 0;
@@ -447,38 +447,47 @@
   right: 0;
   bottom: 0;
   z-index: 2;
+  box-sizing: border-box;
   width: 48px;
   height: 48px;
   padding: 0;
-  border: 1px solid color-mix(in srgb, var(--ds-border-strong) 78%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ds-border-strong) 74%, transparent);
   border-radius: 50%;
-  background: color-mix(in srgb, var(--ds-surface-2) 88%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--ds-surface-1) 88%, transparent), color-mix(in srgb, var(--ds-surface-2) 92%, transparent));
   color: var(--ds-accent);
   cursor: pointer;
   display: grid;
   place-items: center;
   pointer-events: auto;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.07);
   backdrop-filter: blur(16px);
-  transition: transform 0.14s ease, border-color 0.14s ease, color 0.14s ease, background 0.14s ease;
+  transition: transform 0.14s ease, border-color 0.14s ease, color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
 }
 .cohort-chat-dial[hidden] { display: none; }
-.cohort-chat-dial:hover { transform: translateY(-1px); background: color-mix(in srgb, var(--ds-surface-1) 92%, transparent); }
+.cohort-chat-dial:hover {
+  transform: translateY(-1px);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--ds-surface-1) 94%, transparent), color-mix(in srgb, var(--ds-surface-2) 90%, transparent));
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
 .cohort-chat-dial:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 3px; }
-.cohort-chat-radial-menu {
+.cohort-chat-action-menu {
   position: absolute;
   right: 0;
   bottom: calc(100% + 10px);
-  width: min(220px, calc(100vw - 36px));
+  box-sizing: border-box;
+  width: min(216px, calc(100vw - 36px));
   display: flex;
   flex-direction: column;
   gap: 2px;
   padding: 6px;
   overflow: visible;
   border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--ds-border-strong) 82%, transparent);
-  background: color-mix(in srgb, var(--ds-surface-2) 90%, transparent);
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  border: 1px solid color-mix(in srgb, var(--ds-border-strong) 76%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--ds-surface-1) 88%, transparent), color-mix(in srgb, var(--ds-surface-2) 94%, transparent));
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.07);
   backdrop-filter: blur(18px);
   opacity: 0;
   transform: translateY(6px) scale(0.985);
@@ -486,7 +495,7 @@
   pointer-events: none;
   transition: opacity 0.14s ease, transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.cohort-chat-radial-menu::after {
+.cohort-chat-action-menu::after {
   content: "";
   position: absolute;
   right: 18px;
@@ -495,23 +504,20 @@
   height: 10px;
   border-right: 1px solid color-mix(in srgb, var(--ds-border-strong) 82%, transparent);
   border-bottom: 1px solid color-mix(in srgb, var(--ds-border-strong) 82%, transparent);
-  background: color-mix(in srgb, var(--ds-surface-2) 90%, transparent);
+  background: color-mix(in srgb, var(--ds-surface-2) 94%, transparent);
   transform: rotate(45deg);
 }
-.cohort-chat-dial-wrap:hover .cohort-chat-radial-menu,
-.cohort-chat-dial-wrap:focus-within .cohort-chat-radial-menu,
-.cohort-chat-dial-wrap.is-expanded .cohort-chat-radial-menu {
+.cohort-chat-dial-wrap.is-expanded .cohort-chat-action-menu {
   opacity: 1;
   transform: translateY(0) scale(1);
   pointer-events: auto;
 }
-.cohort-chat-dial-wrap:hover .cohort-chat-dial,
-.cohort-chat-dial-wrap:focus-within .cohort-chat-dial,
 .cohort-chat-dial-wrap.is-expanded .cohort-chat-dial {
-  border-color: color-mix(in srgb, var(--ds-accent) 54%, var(--ds-border-strong));
-  background: color-mix(in srgb, var(--ds-surface-1) 92%, transparent);
+  border-color: color-mix(in srgb, var(--ds-accent) 46%, var(--ds-border-strong));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--ds-surface-1) 94%, transparent), color-mix(in srgb, var(--ds-surface-2) 90%, transparent));
 }
-.cohort-chat-dial-wrap.is-suppressed .cohort-chat-radial-menu {
+.cohort-chat-dial-wrap.is-suppressed .cohort-chat-action-menu {
   opacity: 0;
   transform: translateY(6px) scale(0.985);
   pointer-events: none;
@@ -520,11 +526,13 @@
   transform: translateY(0);
   pointer-events: auto;
 }
-.cc-radial-action {
+.cc-launcher-action {
+  --cc-action-tint: var(--ds-accent);
   appearance: none;
+  box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  min-height: 44px;
+  min-height: 42px;
   padding: 7px 9px;
   border: 0;
   border-radius: 10px;
@@ -540,39 +548,42 @@
   pointer-events: auto;
   transition: background 0.12s ease, color 0.12s ease, transform 0.12s ease;
 }
-.cc-radial-action.is-primary {
-  background: color-mix(in srgb, var(--ds-accent) 11%, transparent);
+.cc-launcher-action[data-cohort-chat-action="search"] { --cc-action-tint: #8ab4ff; }
+.cc-launcher-action[data-cohort-chat-action="sync"] { --cc-action-tint: #73d69a; }
+.cc-launcher-action[data-cohort-chat-action="mirror"] { --cc-action-tint: #c7a7ff; }
+.cc-launcher-action.is-primary {
+  background: color-mix(in srgb, var(--cc-action-tint) 10%, transparent);
   color: var(--ds-ink-1);
 }
-.cc-radial-action:hover,
-.cc-radial-action:focus-visible {
-  background: color-mix(in srgb, var(--ds-accent) 16%, transparent);
+.cc-launcher-action:hover,
+.cc-launcher-action:focus-visible {
+  background: color-mix(in srgb, var(--cc-action-tint) 14%, transparent);
   color: var(--ds-ink-1);
 }
-.cc-radial-action:focus-visible {
+.cc-launcher-action:focus-visible {
   outline: 2px solid var(--ds-focus);
   outline-offset: -4px;
 }
-.cc-radial-icon {
+.cc-launcher-icon {
   display: inline-grid;
   place-items: center;
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--ds-surface-3) 82%, transparent);
-  color: var(--ds-accent);
+  background: color-mix(in srgb, var(--ds-surface-3) 82%, var(--cc-action-tint) 18%);
+  color: var(--cc-action-tint);
 }
-.cc-radial-icon svg {
+.cc-launcher-icon svg {
   width: 15px;
   height: 15px;
 }
-.cc-radial-copy {
+.cc-launcher-copy {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
 }
-.cc-radial-label {
+.cc-launcher-label {
   display: block;
   max-width: 100%;
   overflow: hidden;
@@ -584,7 +595,7 @@
   line-height: 1.15;
   letter-spacing: 0;
 }
-.cc-radial-hint {
+.cc-launcher-hint {
   display: block;
   max-width: 100%;
   overflow: hidden;
@@ -596,14 +607,14 @@
   line-height: 1.2;
   letter-spacing: 0;
 }
-.cc-radial-action[data-state="busy"] .cc-radial-icon svg {
+.cc-launcher-action[data-state="busy"] .cc-launcher-icon svg {
   animation: cc-sync-spin 0.8s linear infinite;
 }
-.cc-radial-action[data-state="done"] .cc-radial-icon {
+.cc-launcher-action[data-state="done"] .cc-launcher-icon {
   color: var(--ds-ink-1);
-  background: color-mix(in srgb, var(--ds-accent) 28%, transparent);
+  background: color-mix(in srgb, var(--cc-action-tint) 34%, var(--ds-surface-3));
 }
-.cc-radial-action[data-state="error"] .cc-radial-icon {
+.cc-launcher-action[data-state="error"] .cc-launcher-icon {
   color: var(--ds-danger);
   background: color-mix(in srgb, var(--ds-danger) 14%, transparent);
 }
@@ -635,10 +646,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .cohort-chat-card { animation: none; }
-  .cohort-chat-radial-menu,
+  .cohort-chat-action-menu,
   .cohort-chat-dial,
-  .cc-radial-action,
+  .cc-launcher-action,
   .cc-dial-ring .cc-dial-arc { transition: none; }
-  .cc-radial-action[data-state="busy"] .cc-radial-icon svg { animation: none; }
+  .cc-launcher-action[data-state="busy"] .cc-launcher-icon svg { animation: none; }
   .cc-deep-rail span[data-state="active"]::after { animation: none; display: none; }
 }
