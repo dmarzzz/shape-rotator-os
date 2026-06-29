@@ -1,13 +1,13 @@
-// asks-events.mjs — asks ON the append-only cohort_events spine. DOM-free + pure +
+// asks-events.mjs - asks ON the append-only cohort_events spine. DOM-free + pure +
 // node-testable (no network, no clock): the renderer emits ask actions as events
 // (cohort-emit.mjs emitAsk*) and reads them back through app_cohort_feed; THIS module
 // owns the two pure halves of that round-trip:
 //
-//   buildAskEventValue(action, ask) — the bounded jsonb payload for one ask action
+//   buildAskEventValue(action, ask) - the bounded jsonb payload for one ask action
 //     (post / edit / claim / join / done / cancel). Sibling of cohort-emit's other
 //     value builders; kept here so the shape is tested headless.
 //
-//   reduceAsks(askEvents, baseAsks) — fold the appended action rows into the current
+//   reduceAsks(askEvents, baseAsks) - fold the appended action rows into the current
 //     ask list. The spine never UPDATEs a row (anon is INSERT-only); a claim/join/done
 //     is a NEW row folded over the original `post` (by record_id), oldest-first. The
 //     committed markdown asks (cohort-data/asks/*.md) are the baseline so legacy asks
@@ -66,7 +66,7 @@ export function buildAskEventValue(action, ask = {}) {
   if (act === "done" || act === "cancel") {
     return value;
   }
-  // post / edit — copy the whitelisted ask fields that are present.
+  // post / edit - copy the whitelisted ask fields that are present.
   for (const key of ASK_EVENT_FIELDS) {
     if (ask[key] == null) continue;
     if (key === "skill_areas") {
@@ -83,7 +83,7 @@ export function buildAskEventValue(action, ask = {}) {
   return value;
 }
 
-// ── reduction ────────────────────────────────────────────────────────────────
+// reduction
 function cmpEvents(a, b) {
   const at = String(a?.created_at || "");
   const bt = String(b?.created_at || "");
@@ -105,7 +105,7 @@ function applyPostFields(state, value) {
 }
 
 // Fold one ask's events (any order) over an optional baseline into a current ask.
-// Returns null if there's nothing to build (a mutation with no `post` and no base —
+// Returns null if there's nothing to build (a mutation with no `post` and no base -
 // e.g. the original post aged out of the 60-day feed window).
 export function reduceAskGroup(events, base = null) {
   const ordered = (Array.isArray(events) ? events.filter(Boolean) : []).slice().sort(cmpEvents);
@@ -116,7 +116,7 @@ export function reduceAskGroup(events, base = null) {
     const value = ev && ev.value && typeof ev.value === "object" ? ev.value : {};
     const action = ASK_ACTIONS.includes(value.action) ? value.action : "post";
     if (!state) {
-      if (action !== "post") continue;             // orphan mutation — cannot rebuild
+      if (action !== "post") continue;             // orphan mutation - cannot rebuild
       state = { record_type: "ask", status: "open", joined_by: [] };
     }
     if (ev.record_id) state.record_id = String(ev.record_id);
