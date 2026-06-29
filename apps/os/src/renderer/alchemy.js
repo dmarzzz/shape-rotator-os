@@ -14192,12 +14192,18 @@ function renderAskComposer() {
   if (state.openAskComposer === true) composer.open = true;
   const openComposer = composer.open === true;
   state.openAskComposer = false;
+  const sectionsHtml = [
+    section(askIntentSection({ intent: "come_join" }), openByIntent.come_join, "no plans open to join.", { hideEmpty: true }),
+    section(askIntentSection({ intent: "ask" }), openByIntent.ask, "no open asks.", { hideEmpty: true }),
+    section("closed", closed, "nothing closed yet.", { hideEmpty: true, open: false }),
+  ].filter(Boolean).join("");
+  const asksBodyHtml = sectionsHtml || `<p class="alch-asks-board-empty">No open asks or plans yet.</p>`;
 
   return `
     <form class="alch-asks-compose" data-author-slug="${escAttr(authorSlug)}" data-today="${escAttr(todayIso)}" data-autofocus="${openComposer ? "1" : "0"}">
       <details class="alch-asks-compose-shell" data-asks-compose-details${openComposer ? " open" : ""}>
         <summary class="alch-asks-compose-head">
-          <span class="alch-asks-compose-title">New ask</span>
+          <span class="alch-asks-compose-title">New post</span>
           <span class="alch-asks-compose-caret" aria-hidden="true"></span>
         </summary>
         <input type="hidden" name="intent" value="${escAttr(initialIntent)}" />
