@@ -14534,6 +14534,19 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   color: var(--ed-ink-1);
   opacity: 0.42;
 }
+.alch-asks-board-empty {
+  max-width: 88ch;
+  margin: 18px 0 0;
+  padding: 18px 0;
+  border-top: 1px dashed rgba(var(--ink-rgb), 0.10);
+  border-bottom: 1px dashed rgba(var(--ink-rgb), 0.08);
+  font-family: var(--ed-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: lowercase;
+  color: var(--ed-ink-1);
+  opacity: 0.42;
+}
 .alch-asks-section-title {
   font-family: var(--ed-display);
   font-style: italic;
@@ -14549,18 +14562,23 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   opacity: 0.55;
 }
 
-.alch-asks-list { display: grid; gap: 10px; }
+.alch-asks-list {
+  display: grid;
+  gap: 0;
+  border-top: 1px solid rgba(var(--ink-rgb), 0.08);
+}
 .alch-asks-card {
   display: block;
   padding: 0;
-  background: rgba(var(--ink-rgb), 0.022);
-  border-left: 2px solid rgba(193,168,114,0.55);
-  transition: background 160ms ease;
+  background: transparent;
+  border-left: 0;
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.08);
+  transition: background 160ms ease, border-color 160ms ease;
 }
 .alch-asks-card:hover,
-.alch-asks-card:focus-within { background: rgba(var(--ink-rgb), 0.034); }
-.alch-asks-card[open] { background: rgba(var(--ink-rgb), 0.038); }
-.alch-asks-card[data-expired="1"] { opacity: 0.50; border-left-color: rgba(var(--ink-rgb), 0.10); }
+.alch-asks-card:focus-within { background: rgba(var(--ink-rgb), 0.022); }
+.alch-asks-card[open] { background: rgba(var(--ink-rgb), 0.026); }
+.alch-asks-card[data-expired="1"] { opacity: 0.50; border-bottom-color: rgba(var(--ink-rgb), 0.06); }
 .alch-asks-card[data-expired="1"][open] { opacity: 0.72; }
 .alch-asks-summary {
   display: grid;
@@ -16026,7 +16044,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 .alch-asks-section-title { font-size: 14px; line-height: 1.20; }
 .alch-asks-section-count { font-size: 11px; letter-spacing: 0.22em; }
 
-.alch-asks-list        { gap: 6px; }
+.alch-asks-list        { gap: 0; }
 
 .alch-asks-card        { padding: 0; }
 .alch-asks-summary     { grid-template-columns: 42px minmax(0, 1fr) 16px; gap: 12px; padding: 11px 12px; }
@@ -16262,53 +16280,51 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 }
 .alch-asks-compose-title {
   flex: 0 0 auto;
-  font-family: var(--ed-mono);
+  font-family: var(--ed-serif, "Iowan Old Style", Georgia, serif);
   font-style: normal;
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--ed-ink-1);
 }
 .alch-asks-intent-pills {
   display: inline-flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 2px;
   flex: 0 1 auto;
+  min-height: 30px;
+  padding: 2px;
+  border: 1px solid rgba(var(--ink-rgb), 0.14);
+  border-radius: 999px;
+  background: rgba(var(--ink-rgb), 0.035);
 }
 .alch-asks-intent-pill {
   appearance: none;
-  display: inline-grid;
-  grid-template-columns: 1fr;
-  gap: 2px;
-  min-height: 30px;
-  padding: 6px 10px;
-  border: 1px solid rgba(var(--ink-rgb), 0.16);
-  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 5px 11px;
+  border: 0;
+  border-radius: 999px;
   background: transparent;
   color: var(--ed-ink-1);
   cursor: pointer;
   font-family: var(--ed-mono);
-  text-align: left;
-  opacity: 0.62;
+  text-align: center;
+  opacity: 0.66;
   transition: background 140ms ease, border-color 140ms ease, opacity 140ms ease;
 }
 .alch-asks-intent-pill span {
-  font-size: 10.5px;
-  line-height: 1;
-  letter-spacing: 0.12em;
-  text-transform: lowercase;
-}
-.alch-asks-intent-pill small {
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1;
   letter-spacing: 0.10em;
   text-transform: lowercase;
-  opacity: 0.62;
 }
 .alch-asks-intent-pill:hover,
 .alch-asks-intent-pill:focus-visible {
-  border-color: rgba(var(--ink-rgb), 0.34);
   opacity: 0.88;
 }
 .alch-asks-intent-pill:focus-visible {
@@ -16316,8 +16332,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   box-shadow: 0 0 0 2px rgba(193,168,114,0.16);
 }
 .alch-asks-intent-pill[aria-pressed="true"] {
-  background: rgba(193,168,114,0.12);
-  border-color: rgba(193,168,114,0.44);
+  background: rgba(193,168,114,0.18);
   opacity: 1;
 }
 .alch-asks-compose-caret {
@@ -16345,9 +16360,9 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 .alch-asks-compose-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 13px;
+  gap: 10px;
   align-items: start;
-  padding: 16px 22px 0;
+  padding: 16px 22px 18px;
 }
 .alch-asks-compose-field { display: flex; flex-direction: column; gap: 6px; }
 .alch-asks-compose-topic,
@@ -16369,11 +16384,28 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   flex: 0 0 auto;
   padding-top: 9px;
 }
+.alch-asks-compose-accessory {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding-top: 2px;
+}
+.alch-asks-compose-spacer {
+  flex: 1 1 auto;
+  min-width: 8px;
+}
 .alch-asks-verb-menu-wrap {
   position: relative;
   display: inline-flex;
-  flex: 0 1 280px;
-  min-width: min(100%, 220px);
+  flex: 0 1 160px;
+  min-width: 118px;
+}
+.alch-asks-verb-menu-wrap-field {
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
 }
 .alch-asks-verb-menu-wrap::after {
   content: "";
@@ -16390,18 +16422,18 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 .alch-asks-verb-select {
   appearance: none;
   width: 100%;
-  min-height: 34px;
-  border: 1px solid rgba(var(--ink-rgb), 0.18);
+  min-height: 30px;
+  border: 1px solid rgba(var(--ink-rgb), 0.14);
   border-radius: 999px;
   background: rgba(var(--ink-rgb), 0.035);
   color: var(--ed-ink-1);
   font-family: var(--ed-mono);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   line-height: 1.2;
   text-transform: lowercase;
-  padding: 8px 34px 8px 14px;
+  padding: 7px 30px 7px 11px;
   cursor: pointer;
 }
 .alch-asks-verb-select:hover {
@@ -16414,6 +16446,33 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   box-shadow: 0 0 0 2px rgba(193,168,114,0.13);
 }
 .alch-asks-verb-select[hidden] { display: none; }
+.alch-asks-detail-toggle {
+  appearance: none;
+  min-height: 30px;
+  border: 1px solid rgba(var(--ink-rgb), 0.14);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ed-ink-1);
+  cursor: pointer;
+  font-family: var(--ed-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  padding: 7px 12px;
+  text-transform: lowercase;
+  opacity: 0.70;
+}
+.alch-asks-detail-toggle:hover,
+.alch-asks-detail-toggle:focus-visible {
+  border-color: rgba(var(--ink-rgb), 0.30);
+  opacity: 0.95;
+}
+.alch-asks-detail-toggle[aria-pressed="true"] {
+  background: rgba(var(--ink-rgb), 0.07);
+  border-color: rgba(var(--ink-rgb), 0.24);
+  opacity: 1;
+}
 .alch-asks-verb-pills {
   display: flex;
   flex-wrap: wrap;
@@ -16491,15 +16550,24 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
 .alch-asks-compose-topic textarea.alch-asks-compose-input {
   font-family: var(--ed-serif, "Iowan Old Style", Georgia, serif);
-  font-size: 15.5px;
-  line-height: 1.6;
-  min-height: 92px;
+  font-size: 16.5px;
+  line-height: 1.55;
+  min-height: 78px;
+  border: 0;
+  padding: 2px 0 4px;
+  background: transparent;
+}
+.alch-asks-compose-topic textarea.alch-asks-compose-input:focus {
+  border-color: transparent;
 }
 .alch-asks-compose-context {
   grid-column: 1 / -1;
-  border-top: 1px dashed rgba(var(--ink-rgb), 0.12);
-  padding-top: 4px;
+  border: 1px solid rgba(var(--ink-rgb), 0.12);
+  border-radius: 8px;
+  background: rgba(var(--ink-rgb), 0.025);
+  padding: 12px;
 }
+.alch-asks-compose-more:not([open]) { display: none; }
 .alch-asks-compose-context summary {
   cursor: pointer;
   display: inline-flex;
@@ -16529,8 +16597,8 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
 }
 .alch-asks-compose-more-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(140px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
   align-items: start;
 }
 .alch-asks-compose-more-full {
@@ -16545,14 +16613,16 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
   margin-top: 0;
   padding: 18px 22px 20px;
 }
-.alch-asks-compose-submit { font-size: 11.5px; padding: 8px 18px; }
+.alch-asks-compose-submit { font-size: 11px; padding: 7px 16px; }
 .alch-asks-compose-author {
+  grid-column: 1 / -1;
   font-family: var(--ed-mono);
-  font-size: 11px;
-  letter-spacing: 0.18em;
+  font-size: 10px;
+  letter-spacing: 0.14em;
   text-transform: lowercase;
   color: var(--ed-ink-1);
-  opacity: 0.62;
+  opacity: 0.50;
+  padding-top: 2px;
 }
 .alch-asks-compose-author strong { color: var(--ed-ink-1); opacity: 1; font-weight: 500; }
 .alch-asks-compose-result {
@@ -16566,6 +16636,13 @@ textarea.alch-asks-compose-input { resize: vertical; min-height: 74px; }
    title share a row, body + contact span the full width. */
 .alch-cv-compose { margin: 0 0 20px; }
 .alch-cv-compose .alch-asks-compose-head { gap: 12px; flex-wrap: wrap; }
+.alch-cv-compose .alch-asks-compose-title {
+  font-family: var(--ed-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
 .alch-cv-compose-grid {
   grid-template-columns: minmax(120px, 200px) minmax(0, 1fr);
 }
@@ -16636,6 +16713,9 @@ textarea.alch-cv-compose-body-input { min-height: 150px; line-height: 1.6; }
   .alch-asks-compose-inline { grid-template-columns: 1fr; }
   .alch-asks-compose-toolbar { flex-direction: column; gap: 8px; }
   .alch-asks-compose-toolbar-label { padding-top: 0; }
+  .alch-asks-compose-accessory { flex-wrap: wrap; }
+  .alch-asks-compose-spacer { flex-basis: 100%; height: 0; }
+  .alch-asks-compose-submit { margin-left: auto; }
   .alch-asks-compose-more-grid { grid-template-columns: 1fr; }
   .alch-asks-compose-topic,
   .alch-asks-compose-tags,

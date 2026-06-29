@@ -54,6 +54,19 @@ test("dated come join posts expire after the date has passed", () => {
   assert.equal(askIsOpen(post), false);
 });
 
+test("same-day timed come join posts expire after their start time passes", () => {
+  const [post] = asksWithStatus([{
+    record_id: "morning-plan",
+    intent: "come_join",
+    posted_at: "2026-06-28 07:00",
+    starts_at: "2026-06-28 09:00",
+    status: "open",
+  }], NOW);
+
+  assert.equal(post._expired, true);
+  assert.equal(askIsOpen(post), false);
+});
+
 test("joined_by matches profile identity using normalized handles", () => {
   const post = {
     intent: "come_join",
@@ -82,6 +95,34 @@ test("limited asks expire after expires_at even when posted recently", () => {
 
   assert.equal(post._expired, true);
   assert.equal(askIsOpen(post), false);
+});
+
+test("same-day timed asks expire after the deadline time passes", () => {
+  const [post] = asksWithStatus([{
+    record_id: "morning-help",
+    intent: "ask",
+    posted_at: "2026-06-28 08:00",
+    starts_at: "2026-06-28 08:30",
+    expires_at: "2026-06-28 09:00",
+    status: "open",
+  }], NOW);
+
+  assert.equal(post._expired, true);
+  assert.equal(askIsOpen(post), false);
+  assert.equal(askExpiresLabel(post, NOW), "until today 09:00");
+});
+
+test("date-only ask deadlines stay open through the named day", () => {
+  const [post] = asksWithStatus([{
+    record_id: "today-help",
+    intent: "ask",
+    posted_at: "2026-06-28",
+    expires_at: "2026-06-28",
+    status: "open",
+  }], NOW);
+
+  assert.equal(post._expired, false);
+  assert.equal(askIsOpen(post), true);
 });
 
 test("expires_at gets a relative label for ask chips", () => {

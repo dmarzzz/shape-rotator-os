@@ -41,10 +41,28 @@ const ASK_INTENT_META = {
 };
 
 export function isoDateOnly(value) {
+  return askDateParts(value)?.date || null;
+}
+
+function askDateParts(value) {
   if (!value) return null;
-  const m = String(value).match(/(\d{4})-(\d{2})-(\d{2})/);
+  const m = String(value).match(/(\d{4})-(\d{2})-(\d{2})(?:[T\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
   if (!m) return null;
-  return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  const year = +m[1];
+  const month = +m[2] - 1;
+  const day = +m[3];
+  const hasTime = m[4] != null;
+  const hour = hasTime ? +m[4] : 0;
+  const minute = hasTime ? +m[5] : 0;
+  const second = hasTime && m[6] != null ? +m[6] : 0;
+  const dateMs = Date.UTC(year, month, day);
+  const timeMs = Date.UTC(year, month, day, hour, minute, second);
+  return {
+    date: new Date(dateMs),
+    hasTime,
+    timeMs,
+    expiryMs: hasTime ? timeMs : Date.UTC(year, month, day + 1),
+  };
 }
 
 export function askIntent(ask) {
@@ -171,22 +189,22 @@ export function asksWithStatus(rawAsks, nowMs = Date.now()) {
   const all = Array.isArray(rawAsks) ? rawAsks.slice() : [];
   const today = isoDateOnly(new Date(nowMs).toISOString());
   return all.map((ask) => {
-    const posted = isoDateOnly(ask?.posted_at);
-    const starts = isoDateOnly(ask?.starts_at || ask?.start_at || ask?.date);
-    const expires = isoDateOnly(ask?.expires_at || ask?.ends_at || ask?.end_at);
-    const ageDays = posted ? Math.floor((nowMs - posted.getTime()) / DAY_MS) : null;
-    const startOffsetDays = starts && today ? Math.floor((starts.getTime() - today.getTime()) / DAY_MS) : null;
-    const expiresOffsetDays = expires && today ? Math.floor((expires.getTime() - today.getTime()) / DAY_MS) : null;
+    const posted = askDateParts(ask?.posted_at);
+    const starts = askDateParts(ask?.starts_at || ask?.start_at || ask?.date);
+    const expires = askDateParts(ask?.expires_at || ask?.ends_at || ask?.end_at);
+    const ageDays = posted ? Math.floor((nowMs - posted.date.getTime()) / DAY_MS) : null;
+    const startOffsetDays = starts && today ? Math.floor((starts.date.getTime() - today.getTime()) / DAY_MS) : null;
+    const expiresOffsetDays = expires && today ? Math.floor((expires.date.getTime() - today.getTime()) / DAY_MS) : null;
     return {
       ...ask,
       _intent: askIntent(ask),
       _ageDays: ageDays,
       _startOffsetDays: startOffsetDays,
       _expiresOffsetDays: expiresOffsetDays,
-      _expired: expiresOffsetDays != null
-        ? expiresOffsetDays < 0
-        : startOffsetDays != null
-          ? startOffsetDays < 0
+      _expired: expires
+        ? nowMs >= expires.expiryMs
+        : starts
+          ? nowMs >= starts.expiryMs
           : ageDays != null && ageDays >= ASK_EXPIRY_DAYS,
     };
   }).sort(compareAsksByFreshness);
