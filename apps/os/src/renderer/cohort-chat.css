@@ -323,12 +323,16 @@
 
 /* Onboarding card — the "set up your own AI" / first-run intro. */
 .cc-card.is-onboard { border-left-color: var(--ds-accent); }
-.cc-card.is-transcript-upload { width: min(88%, 340px); }
+.cc-card.is-transcript-intake {
+  width: min(92%, 460px);
+  gap: 10px;
+}
 .cc-upload-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 9px;
 }
+.cc-upload-grid.is-connection { margin-top: 8px; }
 .cc-upload-field {
   display: flex;
   flex-direction: column;
@@ -337,6 +341,7 @@
   font-size: var(--ds-text-2xs);
   color: var(--ds-ink-3);
 }
+.cc-upload-field-wide { grid-column: 1 / -1; }
 .cc-upload-field span {
   font-family: var(--ds-font-mono);
   text-transform: uppercase;
@@ -359,12 +364,87 @@
   outline: 2px solid var(--ds-focus);
   outline-offset: 1px;
 }
+.cc-upload-segment {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  min-height: 34px;
+}
+.cc-upload-segment-btn {
+  min-width: 0;
+  border: 1px solid var(--ds-border);
+  border-radius: 8px;
+  background: var(--ds-surface-1);
+  color: var(--ds-ink-3);
+  font-family: var(--ds-font-ui);
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-xs);
+  padding: 6px 5px;
+  cursor: pointer;
+}
+.cc-upload-segment-btn.is-on {
+  border-color: color-mix(in srgb, var(--ds-accent) 70%, var(--ds-border));
+  background: color-mix(in srgb, var(--ds-accent) 18%, var(--ds-surface-1));
+  color: var(--ds-ink-1);
+}
+.cc-upload-segment-btn:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 1px;
+}
 .cc-upload-route {
-  min-height: 14px;
+  min-height: 56px;
+  border: 1px solid var(--ds-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ds-surface-2) 82%, transparent);
+  padding: 8px 9px;
   font-family: var(--ds-font-mono);
   font-size: var(--ds-text-2xs);
   color: var(--ds-ink-4);
   overflow-wrap: anywhere;
+}
+.cc-upload-route:empty {
+  min-height: 0;
+  border-color: transparent;
+  background: transparent;
+  padding: 0;
+}
+.cc-upload-route-line {
+  color: var(--ds-ink-1);
+  margin-bottom: 6px;
+}
+.cc-upload-route-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 6px;
+}
+.cc-upload-route-badges span {
+  border: 1px solid var(--ds-border);
+  border-radius: 999px;
+  padding: 2px 6px;
+  color: var(--ds-ink-3);
+  background: var(--ds-surface-1);
+}
+.cc-upload-route-note {
+  color: var(--ds-ink-4);
+  line-height: var(--ds-lh-xs);
+}
+.cc-upload-connection {
+  border: 1px solid var(--ds-border);
+  border-radius: 8px;
+  padding: 7px 9px 9px;
+  background: var(--ds-surface-1);
+}
+.cc-upload-connection summary {
+  cursor: pointer;
+  color: var(--ds-ink-3);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+@media (max-width: 520px) {
+  .cc-upload-grid { grid-template-columns: 1fr; }
 }
 .cc-onboard-steps {
   display: flex;

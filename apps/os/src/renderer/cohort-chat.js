@@ -19,6 +19,8 @@ import { getIdentity } from "./identity.js";
 import { getClaimTokenHash } from "./claim-token.mjs";
 import { saveProfileProposal } from "./supabase-self-report.mjs";
 import { savePrivateContactEmail } from "./private-contact-submit.mjs";
+import { readSupabaseConfig } from "./supabase-config.mjs";
+import { loadCalendarIngressConfig } from "./calendar-ingress.mjs";
 import { emitConnection, emitContest, emitSelfReport } from "./cohort-emit.mjs";
 import { submitContest } from "./supabase-contest.mjs";
 import { scanGithubActivity, resolvePersonHandle, summarizeEvents, digestFromEvents } from "./gh-self-report.mjs";
@@ -27,14 +29,21 @@ let stylesheetPromise = null;
 let controller = null;
 
 const FALLBACK_TRANSCRIPT_TYPES = [
-  { key: "weekly_standup", label: "Weekly standup", routePath: "raw_transcripts/weekly_standup" },
-  { key: "office_hours", label: "Office hours", routePath: "raw_transcripts/office_hours" },
-  { key: "private_1on1", label: "Private 1:1", routePath: "do_not_publish/private_1on1" },
-  { key: "salon", label: "Salon", routePath: "raw_transcripts/salon" },
-  { key: "rd_jam", label: "R&D / jam", routePath: "raw_transcripts/rd_jam" },
-  { key: "demo_presentation", label: "Demo / presentation", routePath: "raw_transcripts/demo_presentation" },
-  { key: "user_interview", label: "User interview", routePath: "raw_transcripts/user_interview" },
-  { key: "planning_strategy", label: "Planning / strategy", routePath: "do_not_publish/planning_strategy" },
+  { key: "weekly_standup", label: "Weekly standup", routePath: "raw_transcripts/weekly_standup", maxTier: "T2", cohortMode: "aggregate_only", publicAllowed: false },
+  { key: "office_hours", label: "Office hours", routePath: "raw_transcripts/office_hours", maxTier: "T2", cohortMode: "distilled_readout", publicAllowed: false },
+  { key: "salon", label: "Salon", routePath: "raw_transcripts/salon", maxTier: "T3", cohortMode: "distilled_readout", publicAllowed: true },
+  { key: "rd_jam", label: "R&D / jam", routePath: "raw_transcripts/rd_jam", maxTier: "T2", cohortMode: "team_call_required", publicAllowed: false },
+  { key: "demo_presentation", label: "Demo / presentation", routePath: "raw_transcripts/demo_presentation", maxTier: "T3", cohortMode: "distilled_readout", publicAllowed: true },
+  { key: "private_1on1", label: "Private 1:1", routePath: "do_not_publish/private_1on1", maxTier: "T1", cohortMode: "never", publicAllowed: false },
+  { key: "user_interview", label: "User interview", routePath: "raw_transcripts/user_interview", maxTier: "T2", cohortMode: "aggregate_only", publicAllowed: false },
+  { key: "planning_strategy", label: "Planning / strategy", routePath: "do_not_publish/planning_strategy", maxTier: "T1", cohortMode: "never", publicAllowed: false },
+  { key: "leadership_meeting", label: "Leadership meeting", routePath: "do_not_publish/leadership_meeting", maxTier: "T1", cohortMode: "never", publicAllowed: false },
+];
+
+const FALLBACK_TRANSCRIPT_CONFIDENCE = [
+  { key: "sure", label: "Sure" },
+  { key: "best_guess", label: "Best guess" },
+  { key: "needs_review", label: "Needs review" },
 ];
 
 function $(id) { return document.getElementById(id); }
@@ -588,23 +597,43 @@ function createController() {
     log.scrollTop = log.scrollHeight;
   }
 
-  async function transcriptUploadOptions() {
+  async function transcriptIntakeOptions() {
     try {
-      const res = window.api && window.api.getTranscriptUploadOptions
-        ? await window.api.getTranscriptUploadOptions()
+      const res = window.api && window.api.getTranscriptIntakeOptions
+        ? await window.api.getTranscriptIntakeOptions()
         : null;
-      if (res && res.ok && Array.isArray(res.sessionTypes) && res.sessionTypes.length) return res.sessionTypes;
+      if (res && res.ok && Array.isArray(res.sessionTypes) && res.sessionTypes.length) {
+        return {
+          sessionTypes: res.sessionTypes,
+          confidenceOptions: Array.isArray(res.confidenceOptions) && res.confidenceOptions.length
+            ? res.confidenceOptions
+            : FALLBACK_TRANSCRIPT_CONFIDENCE,
+        };
+      }
     } catch {}
-    return FALLBACK_TRANSCRIPT_TYPES;
+    return { sessionTypes: FALLBACK_TRANSCRIPT_TYPES, confidenceOptions: FALLBACK_TRANSCRIPT_CONFIDENCE };
+  }
+
+  function readTranscriptSupabaseConfig() {
+    const base = readSupabaseConfig();
+    const ingress = loadCalendarIngressConfig();
+    return {
+      supabaseUrl: ingress.supabaseUrl || base.url,
+      supabaseAnonKey: ingress.supabaseAnonKey || base.anonKey,
+      accessToken: ingress.accessToken || "",
+      orgId: ingress.orgId || "",
+      ingestArtifactsUrl: ingress.ingestArtifactsUrl || "",
+    };
   }
 
   async function renderTranscriptUploadCard() {
-    const types = await transcriptUploadOptions();
+    const { sessionTypes: types, confidenceOptions } = await transcriptIntakeOptions();
+    const config = readTranscriptSupabaseConfig();
     if (empty && empty.parentNode) empty.remove();
-    log.querySelectorAll(".cc-card.is-transcript-upload").forEach((el) => el.remove());
+    log.querySelectorAll(".cc-card.is-transcript-intake").forEach((el) => el.remove());
 
     const card = document.createElement("div");
-    card.className = "cc-card is-transcript-upload";
+    card.className = "cc-card is-transcript-intake";
     card.innerHTML = `
       <div class="cc-card-eyebrow">add transcript</div>
       <div class="cc-upload-grid">
@@ -612,46 +641,108 @@ function createController() {
           <span>type</span>
           <select class="cc-upload-input" data-cc-transcript-type>
             <option value="">Choose transcript type</option>
-            ${types.map((type) => `<option value="${esc(type.key)}">${esc(type.label || type.key)}</option>`).join("")}
+            ${types.map((type) => `<option value="${esc(type.key)}">${esc(type.label || type.key)}${type.maxTier ? ` / ${esc(type.maxTier)}` : ""}</option>`).join("")}
           </select>
         </label>
         <label class="cc-upload-field">
+          <span>confidence</span>
+          <span class="cc-upload-segment" role="group" aria-label="type confidence">
+            ${confidenceOptions.map((opt, index) => `
+              <button type="button" class="cc-upload-segment-btn${index === 0 ? " is-on" : ""}" data-cc-transcript-confidence="${esc(opt.key)}" aria-pressed="${index === 0 ? "true" : "false"}">${esc(opt.label || opt.key)}</button>
+            `).join("")}
+          </span>
+        </label>
+        <label class="cc-upload-field">
+          <span>date</span>
+          <input class="cc-upload-input" data-cc-transcript-date type="date" />
+        </label>
+        <label class="cc-upload-field">
           <span>label</span>
-          <input class="cc-upload-input" data-cc-transcript-label type="text" placeholder="optional file label" autocomplete="off" spellcheck="false" />
+          <input class="cc-upload-input" data-cc-transcript-label type="text" placeholder="session title or file label" autocomplete="off" spellcheck="false" />
+        </label>
+        <label class="cc-upload-field">
+          <span>session id</span>
+          <input class="cc-upload-input" data-cc-transcript-session type="text" placeholder="optional" autocomplete="off" spellcheck="false" />
+        </label>
+        <label class="cc-upload-field cc-upload-field-wide">
+          <span>related</span>
+          <input class="cc-upload-input" data-cc-transcript-related type="text" placeholder="project, person, topic" autocomplete="off" spellcheck="false" />
         </label>
       </div>
       <div class="cc-upload-route" data-cc-transcript-route></div>
+      <details class="cc-upload-connection">
+        <summary>Supabase</summary>
+        <div class="cc-upload-grid is-connection">
+          <label class="cc-upload-field">
+            <span>org id</span>
+            <input class="cc-upload-input" data-cc-transcript-org type="text" value="${esc(config.orgId || "")}" autocomplete="off" spellcheck="false" />
+          </label>
+          <label class="cc-upload-field">
+            <span>access token</span>
+            <input class="cc-upload-input" data-cc-transcript-token type="password" value="${esc(config.accessToken || "")}" autocomplete="off" spellcheck="false" />
+          </label>
+        </div>
+      </details>
       <div class="cc-card-actions">
         <button type="button" class="btn ds-ghost" data-cc-transcript-cancel>Cancel</button>
-        <button type="button" class="btn ds-primary" data-cc-transcript-upload disabled>Upload file</button>
-        <button type="button" class="btn ds-ghost" data-cc-transcript-open hidden>Open in Drive</button>
+        <button type="button" class="btn ds-primary" data-cc-transcript-submit disabled>Save to Supabase</button>
       </div>
       <div class="cc-card-status" data-cc-transcript-status hidden></div>`;
 
     const select = card.querySelector("[data-cc-transcript-type]");
+    const confidenceButtons = Array.from(card.querySelectorAll("[data-cc-transcript-confidence]"));
+    const date = card.querySelector("[data-cc-transcript-date]");
     const label = card.querySelector("[data-cc-transcript-label]");
+    const session = card.querySelector("[data-cc-transcript-session]");
+    const related = card.querySelector("[data-cc-transcript-related]");
+    const org = card.querySelector("[data-cc-transcript-org]");
+    const token = card.querySelector("[data-cc-transcript-token]");
     const route = card.querySelector("[data-cc-transcript-route]");
-    const upload = card.querySelector("[data-cc-transcript-upload]");
+    const submit = card.querySelector("[data-cc-transcript-submit]");
     const cancel = card.querySelector("[data-cc-transcript-cancel]");
-    const openDrive = card.querySelector("[data-cc-transcript-open]");
     const stat = card.querySelector("[data-cc-transcript-status]");
-    let driveLink = "";
+    let confidence = confidenceButtons[0]?.getAttribute("data-cc-transcript-confidence") || "sure";
 
     function selectedType() {
       return types.find((type) => type.key === select.value) || null;
     }
+    function routeBadges(type) {
+      if (!type) return "";
+      const badges = [
+        type.maxTier ? `<span>${esc(type.maxTier)}</span>` : "",
+        type.cohortMode ? `<span>${esc(String(type.cohortMode).replace(/_/g, " "))}</span>` : "",
+        `<span>Drive queued</span>`,
+      ].filter(Boolean).join("");
+      return `
+        <div class="cc-upload-route-line"><strong>${esc(type.routePath || "needs_calendar_match")}</strong></div>
+        <div class="cc-upload-route-badges">${badges}</div>
+        ${type.accessNote ? `<div class="cc-upload-route-note">${esc(type.accessNote)}</div>` : ""}`;
+    }
     function syncUploadState() {
       const type = selectedType();
-      upload.disabled = !type;
-      route.textContent = type && type.routePath ? `route: ${type.routePath}` : "";
+      submit.disabled = !type;
+      route.innerHTML = routeBadges(type);
+    }
+    function setBusy(busy) {
+      for (const el of [select, date, label, session, related, org, token, cancel, ...confidenceButtons]) {
+        if (el) el.disabled = busy;
+      }
+      submit.disabled = busy || !selectedType();
     }
 
     select.addEventListener("change", syncUploadState);
+    for (const btn of confidenceButtons) {
+      btn.addEventListener("click", () => {
+        confidence = btn.getAttribute("data-cc-transcript-confidence") || "sure";
+        confidenceButtons.forEach((item) => {
+          const on = item === btn;
+          item.classList.toggle("is-on", on);
+          item.setAttribute("aria-pressed", on ? "true" : "false");
+        });
+      });
+    }
     cancel.addEventListener("click", () => card.remove());
-    openDrive.addEventListener("click", () => {
-      if (driveLink && window.api && window.api.openExternal) window.api.openExternal(driveLink);
-    });
-    upload.addEventListener("click", async () => {
+    submit.addEventListener("click", async () => {
       const type = selectedType();
       if (!type) {
         stat.hidden = false;
@@ -659,43 +750,51 @@ function createController() {
         stat.textContent = "Choose a transcript type first.";
         return;
       }
-      if (!window.api || !window.api.uploadTranscriptToDrive) {
+      if (!window.api || !window.api.submitTranscriptIntake) {
         stat.hidden = false;
         stat.className = "cc-card-status is-error";
-        stat.textContent = "Drive upload is unavailable in this build.";
+        stat.textContent = "Transcript intake is unavailable in this build.";
         return;
       }
-      upload.disabled = true;
-      select.disabled = true;
-      label.disabled = true;
+      setBusy(true);
       stat.hidden = false;
       stat.className = "cc-card-status";
       stat.textContent = "opening file picker...";
       try {
-        const res = await window.api.uploadTranscriptToDrive({
+        const currentConfig = readTranscriptSupabaseConfig();
+        const res = await window.api.submitTranscriptIntake({
           sessionType: type.key,
           label: (label.value || "").trim(),
+          declaredDate: (date.value || "").trim(),
+          relatedText: (related.value || "").trim(),
+          sessionId: (session.value || "").trim(),
+          confidence,
+          supabase: {
+            ...currentConfig,
+            orgId: (org.value || currentConfig.orgId || "").trim(),
+            accessToken: (token.value || currentConfig.accessToken || "").trim(),
+          },
         });
         if (res && res.ok) {
-          driveLink = res.webViewLink || res.webContentLink || "";
           stat.className = "cc-card-status is-ok";
-          stat.textContent = `uploaded: ${res.targetPath || res.name || "transcript"}`;
+          stat.textContent = res.processingQueued
+            ? `queued for processing: ${res.storageRef || type.routePath || "transcript"}`
+            : `saved to Supabase: ${res.needsSessionMatch ? "needs session match" : "Drive mirror queued"}`;
           card.classList.add("is-done");
-          if (driveLink) openDrive.hidden = false;
           return;
         }
         const reason = res && (res.detail || res.reason);
         stat.className = "cc-card-status" + (res && res.reason === "canceled" ? "" : " is-error");
-        stat.textContent = res && res.reason === "canceled" ? "canceled." : `upload failed: ${reason || "unknown error"}`;
-        upload.disabled = false;
-        select.disabled = false;
-        label.disabled = false;
+        if (res && res.reason === "missing_supabase_config" && Array.isArray(res.missing)) {
+          stat.textContent = `staged locally; Supabase needs ${res.missing.join(", ")}.`;
+        } else {
+          stat.textContent = res && res.reason === "canceled" ? "canceled." : `intake failed: ${reason || "unknown error"}`;
+        }
+        setBusy(false);
       } catch (error) {
         stat.className = "cc-card-status is-error";
-        stat.textContent = `upload failed: ${error?.message || error}`;
-        upload.disabled = false;
-        select.disabled = false;
-        label.disabled = false;
+        stat.textContent = `intake failed: ${error?.message || error}`;
+        setBusy(false);
       }
     });
     syncUploadState();

@@ -119,6 +119,7 @@ export const DEFAULT_ROUTING_POLICY = {
       demo_presentation: "demo_presentation",
       user_interview: "user_interview",
       planning_strategy: "planning_strategy",
+      leadership_meeting: "leadership_meeting",
     },
   },
   drive_vault: {
@@ -185,6 +186,11 @@ export const DEFAULT_ROUTING_POLICY = {
         derived_path: "do_not_publish/planning_strategy",
         access_note: "Admins only by default; stops at core and never reaches cohort/public surfaces.",
       },
+      leadership_meeting: {
+        path: "do_not_publish/leadership_meeting",
+        derived_path: "do_not_publish/leadership_meeting",
+        access_note: "Admins and leadership only; never reaches cohort/public surfaces.",
+      },
       unknown: {
         path: "needs_calendar_match",
         derived_path: "needs_calendar_match",
@@ -204,6 +210,7 @@ export const DEFAULT_ROUTING_POLICY = {
       "private_1on1",
       "user_interview",
       "planning_strategy",
+      "leadership_meeting",
     ],
   },
   manual_classification_checks: [
@@ -241,6 +248,11 @@ export const DEFAULT_ROUTING_POLICY = {
       when: "governance, fundraising, internal planning, access policy, or coordinator strategy",
       classify_as: "planning_strategy",
       not_as: "office_hours",
+    },
+    {
+      when: "restricted leadership or steering discussion requiring the tightest transcript route",
+      classify_as: "leadership_meeting",
+      not_as: "planning_strategy",
     },
   ],
   ambiguous_classification_rule: "Use the calendar event as the first anchor. If the calendar is ambiguous, choose the more restrictive route and send the file to needs_calendar_match.",
@@ -332,6 +344,17 @@ export const DEFAULT_ROUTING_POLICY = {
       default_auto_transcript: false,
       required_public_approvals: [],
       notes: "Coordinator-internal governance stops at core.",
+    },
+    leadership_meeting: {
+      label: "Leadership meeting",
+      description: "Restricted leadership or steering conversation.",
+      event_basis: "leadership_or_project_direction_based",
+      max_tier: "T1",
+      cohort_mode: "never",
+      public_allowed: false,
+      default_auto_transcript: false,
+      required_public_approvals: [],
+      notes: "Tightest-held route; admins/leadership only, never distilled to cohort or public.",
     },
   },
 };

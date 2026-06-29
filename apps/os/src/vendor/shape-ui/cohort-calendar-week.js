@@ -1077,22 +1077,17 @@ export function renderWeekView({
             </div>
           </div>
 
-          <footer class="cal-recur">
-            <h2 class="cal-recur-h">recurring</h2>
-            ${recurringHtml}
+          <footer class="cal-bottom-tray" aria-label="calendar footer">
+            <section class="cal-recur" aria-labelledby="cal-recur-heading">
+              <h2 id="cal-recur-heading" class="cal-recur-h">recurring</h2>
+              ${recurringHtml}
+            </section>
+
+            <div class="cal-page-foot">
+              <span class="cpf-source">source <a href="${escAttr(CALENDAR_URL)}" data-external>calendar.json</a></span>
+              <span class="cpf-window">may 18 - jul 26 2026</span>
+            </div>
           </footer>
-
-          <div class="cal-page-foot">
-            <span>source · <a href="${escAttr(CALENDAR_URL)}" data-external>os-web.shaperotator.xyz/calendar.json</a></span>
-            <span aria-hidden="true">·</span>
-            <span>cohort may 18 → jul 26 2026</span>
-          </div>
-
-          <div class="cal-kbd-hints" aria-hidden="true">
-            <span class="ckh-pair"><kbd class="ckh-key">←</kbd><kbd class="ckh-key">→</kbd><span class="ckh-label">prev / next week</span></span>
-            <span class="ckh-sep" aria-hidden="true">·</span>
-            <span class="ckh-pair"><kbd class="ckh-key">t</kbd><span class="ckh-label">jump to this week</span></span>
-          </div>
         </section>
       ` : ""}
 
