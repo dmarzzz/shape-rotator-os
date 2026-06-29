@@ -318,6 +318,7 @@ const state = {
   atlasFocus: null,    // active tag in the atlas view (null = whole-graph mode)
   onboardingJustToggled: null,  // step key that was just marked/unmarked done; consumed by wireOnboarding to scroll-into-view the next step
   openAskComposer: false, // one-shot landing state when membrane sends someone to post
+  askComposer: { open: false, detailsOpen: false, draft: {} },
   constellationMode: "map",   // top-level constellation view: "map" | "ring" | "journey" | "stack" | "targets" | "collab"
   constellationScope: "projects", // network entity layer: projects/teams vs people-to-project membership
   constellationLens: "all",   // map line lens: "all" | "relies" | "works" | "substrate" — changes which relationship claim is foregrounded
@@ -14173,7 +14174,7 @@ function renderAsksHtml() {
     ].join("");
     const isMine = isAskMine(a, askIdentity);
     const claimedByMe = a.claimed_by ? isAskMine({ author: a.claimed_by }, askIdentity) : false;
-    const ageLabel = askTimeLabel(a) || askAgeLabel(a) || "-";
+    const ageLabel = askTimeLabel(a) || askAgeLabel(a) || "";
     const status = askStatus(a);
     const verbDisplay = askDisplayVerb(a);
     const statusBadge = status === "claimed" ? `<span class="alch-asks-status alch-asks-status-claimed">claimed</span>`
@@ -14181,6 +14182,11 @@ function renderAsksHtml() {
                       : a._expired           ? `<span class="alch-asks-status alch-asks-status-fading">fading</span>`
                       : intent !== "ask"     ? `<span class="alch-asks-status alch-asks-status-${escAttr(intent)}">${escHtml(intentLabel)}</span>`
                       : "";
+    const metaMarkup = [
+      `<span class="alch-asks-author">${escHtml(authorLabel)}</span>`,
+      ageLabel ? `<span class="alch-asks-sep">·</span><span class="alch-asks-when">${escHtml(ageLabel)}</span>` : "",
+      statusBadge,
+    ].filter(Boolean).join("");
     const topic = askTopic(a) || "untitled ask";
     const actions = [];
     if (isMine && status !== "done") {
@@ -14219,10 +14225,7 @@ function renderAsksHtml() {
           <span class="alch-asks-body">
             <span class="alch-asks-topic" title="${escAttr(topic)}">${escHtml(topic)}</span>
             <span class="alch-asks-meta">
-              <span class="alch-asks-author">${escHtml(authorLabel)}</span>
-              <span class="alch-asks-sep">·</span>
-              <span class="alch-asks-when">${escHtml(ageLabel)}</span>
-              ${statusBadge}
+              ${metaMarkup}
             </span>
           </span>
           <span class="alch-asks-row-caret" aria-hidden="true"></span>
@@ -14237,8 +14240,11 @@ function renderAsksHtml() {
     `;
   };
 
-  const section = (title, list, emptyText) => `
-    <details class="alch-asks-section" open>
+  const section = (title, list, emptyText, opts = {}) => {
+    if (!list.length && opts.hideEmpty) return "";
+    const openAttr = opts.open === false ? "" : " open";
+    return `
+    <details class="alch-asks-section"${openAttr}>
       <summary class="alch-asks-section-head">
         <span class="alch-asks-section-caret" aria-hidden="true"></span>
         <h3 class="alch-asks-section-title">${escHtml(title)}</h3>
@@ -14249,6 +14255,7 @@ function renderAsksHtml() {
         : `<p class="alch-asks-empty">${escHtml(emptyText)}</p>`}
     </details>
   `;
+  };
 
   // Author slug: prefer the cohort-resolved person record_id (so the
   // ask's `author` field actually points at a record), fall back to
@@ -14260,8 +14267,8 @@ function renderAsksHtml() {
   // Common verbs the compose form offers as quick picks. Stays in code
   // (not cohort-data) since it's a tiny vocab that drives nothing else.
   const ASK_INTENT_OPTIONS = [
-    { key: "ask", label: "ask", hint: "help / pairing" },
-    { key: "come_join", label: "come join", hint: "open plan" },
+    { key: "ask", label: "ask" },
+    { key: "come_join", label: "join" },
   ];
   const ASK_VERB_OPTIONS = {
     ask: [
@@ -14280,99 +14287,105 @@ function renderAsksHtml() {
       "after-hours",
     ],
   };
-  const initialIntent = "ask";
+  const composer = state.askComposer || (state.askComposer = { open: false, detailsOpen: false, draft: {} });
+  const draft = composer.draft || (composer.draft = {});
+  const initialIntent = askIntent({ intent: draft.intent || "ask" });
+  const fallbackVerb = ASK_VERB_OPTIONS[initialIntent]?.[0] || "🤝 pair on";
+  const initialVerb = String(draft.verb || fallbackVerb).trim() || fallbackVerb;
   const intentPills = ASK_INTENT_OPTIONS.map((opt) => `
     <button class="alch-asks-intent-pill" type="button" data-asks-intent="${escAttr(opt.key)}" aria-pressed="${opt.key === initialIntent ? "true" : "false"}">
       <span>${escHtml(opt.label)}</span>
-      <small>${escHtml(opt.hint)}</small>
     </button>
   `).join("");
   const askVerbMenus = Object.entries(ASK_VERB_OPTIONS).map(([intentKey, options]) => `
     <select class="alch-asks-verb-select" data-asks-verb-menu="${escAttr(intentKey)}" aria-label="${escAttr(`${askIntentLabel({ intent: intentKey })} kind`)}"${intentKey === initialIntent ? "" : " hidden disabled"}>
+      ${intentKey === initialIntent && !options.includes(initialVerb) ? `<option value="${escAttr(initialVerb)}" selected>${escHtml(askDisplayVerb(initialVerb, intentKey).label)}</option>` : ""}
       ${options.map((v, i) => {
         const display = askDisplayVerb(v, intentKey);
-        return `<option value="${escAttr(v)}"${i === 0 ? " selected" : ""}>${escHtml(display.label)}</option>`;
+        const selected = intentKey === initialIntent ? v === initialVerb : i === 0;
+        return `<option value="${escAttr(v)}"${selected ? " selected" : ""}>${escHtml(display.label)}</option>`;
       }).join("")}
     </select>
   `).join("");
-  const openComposer = state.openAskComposer === true;
+  if (state.openAskComposer === true) composer.open = true;
+  const openComposer = composer.open === true;
   state.openAskComposer = false;
+  const sectionsHtml = [
+    section(askIntentSection({ intent: "come_join" }), openByIntent.come_join, "no plans open to join.", { hideEmpty: true }),
+    section(askIntentSection({ intent: "ask" }), openByIntent.ask, "no open asks.", { hideEmpty: true }),
+    section("closed", closed, "nothing closed yet.", { hideEmpty: true, open: false }),
+  ].filter(Boolean).join("");
+  const asksBodyHtml = sectionsHtml || `<p class="alch-asks-board-empty">No open asks or plans yet.</p>`;
 
   return `
     <form class="alch-asks-compose" data-author-slug="${escAttr(authorSlug)}" data-today="${escAttr(todayIso)}" data-autofocus="${openComposer ? "1" : "0"}">
       <details class="alch-asks-compose-shell" data-asks-compose-details${openComposer ? " open" : ""}>
         <summary class="alch-asks-compose-head">
-          <span class="alch-asks-compose-title">new post</span>
-          <span class="alch-asks-intent-pills" role="group" aria-label="post intent">
-            ${intentPills}
-          </span>
+          <span class="alch-asks-compose-title">New post</span>
           <span class="alch-asks-compose-caret" aria-hidden="true"></span>
         </summary>
         <input type="hidden" name="intent" value="${escAttr(initialIntent)}" />
-        <input type="hidden" name="verb" value="${escAttr(ASK_VERB_OPTIONS[initialIntent][0])}" />
+        <input type="hidden" name="verb" value="${escAttr(initialVerb)}" />
         <div class="alch-asks-compose-body">
           <div class="alch-asks-compose-grid">
             <label class="alch-asks-compose-field alch-asks-compose-topic">
-              <span class="alch-asks-compose-label" data-asks-topic-label>what do you need?</span>
-              <textarea name="topic" rows="2" class="alch-asks-compose-input"
-                        placeholder="fuzzing the AMM contract — would love 30 min with someone who's done property testing"></textarea>
+              <span class="sr-only" data-asks-topic-label>what do you need?</span>
+              <textarea name="topic" rows="3" class="alch-asks-compose-input"
+                        aria-label="what do you need?"
+                        placeholder="${escAttr(initialIntent === "come_join" ? "What is happening? Time, place, and contact can stay TBD." : "Ask for a pair, a review, or a quick sanity check...")}">${escHtml(draft.topic || "")}</textarea>
             </label>
-            <div class="alch-asks-compose-toolbar">
-              <span class="alch-asks-compose-label alch-asks-compose-toolbar-label">kind</span>
-              <span class="alch-asks-verb-menu-wrap">${askVerbMenus}</span>
+            <div class="alch-asks-compose-accessory">
+              <span class="alch-asks-intent-pills" role="group" aria-label="post intent">
+                ${intentPills}
+              </span>
+              <button class="alch-asks-detail-toggle" type="button" data-asks-detail-toggle aria-expanded="${composer.detailsOpen ? "true" : "false"}" aria-pressed="${composer.detailsOpen ? "true" : "false"}">${composer.detailsOpen ? "hide details" : "details"}</button>
+              <span class="alch-asks-compose-spacer" aria-hidden="true"></span>
+              <button class="alch-feed-btn alch-asks-compose-submit" type="submit">review</button>
             </div>
-            <details class="alch-asks-compose-context alch-asks-compose-more">
-              <summary>details if known <span class="alch-asks-compose-hint">time, place, contact, tags</span></summary>
+            <details class="alch-asks-compose-context alch-asks-compose-more" data-asks-more-details${composer.detailsOpen ? " open" : ""}>
+              <summary class="sr-only">details if known</summary>
               <div class="alch-asks-compose-more-grid">
                 <label class="alch-asks-compose-field">
+                  <span class="alch-asks-compose-label">kind <span class="alch-asks-compose-hint">(optional)</span></span>
+                  <span class="alch-asks-verb-menu-wrap alch-asks-verb-menu-wrap-field">${askVerbMenus}</span>
+                </label>
+                <label class="alch-asks-compose-field">
                   <span class="alch-asks-compose-label">when <span class="alch-asks-compose-hint">(optional)</span></span>
-                  <input name="starts_at" type="text" class="alch-asks-compose-input" placeholder="${escAttr(todayIso)} 18:00, after lunch, next week" />
+                  <input name="starts_at" type="text" class="alch-asks-compose-input" value="${escAttr(draft.starts_at || "")}" placeholder="${escAttr(todayIso)} 18:00, after lunch, next week" />
                 </label>
                 <label class="alch-asks-compose-field">
                   <span class="alch-asks-compose-label">until <span class="alch-asks-compose-hint">(optional)</span></span>
-                  <input name="expires_at" type="text" class="alch-asks-compose-input" placeholder="2026-06-29 20:00 or when filled" />
+                  <input name="expires_at" type="text" class="alch-asks-compose-input" value="${escAttr(draft.expires_at || "")}" placeholder="2026-06-29 20:00 or when filled" />
                 </label>
                 <label class="alch-asks-compose-field">
                   <span class="alch-asks-compose-label">where <span class="alch-asks-compose-hint">(optional)</span></span>
-                  <input name="location" type="text" class="alch-asks-compose-input" placeholder="TBD, online, Brooklyn Boulders" />
+                  <input name="location" type="text" class="alch-asks-compose-input" value="${escAttr(draft.location || "")}" placeholder="TBD, online, Brooklyn Boulders" />
                 </label>
                 <label class="alch-asks-compose-field">
                   <span class="alch-asks-compose-label">contact <span class="alch-asks-compose-hint">(optional)</span></span>
-                  <input name="contact" type="text" class="alch-asks-compose-input" placeholder="@handle, Signal, Discord" />
+                  <input name="contact" type="text" class="alch-asks-compose-input" value="${escAttr(draft.contact || "")}" placeholder="@handle, Signal, Discord" />
                 </label>
                 <label class="alch-asks-compose-field">
                   <span class="alch-asks-compose-label">spots <span class="alch-asks-compose-hint">(optional)</span></span>
-                  <input name="capacity" type="text" class="alch-asks-compose-input" placeholder="3" />
+                  <input name="capacity" type="text" class="alch-asks-compose-input" value="${escAttr(draft.capacity || "")}" placeholder="3" />
                 </label>
                 <label class="alch-asks-compose-field alch-asks-compose-more-full">
                   <span class="alch-asks-compose-label">tags <span class="alch-asks-compose-hint">(optional)</span></span>
-                  <input name="skill_areas" type="text" class="alch-asks-compose-input" placeholder="tee, dstack, social, climbing" />
+                  <input name="skill_areas" type="text" class="alch-asks-compose-input" value="${escAttr(draft.skill_areas || "")}" placeholder="tee, dstack, social, climbing" />
                 </label>
                 <label class="alch-asks-compose-field alch-asks-compose-more-full">
                   <span class="alch-asks-compose-label">context</span>
-                  <textarea name="body" rows="3" class="alch-asks-compose-input" placeholder="links, constraints, what you've tried"></textarea>
+                  <textarea name="body" rows="3" class="alch-asks-compose-input" placeholder="links, constraints, what you've tried">${escHtml(draft.body || "")}</textarea>
                 </label>
               </div>
             </details>
-          </div>
-          <div class="alch-asks-compose-row">
-            <button class="alch-feed-btn alch-asks-compose-submit" type="submit">review post</button>
-            <span class="alch-asks-compose-author">${
-              authorSlug === "your-slug"
-                ? "claim your cohort profile before posting"
-                : `posting as <strong>${escHtml(authorSlug)}</strong>${myHandle && authorSlug !== myHandle ? ` · @${escHtml(myHandle)}` : ""}`
-            }</span>
           </div>
           <div class="alch-asks-compose-result" hidden></div>
         </div>
       </details>
     </form>
 
-    ${section(askIntentSection({ intent: "come_join" }), openByIntent.come_join, "no plans open to join.")}
-
-    ${section(askIntentSection({ intent: "ask" }), openByIntent.ask, "no open asks.")}
-
-    ${section("closed", closed, "nothing closed yet.")}
+    ${asksBodyHtml}
   `;
 }
 
@@ -14666,6 +14679,32 @@ function wireAsks() {
     const intentInput = form.elements.intent;
     const verbInput = form.elements.verb;
     const composeDetails = form.querySelector("[data-asks-compose-details]");
+    const moreDetails = form.querySelector("[data-asks-more-details]");
+    const detailToggle = form.querySelector("[data-asks-detail-toggle]");
+    const syncDetailToggle = () => {
+      if (!detailToggle || !moreDetails) return;
+      const open = moreDetails.open === true;
+      detailToggle.setAttribute("aria-expanded", open ? "true" : "false");
+      detailToggle.setAttribute("aria-pressed", open ? "true" : "false");
+      detailToggle.textContent = open ? "hide details" : "details";
+    };
+    const saveDraft = () => {
+      const composer = state.askComposer || (state.askComposer = { open: false, detailsOpen: false, draft: {} });
+      composer.open = composeDetails?.open === true;
+      composer.detailsOpen = moreDetails?.open === true;
+      composer.draft = {
+        intent: askIntent({ intent: form.elements.intent?.value || "ask" }),
+        verb: String(form.elements.verb?.value || "").trim(),
+        topic: String(form.elements.topic?.value || ""),
+        starts_at: String(form.elements.starts_at?.value || ""),
+        expires_at: String(form.elements.expires_at?.value || ""),
+        location: String(form.elements.location?.value || ""),
+        contact: String(form.elements.contact?.value || ""),
+        capacity: String(form.elements.capacity?.value || ""),
+        skill_areas: String(form.elements.skill_areas?.value || ""),
+        body: String(form.elements.body?.value || ""),
+      };
+    };
     const setIntent = (intent) => {
       const next = askIntent({ intent });
       if (intentInput) intentInput.value = next;
@@ -14683,11 +14722,13 @@ function wireAsks() {
       const topic = form.elements.topic;
       if (topic && !String(topic.value || "").trim()) {
         topic.placeholder = next === "come_join"
-          ? "going rock climbing after lunch — come join if you want to move"
-          : "fuzzing the AMM contract — would love 30 min with someone who's done property testing";
+          ? "What is happening? Time, place, and contact can stay TBD."
+          : "Ask for a pair, a review, or a quick sanity check...";
+        topic.setAttribute("aria-label", next === "come_join" ? "what is happening?" : "what do you need?");
       }
       const topicLabel = form.querySelector("[data-asks-topic-label]");
       if (topicLabel) topicLabel.textContent = next === "come_join" ? "what is happening?" : "what do you need?";
+      saveDraft();
     };
     for (const b of form.querySelectorAll("[data-asks-intent]")) {
       b.addEventListener("click", (e) => {
@@ -14695,17 +14736,36 @@ function wireAsks() {
         e.stopPropagation();
         setIntent(b.dataset.asksIntent || "ask");
         if (composeDetails) composeDetails.open = true;
+        saveDraft();
       });
     }
     for (const menu of form.querySelectorAll("[data-asks-verb-menu]")) {
       menu.addEventListener("change", () => {
         if (verbInput) verbInput.value = menu.value || "";
         if (composeDetails) composeDetails.open = true;
+        saveDraft();
         if (!String(form.elements.topic?.value || "").trim()) {
           requestAnimationFrame(() => form.elements.topic?.focus?.());
         }
       });
     }
+    composeDetails?.addEventListener("toggle", saveDraft);
+    detailToggle?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!moreDetails) return;
+      moreDetails.open = !moreDetails.open;
+      if (composeDetails) composeDetails.open = true;
+      syncDetailToggle();
+      saveDraft();
+    });
+    moreDetails?.addEventListener("toggle", () => {
+      syncDetailToggle();
+      saveDraft();
+    });
+    syncDetailToggle();
+    form.addEventListener("input", saveDraft);
+    form.addEventListener("change", saveDraft);
     form.addEventListener("submit", (e) => {
       e.preventDefault();
       submitAskCompose(form);
