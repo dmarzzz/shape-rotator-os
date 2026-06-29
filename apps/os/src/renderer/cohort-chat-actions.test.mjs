@@ -30,16 +30,26 @@ test("normalizeGithubRepo yields owner/repo or empty", () => {
 // ── field whitelist ───────────────────────────────────────────────────────────
 test("sanitizeProfileFields keeps only whitelisted fields and drops junk", () => {
   const out = sanitizeProfileFields({
+    comm_style: "async first",
+    contribute_interests: ["demo feedback"],
     now: "  building the mirror  ",
+    availability_pref: "mornings",
     skills: ["ts", "", "rust", 42],
+    go_to_them_for: ["local-first apps"],
+    working_style: "prototype with users",
     record_id: "HACK",          // off-whitelist
     team: "cube",               // off-whitelist
     geo: "NYC",
     links: { github: "@dmarz", repo: "dmarzzz/shape-rotator-os", website: "evil.com" },
   });
   assert.deepEqual(out, {
+    comm_style: "async first",
+    contribute_interests: ["demo feedback"],
     now: "building the mirror",
+    availability_pref: "mornings",
     skills: ["ts", "rust", "42"],
+    go_to_them_for: ["local-first apps"],
+    working_style: "prototype with users",
     geo: "NYC",
     links: { github: "dmarz", repo: "dmarzzz/shape-rotator-os" }, // website dropped
   });

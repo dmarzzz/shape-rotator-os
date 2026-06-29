@@ -85,10 +85,44 @@ export function emitProfileEdit(recordId, baseline, draft) {
   void emit("profile_edit", { recordId, field: leadField(fields), value: { fields } });
 }
 
-// An AI self-report refresh was applied: one loud "refreshed from recent work" line.
-export function emitSelfReport(recordId, fields = []) {
+// An AI self-report refresh was applied: one loud "refreshed from recent work"
+// line. Values stay out of the feed; this event only anchors the current-state
+// correction on the timeline with provenance metadata.
+export function emitSelfReport(recordId, fields = [], meta = {}) {
   const list = Array.isArray(fields) ? fields.filter(Boolean).map(String).slice(0, 12) : [];
-  void emit("self_report", { recordId, value: { fields: list }, weight: "loud" });
+  const sourceKinds = Array.isArray(meta.sourceKinds)
+    ? meta.sourceKinds.filter(Boolean).map(String).slice(0, 8)
+    : [];
+  const value = {
+    fields: list,
+    mode: "current_state_refresh",
+    timeline_anchor: "current",
+  };
+  if (sourceKinds.length) value.source_kinds = sourceKinds;
+  if (["thin", "focused", "broad"].includes(meta.coverageStatus)) value.coverage_status = meta.coverageStatus;
+  if (meta.usedAppContext) value.app_context = "current_surface";
+  if (meta.teamRecordId) value.team_record_id = String(meta.teamRecordId).slice(0, 128);
+  if (Array.isArray(meta.teamFields) && meta.teamFields.length) value.team_fields = meta.teamFields.filter(Boolean).map(String).slice(0, 12);
+  if (meta.teamProposalStatus) value.team_proposal_status = String(meta.teamProposalStatus).slice(0, 64);
+  if (meta.usefulness && typeof meta.usefulness === "object" && !Array.isArray(meta.usefulness)) {
+    const areas = meta.usefulness.areas && typeof meta.usefulness.areas === "object" && !Array.isArray(meta.usefulness.areas)
+      ? meta.usefulness.areas
+      : {};
+    const cleanAreas = {};
+    for (const [k, v] of Object.entries(areas)) {
+      const key = String(k || "").slice(0, 64);
+      const val = String(v || "").slice(0, 64);
+      if (key && val) cleanAreas[key] = val;
+    }
+    if (Object.keys(cleanAreas).length) value.usefulness_areas = cleanAreas;
+    if (Array.isArray(meta.usefulness.suggested_actions) && meta.usefulness.suggested_actions.length) {
+      value.suggested_actions = meta.usefulness.suggested_actions.filter(Boolean).map(String).slice(0, 8);
+    }
+    if (Array.isArray(meta.usefulness.missing_evidence) && meta.usefulness.missing_evidence.length) {
+      value.missing_evidence_count = Math.min(99, meta.usefulness.missing_evidence.length);
+    }
+  }
+  void emit("self_report", { recordId, field: leadField(list), value, weight: "loud" });
 }
 
 // A member contested a public claim: a loud feed event (the durable rebuttal still
