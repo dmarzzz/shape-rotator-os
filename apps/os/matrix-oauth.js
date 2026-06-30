@@ -167,11 +167,26 @@ async function pollForToken({ tokenEndpoint, clientId, deviceCode, interval, exp
 
 // Exchange a refresh token for a fresh access token. MAS rotates the refresh
 // token, so the caller MUST persist the returned refreshToken (reusing the old
-// one logs the user out). Returns { accessToken, refreshToken, expiresIn }.
+// one logs the user out). Returns a DISCRIMINATED result so the caller can tell
+// a genuinely-dead session (fatal → log out) from a transient network/server
+// hiccup (keep the session, retry later) — a network blip must never log out.
+//   success   → { ok:true, accessToken, refreshToken, expiresIn }
+//   failure   → { ok:false, fatal:boolean, error }
 async function refresh({ tokenEndpoint, clientId, refreshToken }) {
-  const { status, body } = await postForm(tokenEndpoint, { grant_type: "refresh_token", refresh_token: refreshToken, client_id: clientId });
-  if (!body.access_token) throw new Error(body.error_description || body.error || `token refresh failed (HTTP ${status})`);
-  return { accessToken: body.access_token, refreshToken: body.refresh_token || refreshToken, expiresIn: Number(body.expires_in) || 0 };
+  let resp;
+  try {
+    resp = await postForm(tokenEndpoint, { grant_type: "refresh_token", refresh_token: refreshToken, client_id: clientId });
+  } catch (e) {
+    return { ok: false, fatal: false, error: e.message };   // couldn't reach the server — transient
+  }
+  const { status, body } = resp;
+  if (body.access_token) {
+    return { ok: true, accessToken: body.access_token, refreshToken: body.refresh_token || refreshToken, expiresIn: Number(body.expires_in) || 0 };
+  }
+  // Fatal only when the server explicitly rejected the grant (refresh token dead)
+  // or any other 4xx; 5xx / unknown is transient.
+  const fatal = body.error === "invalid_grant" || (status >= 400 && status < 500);
+  return { ok: false, fatal, error: body.error_description || body.error || `token refresh failed (HTTP ${status})` };
 }
 
 // ── authorization-code (computer's browser) flow ────────────────────────────

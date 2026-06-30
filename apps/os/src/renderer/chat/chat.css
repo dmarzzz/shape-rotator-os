@@ -109,6 +109,12 @@
   font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em;
   text-transform: uppercase; color: rgba(var(--ink-rgb), 0.4); margin: 6px 0 10px;
 }
+/* re-auth notice — shown when a session expired, so a logout never feels silent */
+.chat-gate-reauth {
+  margin: 0 0 14px; padding: 8px 11px; border-radius: 6px;
+  font-size: 12px; line-height: 1.45; color: rgba(var(--ink-rgb), 0.75);
+  background: rgba(var(--ink-rgb), 0.05); border: 1px solid rgba(var(--ink-rgb), 0.12);
+}
 .chat-mxorg-browser, .chat-mxorg-code { display: block; width: 100%; margin-top: 8px; }
 .chat-btn-ghost { border-color: transparent; background: none; color: rgba(var(--ink-rgb), 0.62); }
 .chat-btn-ghost:hover:not(:disabled) { background: rgba(var(--ink-rgb), 0.05); border-color: rgba(var(--ink-rgb), 0.2); }

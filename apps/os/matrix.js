@@ -393,24 +393,30 @@ async function establishOAuthSession(disc, deviceId, tok, clientId) {
 }
 
 let refreshing = null;
+// Returns "ok" | "fatal" | "transient".
 async function doRefresh() {
   try {
     const r = await oauth.refresh({ tokenEndpoint: session.oauth.tokenEndpoint, clientId: session.oauth.clientId, refreshToken: session.oauth.refreshToken });
-    token = r.accessToken;
-    session.oauth.refreshToken = r.refreshToken;   // MAS rotates it — must persist the new one
-    session.oauth.expiresAt = Date.now() + (r.expiresIn || 300) * 1000;
-    persistSession();
-    return true;
-  } catch (e) { warn(`token refresh failed: ${e.message}`); return false; }
+    if (r.ok) {
+      token = r.accessToken;
+      session.oauth.refreshToken = r.refreshToken;   // MAS rotates it — must persist the new one
+      session.oauth.expiresAt = Date.now() + (r.expiresIn || 300) * 1000;
+      persistSession();
+      return "ok";
+    }
+    warn(`token refresh ${r.fatal ? "rejected — session expired" : "failed transiently"}: ${r.error}`);
+    return r.fatal ? "fatal" : "transient";
+  } catch (e) { warn(`token refresh error: ${e.message}`); return "transient"; }
   finally { refreshing = null; }
 }
 
 // Keep an OAuth access token valid: refresh when within 90s of expiry, or when
-// forced after a soft-logout 401. Single-flight. No-op for long-lived-token
-// sessions (the password / token-paste path against the cohort server).
+// forced after a soft-logout 401. Single-flight. Returns "ok" | "fatal" |
+// "transient" ("ok" for long-lived-token sessions — password / token-paste
+// against the cohort server — which never refresh).
 async function ensureFreshToken(force = false) {
-  if (!session?.oauth?.refreshToken) return true;
-  if (!force && Date.now() < (session.oauth.expiresAt || 0) - 90000) return true;
+  if (!session?.oauth?.refreshToken) return "ok";
+  if (!force && Date.now() < (session.oauth.expiresAt || 0) - 90000) return "ok";
   if (!refreshing) refreshing = doRefresh();
   return refreshing;
 }
@@ -542,16 +548,26 @@ async function retryDecryptions() {
   if (listChanged) broadcast("matrix:rooms", roomSummaries());
 }
 
+// Clean session teardown when a session genuinely can't be recovered (refresh
+// token dead / token revoked). Surfaces a reason the gate shows, so it never
+// feels like a silent logout.
+function logOutExpired(reason) {
+  clearSession();
+  running = false;
+  setState("logged_out", reason || "Your session expired — please sign in again.");
+  broadcast("matrix:rooms", []);
+}
+
 // ─── sync loop ──────────────────────────────────────────────────────────────
 
 async function syncLoop() {
   let backoff = 1000;
-  await ensureFreshToken();   // refresh an expired OAuth token left over from a prior session
+  if ((await ensureFreshToken()) === "fatal") { logOutExpired(); return; }   // expired OAuth token from a prior session
   await ensureCrypto();       // ready before the first snapshot so live messages decrypt
   while (running) {
     abort = new AbortController();
     try {
-      await ensureFreshToken();
+      if ((await ensureFreshToken()) === "fatal") { logOutExpired(); return; }
       const url = new URL(hsBase() + "/_matrix/client/v3/sync");
       url.searchParams.set("filter", JSON.stringify(SYNC_FILTER));
       if (since) {
@@ -562,17 +578,16 @@ async function syncLoop() {
       }
       const res = await fetch(url, { headers: authHeaders(), signal: abort.signal });
       if (res.status === 401) {
-        // OAuth soft-logout = token expired; refresh and retry instead of dropping the session.
         const eb = await res.json().catch(() => ({}));
-        if (session?.oauth?.refreshToken && eb.soft_logout && await ensureFreshToken(true)) {
-          backoff = 1000;
-          continue;
+        // OAuth soft-logout = the access token just expired — try to refresh.
+        if (session?.oauth?.refreshToken && eb.soft_logout) {
+          const r = await ensureFreshToken(true);
+          if (r === "ok") { backoff = 1000; continue; }                       // refreshed → retry
+          if (r === "transient") throw new Error("token refresh unavailable");  // network hiccup → back off, NOT a logout
+          // r === "fatal" → refresh token genuinely dead; fall through to logout
         }
         warn("access token rejected (401) — logging out");
-        clearSession();
-        running = false;
-        setState("logged_out", "session expired — sign in again");
-        broadcast("matrix:rooms", []);
+        logOutExpired("Your session expired — please sign in again.");
         return;
       }
       if (!res.ok) throw new Error(`sync HTTP ${res.status}`);

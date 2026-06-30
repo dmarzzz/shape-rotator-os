@@ -84,6 +84,7 @@ export function mountChat(host) {
       <div class="chat-gate">
         <div class="chat-gate-card">
           <h2 class="chat-gate-title">sign in to matrix</h2>
+          ${status.error ? `<p class="chat-gate-reauth">${esc(status.error)}</p>` : ""}
           <p class="chat-gate-grouplabel">matrix.org — your own account</p>
           <button class="chat-btn chat-btn-primary chat-mxorg-browser" type="button">sign in in this computer's browser</button>
           <button class="chat-btn chat-btn-ghost chat-mxorg-code" type="button">approve with a code on another device</button>
