@@ -207,7 +207,7 @@ export function mountChat(host) {
             <input class="chat-input-text" name="token" type="password" placeholder="paste an access token" spellcheck="false" autocapitalize="off" />
             <button class="chat-btn chat-btn-primary chat-token-submit" type="submit" title="sign in" aria-label="sign in">${CHECK_GLYPH}</button>
           </div>
-          <p class="chat-gate-hint">Go to <code>Settings → Help &amp; About → Access Token</code> from a Matrix client you're signed in to</p>
+          <p class="chat-gate-hint">From Element on a computer: <code>Settings → Help &amp; About → Advanced → Access Token</code> (not shown on the phone app)</p>
           <div class="chat-login-msg" role="status" aria-live="polite"></div>
         </form>`;
       wireTokenForm();
