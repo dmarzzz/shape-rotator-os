@@ -503,11 +503,23 @@ export function mountChat(host) {
   }
 
   // Render messages. Undecryptable ones (the pre-login backlog we have no key
-  // for) are simply omitted — they're still readable in Element on a device
-  // that holds the keys. (Restoring them here needs key-backup support, which
-  // we've deferred.)
+  // for) collapse into a single explanatory line — they're still readable in
+  // Element on a device that holds the keys.
   function renderTimelineMsgs(msgs) {
-    return msgs.filter((m) => !m.utd).map(renderMsg).join("");
+    const out = [];
+    let hadUtd = false;
+    const flush = () => {
+      if (!hadUtd) return;
+      out.push(`<div class="chat-utd">🔒 Messages sent before this device signed in can't be decrypted</div>`);
+      hadUtd = false;
+    };
+    for (const m of msgs) {
+      if (m.utd) { hadUtd = true; continue; }
+      flush();
+      out.push(renderMsg(m));
+    }
+    flush();
+    return out.join("");
   }
 
   function renderMsg(m) {

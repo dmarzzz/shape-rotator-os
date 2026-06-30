@@ -286,6 +286,7 @@
 }
 .chat-room-name { font-size: 15px; font-weight: 500; }
 .chat-room-meta {
+  margin-left: auto;   /* push "end-to-end encrypted" to the right edge of the bar */
   font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em;
   text-transform: uppercase; color: rgba(var(--ink-rgb), 0.36);
 }
