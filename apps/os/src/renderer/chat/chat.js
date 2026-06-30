@@ -87,7 +87,7 @@ export function mountChat(host) {
           ${status.error ? `<p class="chat-gate-reauth">${esc(status.error)}</p>` : ""}
           <p class="chat-gate-grouplabel">matrix.org — your own account</p>
           <button class="chat-btn chat-btn-primary chat-mxorg-browser" type="button">sign in with your browser</button>
-          <button class="chat-btn chat-btn-ghost chat-mxorg-code" type="button">approve with a code on another device</button>
+          <p class="chat-gate-hint">opens matrix.org in your browser — sign in there if you're asked.</p>
           <details class="chat-dev"><summary>use a cohort server account instead</summary>
             <div class="chat-gate-body"><div class="chat-gate-checking">checking sign-in…</div></div>
           </details>
@@ -95,8 +95,6 @@ export function mountChat(host) {
       </div>`;
     const b = host.querySelector(".chat-mxorg-browser");
     if (b) b.addEventListener("click", startMatrixOrgBrowserLogin);
-    const c = host.querySelector(".chat-mxorg-code");
-    if (c) c.addEventListener("click", startMatrixOrgLogin);
     refreshGateOptions();
   }
 
