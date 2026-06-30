@@ -203,7 +203,7 @@ export function mountChat(host) {
       body.innerHTML = `
         <form class="chat-token-form" autocomplete="off">
           <input class="chat-input-text" name="token" type="password" placeholder="paste an access token" spellcheck="false" autocapitalize="off" />
-          <p class="chat-gate-hint">From a Matrix client you're signed in to (Element, Cinny…): <code>Settings → Help &amp; About → Access Token</code></p>
+          <p class="chat-gate-hint">Go to <code>Settings → Help &amp; About → Access Token</code> from a Matrix client you're signed in to</p>
           <button class="chat-btn chat-btn-primary" type="submit">sign in</button>
           <div class="chat-login-msg" role="status" aria-live="polite"></div>
         </form>`;
