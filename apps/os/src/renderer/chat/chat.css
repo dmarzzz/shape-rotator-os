@@ -22,9 +22,11 @@
   width: 100%;
   height: 100%;
   display: flex;
-  align-items: center;
+  align-items: flex-start;     /* anchor the card's top: expanding the cohort
+                                  section grows DOWN, the title/button don't move */
   justify-content: center;
-  padding: 40px;
+  padding: 12vh 40px 40px;     /* sit in the upper-middle; top stays put on expand */
+  overflow-y: auto;            /* if the expanded form is tall, scroll, don't clip */
 }
 .chat-gate-card {
   width: 100%;
