@@ -103,6 +103,10 @@ export function warmCohortChat() {
 
 function createController() {
   const panel = $("cohort-chat-panel");
+  const card  = panel ? panel.querySelector(".cohort-chat-card") : null;
+  const tabsEl = panel ? panel.querySelector(".cc-tabs") : null;
+  const searchPane = panel ? panel.querySelector("#cc-pane-search") : null;
+  const syncPane   = panel ? panel.querySelector("#cc-pane-sync") : null;
   if (!panel) return null;
 
   const log         = $("cohort-chat-log");
@@ -165,7 +169,9 @@ function createController() {
   // membrane agenda rail) can make room for the popup. Both open() and close()
   // route through here, so this is the single choke point for the signal.
   function syncDial(isOpen) {
-    document.documentElement.classList.toggle("cohort-chat-open", isOpen);
+    // NB: the html.cohort-chat-open class (which drives the gutter + panel) is
+    // owned by setDocked() now — it must be toggled with precise timing relative
+    // to the window resize so the page doesn't shift. This only does dial state.
     const dial = document.getElementById("cohort-chat-dial");
     if (!dial) return;
     dial.classList.toggle("is-open", isOpen);
@@ -174,10 +180,47 @@ function createController() {
 
   const CHAT_ONBOARDED_KEY = "srwk:chat_onboarded_v1";
 
+  // Open/close the dock. The OS window grows to the RIGHT so the panel is ADDED
+  // space, not stolen from the content. The catch: the window resize is async and
+  // can't be frame-locked to the CSS gutter, which made the page visibly shift.
+  // Fix: freeze the page's content width with an explicit body width WHILE the
+  // window resizes, then swap that freeze for the real gutter (html.cohort-chat-
+  // open) in a single frame — net-zero, so the existing page never moves. The
+  // panel has 0 width until the class is on, so it only appears once the window
+  // is already wide. Falls back to a plain in-window reflow if the dock IPC isn't
+  // available (or the window is maximized and main couldn't grow it).
+  const _html = document.documentElement;
+  function _dockW() {
+    try { return parseInt(getComputedStyle(_html).getPropertyValue("--cc-dock-w-open"), 10) || 0; } catch { return 0; }
+  }
+  async function setDocked(on) {
+    const dock = _dockW();
+    const canGrow = !!(window.api && window.api.cohortChatDock && dock);
+    if (on) {
+      if (!canGrow) { _html.classList.add("cohort-chat-open"); return; }
+      document.body.style.width = window.innerWidth + "px";          // freeze content at its current width
+      try { await window.api.cohortChatDock(true, dock); } catch {}  // grow the window to the right
+      requestAnimationFrame(() => {
+        _html.classList.add("cohort-chat-open");                     // real gutter (numerically == the freeze)
+        document.body.style.width = "";                              // release in the SAME frame → no shift
+      });
+    } else {
+      if (!canGrow) { _html.classList.remove("cohort-chat-open"); return; }
+      document.body.style.width = Math.max(0, window.innerWidth - dock) + "px"; // freeze at the undocked width
+      _html.classList.remove("cohort-chat-open");                    // drop gutter (body frozen → no widen)
+      try { await window.api.cohortChatDock(false, 0); } catch {}    // shrink the window back
+      requestAnimationFrame(() => { document.body.style.width = ""; });
+    }
+  }
+
   function open() {
     panel.hidden = false;
     panel.setAttribute("aria-hidden", "false");
-    syncDial(true);  // also sets html.cohort-chat-open so the agenda rail makes room
+    setChatView(lastView);  // return to the view you collapsed from (lastView starts "ask").
+                            // Re-asserting the SAME view skips setChatView's leaving-sync
+                            // teardown, so a self-report still running in the background survives.
+    syncDial(true);  // dial state only
+    setDocked(true);  // grows the window + opens the dock (owns html.cohort-chat-open)
     window.addEventListener("keydown", onKey, true);
     setTimeout(() => input.focus(), 60);
     refreshReadiness();
@@ -196,8 +239,21 @@ function createController() {
     let cfg = null;
     try { cfg = await window.api.getCohortChatConfig(); } catch {}
     const ready = !!(cfg && cfg.ready);
+    // No local AI connected → show ONLY the setup card: hide the composer so the
+    // panel isn't a row of inputs/prompts that silently do nothing. Restored the
+    // moment a re-check finds a working CLI.
+    if (form) form.hidden = !ready;
+    if (tabsEl) tabsEl.hidden = !ready;   // gate the tabs too: not connected → only the connect prompt
     log.querySelectorAll(".cc-card.is-onboard").forEach((el) => el.remove()); // no dupes across re-opens
-    if (!ready) { renderOnboarding({ ready: false }); return true; }
+    if (!ready) {
+      // The connect card mounts into the chat log, which the search/sync/transcript
+      // views hide via CSS — and we've just hidden the tabs, so the user couldn't
+      // switch back. Force the ask view so the only way to connect the AI stays
+      // visible when reopening from a non-ask tab.
+      setChatView("ask");
+      renderOnboarding({ ready: false });
+      return true;
+    }
     let onboarded = false;
     try { onboarded = !!localStorage.getItem(CHAT_ONBOARDED_KEY); } catch {}
     if (!onboarded) {
@@ -226,18 +282,17 @@ function createController() {
           <button type="button" class="btn ds-primary" data-cc-onboard-recheck>I installed it — re-check</button>
         </div>`;
       card.querySelector("[data-cc-onboard-settings]").addEventListener("click", openSettings);
-      card.querySelector("[data-cc-onboard-recheck]").addEventListener("click", () => { card.remove(); refreshReadiness(); void maybeOnboard(); });
-      if (empty && empty.parentNode) empty.remove(); // the setup guide replaces the prompts
+      card.querySelector("[data-cc-onboard-recheck]").addEventListener("click", async () => { card.remove(); refreshReadiness(); await maybeOnboard(); syncWelcome(); });
     } else {
       card.innerHTML = `
         <div class="cc-card-eyebrow">runs on your own AI</div>
         <div class="cc-card-body">I run on your <b>${esc(detected)}</b> agent — no API key, on your machine. Ask about the cohort, or ask me to <b>update your profile</b>, <b>suggest a connection</b>, or <b>refresh from your recent work</b>. I draft; you approve.</div>
         <div class="cc-card-actions"><button type="button" class="btn ds-ghost" data-cc-onboard-dismiss>Got it</button></div>`;
-      card.querySelector("[data-cc-onboard-dismiss]").addEventListener("click", () => card.remove());
+      card.querySelector("[data-cc-onboard-dismiss]").addEventListener("click", () => { card.remove(); syncWelcome(); });
     }
-    if (empty && empty.parentNode) empty.remove();
     log.appendChild(card);
     log.scrollTop = log.scrollHeight;
+    syncWelcome();
   }
 
   // First-run, once-ever (per claimed record) offer to refresh the profile from
@@ -255,10 +310,17 @@ function createController() {
       maybeOfferMirror({ identity, ready: !!(cfg && cfg.ready), handle, render: renderMirrorOffer });
     } catch { /* offering is best-effort */ }
   }
+  // Collapse, not destroy. Clicking « hides the panel and shrinks the window,
+  // but leaves all in-panel work running in the background: a streaming chat
+  // turn (its output listeners + the local-AI process stay alive), a self-report
+  // scan, a transcript upload. Reopening returns you to the same view (see
+  // open()) with the result waiting. We deliberately do NOT closeSelfReport()
+  // here — that bumps runGen and would drop an in-flight scan's result.
   function close() {
     panel.hidden = true;
     panel.setAttribute("aria-hidden", "true");
-    syncDial(false);  // also clears html.cohort-chat-open
+    syncDial(false);  // dial state only
+    setDocked(false);  // shrinks the window back + closes the dock
     window.removeEventListener("keydown", onKey, true);
   }
   function onKey(e) {
@@ -295,7 +357,7 @@ function createController() {
   }
 
   function appendBubble(role, text) {
-    if (empty && empty.parentNode) empty.remove();
+    if (empty) empty.hidden = true;
     const row = document.createElement("div");
     row.className = `cc-msg is-${role}`;
     const body = document.createElement("div");
@@ -305,6 +367,15 @@ function createController() {
     log.appendChild(row);
     log.scrollTop = log.scrollHeight;
     return body;
+  }
+
+  // The welcome (example prompts + info) belongs whenever the user hasn't asked
+  // anything yet. We hide it — never destroy it — so switching tabs and coming
+  // back to "ask" always restores it. A real message or the not-ready setup
+  // card takes its place; the mirror offer sits alongside it.
+  function syncWelcome() {
+    if (!empty) return;
+    empty.hidden = !!log.querySelector(".cc-msg, .cc-card.is-onboard");
   }
 
   function scopeName(meta = {}) {
@@ -629,13 +700,38 @@ function createController() {
   async function renderTranscriptUploadCard() {
     const { sessionTypes: types, confidenceOptions } = await transcriptIntakeOptions();
     const config = readTranscriptSupabaseConfig();
-    if (empty && empty.parentNode) empty.remove();
+    // The transcript view hides the welcome via CSS (data-cc-view="transcript")
+    // — don't destroy it, or it can't come back when you return to "ask".
     log.querySelectorAll(".cc-card.is-transcript-intake").forEach((el) => el.remove());
+
+    const ACCEPTED_LABEL = "txt, md, csv, json, doc, docx, pdf, rtf";
+    const fmtBytes = (n) => {
+      const b = Number(n) || 0;
+      if (b < 1024) return `${b} B`;
+      if (b < 1024 * 1024) return `${Math.round(b / 1024)} KB`;
+      return `${(b / 1024 / 1024).toFixed(1)} MB`;
+    };
+    const dropzoneEmptyHtml = `
+      <span class="cc-upload-dz-inner">
+        <svg class="cc-upload-dz-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/></svg>
+        <span class="cc-upload-dz-lede">Choose a transcript file — or drag it here</span>
+        <span class="cc-upload-dz-hint">${ACCEPTED_LABEL}</span>
+      </span>`;
+    const dropzoneFileHtml = (f) => `
+      <span class="cc-upload-file">
+        <svg class="cc-upload-file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+        <span class="cc-upload-file-meta">
+          <span class="cc-upload-file-name">${esc(f.name)}</span>
+          <span class="cc-upload-file-sub">${esc(fmtBytes(f.sizeBytes))} · ${esc((f.ext || "").replace(/^\./, "") || "file")}</span>
+        </span>
+        <span class="cc-upload-file-change">Change</span>
+      </span>`;
 
     const card = document.createElement("div");
     card.className = "cc-card is-transcript-intake";
     card.innerHTML = `
       <div class="cc-card-eyebrow">add transcript</div>
+      <button type="button" class="cc-upload-dropzone" data-cc-transcript-dropzone aria-label="choose a transcript file"></button>
       <div class="cc-upload-grid">
         <label class="cc-upload-field">
           <span>type</span>
@@ -646,11 +742,12 @@ function createController() {
         </label>
         <label class="cc-upload-field">
           <span>confidence</span>
-          <span class="cc-upload-segment" role="group" aria-label="type confidence">
-            ${confidenceOptions.map((opt, index) => `
-              <button type="button" class="cc-upload-segment-btn${index === 0 ? " is-on" : ""}" data-cc-transcript-confidence="${esc(opt.key)}" aria-pressed="${index === 0 ? "true" : "false"}">${esc(opt.label || opt.key)}</button>
-            `).join("")}
-          </span>
+          <div class="cc-upload-slider">
+            <div class="cc-upload-slider-ticks">
+              ${confidenceOptions.map((opt, index) => `<span class="cc-upload-slider-tick${index === 0 ? " is-on" : ""}">${esc(opt.label || opt.key)}</span>`).join("")}
+            </div>
+            <input type="range" class="cc-upload-range" data-cc-transcript-confidence min="0" max="${Math.max(0, confidenceOptions.length - 1)}" step="1" value="0" aria-label="type confidence" />
+          </div>
         </label>
         <label class="cc-upload-field">
           <span>date</span>
@@ -685,12 +782,14 @@ function createController() {
       </details>
       <div class="cc-card-actions">
         <button type="button" class="btn ds-ghost" data-cc-transcript-cancel>Cancel</button>
-        <button type="button" class="btn ds-primary" data-cc-transcript-submit disabled>Save to Supabase</button>
+        <button type="button" class="btn ds-primary" data-cc-transcript-submit disabled>Add transcript</button>
       </div>
       <div class="cc-card-status" data-cc-transcript-status hidden></div>`;
 
+    const dropzone = card.querySelector("[data-cc-transcript-dropzone]");
     const select = card.querySelector("[data-cc-transcript-type]");
-    const confidenceButtons = Array.from(card.querySelectorAll("[data-cc-transcript-confidence]"));
+    const confidenceRange = card.querySelector("[data-cc-transcript-confidence]");
+    const confidenceTicks = Array.from(card.querySelectorAll(".cc-upload-slider-tick"));
     const date = card.querySelector("[data-cc-transcript-date]");
     const label = card.querySelector("[data-cc-transcript-label]");
     const session = card.querySelector("[data-cc-transcript-session]");
@@ -701,8 +800,20 @@ function createController() {
     const submit = card.querySelector("[data-cc-transcript-submit]");
     const cancel = card.querySelector("[data-cc-transcript-cancel]");
     const stat = card.querySelector("[data-cc-transcript-status]");
-    let confidence = confidenceButtons[0]?.getAttribute("data-cc-transcript-confidence") || "sure";
+    let confidence = confidenceOptions[0]?.key || "sure";
+    let selectedFile = null;
+    let busy = false;
 
+    function setStatus(kind, text) {
+      if (!text) { stat.hidden = true; stat.textContent = ""; return; }
+      stat.hidden = false;
+      stat.className = "cc-card-status" + (kind === "ok" ? " is-ok" : kind === "error" ? " is-error" : "");
+      stat.textContent = text;
+    }
+    function renderDropzone() {
+      dropzone.classList.toggle("has-file", !!selectedFile);
+      dropzone.innerHTML = selectedFile ? dropzoneFileHtml(selectedFile) : dropzoneEmptyHtml;
+    }
     function selectedType() {
       return types.find((type) => type.key === select.value) || null;
     }
@@ -720,49 +831,81 @@ function createController() {
     }
     function syncUploadState() {
       const type = selectedType();
-      submit.disabled = !type;
+      submit.disabled = busy || !selectedFile || !type;
       route.innerHTML = routeBadges(type);
     }
-    function setBusy(busy) {
-      for (const el of [select, date, label, session, related, org, token, cancel, ...confidenceButtons]) {
-        if (el) el.disabled = busy;
+    function setBusy(on) {
+      busy = on;
+      for (const el of [dropzone, select, confidenceRange, date, label, session, related, org, token, cancel]) {
+        if (el) el.disabled = on;
       }
-      submit.disabled = busy || !selectedType();
+      syncUploadState();
+    }
+    function setFile(info) {
+      selectedFile = info;
+      renderDropzone();
+      setStatus("", "");
+      syncUploadState();
     }
 
+    // File first: click the dropzone for the native picker, or drag a file onto
+    // it. Both resolve to a real path that submit() hands straight to main.
+    async function pickFile() {
+      if (busy) return;
+      if (!window.api || !window.api.pickTranscriptFile) { setStatus("error", "File picker is unavailable in this build."); return; }
+      const info = await window.api.pickTranscriptFile();
+      if (!info || info.reason === "canceled") return;
+      if (info.ok) setFile(info);
+      else setStatus("error", info.detail || "Couldn't use that file.");
+    }
+    async function dropFile(file) {
+      if (busy || !file) return;
+      const p = window.api && window.api.getDroppedFilePath ? window.api.getDroppedFilePath(file) : "";
+      if (!p) { setStatus("error", "Couldn't read that file — use the browse button instead."); return; }
+      const info = window.api && window.api.inspectTranscriptFile ? await window.api.inspectTranscriptFile(p) : null;
+      if (info && info.ok) setFile(info);
+      else setStatus("error", (info && info.detail) || `Unsupported file. Use ${ACCEPTED_LABEL}.`);
+    }
+
+    dropzone.addEventListener("click", pickFile);
+    dropzone.addEventListener("dragover", (ev) => { ev.preventDefault(); ev.stopPropagation(); if (!busy) dropzone.classList.add("is-dragover"); });
+    dropzone.addEventListener("dragleave", (ev) => { ev.preventDefault(); ev.stopPropagation(); dropzone.classList.remove("is-dragover"); });
+    dropzone.addEventListener("drop", (ev) => {
+      ev.preventDefault(); ev.stopPropagation();
+      dropzone.classList.remove("is-dragover");
+      const file = ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0];
+      void dropFile(file);
+    });
+
     select.addEventListener("change", syncUploadState);
-    for (const btn of confidenceButtons) {
-      btn.addEventListener("click", () => {
-        confidence = btn.getAttribute("data-cc-transcript-confidence") || "sure";
-        confidenceButtons.forEach((item) => {
-          const on = item === btn;
-          item.classList.toggle("is-on", on);
-          item.setAttribute("aria-pressed", on ? "true" : "false");
-        });
+    if (confidenceRange) {
+      confidenceRange.addEventListener("input", () => {
+        const idx = Math.min(confidenceOptions.length - 1, Math.max(0, parseInt(confidenceRange.value, 10) || 0));
+        const opt = confidenceOptions[idx];
+        confidence = opt ? opt.key : "sure";
+        confidenceTicks.forEach((t, i) => t.classList.toggle("is-on", i === idx));
       });
+    }
+    // Date: default to today, and open the native calendar on click anywhere in
+    // the field (not just the icon).
+    if (date) {
+      const d = new Date();
+      const z = (n) => String(n).padStart(2, "0");
+      date.value = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
+      date.addEventListener("click", () => { try { date.showPicker(); } catch {} });
     }
     cancel.addEventListener("click", () => card.remove());
     submit.addEventListener("click", async () => {
+      if (!selectedFile) { setStatus("error", "Choose a transcript file first."); return; }
       const type = selectedType();
-      if (!type) {
-        stat.hidden = false;
-        stat.className = "cc-card-status is-error";
-        stat.textContent = "Choose a transcript type first.";
-        return;
-      }
-      if (!window.api || !window.api.submitTranscriptIntake) {
-        stat.hidden = false;
-        stat.className = "cc-card-status is-error";
-        stat.textContent = "Transcript intake is unavailable in this build.";
-        return;
-      }
+      if (!type) { setStatus("error", "Choose a transcript type first."); return; }
+      if (!window.api || !window.api.submitTranscriptIntake) { setStatus("error", "Transcript intake is unavailable in this build."); return; }
       setBusy(true);
-      stat.hidden = false;
-      stat.className = "cc-card-status";
-      stat.textContent = "opening file picker...";
+      setStatus("", "uploading…");
       try {
         const currentConfig = readTranscriptSupabaseConfig();
         const res = await window.api.submitTranscriptIntake({
+          filePath: selectedFile.filePath,
           sessionType: type.key,
           label: (label.value || "").trim(),
           declaredDate: (date.value || "").trim(),
@@ -776,31 +919,32 @@ function createController() {
           },
         });
         if (res && res.ok) {
-          stat.className = "cc-card-status is-ok";
-          stat.textContent = res.processingQueued
+          setStatus("ok", res.processingQueued
             ? `queued for processing: ${res.storageRef || type.routePath || "transcript"}`
-            : `saved to Supabase: ${res.needsSessionMatch ? "needs session match" : "Drive mirror queued"}`;
+            : `saved to Supabase: ${res.needsSessionMatch ? "needs session match" : "Drive mirror queued"}`);
           card.classList.add("is-done");
           return;
         }
         const reason = res && (res.detail || res.reason);
-        stat.className = "cc-card-status" + (res && res.reason === "canceled" ? "" : " is-error");
         if (res && res.reason === "missing_supabase_config" && Array.isArray(res.missing)) {
-          stat.textContent = `staged locally; Supabase needs ${res.missing.join(", ")}.`;
+          setStatus("error", `staged locally; Supabase needs ${res.missing.join(", ")}.`);
+        } else if (res && res.reason === "canceled") {
+          setStatus("", "");
         } else {
-          stat.textContent = res && res.reason === "canceled" ? "canceled." : `intake failed: ${reason || "unknown error"}`;
+          setStatus("error", `intake failed: ${reason || "unknown error"}`);
         }
         setBusy(false);
       } catch (error) {
-        stat.className = "cc-card-status is-error";
-        stat.textContent = `intake failed: ${error?.message || error}`;
+        setStatus("error", `intake failed: ${error?.message || error}`);
         setBusy(false);
       }
     });
+
+    renderDropzone();
     syncUploadState();
     log.appendChild(card);
     log.scrollTop = log.scrollHeight;
-    setTimeout(() => { try { select.focus(); } catch {} }, 30);
+    setTimeout(() => { try { dropzone.focus(); } catch {} }, 30);
   }
 
   function openSettings() {
@@ -1077,10 +1221,127 @@ function createController() {
     autosize();
     input.focus();
   }));
+  // Top tabs: ask ⇄ transcript switch the panel body (via data-cc-view, see the
+  // CSS); search opens the global overlay and leaves the view as-is.
+  // All tabs are in-panel views now. ask/transcript use the chat log; search/
+  // sync each mount their engine into a dedicated pane that data-cc-view
+  // reveals (see cohort-chat.css). State is lazy-mounted on first entry.
+  let searchMounted = false, searchCtl = null, selfReportMod = null, lastView = "ask";
+  let syncMounted = false;   // sync pane is mounted + (maybe) running; re-selecting the tab must not restart the scan
+
+  function setChatView(view) {
+    // Leaving sync: stop + clear the in-panel self-report so a late scan
+    // result can't write into a hidden pane (it bumps self-report's runGen).
+    if (lastView === "sync" && lastView !== view) {
+      try { selfReportMod && selfReportMod.closeSelfReport && selfReportMod.closeSelfReport(); } catch {}
+      syncMounted = false;   // genuinely left sync → next entry re-mounts (collapse/reopen on the same view keeps it alive)
+    }
+    if (card) card.dataset.ccView = view;
+    if (tabsEl) tabsEl.querySelectorAll(".cc-tab").forEach((t) => {
+      const on = t.dataset.ccTab === view;
+      t.classList.toggle("is-active", on);
+      t.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    // Returning to "ask" restores the welcome when nothing's been asked yet.
+    if (view === "ask") syncWelcome();
+    lastView = view;
+  }
+
+  async function mountSearchPane() {
+    if (!searchPane) return;
+    if (searchMounted && searchCtl) { try { searchCtl.focus && searchCtl.focus(); } catch {} return; }
+    try { const m = await import("./find.js"); searchCtl = m.mountInline(searchPane); searchMounted = true; }
+    catch (e) { console.warn("[cohort-chat] search mount failed:", e && e.message); }
+  }
+
+  function renderClaimPrompt(pane, kind) {
+    pane.innerHTML = "";
+    const d = document.createElement("div");
+    d.className = "cc-pane-empty";
+    d.textContent = kind === "sync"
+      ? "Claim your profile first, then I can sync updates from your recent work."
+      : "Claim your profile first to review your mirror.";
+    pane.appendChild(d);
+  }
+
+  async function mountSelfReportPane(pane, kind, opts) {
+    if (!pane) return;
+    // Already mounted (and possibly mid-run) → re-selecting the tab keeps it, so a
+    // one-click sync can't fire redundant local-AI synthesis runs that pile up
+    // concurrent CLI processes. Mirrors mountSearchPane's guard.
+    if (kind === "sync" && syncMounted) return;
+    let surface = null;
+    try { surface = await getCohortSurface(); } catch {}
+    const me = resolveMyPerson(surface);
+    if (!me) { renderClaimPrompt(pane, kind); return; }
+    try {
+      if (!selfReportMod) selfReportMod = await import("./self-report.js");
+      selfReportMod.closeSelfReport();
+      await selfReportMod.openSelfReport({ person: me, autoRunPrevious: !!(opts && opts.autoRunPrevious), mount: pane });
+      if (kind === "sync") syncMounted = true;
+    } catch (e) { console.warn("[cohort-chat] self-report mount failed:", e && e.message); }
+  }
+
+  if (tabsEl) tabsEl.querySelectorAll(".cc-tab").forEach((t) => t.addEventListener("click", () => {
+    const tab = t.dataset.ccTab;
+    setChatView(tab);
+    if (tab === "transcript") void renderTranscriptUploadCard();
+    else if (tab === "search") void mountSearchPane();
+    else if (tab === "sync") void mountSelfReportPane(syncPane, "sync", { autoRunPrevious: true });
+    else input.focus();
+  }));
+
+  // ── drag-to-resize the dock (clamped min/max, persisted) ──────────────────
+  // Dragging the left-edge handle changes --cc-dock-w-open; the panel + gutter
+  // follow it and the window resizes in lockstep (so content keeps its place).
+  const DOCK_MIN = 360, DOCK_MAX = 720, DOCK_KEY = "srwk:cohort_dock_w";
+  const clampDock = (w) => Math.max(DOCK_MIN, Math.min(DOCK_MAX, Math.round(w)));
+  const applyDockWidth = (w) => document.documentElement.style.setProperty("--cc-dock-w-open", clampDock(w) + "px");
+  (() => { let w = 0; try { w = parseInt(localStorage.getItem(DOCK_KEY), 10) || 0; } catch {} if (w) applyDockWidth(w); })();
+  const resizeHandle = panel ? panel.querySelector(".cc-resize") : null;
+  if (resizeHandle) {
+    let dragging = false, startX = 0, startDock = 400, pendingDock = 400, rafId = 0;
+    const pushResize = () => { rafId = 0; try { window.api && window.api.cohortChatResizeDock && window.api.cohortChatResizeDock(pendingDock); } catch {} };
+    resizeHandle.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
+      dragging = true;
+      startX = e.clientX;
+      startDock = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--cc-dock-w-open"), 10) || 400;
+      pendingDock = startDock;
+      document.body.classList.add("cc-resizing");
+      try { resizeHandle.setPointerCapture(e.pointerId); } catch {}
+      e.preventDefault();
+    });
+    resizeHandle.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      pendingDock = clampDock(startDock + (startX - e.clientX));   // drag the line LEFT → wider panel
+      applyDockWidth(pendingDock);
+      if (!rafId) rafId = requestAnimationFrame(pushResize);       // at most one window resize per frame
+    });
+    const endDrag = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      document.body.classList.remove("cc-resizing");
+      try { resizeHandle.releasePointerCapture(e.pointerId); } catch {}
+      if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+      pushResize();
+      try { localStorage.setItem(DOCK_KEY, String(pendingDock)); } catch {}
+    };
+    resizeHandle.addEventListener("pointerup", endDrag);
+    resizeHandle.addEventListener("pointercancel", endDrag);
+  }
+
   form.addEventListener("submit", send);
   stopBtn.addEventListener("click", stop);
-  settingsBtn.addEventListener("click", openSettings);
+  // The cogwheel toggles the settings dropdown; clicking outside it (anywhere
+  // but the menu or the cogwheel) dismisses it, like any dropdown.
+  settingsBtn.addEventListener("click", () => { settingsEl.hidden ? openSettings() : closeSettings(); });
   settingsClose.addEventListener("click", closeSettings);
+  document.addEventListener("mousedown", (e) => {
+    if (settingsEl.hidden) return;
+    if (e.target.closest("#cohort-chat-settings") || e.target.closest("#cohort-chat-settings-btn")) return;
+    closeSettings();
+  });
   input.addEventListener("input", autosize);
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
@@ -1114,6 +1375,7 @@ function createController() {
     },
     showTranscriptUpload() {
       open();
+      setChatView("transcript");
       void renderTranscriptUploadCard();
     },
   };
@@ -1153,18 +1415,25 @@ export async function openCohortChatSettings() {
   c.openSettings();
 }
 
-export async function openCohortMirror() {
-  await warmCohortChat();
-  await openSelfReportForMe({ autoRunPrevious: false });
+// Hard gate: every AI-backed action requires a connected local AI first. When
+// none is connected we funnel to the chat panel, which shows ONLY the "set up
+// your own AI" prompt (composer hidden) — so the user must connect before they
+// can do anything else here. (Global search + the settings/connect path stay
+// open; settings is HOW you connect.)
+async function cohortAiReady() {
+  try { const cfg = await window.api.getCohortChatConfig(); return !!(cfg && cfg.ready); }
+  catch { return false; }
 }
 
 export async function openCohortUpdates() {
   await warmCohortChat();
+  if (!(await cohortAiReady())) return openCohortChat();   // not connected → prompt to connect first
   await openSelfReportForMe({ autoRunPrevious: true });
 }
 
 export async function openCohortTranscriptUpload() {
   await warmCohortChat();
+  if (!(await cohortAiReady())) return openCohortChat();   // not connected → prompt to connect first
   const c = getController();
   if (!c) { console.warn("[cohort-chat] panel markup missing"); return; }
   c.showTranscriptUpload();

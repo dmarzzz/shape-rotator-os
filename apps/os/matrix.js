@@ -66,7 +66,7 @@ const DEFAULT_HS = "https://mtrx.shaperotator.xyz";
 // render. lazy_load_members keeps member state out of the initial snapshot.
 const SYNC_FILTER = {
   room: {
-    timeline: { limit: 40, types: ["m.room.message", "m.room.encrypted"] },
+    timeline: { limit: 40, types: ["m.room.message", "m.room.encrypted", "m.reaction", "m.room.redaction"] },
     state: {
       types: ["m.room.name", "m.room.canonical_alias", "m.room.encryption", "m.room.history_visibility"],
       lazy_load_members: true,
@@ -92,6 +92,7 @@ let abort = null;                // AbortController for the in-flight sync
 let txn = 0;
 let cryptoTried = false;         // guards one crypto-init attempt per session
 const rooms = new Map();         // roomId → { name, alias, encrypted, unread, msgs:[], lastTs }
+const avatarCache = new Map();   // `${userId}|${size}` → data: URL ("" = no picture)
 
 // ─── persistence ──────────────────────────────────────────────────────────
 
@@ -160,6 +161,7 @@ function saveSession(sess, tok) {
 function clearSession() {
   session = null; token = null; since = null;
   rooms.clear();
+  avatarCache.clear();
   try { mxcrypto.close(); } catch {}
   cryptoTried = false;
   try { fs.unlinkSync(sessionFile()); } catch {}
@@ -253,14 +255,19 @@ function roomName(r, roomId) { return r.name || r.alias || roomId; }
 
 function roomSummaries() {
   return [...rooms.entries()]
-    .map(([roomId, r]) => ({
-      roomId,
-      name: roomName(r, roomId),
-      encrypted: !!r.encrypted,
-      unread: r.unread || 0,
-      lastTs: r.lastTs || 0,
-      lastPreview: r.msgs.length ? r.msgs[r.msgs.length - 1].body.slice(0, 80) : "",
-    }))
+    .map(([roomId, r]) => {
+      const last = r.msgs.length ? r.msgs[r.msgs.length - 1] : null;
+      return {
+        roomId,
+        name: roomName(r, roomId),
+        encrypted: !!r.encrypted,
+        unread: r.unread || 0,
+        lastTs: r.lastTs || 0,
+        lastPreview: last ? last.body.slice(0, 80) : "",
+        lastSender: last ? last.sender : "",
+        lastMine: last ? !!last.mine : false,
+      };
+    })
     .sort((a, b) => b.lastTs - a.lastTs);
 }
 
@@ -268,7 +275,7 @@ function roomSummaries() {
 
 function ensureRoom(roomId) {
   let r = rooms.get(roomId);
-  if (!r) { r = { name: "", alias: "", encrypted: false, encInfo: null, historyVisibility: "shared", unread: 0, msgs: [], lastTs: 0, seen: new Set(), utdEvents: new Map() }; rooms.set(roomId, r); }
+  if (!r) { r = { name: "", alias: "", encrypted: false, encInfo: null, historyVisibility: "shared", unread: 0, msgs: [], lastTs: 0, lastEventId: null, lastReadEventId: null, seen: new Set(), utdEvents: new Map() }; rooms.set(roomId, r); }
   return r;
 }
 
@@ -340,6 +347,102 @@ function addMessage(r, msg) {
   return true;
 }
 
+// ─── relations: replies, edits, reactions ──────────────────────────────────
+// A message can carry an `m.relates_to`. We surface three kinds:
+//   • m.in_reply_to → the renderer shows a quoted line for the parent.
+//   • m.replace (edit) → we rewrite the target message's body in place.
+//   • m.annotation (reaction) → we aggregate emoji counts per target.
+// In encrypted rooms the relation rides UNENCRYPTED on the outer event (so the
+// server can aggregate), while new_content/body stay encrypted — callers pass
+// the already-resolved relation + content here.
+
+function ensureReactions(r) {
+  if (!r.reactions) { r.reactions = new Map(); r.reactionEvents = new Map(); r.myReactions = new Map(); }
+}
+
+// Apply an edit (m.replace) to the target message in place. Ignores edits older
+// than one already applied. Returns the updated message so it can be
+// re-broadcast (the renderer replaces by eventId).
+//
+// editorSender MUST equal the original message's sender: an m.replace is only
+// authoritative when authored by the same user. The homeserver does not enforce
+// this, so without the check any room member could target another user's
+// event_id and rewrite what that user appears to have said (it renders under the
+// victim's name/avatar). `m.sender` is the cryptographically-bound outer-event
+// sender, so this is safe in E2EE rooms too. Mirrors Element's behaviour.
+function applyEdit(r, targetId, newContent, ts, editorSender) {
+  const m = r.msgs.find((x) => x.eventId === targetId);
+  if (!m) return null;
+  if (editorSender && m.sender && editorSender !== m.sender) return null;
+  const body = newContent && typeof newContent.body === "string" ? newContent.body : null;
+  if (body == null) return null;
+  if (m.editTs && ts < m.editTs) return null;
+  m.body = newContent.msgtype === "m.emote" ? `* ${body}` : body;
+  m.edited = true;
+  m.editTs = ts;
+  return m;
+}
+
+function addReaction(r, reactionEventId, targetId, key, sender) {
+  ensureReactions(r);
+  if (!reactionEventId || r.reactionEvents.has(reactionEventId)) return false;
+  r.reactionEvents.set(reactionEventId, { targetId, key, sender });
+  let byKey = r.reactions.get(targetId);
+  if (!byKey) { byKey = new Map(); r.reactions.set(targetId, byKey); }
+  let users = byKey.get(key);
+  if (!users) { users = new Set(); byKey.set(key, users); }
+  users.add(sender);
+  if (sender === session?.userId) {
+    let mine = r.myReactions.get(targetId);
+    if (!mine) { mine = new Map(); r.myReactions.set(targetId, mine); }
+    mine.set(key, reactionEventId);
+  }
+  return true;
+}
+
+function removeReaction(r, reactionEventId) {
+  ensureReactions(r);
+  const info = r.reactionEvents.get(reactionEventId);
+  if (!info) return false;
+  r.reactionEvents.delete(reactionEventId);
+  const byKey = r.reactions.get(info.targetId);
+  if (byKey) {
+    const users = byKey.get(info.key);
+    if (users) { users.delete(info.sender); if (!users.size) byKey.delete(info.key); }
+    if (!byKey.size) r.reactions.delete(info.targetId);
+  }
+  if (info.sender === session?.userId) {
+    const mine = r.myReactions.get(info.targetId);
+    if (mine) { mine.delete(info.key); if (!mine.size) r.myReactions.delete(info.targetId); }
+  }
+  return true;
+}
+
+// { [targetEventId]: [{ key, count, mine }] } for the renderer.
+function reactionsForRoom(r) {
+  ensureReactions(r);
+  const out = {};
+  for (const [targetId, byKey] of r.reactions) {
+    const list = [...byKey.entries()]
+      .map(([key, users]) => ({ key, count: users.size, mine: users.has(session?.userId) }))
+      .filter((x) => x.count > 0);
+    if (list.length) out[targetId] = list;
+  }
+  return out;
+}
+
+// Pull the `m.relates_to` off an event (outer content for encrypted, plain
+// content otherwise) into a normalized shape.
+function relationOf(content) {
+  const rel = content && content["m.relates_to"];
+  if (!rel || typeof rel !== "object") return null;
+  if (rel.rel_type === "m.replace" && rel.event_id) return { kind: "edit", target: rel.event_id };
+  if (rel.rel_type === "m.annotation" && rel.event_id && typeof rel.key === "string") return { kind: "reaction", target: rel.event_id, key: rel.key };
+  const replyId = rel["m.in_reply_to"] && rel["m.in_reply_to"].event_id;
+  if (replyId) return { kind: "reply", target: replyId };
+  return null;
+}
+
 async function processSync(data, initial) {
   const joined = data.rooms?.join || {};
   let roomsChanged = false;
@@ -347,15 +450,42 @@ async function processSync(data, initial) {
     const r = ensureRoom(roomId);
     for (const ev of room.state?.events || []) applyState(r, ev);
     const fresh = [];
+    let reactionsChanged = false;
     for (const ev of room.timeline?.events || []) {
       if (ev.type === "m.room.encryption" || ev.type === "m.room.name" || ev.type === "m.room.canonical_alias" || ev.type === "m.room.history_visibility") { applyState(r, ev); continue; }
+      // Reactions ride unencrypted even in E2EE rooms; aggregate them.
+      if (ev.type === "m.reaction") {
+        const rel = relationOf(ev.content);
+        if (rel?.kind === "reaction" && addReaction(r, ev.event_id, rel.target, rel.key, ev.sender)) reactionsChanged = true;
+        continue;
+      }
+      // Redaction removes a reaction (un-react) — message redaction is left as-is.
+      if (ev.type === "m.room.redaction") {
+        const target = ev.redacts || ev.content?.redacts;
+        if (target && removeReaction(r, target)) reactionsChanged = true;
+        continue;
+      }
       if (ev.type === "m.room.encrypted") {
         r.encrypted = true;
+        // The relation (reply/edit) is on the OUTER, unencrypted event.
+        const rel = relationOf(ev.content);
         let msg = null;
         if (mxcrypto.isReady()) {
           try {
             const clear = await mxcrypto.decryptEvent(ev, roomId);
-            if (clear && clear.type === "m.room.message") msg = toMsgFromDecrypted(ev, clear);
+            if (clear && clear.type === "m.room.message") {
+              if (rel?.kind === "edit") {
+                const edited = applyEdit(r, rel.target, clear.content?.["m.new_content"], ev.origin_server_ts || 0, ev.sender);
+                if (edited) fresh.push(edited);
+                continue;
+              }
+              msg = toMsgFromDecrypted(ev, clear);
+              if (rel?.kind === "reply") msg.replyToId = rel.target;
+            } else if (clear && clear.type === "m.reaction") {
+              const crel = relationOf(clear.content);
+              if (crel?.kind === "reaction" && addReaction(r, ev.event_id, crel.target, crel.key, ev.sender)) reactionsChanged = true;
+              continue;
+            }
           } catch {
             msg = utdMsg(ev);
             if (!initial) rememberUtd(r, ev);   // retry live key/message races; skip the backlog
@@ -367,11 +497,33 @@ async function processSync(data, initial) {
         continue;
       }
       if (ev.type === "m.room.message") {
+        const rel = relationOf(ev.content);
+        if (rel?.kind === "edit") {
+          const edited = applyEdit(r, rel.target, ev.content?.["m.new_content"], ev.origin_server_ts || 0, ev.sender);
+          if (edited) fresh.push(edited);
+          continue;
+        }
         const msg = toMsg(ev);
+        if (rel?.kind === "reply") msg.replyToId = rel.target;
         if (addMessage(r, msg)) fresh.push(msg);
       }
     }
+    if (reactionsChanged) broadcast("matrix:reactions", { roomId, reactions: reactionsForRoom(r) });
+    // Track the newest event in the room (any type) so markRead can place a
+    // read receipt at the tip of the timeline. Timeline batches are oldest →
+    // newest, so the last event with an id is the most recent.
+    const tl = room.timeline?.events || [];
+    for (let i = tl.length - 1; i >= 0; i--) {
+      if (tl[i]?.event_id) { r.lastEventId = tl[i].event_id; break; }
+    }
     if (room.unread_notifications) r.unread = room.unread_notifications.notification_count || 0;
+    // Local read state wins over a lagging server count. The homeserver's
+    // notification_count doesn't drop the instant we send a receipt (and some
+    // setups never reflect our own receipt back), which made the badge snap
+    // straight back to its old value after a click. If we've marked this room
+    // read up to its newest event, hold it at zero; a genuinely newer message
+    // moves lastEventId past lastReadEventId, so it counts again.
+    if (r.lastReadEventId && r.lastReadEventId === r.lastEventId) r.unread = 0;
     if (fresh.length) broadcast("matrix:messages", { roomId, messages: fresh });
     roomsChanged = true;
   }
@@ -1072,8 +1224,8 @@ function getRooms() { return roomSummaries(); }
 
 function getMessages(roomId) {
   const r = rooms.get(roomId);
-  if (!r) return { roomId, encrypted: false, cryptoReady: mxcrypto.isReady(), messages: [] };
-  return { roomId, name: roomName(r, roomId), encrypted: !!r.encrypted, cryptoReady: mxcrypto.isReady(), messages: r.msgs.slice() };
+  if (!r) return { roomId, encrypted: false, cryptoReady: mxcrypto.isReady(), messages: [], reactions: {} };
+  return { roomId, name: roomName(r, roomId), encrypted: !!r.encrypted, cryptoReady: mxcrypto.isReady(), messages: r.msgs.slice(), reactions: reactionsForRoom(r) };
 }
 
 async function getJoinedMembers(roomId) {
@@ -1083,35 +1235,200 @@ async function getJoinedMembers(roomId) {
   return Object.keys(data.joined || {});
 }
 
-async function send(roomId, body) {
+// PUT one event into a room and return { ok, eventId }.
+async function rawSend(roomId, eventType, content) {
+  const txnId = `srwk-${Date.now()}-${txn++}`;
+  const url = `${hsBase()}/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/send/${eventType}/${encodeURIComponent(txnId)}`;
+  const res = await fetch(url, { method: "PUT", headers: authHeaders(), body: JSON.stringify(content) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.event_id) return { ok: false, error: data.error || `send failed (HTTP ${res.status})` };
+  return { ok: true, eventId: data.event_id };
+}
+
+// Wrap message content for the room: encrypt in E2EE rooms (Megolm shared to
+// every member device first), plain otherwise. `relatesTo`, when given, is
+// attached UNENCRYPTED to the outer event so the server can aggregate the
+// relation (reply/edit) without decrypting — per the spec for encrypted rooms.
+async function buildMessage(roomId, r, content, relatesTo) {
+  if (!r?.encrypted) {
+    if (relatesTo) content["m.relates_to"] = relatesTo;
+    return { eventType: "m.room.message", payload: content };
+  }
+  if (!mxcrypto.isReady()) throw new Error("encryption isn't ready yet — try again in a moment");
+  const members = await getJoinedMembers(roomId);
+  const payload = await mxcrypto.encryptForRoom({
+    roomId, members, encInfo: r.encInfo, historyVisibility: r.historyVisibility,
+    eventType: "m.room.message", content,
+  });
+  if (relatesTo) payload["m.relates_to"] = relatesTo;
+  return { eventType: "m.room.encrypted", payload };
+}
+
+async function send(roomId, body, opts = {}) {
   if (!token || !session) return { ok: false, error: "not signed in" };
   await ensureFreshToken();
   const r = rooms.get(roomId);
   const text = String(body || "").trim();
   if (!text) return { ok: false, error: "empty message" };
   const content = { msgtype: "m.text", body: text };
-  const txnId = `srwk-${Date.now()}-${txn++}`;
+  const relatesTo = opts.replyTo ? { "m.in_reply_to": { event_id: opts.replyTo } } : null;
   try {
-    let eventType = "m.room.message";
-    let payload = content;
-    if (r?.encrypted) {
-      if (!mxcrypto.isReady()) return { ok: false, error: "encryption isn't ready yet — try again in a moment" };
-      // Establish sessions + share the Megolm key to every member device, then
-      // encrypt. Sharing to unverified devices is on so Element peers can read it.
-      const members = await getJoinedMembers(roomId);
-      payload = await mxcrypto.encryptForRoom({
-        roomId, members, encInfo: r.encInfo, historyVisibility: r.historyVisibility,
-        eventType: "m.room.message", content,
-      });
-      eventType = "m.room.encrypted";
-    }
-    const url = `${hsBase()}/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/send/${eventType}/${encodeURIComponent(txnId)}`;
-    const res = await fetch(url, { method: "PUT", headers: authHeaders(), body: JSON.stringify(payload) });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.event_id) return { ok: false, error: data.error || `send failed (HTTP ${res.status})` };
-    return { ok: true, eventId: data.event_id };
+    const { eventType, payload } = await buildMessage(roomId, r, content, relatesTo);
+    return await rawSend(roomId, eventType, payload);
   } catch (e) {
     return { ok: false, error: e.message };
+  }
+}
+
+// Edit one of our own messages (m.replace). new_content stays encrypted; the
+// m.replace relation rides on the outer event (see buildMessage).
+async function editMessage(roomId, eventId, body) {
+  if (!token || !session) return { ok: false, error: "not signed in" };
+  await ensureFreshToken();
+  const r = rooms.get(roomId);
+  const text = String(body || "").trim();
+  if (!text) return { ok: false, error: "empty message" };
+  if (!eventId) return { ok: false, error: "no target" };
+  const content = { msgtype: "m.text", body: `* ${text}`, "m.new_content": { msgtype: "m.text", body: text } };
+  try {
+    const { eventType, payload } = await buildMessage(roomId, r, content, { rel_type: "m.replace", event_id: eventId });
+    return await rawSend(roomId, eventType, payload);
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+// Toggle a reaction. Reactions are sent unencrypted (standard, so servers can
+// aggregate). If we've already reacted with this key, redact ours instead.
+async function react(roomId, eventId, key) {
+  if (!token || !session) return { ok: false, error: "not signed in" };
+  if (!eventId || !key) return { ok: false, error: "bad reaction" };
+  await ensureFreshToken();
+  const r = rooms.get(roomId);
+  const existing = r?.myReactions?.get(eventId)?.get(key);
+  if (existing) return redactEvent(roomId, existing);
+  // Wrap like every other outbound path: a network-layer fetch rejection would
+  // otherwise reject the IPC invoke (renderer unhandledrejection) instead of
+  // returning the uniform { ok, error } shape callers expect.
+  try {
+    return await rawSend(roomId, "m.reaction", { "m.relates_to": { rel_type: "m.annotation", event_id: eventId, key } });
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+async function redactEvent(roomId, eventId) {
+  if (!token || !session) return { ok: false, error: "not signed in" };
+  await ensureFreshToken();
+  const txnId = `srwk-${Date.now()}-${txn++}`;
+  const url = `${hsBase()}/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/redact/${encodeURIComponent(eventId)}/${encodeURIComponent(txnId)}`;
+  try {
+    const res = await fetch(url, { method: "PUT", headers: authHeaders(), body: JSON.stringify({}) });
+    if (!res.ok) { const d = await res.json().catch(() => ({})); return { ok: false, error: d.error || `redact failed (HTTP ${res.status})` }; }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+// Mark a room read up to its newest event — sends the read marker + receipt so
+// the homeserver zeroes its notification_count (the source of the unread
+// badge). The app otherwise never tells the server we've read anything, so the
+// count only ever grows; calling this when the user opens a channel is what
+// makes the badge clear while they're reading it. Optimistically clears the
+// local count + rebroadcasts so the UI updates immediately, before the receipt
+// round-trips. De-dupes on lastReadEventId so re-selecting a room or a burst of
+// messages in the active room doesn't spam the homeserver.
+async function markRead(roomId) {
+  if (!token || !session) return { ok: false, error: "not signed in" };
+  const r = rooms.get(roomId);
+  if (!r) return { ok: false, error: "unknown room" };
+  const eventId = r.lastEventId || (r.msgs.length ? r.msgs[r.msgs.length - 1].eventId : null);
+  if (!eventId) return { ok: true, skipped: "no event" };
+  if (eventId === r.lastReadEventId && !r.unread) return { ok: true, skipped: "already read" };
+  r.lastReadEventId = eventId;
+  if (r.unread) { r.unread = 0; broadcast("matrix:rooms", roomSummaries()); }
+  try {
+    await ensureFreshToken();
+    const url = `${hsBase()}/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/read_markers`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ "m.fully_read": eventId, "m.read": eventId }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { ok: false, error: data.error || `read marker failed (HTTP ${res.status})` };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+// Resolve an mxc:// avatar to a data: URL the renderer can drop straight into an
+// <img>/background. Media on modern homeservers is authenticated (a Bearer
+// token an <img src> can't send), so we fetch the thumbnail here with the token
+// and hand back base64. Cached by uri+size; the authenticated media route is
+// tried first, with the legacy unauthenticated route as a fallback for older
+// servers. Returns { ok, dataUrl } — failures are soft (renderer keeps the
+// initial-letter circle).
+function parseMxc(mxc) {
+  const m = /^mxc:\/\/([^/]+)\/([^?]+)/.exec(String(mxc || ""));
+  return m ? { server: m[1], id: m[2] } : null;
+}
+
+async function fetchThumbnail(mxc, size) {
+  const p = parseMxc(mxc);
+  if (!p) return "";
+  const q = `width=${size}&height=${size}&method=crop`;
+  const urls = [
+    `${hsBase()}/_matrix/client/v1/media/thumbnail/${p.server}/${encodeURIComponent(p.id)}?${q}`,
+    `${hsBase()}/_matrix/media/v3/thumbnail/${p.server}/${encodeURIComponent(p.id)}?${q}`,
+  ];
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) continue;
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (!buf.length) continue;
+      const ct = res.headers.get("content-type") || "image/png";
+      return `data:${ct};base64,${buf.toString("base64")}`;
+    } catch { /* try the next route */ }
+  }
+  return "";
+}
+
+// Resolve a user's profile picture to a data: URL. Keyed by user id (not mxc):
+// the renderer only knows the sender, and a user's avatar_url isn't reliably in
+// the lazily-loaded room membership, whereas /profile returns it for any user
+// (federated included). Cached by user+size, including misses ("" = no picture)
+// so users without one aren't re-fetched every render.
+async function getAvatar(userId, size = 48) {
+  if (!token || !session || !userId) return { ok: false };
+  const key = `${userId}|${size}`;
+  if (avatarCache.has(key)) {
+    const v = avatarCache.get(key);
+    return v ? { ok: true, dataUrl: v } : { ok: false };
+  }
+  try {
+    await ensureFreshToken();
+    const pres = await fetch(`${hsBase()}/_matrix/client/v3/profile/${encodeURIComponent(userId)}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!pres.ok) {
+      // Only negative-cache a DEFINITIVE answer. 404/403 = no such user / forbidden
+      // → cache the miss. 429/5xx are transient (rate-limit, federated /profile
+      // blip) → don't cache, so the next render retries instead of being stuck on
+      // the initial-letter fallback for the whole session.
+      if (pres.status === 404 || pres.status === 403) avatarCache.set(key, "");
+      return { ok: false };
+    }
+    const prof = await pres.json().catch(() => ({}));
+    if (!prof.avatar_url) { avatarCache.set(key, ""); return { ok: false }; }  // real miss: user has no picture
+    const dataUrl = await fetchThumbnail(prof.avatar_url, size);
+    if (dataUrl) { avatarCache.set(key, dataUrl); return { ok: true, dataUrl }; }
+    return { ok: false };   // avatar_url present but thumbnail fetch transiently failed → don't cache, allow retry
+  } catch {
+    return { ok: false };   // transient (token refresh / network) — don't cache, allow retry
   }
 }
 
@@ -1133,5 +1450,5 @@ module.exports = {
   start, stop,
   getStatus, getFlows, login, loginToken, loginSSO, loginViaDevice, loginWithCode, loginWithAccessToken, cancelSSO, logout,
   loginMatrixOrg, loginMatrixOrgBrowser, cancelDevice, cancelMatrixOrgBrowser,
-  getRooms, getMessages, send,
+  getRooms, getMessages, send, markRead, getAvatar, react, editMessage, redactEvent,
 };

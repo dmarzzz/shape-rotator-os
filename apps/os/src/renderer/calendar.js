@@ -693,7 +693,7 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
   const spineHtml = `<div class="rr-spine" aria-hidden="true">${spineMarks.map(m => `<span class="rr-t" style="top:${bPct(m).toFixed(1)}%">${escHtml(fmtHour(m))}</span>`).join("")}</div>`;
 
   const fieldsHtml = days.map((d, di) => {
-    const banners = d.allday.map((item, ai) => {
+    const bannerBtns = d.allday.map((item, ai) => {
       const title = item.kind === "anchor" ? item.title : item.content.title;
       // A multi-day item is the SAME object mirrored onto each covered day; if
       // yesterday already carried it, this day is a continuation — show a quiet
@@ -701,6 +701,10 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       const isCont = di > 0 && (days[di - 1].allday || []).includes(item);
       return `<button class="rr-allday${isCont ? " is-cont" : ""}" data-cat="${escAttr(item.cat.key)}" data-c2-ev="a:${di}:${ai}" type="button" title="${escAttr(title)}"><span>${isCont ? "→ continues" : escHtml(title)}</span></button>`;
     }).join("");
+    // Stack multiple all-day banners in a column at the top of the field — without
+    // the wrapper each would pin to top:0 and overlap (the others read as garbled,
+    // superimposed text). Geometry (height/gap) stays in CSS.
+    const banners = bannerBtns ? `<div class="rr-allday-stack">${bannerBtns}</div>` : "";
     // Place each gathering at its real time, then nudge later ones down so two
     // close gatherings (tea 15:30 + retro 17:00) don't overlap. Each tick is ~2
     // lines tall; SLOT is that height as a % of the field.

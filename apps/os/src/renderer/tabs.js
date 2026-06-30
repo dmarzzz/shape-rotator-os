@@ -276,7 +276,8 @@ function closeTab(id) {
   const [removed] = tabs.splice(i, 1);
   if (removed.loc && !removed.loc.blank) closed.push(removed.loc);
   if (tabs.length === 0) {
-    const t = { id: uid(), loc: { blank: true } };
+    // Closing the last tab lands on membrane rather than a blank "new tab".
+    const t = { id: uid(), loc: { tab: "alchemy", mode: "membrane" } };
     tabs.push(t);
     activate(t.id);
     return;
@@ -350,6 +351,9 @@ function renderStrip() {
 // ─── link interception (open in new tab) ───────────────────────────────────
 function resolveNavTarget(el) {
   if (!el || !el.closest) return null;
+  // The identity pill in the footer opens the profile page — make middle-click /
+  // right-click treat it like any other navigable target ("open in new tab").
+  if (el.closest("#identity-pill")) return { tab: "alchemy", mode: "profile" };
   const rail = el.closest("[data-alch-mode]");
   if (rail) return { tab: "alchemy", mode: rail.dataset.alchMode };
   const cat = el.closest(".nav-cat[data-tab]");

@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require("electron");
+const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
 contextBridge.exposeInMainWorld("api", {
   // Renderer-ready sentinel for the --smoke-test launch mode. boot.js
@@ -138,11 +138,22 @@ contextBridge.exposeInMainWorld("api", {
   cohortChatStop:      ()  => ipcRenderer.invoke("fg:cohort-chat:stop"),
   getCohortChatConfig: ()  => ipcRenderer.invoke("fg:cohort-chat:config:get"),
   setCohortChatConfig: (o) => ipcRenderer.invoke("fg:cohort-chat:config:set", o || {}),
+  // Dock/undock the chat panel by growing the window to the right (open=true) or
+  // restoring it (open=false). width = the panel's px width to add.
+  cohortChatDock: (open, width) => ipcRenderer.invoke("cohort-chat:set-docked", { open, width }),
+  // Live-resize the docked panel: grows/shrinks the window so the dock = width.
+  cohortChatResizeDock: (width) => ipcRenderer.invoke("cohort-chat:resize-dock", { width }),
   // Private GitHub via the member's own `gh` login — returns raw events the
   // renderer scrubs + scopes (nothing leaves the box but a scrubbed digest).
   scanPrivateGithub:   (o) => ipcRenderer.invoke("fg:gh:scan-private", o || {}),
   getTranscriptIntakeOptions: () => ipcRenderer.invoke("fg:transcript-intake:options"),
+  pickTranscriptFile: () => ipcRenderer.invoke("fg:transcript-intake:pick"),
+  inspectTranscriptFile: (p) => ipcRenderer.invoke("fg:transcript-intake:inspect", String(p || "")),
   submitTranscriptIntake: (o) => ipcRenderer.invoke("fg:transcript-intake:submit", o || {}),
+  // Resolve the real filesystem path of a drag-and-dropped File. Under context
+  // isolation File.path is gone (Electron 32+), so the renderer hands the File
+  // here and webUtils returns its path for the intake flow.
+  getDroppedFilePath: (file) => { try { return webUtils.getPathForFile(file); } catch { return ""; } },
   onCohortChatOutput: (cb) => {
     const h = (_e, p) => { try { cb(p); } catch {} };
     ipcRenderer.on("fg:cohort-chat:output", h);
@@ -223,7 +234,12 @@ contextBridge.exposeInMainWorld("api", {
     logout:     () => ipcRenderer.invoke("matrix:logout"),
     rooms:      () => ipcRenderer.invoke("matrix:get-rooms"),
     messages:   (roomId) => ipcRenderer.invoke("matrix:get-messages", roomId),
-    send:       (roomId, body) => ipcRenderer.invoke("matrix:send", { roomId, body }),
+    send:       (roomId, body, opts) => ipcRenderer.invoke("matrix:send", { roomId, body, replyTo: opts?.replyTo }),
+    react:      (roomId, eventId, key) => ipcRenderer.invoke("matrix:react", { roomId, eventId, key }),
+    edit:       (roomId, eventId, body) => ipcRenderer.invoke("matrix:edit", { roomId, eventId, body }),
+    redact:     (roomId, eventId) => ipcRenderer.invoke("matrix:redact", { roomId, eventId }),
+    markRead:   (roomId) => ipcRenderer.invoke("matrix:mark-read", roomId),
+    avatar:     (userId, size) => ipcRenderer.invoke("matrix:avatar", { userId, size }),
     onStatus: (cb) => {
       const handler = (_e, s) => { try { cb(s); } catch {} };
       ipcRenderer.on("matrix:status", handler);
@@ -238,6 +254,11 @@ contextBridge.exposeInMainWorld("api", {
       const handler = (_e, m) => { try { cb(m); } catch {} };
       ipcRenderer.on("matrix:messages", handler);
       return () => ipcRenderer.removeListener("matrix:messages", handler);
+    },
+    onReactions: (cb) => {
+      const handler = (_e, m) => { try { cb(m); } catch {} };
+      ipcRenderer.on("matrix:reactions", handler);
+      return () => ipcRenderer.removeListener("matrix:reactions", handler);
     },
     onDeviceCode: (cb) => {
       const handler = (_e, d) => { try { cb(d); } catch {} };

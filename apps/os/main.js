@@ -1167,13 +1167,27 @@ function createWindow() {
   win.loadFile(path.join(__dirname, "src", "index.html"));
   if (process.env.SRWK_DEVTOOLS) win.webContents.openDevTools({ mode: "detach" });
 
+  // Cohort-chat dock growth (see the "cohort-chat:set-docked" handler): the chat
+  // panel widens the window to the RIGHT rather than stealing content space.
+  // These track how much we grew/shifted so the SAVED window size stays the
+  // user's real (undocked) size and close() can restore exactly.
+  win._chatDockGrow = 0;
+  win._chatDockShift = 0;
+  const logicalBounds = () => {
+    const b = win.getBounds();
+    // Floor the persisted width at the window's own minWidth — matching the
+    // setBounds paths — so shrinking the docked frame to the floor can't write a
+    // sub-minimum width to WINDOW_STATE.
+    return { x: b.x - (win._chatDockShift || 0), y: b.y, width: Math.max(960, b.width - (win._chatDockGrow || 0)), height: b.height };
+  };
+
   let t = null;
   const save = () => {
     if (win.isDestroyed() || win.isMinimized()) return;
     clearTimeout(t);
     t = setTimeout(() => {
       if (win.isDestroyed()) return;
-      writeJSON(WINDOW_STATE, { ...win.getBounds(), fullscreen: win.isFullScreen() });
+      writeJSON(WINDOW_STATE, { ...logicalBounds(), fullscreen: win.isFullScreen() });
     }, 250);
   };
   // On close, cancel the pending debounce + write synchronously — otherwise
@@ -1183,7 +1197,19 @@ function createWindow() {
   win.on("close", () => {
     clearTimeout(t);
     if (win.isDestroyed()) return;
-    try { writeJSON(WINDOW_STATE, { ...win.getBounds(), fullscreen: win.isFullScreen() }); } catch {}
+    try { writeJSON(WINDOW_STATE, { ...logicalBounds(), fullscreen: win.isFullScreen() }); } catch {}
+  });
+  // Any renderer reload (Cmd+R / forceReload — wired into the View menu in
+  // production too — or crash-recovery) resets the chat to closed, but the window
+  // would stay grown — un-grow it on load so window + chat state don't drift
+  // apart. clampDockRectToWorkArea keeps a stale dock-time shift from stranding
+  // the window off-screen on this and the undock path.
+  win.webContents.on("did-finish-load", () => {
+    if (win.isDestroyed() || !win._chatDockGrow) return;
+    const b = win.getBounds();
+    const grow = win._chatDockGrow, shift = win._chatDockShift;
+    win._chatDockGrow = 0; win._chatDockShift = 0;
+    try { win.setBounds(clampDockRectToWorkArea({ x: b.x - shift, y: b.y, width: Math.max(960, b.width - grow), height: b.height })); } catch {}
   });
 
   win.webContents.on("console-message", (_e, lvl, msg) => {
@@ -1594,7 +1620,12 @@ ipcMain.handle("matrix:login-token", async (_e, p) => matrix.loginToken(p || {})
 ipcMain.handle("matrix:logout", async () => matrix.logout());
 ipcMain.handle("matrix:get-rooms", async () => matrix.getRooms());
 ipcMain.handle("matrix:get-messages", async (_e, roomId) => matrix.getMessages(roomId));
-ipcMain.handle("matrix:send", async (_e, { roomId, body } = {}) => matrix.send(roomId, body));
+ipcMain.handle("matrix:send", async (_e, { roomId, body, replyTo } = {}) => matrix.send(roomId, body, { replyTo }));
+ipcMain.handle("matrix:react", async (_e, { roomId, eventId, key } = {}) => matrix.react(roomId, eventId, key));
+ipcMain.handle("matrix:edit", async (_e, { roomId, eventId, body } = {}) => matrix.editMessage(roomId, eventId, body));
+ipcMain.handle("matrix:redact", async (_e, { roomId, eventId } = {}) => matrix.redactEvent(roomId, eventId));
+ipcMain.handle("matrix:mark-read", async (_e, roomId) => matrix.markRead(roomId));
+ipcMain.handle("matrix:avatar", async (_e, { userId, size } = {}) => matrix.getAvatar(userId, size));
 
 // ─── swarm-mode IPC ──────────────────────────────────────────────────
 //
@@ -1789,6 +1820,83 @@ function writeCohortChatConfig(obj) {
   catch (e) { process.stderr.write(`[cohort-chat] config write failed: ${e.message}\n`); return false; }
 }
 
+// Clamp a desired window rect to the work area of the display it best matches:
+// width never exceeds the display, x kept on-screen. The dock-time GROW path
+// already clamps; the inverse un-grow/undock paths use a shift captured at dock
+// time that goes stale if the user moves the window, so without this clamp they
+// could teleport the window off-screen. Soft (returns the rect unchanged if the
+// screen lookup throws).
+function clampDockRectToWorkArea(rect) {
+  try {
+    const wa = screen.getDisplayMatching(rect).workArea;
+    const width = Math.min(rect.width, wa.width);
+    const x = Math.max(wa.x, Math.min(rect.x, wa.x + wa.width - width));
+    return { x, y: rect.y, width, height: rect.height };
+  } catch { return rect; }
+}
+
+// Dock/undock the cohort-chat panel by GROWING the window to the right, so the
+// panel is added space rather than stolen from the content. Skips when maximized
+// / fullscreen (can't grow → the renderer's CSS reflow makes room in-window).
+// Records the applied grow/shift on the window (see createWindow) so the saved
+// size stays the user's real undocked size and undock restores exactly.
+ipcMain.handle("cohort-chat:set-docked", (e, payload) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  if (!win || win.isDestroyed()) return { ok: false };
+  const open = !!(payload && payload.open);
+  const want = Math.max(0, Math.round((payload && payload.width) || 0));
+  const docked = (win._chatDockGrow || 0) > 0;
+  if (open && !docked && want > 0) {
+    if (win.isMaximized() || win.isFullScreen()) return { ok: true, grew: false };
+    const b = win.getBounds();
+    const wa = screen.getDisplayMatching(b).workArea;
+    const nw = Math.min(b.width + want, wa.width);            // never wider than the display
+    let nx = b.x;
+    if (nx + nw > wa.x + wa.width) nx = Math.max(wa.x, wa.x + wa.width - nw); // shift left to fit
+    win._chatDockGrow = nw - b.width;                         // actual grow (may be < want at the edge)
+    win._chatDockShift = nx - b.x;
+    // Instant (no animate): the OS resize animation can't be frame-locked to the
+    // renderer's gutter, which is what made the page visibly wobble. Snapping
+    // both in one beat keeps the existing page rock-steady; the panel's own
+    // spawn animation supplies the motion.
+    win.setBounds({ x: nx, y: b.y, width: nw, height: b.height });
+    return { ok: true, grew: win._chatDockGrow > 0 };
+  }
+  if (!open && docked) {
+    const b = win.getBounds();
+    const grow = win._chatDockGrow, shift = win._chatDockShift;
+    win._chatDockGrow = 0; win._chatDockShift = 0;
+    win.setBounds(clampDockRectToWorkArea({ x: b.x - shift, y: b.y, width: Math.max(960, b.width - grow), height: b.height }));
+    return { ok: true, grew: false };
+  }
+  return { ok: true, grew: docked };
+});
+
+// Live resize of the docked panel: set the window so the dock (the gutter beyond
+// the original content) becomes `width`, growing/shrinking to the RIGHT only and
+// capping at the display edge. Updates _chatDockGrow so close()/save() stay
+// correct. No-op when not grown (maximized fallback) — the renderer then just
+// reflows the gutter in-window.
+ipcMain.handle("cohort-chat:resize-dock", (e, payload) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  if (!win || win.isDestroyed() || !(win._chatDockGrow > 0)) return { ok: false };
+  if (win.isMaximized() || win.isFullScreen()) return { ok: false };
+  const next = Math.max(0, Math.round((payload && payload.width) || 0));
+  const b = win.getBounds();
+  const wa = screen.getDisplayMatching(b).workArea;
+  const base = b.width - win._chatDockGrow;              // the undocked window width
+  // maxRight can go negative if the window has been stranded off the right edge
+  // (e.g. a secondary monitor was unplugged while docked). Floor it at `base` so
+  // the computed width never drops below the undocked size and grow can't go
+  // negative — a negative grow would persist a width LARGER than the real window
+  // via logicalBounds() and compound across restarts.
+  const maxRight = (wa.x + wa.width) - b.x;              // keep x fixed; cap at the screen edge
+  const nw = Math.min(base + next, Math.max(base, maxRight), wa.width);
+  win._chatDockGrow = Math.max(0, nw - base);
+  win.setBounds({ x: b.x, y: b.y, width: Math.max(960, nw), height: b.height });
+  return { ok: true, dock: win._chatDockGrow };
+});
+
 ipcMain.handle("fg:cohort-chat:status", async () => cohortChat.getStatus());
 ipcMain.handle("fg:cohort-chat:config:get", async () => {
   const cfg = readCohortChatConfig();
@@ -1829,10 +1937,26 @@ cohortChat.onStatus((s) => broadcastSwarm("fg:cohort-chat:status-changed", s));
 cohortChat.onOutput((o) => broadcastSwarm("fg:cohort-chat:output", o));
 
 ipcMain.handle("fg:transcript-intake:options", async () => transcriptIntake.getTranscriptIntakeOptions());
+// Open the native file picker (file-first UI). Returns the validated file's
+// display info without staging/uploading; the renderer submits separately.
+ipcMain.handle("fg:transcript-intake:pick", async (e) => {
+  try {
+    return await transcriptIntake.pickTranscriptFile({ browserWindow: BrowserWindow.fromWebContents(e.sender) });
+  } catch (error) {
+    return { ok: false, reason: error?.code || "pick_failed", detail: error?.message || String(error) };
+  }
+});
+// Validate a drag-and-dropped path the same way the picker does.
+ipcMain.handle("fg:transcript-intake:inspect", async (_e, filePath) => {
+  try {
+    return transcriptIntake.inspectTranscriptFile(String(filePath || ""));
+  } catch (error) {
+    return { ok: false, reason: error?.code || "invalid_file", detail: error?.message || String(error) };
+  }
+});
 ipcMain.handle("fg:transcript-intake:submit", async (e, opts = {}) => {
   try {
-    return await transcriptIntake.pickAndSubmitTranscriptIntake({
-      browserWindow: BrowserWindow.fromWebContents(e.sender),
+    const args = {
       sessionType: opts.sessionType,
       label: opts.label,
       declaredDate: opts.declaredDate,
@@ -1840,6 +1964,15 @@ ipcMain.handle("fg:transcript-intake:submit", async (e, opts = {}) => {
       confidence: opts.confidence,
       sessionId: opts.sessionId,
       supabase: opts.supabase,
+    };
+    // File already chosen in the renderer → submit it directly. Fall back to
+    // the picker only if no path was passed (legacy callers).
+    if (opts.filePath) {
+      return await transcriptIntake.submitTranscriptIntake({ ...args, filePath: String(opts.filePath) });
+    }
+    return await transcriptIntake.pickAndSubmitTranscriptIntake({
+      ...args,
+      browserWindow: BrowserWindow.fromWebContents(e.sender),
     });
   } catch (error) {
     return {

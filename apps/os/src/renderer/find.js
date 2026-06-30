@@ -158,7 +158,7 @@ function scoreCatalog(q) {
 // ─── results list (shared by overlay + blank tab) ──────────────────────────
 // Wires an <input> to a results container: live rendering, ↑/↓ to move the
 // active row, Enter to pick. Returns nothing — purely side-effecting.
-function attachListSearch(input, container) {
+function attachListSearch(input, container, { onPick } = {}) {
   let active = -1;
 
   const rows = () => Array.from(container.querySelectorAll(".os-find-result"));
@@ -210,7 +210,7 @@ function attachListSearch(input, container) {
       row.appendChild(tag);
       row.appendChild(main);
       row.addEventListener("mousemove", () => setActive(i));
-      row.addEventListener("click", () => { it.nav(); closeOverlay(); });
+      row.addEventListener("click", () => { it.nav(); (onPick || closeOverlay)(); });
       container.appendChild(row);
     });
     setActive(0);
@@ -229,6 +229,26 @@ function attachListSearch(input, container) {
   });
 
   return { render };
+}
+
+// Render the global search (bar + results) INSIDE a provided container — the
+// cohort-chat panel's "search" view — instead of the overlay. Reuses
+// buildCatalog/scoreCatalog/attachListSearch verbatim; the overlay path and its
+// init are untouched (this never builds/needs overlayEl). onPick is a no-op so a
+// result just navigates and the panel stays put. Returns { focus, render }.
+export function mountInline(container) {
+  if (!container) return null;
+  container.innerHTML =
+    '<div class="cc-search-bar"><span class="cc-search-icon" aria-hidden="true">' + SEARCH_ICON + '</span>' +
+    '<input class="os-find-input cc-search-input" type="text" autocomplete="off" spellcheck="false" placeholder="search people, projects, pages…" aria-label="search the cohort" /></div>' +
+    '<div class="os-find-results cc-search-results" role="listbox"></div>';
+  const inp = container.querySelector(".os-find-input");
+  const res = container.querySelector(".os-find-results");
+  catalog = buildCatalog();
+  const ctl = attachListSearch(inp, res, { onPick: () => {} });
+  requestAnimationFrame(() => { try { inp.focus(); } catch {} });
+  loadCohort().then(() => { catalog = buildCatalog(); ctl.render(); }).catch(() => {});
+  return { focus: () => { try { inp.focus(); } catch {} }, render: ctl.render };
 }
 
 // ─── find-in-page (scope: this page) ───────────────────────────────────────

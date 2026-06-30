@@ -100,8 +100,16 @@ const PROVIDER_CREDENTIAL_ENV = [
   "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN",
   "OPENAI_API_KEY", "OPENAI_API_KEY_PATH",
 ];
+// Claude Code refuses to launch nested inside another Claude Code session
+// (it checks CLAUDECODE) — which happens when THIS app was itself started from
+// within one, e.g. a dev `npm run os:dev` from a Claude Code terminal. The
+// member's local `claude -p` is a one-shot, not a nested interactive session, so
+// clear the session markers and let it run. Always stripped; real users launch
+// the app outside Claude Code, so it's a no-op for them.
+const NESTED_SESSION_ENV = ["CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT"];
 function spawnEnv(extra = {}) {
   const env = { ...process.env, ...extra };
+  for (const k of NESTED_SESSION_ENV) delete env[k];
   if (process.env.COHORT_CHAT_USE_ENV_KEYS !== "1") {
     for (const k of PROVIDER_CREDENTIAL_ENV) delete env[k];
   }
@@ -241,6 +249,13 @@ function start({ requestId, prompt, chatCmd, dataMode = "public" }) {
     settle({ exitCode: code, signal, reason: timedOut ? "timeout" : undefined });
   });
 
+  // The child can close stdin before our write lands (it exited early, refused to
+  // start, crashed, …). On a pipe that surfaces ASYNCHRONOUSLY as an 'error'
+  // (EPIPE) on the stream — NOT a throw — so the try/catch below can't catch it,
+  // and with no listener it becomes an uncaught exception that crashes the whole
+  // main process. The child 'error'/'exit' handlers above already report the
+  // failure to the user, so swallow the stream error here.
+  child.stdin.on("error", () => {});
   try { child.stdin.write(String(prompt)); child.stdin.end(); } catch {}
   return { ok: true, requestId, cmd: argv };
 }

@@ -1,9 +1,11 @@
 /* cohort-chat.css — the "ask the cohort" panel. Design-system tokens only
    (see apps/os/src/design-system/). Lazy-loaded by cohort-chat.js. */
 
-/* Corner popup widget (bottom-right), not a full-screen modal. The panel layer is
-   non-blocking (pointer-events:none) so the app behind stays usable; only the card
-   and the dial capture clicks. Opened/closed by the compact chat launcher. */
+/* Docked right-hand panel (not a floating popup or full-screen modal). The panel
+   layer is non-blocking (pointer-events:none) so the app behind stays usable; only
+   the card and the dial capture clicks. When open the app shell reflows to make
+   room on the right (see html.cohort-chat-open) instead of covering the content.
+   Opened/closed by the compact chat launcher. */
 .cohort-chat-panel {
   position: fixed;
   inset: 0;
@@ -15,35 +17,239 @@
 /* A non-modal widget has no blocking backdrop. */
 .cohort-chat-backdrop { display: none; }
 
+/* The dock width — single source of truth for the panel AND the room reserved
+   for it. 0 when closed; the panel's width and the shell's reserved gutter both
+   read it, so content ends exactly where the panel begins. */
+/* Fixed px (not vw): the OS window grows by exactly this much when the chat
+   opens, so a vw-relative width would feed back on itself as the window widens.
+   --cc-dock-w-open is ALWAYS set so the renderer can read the target width before
+   the open-class (and thus --cc-dock-w) is applied. */
+:root { --cc-dock-w: 0px; --cc-dock-w-open: 400px; }
+html.cohort-chat-open { --cc-dock-w: var(--cc-dock-w-open); }
+
+/* Make room for the dock by shrinking the grid CONTAINER's content box
+   (box-sizing: border-box on body → no overflow). This deliberately leaves the
+   2-column grid + grid-template-areas in styles.css untouched, so unplaced body
+   children (#chrome-staging, #blank-tab) keep auto-placing exactly as before
+   instead of landing in a new dock column. The 1fr content column simply gets
+   narrower; the fixed panel (viewport-relative) covers the freed strip. */
+/* NO transition: the gutter snaps to its final width in the same beat the window
+   grows, so the existing page never visibly slides/resizes — it just stays put
+   while the window gains width on the right. Only the panel itself animates. */
+body { padding-right: var(--cc-dock-w); }
+
 .cohort-chat-card {
   pointer-events: auto;
   position: absolute;
-  right: 22px;
-  bottom: 90px;
+  top: 0;
+  right: 0;
+  bottom: 0;
   display: flex;
   flex-direction: column;
-  width: min(400px, calc(100vw - 44px));
-  height: min(560px, calc(100vh - 132px));
+  width: var(--cc-dock-w);
   background: var(--ds-surface-1);
-  border: 1px solid var(--ds-border-strong);
-  border-radius: 16px;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  border: none;
+  border-left: 1px solid var(--ds-border-strong);
+  box-shadow: -16px 0 48px rgba(0, 0, 0, 0.4);
   overflow: hidden;
-  transform-origin: bottom right;
-  animation: cc-pop-in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  /* Spawns in place (fade + a small settle) — not a slide across the screen. */
+  animation: cc-spawn 0.16s ease-out both;
 }
-@keyframes cc-pop-in {
-  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+@keyframes cc-spawn {
+  from { opacity: 0; transform: translateX(14px); }
   to   { opacity: 1; transform: none; }
 }
 
+/* Match the app shell's palette. The left rail + main view run on the cold
+   editorial near-black (--ed-bg-*) with --ed-ink-* text, not the warmer --abyss
+   the design system defaults to — so re-point the panel's surface / ink / border
+   roles at the --ed-* palette. Every panel rule reads --ds-* tokens, so they all
+   adopt the app's colors automatically. Scoped to :not(light) so the light-mode
+   block further down keeps owning light. */
+html:not([data-theme="light"]) .cohort-chat-panel {
+  --ds-surface-1: var(--ed-bg-0);
+  --ds-surface-2: var(--ed-bg-1);
+  --ds-ink-1: var(--ed-ink-1);
+  --ds-ink-2: var(--ed-ink-2);
+  --ds-ink-3: var(--ed-ink-3);
+  --ds-ink-4: var(--ed-ink-4);
+  --ds-border: var(--ed-rule);
+  --ds-border-strong: var(--ed-rule-2);
+}
+
+/* Keep the top-right copy-link button clear of the dock (the dial hides when
+   open, so it no longer needs an offset). */
+html.cohort-chat-open .fg-share-fab { right: calc(16px + var(--cc-dock-w)); }
+
+/* The launcher dial is redundant while the panel is open (the panel is right
+   there) — tuck it away with a quick fade + shrink, and let it spring gently
+   back when the panel closes. */
+.cohort-chat-dial-wrap {
+  transition: opacity 0.22s ease, transform 0.3s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+html.cohort-chat-open .cohort-chat-dial-wrap {
+  opacity: 0;
+  transform: scale(0.55);
+  pointer-events: none;                 /* don't capture clicks while hidden over the panel */
+  transition: opacity 0.16s ease, transform 0.2s cubic-bezier(0.4, 0, 0.6, 1);
+}
+
+/* The cohort agent only has context to act on the OS (alchemy) top pages, so
+   the launcher only belongs there. Hide it entirely on the apps / network /
+   links / matrix top-level tabs. */
+body[data-active-tab="apps"] .cohort-chat-dial-wrap,
+body[data-active-tab="network"] .cohort-chat-dial-wrap,
+body[data-active-tab="links"] .cohort-chat-dial-wrap,
+body[data-active-tab="matrix"] .cohort-chat-dial-wrap {
+  display: none;
+}
+
+/* ── top tabs: ask / search / transcript — a full-width, color-coded bar at the
+   very top (each tab equal width so all three always fit). Each action has a
+   tint (gold / blue / green); inactive tabs wear a muted tint, the active tab
+   fills + underlines in its colour. Search opens the global overlay; ask ⇄
+   transcript switch the panel body (data-cc-view). */
+.cc-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 6px 12px 0;
+  border-bottom: 1px solid var(--ds-border);
+}
+/* Close button in the accent colour so it's easy to spot (specific enough to beat
+   the generic .cohort-chat-icon-btn color, incl. its hover). */
+.cohort-chat-head .cohort-chat-close-btn { color: var(--ds-accent); }
+.cohort-chat-head .cohort-chat-close-btn:hover { color: var(--ds-accent-hover); background: var(--ds-surface-3); }
+/* The bar is a window-drag region — its buttons must opt out to stay clickable. */
+.cohort-chat-head .cohort-chat-icon-btn { -webkit-app-region: no-drag; }
+.cc-tab {
+  --cc-tab-tint: var(--ds-accent);
+  flex: 1 1 auto;                    /* content-aware so labels don't clip across the tabs */
+  appearance: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;               /* sit the underline on the bar's hairline */
+  background: transparent;
+  color: color-mix(in srgb, var(--cc-tab-tint) 48%, var(--ds-ink-3));
+  font-family: var(--ds-font-ui);
+  font-size: var(--ds-text-md);
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  text-transform: lowercase;
+  white-space: nowrap;
+  padding: 7px 5px 9px;
+  border-radius: var(--ds-radius-sm, 6px) var(--ds-radius-sm, 6px) 0 0;
+  line-height: 1.1;
+  cursor: pointer;
+  transition: color 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+.cc-tab[data-cc-tab="ask"]        { --cc-tab-tint: var(--ds-accent); }
+.cc-tab[data-cc-tab="search"]     { --cc-tab-tint: #8ab4ff; }
+.cc-tab[data-cc-tab="transcript"] { --cc-tab-tint: #f0c46f; }
+.cc-tab[data-cc-tab="sync"]       { --cc-tab-tint: #5fcf8f; }
+.cc-tab:hover { background: color-mix(in srgb, var(--cc-tab-tint) 12%, transparent); }
+.cc-tab.is-active {
+  color: var(--cc-tab-tint);
+  background: color-mix(in srgb, var(--cc-tab-tint) 15%, transparent);
+  border-bottom-color: var(--cc-tab-tint);
+}
+.cc-tab:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: -2px; }
+.cc-tabs[hidden] { display: none; }
+
+/* ── drag-to-resize handle on the panel's left edge ──────────────────────── */
+.cc-resize {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 8px;
+  margin-left: -4px;                 /* straddle the panel border so it's grabbable */
+  cursor: ew-resize;
+  z-index: 4;
+  -webkit-app-region: no-drag;
+}
+.cc-resize::before {                 /* the visible line, lit on hover/drag */
+  content: "";
+  position: absolute;
+  left: 4px; top: 0; bottom: 0;
+  width: 2px;
+  background: transparent;
+  transition: background 0.12s ease;
+}
+.cc-resize:hover::before,
+body.cc-resizing .cc-resize::before { background: var(--ds-accent); }
+
+/* Panel-body view switching (ask ⇄ transcript). search isn't a body view. */
+.cohort-chat-card[data-cc-view="transcript"] .cohort-chat-log > :not(.cc-card.is-transcript-intake),
+.cohort-chat-card[data-cc-view="transcript"] .cohort-chat-form { display: none; }
+.cohort-chat-card[data-cc-view="ask"] .cc-card.is-transcript-intake { display: none; }
+/* Drop the log's 16px gutter in transcript view so the card sits at the body
+   top — its own padding then matches the sync pane's card, lining up the two
+   tab headers ("add transcript" ↔ "update from this week's work"). */
+.cohort-chat-card[data-cc-view="transcript"] .cohort-chat-log { padding: 0; }
+
+/* ── in-panel host panes (search / sync) ──────────────────────────────────── */
+.cc-pane { display: none; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.cohort-chat-card[data-cc-view="search"] .cohort-chat-log,
+.cohort-chat-card[data-cc-view="search"] .cohort-chat-form,
+.cohort-chat-card[data-cc-view="sync"]   .cohort-chat-log,
+.cohort-chat-card[data-cc-view="sync"]   .cohort-chat-form { display: none; }
+.cohort-chat-card[data-cc-view="search"] #cc-pane-search,
+.cohort-chat-card[data-cc-view="sync"]   #cc-pane-sync { display: flex; flex-direction: column; }
+.cc-pane-empty {
+  margin: auto; padding: 24px; max-width: 280px; text-align: center;
+  color: var(--ds-ink-3); font-family: var(--ds-font-ui);
+  font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm);
+}
+
+/* in-panel search (find.js mountInline) — scoped under .cc-pane so it wins over
+   find.css's overlay sizing regardless of load order, and is token-driven (so
+   light mode flips with the panel's --ds-surface re-point). */
+.cc-pane .cc-search-bar { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--ds-border); }
+.cc-pane .cc-search-icon { display: inline-flex; color: var(--ds-ink-3); }
+.cc-pane .cc-search-icon svg { width: 16px; height: 16px; }
+.cc-pane .cc-search-input { flex: 1; min-width: 0; background: transparent; border: 0; outline: none; color: var(--ds-ink-1); font-family: var(--ds-font-ui); font-size: var(--ds-text-sm); }
+.cc-pane .cc-search-input::placeholder { color: var(--ds-ink-4); }
+.cc-pane .os-find-results { flex: 1 1 auto; min-height: 0; max-height: none; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+.cc-pane .os-find-result { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--ds-ink-1); font-family: var(--ds-font-ui); cursor: pointer; }
+.cc-pane .os-find-result.is-active, .cc-pane .os-find-result:hover { background: var(--ds-surface-3); }
+.cc-pane .ofr-type { font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ds-ink-4); flex: 0 0 56px; white-space: nowrap; }
+/* Color-code the kind tag so it reads at a glance — mirrors the ⌘F overlay palette (find.css). */
+.cc-pane .ofr-type[data-type="project"] { color: #E6B97A; }
+.cc-pane .ofr-type[data-type="team"]    { color: var(--find-accent); }
+.cc-pane .ofr-type[data-type="person"]  { color: #8FEAF2; }
+.cc-pane .ofr-type[data-type="page"],
+.cc-pane .ofr-type[data-type="section"] { color: #C28BFF; }
+.cc-pane .ofr-main { display: flex; flex-direction: column; min-width: 0; }
+.cc-pane .ofr-title { font-size: var(--ds-text-sm); color: var(--ds-ink-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-pane .ofr-sub { font-size: var(--ds-text-xs); color: var(--ds-ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-pane .os-find-empty { padding: 24px 14px; text-align: center; color: var(--ds-ink-3); font-size: var(--ds-text-sm); }
+
+/* in-panel self-report (self-report.js mount) — strip the modal chrome + force
+   the diff to stack (its own @media keys off WINDOW width, not the panel). */
+.cc-pane .selfrep-card { width: auto; max-width: none; max-height: none; overflow: visible; border: 0; border-radius: 0; box-shadow: none; background: transparent; padding: 14px; }
+.cc-pane .selfrep-x { display: none; }
+.cc-pane .selfrep-diff { grid-template-columns: 1fr; gap: 3px; }
+.cc-pane .selfrep-diff-arrow { display: none; }
+.cc-pane .selfrep-diff-was { text-decoration: none; opacity: 0.6; }
+
+/* The action subtitles ("local cohort agent", "jump anywhere", …) are gone. */
+.cc-launcher-hint { display: none; }
+
 .cohort-chat-head {
+  -webkit-app-region: drag;          /* drag the OS window by the panel's top bar (like .tab-bar) */
   display: flex;
   align-items: center;
+  justify-content: space-between;   /* close (<<) left · status + settings right (tabs below) */
   gap: 12px;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--ds-border);
-  background: var(--ds-surface-2);
+  /* Match the main app's top tab strip height (--content-top-h) so the two
+     banners line up; no vertical padding — the row is height-driven. The
+     hairline is an inset shadow, not a border, so it doesn't shrink the content
+     box and pull the centered row up — the items stay centered in the full row. */
+  height: var(--content-top-h, 35px);
+  padding: 0 14px;
+  box-shadow: inset 0 -1px 0 var(--ds-border);
+  /* Match the main window's top tab strip (#content-top → --ed-bg-0). The panel
+     maps --ed-bg-0 onto --ds-surface-1, so in dark mode the bar goes darker to
+     match it instead of sitting on the lighter --ds-surface-2 band. */
+  background: var(--ds-surface-1);
 }
 .cohort-chat-mark { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .cohort-chat-mark-glyph { display: inline-flex; color: var(--ds-accent); }
@@ -109,10 +315,11 @@
 }
 .cohort-chat-empty small {
   display: block;
-  margin-top: 14px;
-  color: var(--ds-ink-4);
+  margin-top: 24px;
+  text-align: left;
+  color: var(--ds-ink-2);
   font-size: var(--ds-text-2xs);
-  line-height: var(--ds-lh-2xs);
+  line-height: 1.55;
 }
 .cohort-chat-empty-lede {
   font-size: var(--ds-text-base);
@@ -124,8 +331,8 @@
 .cohort-chat-egs { display: flex; flex-direction: column; gap: 7px; align-items: stretch; }
 .cc-eg {
   font-family: var(--ds-font-ui);
-  font-size: var(--ds-text-xs);
-  line-height: var(--ds-lh-xs);
+  font-size: var(--ds-text-md);
+  line-height: var(--ds-lh-md);
   color: var(--ds-ink-2);
   background: var(--ds-surface-3);
   border: 1px solid var(--ds-border);
@@ -149,8 +356,8 @@
   padding: 10px 13px;
   border-radius: 12px;
   font-family: var(--ds-font-ui);
-  font-size: var(--ds-text-sm);
-  line-height: var(--ds-lh-sm);
+  font-size: var(--ds-text-base);
+  line-height: var(--ds-lh-base);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -197,8 +404,8 @@
   background: var(--ds-surface-1);
   color: var(--ds-ink-1);
   font-family: var(--ds-font-ui);
-  font-size: var(--ds-text-sm);
-  line-height: var(--ds-lh-sm);
+  font-size: var(--ds-text-base);
+  line-height: var(--ds-lh-base);
 }
 .cohort-chat-input:focus-visible { outline: none; border-color: var(--ds-accent); }
 .cohort-chat-send, .cohort-chat-stop {
@@ -207,7 +414,9 @@
   border: 0;
   border-radius: 10px;
   background: var(--ds-accent);
-  color: var(--ds-surface-1);
+  /* Ink-on-accent (mode-independent near-black) — not --ds-surface-1, which
+     flips to near-white in light mode and made the label white on the fill. */
+  color: var(--ds-on-accent);
   font-family: var(--ds-font-ui);
   font-size: var(--ds-text-sm);
   font-weight: 600;
@@ -217,28 +426,33 @@
 .cohort-chat-stop { background: var(--ds-danger); }
 .cohort-chat-send:focus-visible, .cohort-chat-stop:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 1px; }
 
-/* Settings sub-modal — overlays just the corner card (not the whole screen). */
+/* Settings dropdown — drops from the cogwheel in the header, spanning the full
+   panel width (was a floating corner sub-modal). */
 .cohort-chat-settings {
   pointer-events: auto;
   position: absolute;
-  right: 22px;
-  bottom: 90px;
-  width: min(400px, calc(100vw - 44px));
-  height: min(560px, calc(100vh - 132px));
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: color-mix(in srgb, var(--ds-surface-1) 82%, transparent);
-  border-radius: 16px;
+  top: var(--content-top-h, 35px);   /* hang just under the header, where the cogwheel lives */
+  right: 0;
+  width: var(--cc-dock-w);           /* same width as the right-side panel */
+  max-width: 100%;
+  max-height: calc(100vh - var(--content-top-h, 35px) - 12px);
+  overflow-y: auto;
+  z-index: 5;
 }
 .cohort-chat-settings[hidden] { display: none; }
 .cohort-chat-settings-card {
-  width: min(460px, 92%);
-  background: var(--ds-surface-1);
-  border: 1px solid var(--ds-border);
-  border-radius: 12px;
-  padding: 16px;
+  width: 100%;
+  background: var(--ds-surface-2);
+  border: 0;
+  border-bottom: 1px solid var(--ds-border-strong);
+  border-radius: 0;
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.4);
+  padding: 14px;
+  animation: cc-settings-drop 0.14s ease-out both;
+}
+@keyframes cc-settings-drop {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: none; }
 }
 .cohort-chat-settings-head {
   display: flex;
@@ -323,14 +537,115 @@
 
 /* Onboarding card — the "set up your own AI" / first-run intro. */
 .cc-card.is-onboard { border-left-color: var(--ds-accent); }
+/* Transcript intake fills the panel body as a clean form (it's the whole
+   transcript view) — drop the chat-bubble shape + the gold accent left line. */
 .cc-card.is-transcript-intake {
-  width: min(92%, 460px);
+  align-self: stretch;
+  width: auto;
+  max-width: none;
+  margin: 0;
+  padding: 17px 22px 18px;           /* top trimmed ~3px to line the header up with sync's */
   gap: 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+/* Match the sync tab's eyebrow (.selfrep-eyebrow) exactly — same weight + tracking. */
+.cc-card.is-transcript-intake .cc-card-eyebrow { font-weight: 600; letter-spacing: 0.12em; }
+/* File-first dropzone: the primary, visible "pick a transcript" affordance.
+   Click opens the native picker; dragging a file in highlights + drops it. */
+.cc-upload-dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 96px;
+  box-sizing: border-box;
+  padding: 16px;
+  border: 1.5px dashed var(--ds-border-strong);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ds-surface-2) 60%, transparent);
+  color: var(--ds-ink-2);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
+}
+.cc-upload-dropzone:hover {
+  border-color: var(--ds-accent);
+  background: color-mix(in srgb, var(--ds-accent) 8%, var(--ds-surface-2));
+  color: var(--ds-ink-1);
+}
+.cc-upload-dropzone:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 2px; }
+.cc-upload-dropzone.is-dragover {
+  border-color: var(--ds-accent);
+  border-style: solid;
+  background: color-mix(in srgb, var(--ds-accent) 14%, var(--ds-surface-2));
+  color: var(--ds-ink-1);
+}
+.cc-upload-dropzone:disabled { opacity: 0.55; cursor: default; }
+.cc-upload-dropzone.has-file {
+  min-height: 0;
+  padding: 10px 12px;
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--ds-accent) 45%, var(--ds-border));
+  background: color-mix(in srgb, var(--ds-accent) 8%, var(--ds-surface-1));
+}
+.cc-upload-dz-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  pointer-events: none;             /* clicks always land on the button itself */
+}
+.cc-upload-dz-icon { width: 22px; height: 22px; color: var(--ds-ink-3); }
+.cc-upload-dropzone:hover .cc-upload-dz-icon,
+.cc-upload-dropzone.is-dragover .cc-upload-dz-icon { color: var(--ds-accent); }
+.cc-upload-dz-lede {
+  font-family: var(--ds-font-ui);
+  font-size: var(--ds-text-sm);
+  line-height: var(--ds-lh-sm);
+  font-weight: 600;
+}
+.cc-upload-dz-hint {
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  color: var(--ds-ink-4);
+}
+.cc-upload-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  pointer-events: none;
+}
+.cc-upload-file-icon { width: 20px; height: 20px; flex: none; color: var(--ds-accent); }
+.cc-upload-file-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; text-align: left; }
+.cc-upload-file-name {
+  font-family: var(--ds-font-ui);
+  font-size: var(--ds-text-sm);
+  color: var(--ds-ink-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cc-upload-file-sub {
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  color: var(--ds-ink-3);
+}
+.cc-upload-file-change {
+  margin-left: auto;
+  flex: none;
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ds-accent);
 }
 .cc-upload-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 9px;
+  grid-template-columns: 1fr;        /* one field per row */
+  gap: 11px;
 }
 .cc-upload-grid.is-connection { margin-top: 8px; }
 .cc-upload-field {
@@ -364,33 +679,46 @@
   outline: 2px solid var(--ds-focus);
   outline-offset: 1px;
 }
-.cc-upload-segment {
+/* confidence — a minimal 3-stop slider: the three labels sit ABOVE a
+   full-width track, each over its stop; the active one lights up. */
+.cc-upload-slider { display: flex; flex-direction: column; gap: 7px; }
+/* 1fr auto 1fr keeps the MIDDLE label centered (at the 50% thumb stop) no matter
+   how wide the outer labels are — space-between only centers it when first/last
+   are equal width, which "sure" / "needs review" aren't. Outer labels hug the
+   edges to sit over the end stops. */
+.cc-upload-slider-ticks {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-  min-height: 34px;
-}
-.cc-upload-segment-btn {
-  min-width: 0;
-  border: 1px solid var(--ds-border);
-  border-radius: 8px;
-  background: var(--ds-surface-1);
-  color: var(--ds-ink-3);
+  grid-template-columns: 1fr auto 1fr;
+  gap: 6px;
   font-family: var(--ds-font-ui);
   font-size: var(--ds-text-2xs);
-  line-height: var(--ds-lh-xs);
-  padding: 6px 5px;
+  color: var(--ds-ink-3);
+}
+.cc-upload-slider-tick { white-space: nowrap; text-align: center; transition: color 0.12s ease; }
+.cc-upload-slider-tick:first-child { text-align: left; }
+.cc-upload-slider-tick:last-child { text-align: right; }
+.cc-upload-slider-tick.is-on { color: var(--ds-accent); font-weight: 600; }
+.cc-upload-range {
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--ds-surface-4);
   cursor: pointer;
 }
-.cc-upload-segment-btn.is-on {
-  border-color: color-mix(in srgb, var(--ds-accent) 70%, var(--ds-border));
-  background: color-mix(in srgb, var(--ds-accent) 18%, var(--ds-surface-1));
-  color: var(--ds-ink-1);
+.cc-upload-range::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ds-accent);
+  border: 2px solid var(--ds-surface-1);
+  cursor: pointer;
 }
-.cc-upload-segment-btn:focus-visible {
-  outline: 2px solid var(--ds-focus);
-  outline-offset: 1px;
-}
+.cc-upload-range:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 4px; }
+.cc-upload-range:disabled { opacity: 0.5; cursor: default; }
 .cc-upload-route {
   min-height: 56px;
   border: 1px solid var(--ds-border);
@@ -557,12 +885,17 @@
 
 /* Persistent chat launcher in the bottom-right corner. */
 .cohort-chat-dial-wrap {
+  /* The dial sits flush in the window's bottom-right rounded corner; the window
+     masks any overflow, so the circle reads as tucked into the corner.
+     --cc-win-corner is its radius — sized for a comfortable click target (not
+     strictly the OS corner radius). */
+  --cc-win-corner: 20px;
   position: fixed;
-  right: 18px;
-  bottom: 18px;
+  right: 0;
+  bottom: 0;
   z-index: 1201;
-  width: 48px;
-  height: 48px;
+  width: calc(var(--cc-win-corner) * 2);
+  height: calc(var(--cc-win-corner) * 2);
   pointer-events: auto;
 }
 .cohort-chat-dial {
@@ -571,8 +904,8 @@
   bottom: 0;
   z-index: 2;
   box-sizing: border-box;
-  width: 48px;
-  height: 48px;
+  width: calc(var(--cc-win-corner) * 2);
+  height: calc(var(--cc-win-corner) * 2);
   padding: 0;
   border: 1px solid color-mix(in srgb, var(--ds-border-strong) 74%, transparent);
   border-radius: 50%;
@@ -589,12 +922,14 @@
 }
 .cohort-chat-dial[hidden] { display: none; }
 .cohort-chat-dial:hover {
-  transform: translateY(-1px);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--ds-surface-1) 94%, transparent), color-mix(in srgb, var(--ds-surface-2) 90%, transparent));
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  border-color: color-mix(in srgb, var(--ds-accent) 55%, var(--ds-border-strong));
+  color: var(--ds-accent-hover);
 }
 .cohort-chat-dial:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 3px; }
+/* Light mode: the bot glyph reads as ink (near-black), not the yellow accent.
+   The hover border still lights up in accent for affordance. */
+html[data-theme="light"] .cohort-chat-dial,
+html[data-theme="light"] .cohort-chat-dial:hover { color: var(--ds-ink-1); }
 .cohort-chat-action-menu {
   position: absolute;
   right: 0;
@@ -674,7 +1009,6 @@
 .cc-launcher-action[data-cohort-chat-action="search"] { --cc-action-tint: #8ab4ff; }
 .cc-launcher-action[data-cohort-chat-action="transcript"] { --cc-action-tint: #f0c46f; }
 .cc-launcher-action[data-cohort-chat-action="sync"] { --cc-action-tint: #73d69a; }
-.cc-launcher-action[data-cohort-chat-action="mirror"] { --cc-action-tint: #c7a7ff; }
 .cc-launcher-action.is-primary {
   background: color-mix(in srgb, var(--cc-action-tint) 10%, transparent);
   color: var(--ds-ink-1);
@@ -745,35 +1079,41 @@
 @keyframes cc-sync-spin {
   to { transform: rotate(360deg); }
 }
-.cohort-chat-dial::after {
-  content: "";
-  position: absolute;
-  inset: 6px;
-  border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--ds-accent) 26%, transparent);
-  opacity: 0.7;
-  pointer-events: none;
-}
 .cohort-chat-dial.is-open { color: var(--ds-accent-hover); border-color: color-mix(in srgb, var(--ds-accent) 64%, var(--ds-border-strong)); }
 
-.cc-dial-ring { position: absolute; inset: 0; width: 100%; height: 100%; }
-.cc-dial-ring .cc-dial-track { stroke: color-mix(in srgb, var(--ds-border-strong) 84%, transparent); }
-.cc-dial-ring .cc-dial-arc {
-  stroke: var(--ds-accent);
-  transform: rotate(-90deg);
-  transform-origin: 28px 28px;
-  transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-.cohort-chat-dial:hover .cc-dial-arc { transform: rotate(0deg); }
-.cohort-chat-dial.is-open .cc-dial-arc { transform: rotate(45deg); }
-.cc-dial-glyph { position: relative; width: 20px; height: 20px; }
+.cc-dial-glyph { position: relative; width: calc(var(--cc-win-corner) * 1.2); height: calc(var(--cc-win-corner) * 1.2); }
 
 @media (prefers-reduced-motion: reduce) {
   .cohort-chat-card { animation: none; }
   .cohort-chat-action-menu,
   .cohort-chat-dial,
-  .cc-launcher-action,
-  .cc-dial-ring .cc-dial-arc { transition: none; }
+  .cc-launcher-action { transition: none; }
   .cc-launcher-action[data-state="busy"] .cc-launcher-icon svg { animation: none; }
   .cc-deep-rail span[data-state="active"]::after { animation: none; display: none; }
 }
+
+/* ── Light mode (html[data-theme="light"]) ────────────────────────────────
+   --ds-ink-*, --ds-border and --ds-accent already flip with the theme, but the
+   SURFACE tokens (and --ds-border-strong) point at the dark --abyss/--water and
+   do NOT — so re-point them to the light paper palette here, scoped to the chat,
+   and every token-driven surface (panel, dial, menu, chips) flips with it. The
+   shadows drop their dark-mode white bevel and retint to ink, and the pastel
+   action tints darken toward ink so the radial icons stay legible on paper. */
+html[data-theme="light"] .cohort-chat-panel,
+html[data-theme="light"] .cohort-chat-dial-wrap {
+  --ds-surface-1: rgb(var(--overlay-rgb));
+  --ds-surface-2: color-mix(in srgb, rgb(var(--overlay-rgb)) 93%, rgb(var(--ink-rgb)));
+  --ds-surface-3: rgba(var(--ink-rgb), 0.05);
+  --ds-surface-4: rgba(var(--ink-rgb), 0.09);
+  --ds-border-strong: rgba(var(--ink-rgb), 0.22);
+}
+html[data-theme="light"] .cohort-chat-card { box-shadow: -16px 0 40px rgba(var(--ink-rgb), 0.13); }
+html[data-theme="light"] .cohort-chat-dial { box-shadow: 0 8px 20px rgba(var(--ink-rgb), 0.16); }
+html[data-theme="light"] .cohort-chat-dial:hover { box-shadow: 0 10px 24px rgba(var(--ink-rgb), 0.20); }
+html[data-theme="light"] .cohort-chat-action-menu { box-shadow: 0 16px 36px rgba(var(--ink-rgb), 0.16); }
+html[data-theme="light"] .cc-launcher-icon { color: color-mix(in srgb, var(--cc-action-tint) 60%, rgb(var(--ink-rgb))); }
+/* Darker tab tints so the color coding reads on light paper. */
+html[data-theme="light"] .cc-tab[data-cc-tab="ask"]        { --cc-tab-tint: #9c6b12; }
+html[data-theme="light"] .cc-tab[data-cc-tab="search"]     { --cc-tab-tint: #2f6fd6; }
+html[data-theme="light"] .cc-tab[data-cc-tab="transcript"] { --cc-tab-tint: #a8740f; }
+html[data-theme="light"] .cc-tab[data-cc-tab="sync"]       { --cc-tab-tint: #1f8e57; }

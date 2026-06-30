@@ -1401,7 +1401,10 @@
 .rr-field { position: relative; height: 500px; border-left: 1px solid var(--ed-rule); border-top: 1px solid var(--ed-rule); background: repeating-linear-gradient(0deg, transparent 0 112px, rgba(var(--ink-rgb), 0.028) 112px 114px); overflow: hidden; }
 .rr-field.today { border-left: 1px solid color-mix(in oklch, var(--rr-ox) 55%, transparent); background: linear-gradient(180deg, color-mix(in oklch, var(--rr-ox) 6%, transparent), color-mix(in oklch, var(--rr-ox) 1.5%, transparent)), repeating-linear-gradient(0deg, transparent 0 112px, rgba(var(--ink-rgb), 0.028) 112px 114px); }
 .rr-ghost { position: absolute; top: 50%; left: 0; right: 0; text-align: center; transform: translateY(-50%); font-family: var(--ed-display); font-style: italic; font-size: 13px; letter-spacing: -0.01em; color: var(--rr-faint-2); }
-.rr-allday { position: absolute; top: 0; left: 4px; right: 4px; height: 19px; display: flex; align-items: center; padding: 0 8px; border: 0; border-left: 2px solid var(--c2-acc, #8f817a); border-radius: 0 5px 5px 0; background: color-mix(in oklch, var(--c2-acc, #8f817a) 15%, transparent); color: var(--ed-ink-1); font-family: var(--ed-mono); font-size: 9.5px; cursor: pointer; z-index: 2; overflow: hidden; transition: background 150ms ease; }
+/* all-day banners stack in a column at the top of the field; each row lays out
+   in normal flow inside it so 2+ banners never pin to the same top and overlap. */
+.rr-allday-stack { position: absolute; top: 0; left: 4px; right: 4px; display: flex; flex-direction: column; gap: 2px; z-index: 2; }
+.rr-allday { height: 19px; display: flex; align-items: center; padding: 0 8px; border: 0; border-left: 2px solid var(--c2-acc, #8f817a); border-radius: 0 5px 5px 0; background: color-mix(in oklch, var(--c2-acc, #8f817a) 15%, transparent); color: var(--ed-ink-1); font-family: var(--ed-mono); font-size: 9.5px; cursor: pointer; overflow: hidden; transition: background 150ms ease; }
 .rr-allday span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rr-allday:hover, .rr-allday:focus-visible { outline: none; background: color-mix(in oklch, var(--c2-acc, #8f817a) 26%, transparent); }
 /* a multi-day item's later days read as a quiet continuation, not a repeat */
