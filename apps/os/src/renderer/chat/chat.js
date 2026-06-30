@@ -86,7 +86,7 @@ export function mountChat(host) {
           <h2 class="chat-gate-title">sign in to matrix</h2>
           ${status.error ? `<p class="chat-gate-reauth">${esc(status.error)}</p>` : ""}
           <p class="chat-gate-grouplabel">matrix.org — your own account</p>
-          <button class="chat-btn chat-btn-primary chat-mxorg-browser" type="button">sign in in this computer's browser</button>
+          <button class="chat-btn chat-btn-primary chat-mxorg-browser" type="button">sign in with your browser</button>
           <button class="chat-btn chat-btn-ghost chat-mxorg-code" type="button">approve with a code on another device</button>
           <details class="chat-dev"><summary>use a cohort server account instead</summary>
             <div class="chat-gate-body"><div class="chat-gate-checking">checking sign-in…</div></div>
@@ -200,31 +200,19 @@ export function mountChat(host) {
       body.innerHTML = `${buttons}<div class="chat-gate-status" role="status" aria-live="polite"></div>`;
       body.querySelectorAll(".chat-sso").forEach((b) => b.addEventListener("click", () => startSSO(b.dataset.idp)));
     } else if (tokenFlow) {
-      // Toggle by which device you're already signed in on:
-      //  • desktop → paste an access token from a desktop Element (works today)
-      //  • mobile  → approve via QR from your phone (needs the homeserver's
-      //    rendezvous relay, not deployed yet — see Andrew).
+      // Paste an access token from any client you're already signed in to (the
+      // token never leaves this machine). Password is the tucked-away fallback.
       body.innerHTML = `
-        <div class="chat-seg" role="tablist" aria-label="how you're already signed in">
-          <button class="chat-seg-btn is-active" type="button" data-pane="desktop">desktop</button>
-          <button class="chat-seg-btn" type="button" data-pane="mobile">mobile</button>
-        </div>
-        <div class="chat-pane" data-pane="desktop">
-          <form class="chat-token-form" autocomplete="off">
-            <input class="chat-input-text" name="token" type="password" placeholder="paste access token" spellcheck="false" autocapitalize="off" />
-            <p class="chat-gate-hint">From a signed-in <strong>desktop</strong> Element: <code>Settings → Help &amp; About → Access Token</code></p>
-            <button class="chat-btn chat-btn-primary" type="submit">sign in</button>
-            <div class="chat-login-msg" role="status" aria-live="polite"></div>
-          </form>
-        </div>
-        <div class="chat-pane is-hidden" data-pane="mobile">
-          <p class="chat-gate-note">Approve from a phone you're already signed in to — <strong>not enabled yet</strong>. It needs a one-time change on the homeserver (a rendezvous relay) before phones can approve a sign-in. Ping the admin to switch it on.</p>
-        </div>
+        <form class="chat-token-form" autocomplete="off">
+          <input class="chat-input-text" name="token" type="password" placeholder="paste an access token" spellcheck="false" autocapitalize="off" />
+          <p class="chat-gate-hint">From a Matrix client you're signed in to (Element, Cinny…): <code>Settings → Help &amp; About → Access Token</code></p>
+          <button class="chat-btn chat-btn-primary" type="submit">sign in</button>
+          <div class="chat-login-msg" role="status" aria-live="polite"></div>
+        </form>
         <details class="chat-dev">
           <summary>or sign in with a password</summary>
           ${passwordFormHtml()}
         </details>`;
-      wireSegmented();
       wireTokenForm();
       wirePasswordForm();
     } else {
