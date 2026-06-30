@@ -21,17 +21,24 @@
 //   loginToken() — adopt an existing access token
 //   logout()     — drop the session + stop sync
 //
-// Persistence (under app userData)
-//   matrix-session.json — { homeserver, userId, deviceId }
-//   matrix-token.enc    — access token, encrypted via Electron safeStorage
-//                         (Keychain / libsecret / DPAPI); plaintext fallback
-//                         with a warning when encryption is unavailable.
+// Persistence (under app userData — keyed to productName, stable across updates)
+//   matrix-session.json — { homeserver, userId, deviceId, oauth? }
+//   matrix-token        — access token, plaintext, mode 0600
+//
+// We deliberately do NOT use Electron safeStorage (OS keychain) here. The app
+// ships UNSIGNED, and on an unsigned build macOS pops a "enter your login
+// password" Keychain prompt and ties access to the (per-build) code signature —
+// so the token would become unreadable after an update and silently log the
+// user out. A 0600 file in the per-user userData dir avoids the prompt and
+// survives updates. The dir is already user-private; the token is a revocable
+// access token, not a password. (If the app is ever Developer-ID signed +
+// notarized, safeStorage becomes viable again and this can be revisited.)
 
 const fs = require("node:fs");
 const path = require("node:path");
 const http = require("node:http");
 const crypto = require("node:crypto");
-const { BrowserWindow, safeStorage, shell, net } = require("electron");
+const { BrowserWindow, shell, net } = require("electron");
 
 // Route every homeserver request through Electron's net.fetch (Chromium's
 // network stack: the SYSTEM cert store, proxies, HTTP/2) rather than Node's
@@ -41,6 +48,15 @@ const { BrowserWindow, safeStorage, shell, net } = require("electron");
 // module-scope shadow makes all fetch(...) calls below use it; the browser
 // fetch inside deviceHelperHtml is a string template and is unaffected.
 const fetch = (...args) => net.fetch(...args);
+
+// Olm/Megolm engine, isolated in a utilityProcess (matrix-crypto-host.js drives
+// it; matrix-crypto-proc.js runs the native @matrix-org/matrix-sdk-crypto-nodejs
+// engine out-of-process). The native module can panic (SIGABRT) — uncatchable by
+// JS — so we keep it OUT of the main process: a crash there only kills the child
+// and we degrade to "encrypted rooms stay locked", never taking the app down.
+// Same async surface as the in-process engine, so call sites below are unchanged.
+const mxcrypto = require("./matrix-crypto-host");
+const oauth = require("./matrix-oauth");
 
 // The cohort homeserver (docs/MATRIX.md). The Client-Server API base is the
 // same host; we skip .well-known discovery for v1.
@@ -52,7 +68,7 @@ const SYNC_FILTER = {
   room: {
     timeline: { limit: 40, types: ["m.room.message", "m.room.encrypted"] },
     state: {
-      types: ["m.room.name", "m.room.canonical_alias", "m.room.encryption"],
+      types: ["m.room.name", "m.room.canonical_alias", "m.room.encryption", "m.room.history_visibility"],
       lazy_load_members: true,
     },
     ephemeral: { types: [] },
@@ -74,42 +90,142 @@ let since = null;                // sync cursor
 let running = false;
 let abort = null;                // AbortController for the in-flight sync
 let txn = 0;
+let cryptoTried = false;         // guards one crypto-init attempt per session
 const rooms = new Map();         // roomId → { name, alias, encrypted, unread, msgs:[], lastTs }
 
 // ─── persistence ──────────────────────────────────────────────────────────
 
 function sessionFile() { return path.join(app.getPath("userData"), "matrix-session.json"); }
-function tokenFile() { return path.join(app.getPath("userData"), "matrix-token.enc"); }
+function tokenFile() { return path.join(app.getPath("userData"), "matrix-token"); }
+// Pre-migration keychain-encrypted token from earlier dev builds (see header).
+function legacyTokenFile() { return path.join(app.getPath("userData"), "matrix-token.enc"); }
+
+// Atomic write: a temp file in the same dir + rename, so a crash/power-loss
+// mid-write can never leave a truncated session/token on disk. This matters
+// for the OAuth refresh-token rotation: MAS invalidates the old refresh token
+// the instant it issues a new one, so a half-written matrix-session.json would
+// strand a dead token and force a re-login on next launch.
+function atomicWrite(file, data, mode) {
+  const tmp = `${file}.tmp-${process.pid}`;
+  try {
+    fs.writeFileSync(tmp, data, { mode });
+    fs.renameSync(tmp, file);
+  } catch (e) {
+    try { fs.unlinkSync(tmp); } catch {}   // don't leave a half-written temp behind
+    throw e;
+  }
+}
 
 function loadSession() {
   try {
     session = JSON.parse(fs.readFileSync(sessionFile(), "utf8"));
   } catch { session = null; }
   try {
-    const buf = fs.readFileSync(tokenFile());
-    token = safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(buf) : buf.toString("utf8");
+    token = fs.readFileSync(tokenFile(), "utf8");
   } catch { token = null; }
   if (!session || !token) { session = null; token = null; }
 }
 
+// Write the current session + token to disk (no crypto teardown — used by both
+// a fresh login and a transparent token refresh). Plaintext 0600 file; see the
+// header for why we don't use safeStorage.
+function persistSession() {
+  try { atomicWrite(sessionFile(), JSON.stringify(session), 0o600); } catch (e) { warn(`session write failed: ${e.message}`); }
+  try { atomicWrite(tokenFile(), token, 0o600); } catch (e) { warn(`token write failed: ${e.message}`); }
+}
+
+// One-time cleanup for installs that ran an earlier dev build which stored the
+// token via safeStorage (matrix-token.enc) + a keychain-encrypted crypto store
+// key. We can no longer read those (and don't want the keychain prompt), so drop
+// them; the next sign-in regenerates everything as plaintext. Matrix shipped
+// disabled before this release, so real users have no legacy files — no-op there.
+function migrateOffSafeStorage() {
+  try {
+    if (!fs.existsSync(legacyTokenFile())) return;
+    fs.unlinkSync(legacyTokenFile());
+    try { fs.unlinkSync(cryptoKeyFile()); } catch {}
+    log("migrated off safeStorage — cleared legacy keychain-encrypted token + crypto key");
+  } catch {}
+}
+
 function saveSession(sess, tok) {
+  // A fresh login means a new device → drop any machine bound to the old one.
+  try { mxcrypto.close(); } catch {}
+  cryptoTried = false;
   session = sess;
   token = tok;
-  try { fs.writeFileSync(sessionFile(), JSON.stringify(sess), { mode: 0o600 }); } catch (e) { warn(`session write failed: ${e.message}`); }
-  try {
-    const out = safeStorage.isEncryptionAvailable()
-      ? safeStorage.encryptString(tok)
-      : Buffer.from(tok, "utf8");
-    if (!safeStorage.isEncryptionAvailable()) warn("safeStorage unavailable — matrix token stored in plaintext");
-    fs.writeFileSync(tokenFile(), out, { mode: 0o600 });
-  } catch (e) { warn(`token write failed: ${e.message}`); }
+  persistSession();
 }
 
 function clearSession() {
   session = null; token = null; since = null;
   rooms.clear();
+  try { mxcrypto.close(); } catch {}
+  cryptoTried = false;
   try { fs.unlinkSync(sessionFile()); } catch {}
   try { fs.unlinkSync(tokenFile()); } catch {}
+  try { fs.unlinkSync(legacyTokenFile()); } catch {}
+}
+
+// ─── E2EE crypto integration ────────────────────────────────────────────────
+// Per-device crypto store directory under userData, keyed by user+device so a
+// re-login (which mints a new device) never collides with an old store.
+function cryptoStoreDir() {
+  const id = `${session?.userId || "unknown"}_${session?.deviceId || "nodev"}`.replace(/[^a-zA-Z0-9._@-]/g, "_");
+  const dir = path.join(app.getPath("userData"), "matrix-crypto", id);
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function cryptoKeyFile() { return path.join(app.getPath("userData"), "matrix-crypto", "store.key"); }
+
+// A random passphrase that encrypts the crypto store at rest. Plaintext 0600
+// file alongside the token (same reasoning — see the header: no keychain prompt,
+// survives updates).
+function cryptoPassphrase() {
+  try {
+    return fs.readFileSync(cryptoKeyFile(), "utf8");
+  } catch {}
+  const pass = crypto.randomBytes(32).toString("base64");
+  try {
+    fs.mkdirSync(path.dirname(cryptoKeyFile()), { recursive: true });
+    atomicWrite(cryptoKeyFile(), pass, 0o600);
+  } catch (e) { warn(`crypto key write failed: ${e.message}`); }
+  return pass;
+}
+
+// Authed homeserver call for the crypto engine. Returns { status, body } and
+// only throws on network failure, so the engine can distinguish "retry" (no
+// response / 5xx) from "mark as sent" (got a response).
+async function cryptoHttp(method, apiPath, bodyObj) {
+  await ensureFreshToken();
+  const res = await fetch(hsBase() + apiPath, {
+    method,
+    headers: authHeaders(),
+    body: bodyObj === undefined ? undefined : JSON.stringify(bodyObj),
+  });
+  const body = await res.json().catch(() => ({}));
+  return { status: res.status, body };
+}
+
+// Initialise the Olm machine once per session. Failure is non-fatal: encrypted
+// rooms simply stay locked while plain rooms keep working.
+async function ensureCrypto() {
+  if (mxcrypto.isReady() || cryptoTried) return;
+  cryptoTried = true;
+  if (!session?.userId || !session?.deviceId) { warn("no stable device id — encrypted rooms stay locked"); return; }
+  try {
+    await mxcrypto.init({
+      userId: session.userId,
+      deviceId: session.deviceId,
+      storePath: cryptoStoreDir(),
+      passphrase: cryptoPassphrase(),
+      http: cryptoHttp,
+    });
+    log("E2EE crypto initialised");
+  } catch (e) {
+    warn(`crypto init failed (encrypted rooms stay locked): ${e.message}`);
+  }
 }
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -152,14 +268,15 @@ function roomSummaries() {
 
 function ensureRoom(roomId) {
   let r = rooms.get(roomId);
-  if (!r) { r = { name: "", alias: "", encrypted: false, unread: 0, msgs: [], lastTs: 0, seen: new Set() }; rooms.set(roomId, r); }
+  if (!r) { r = { name: "", alias: "", encrypted: false, encInfo: null, historyVisibility: "shared", unread: 0, msgs: [], lastTs: 0, seen: new Set(), utdEvents: new Map() }; rooms.set(roomId, r); }
   return r;
 }
 
 function applyState(r, ev) {
   if (ev.type === "m.room.name") r.name = ev.content?.name || r.name;
   else if (ev.type === "m.room.canonical_alias") r.alias = ev.content?.alias || r.alias;
-  else if (ev.type === "m.room.encryption") r.encrypted = true;
+  else if (ev.type === "m.room.encryption") { r.encrypted = true; r.encInfo = ev.content || r.encInfo || {}; }
+  else if (ev.type === "m.room.history_visibility") r.historyVisibility = ev.content?.history_visibility || r.historyVisibility;
 }
 
 // Plain-text representation of a message event. Emotes get a "* " prefix;
@@ -185,6 +302,32 @@ function toMsg(ev) {
   };
 }
 
+// Build a timeline message from a decrypted event. The envelope (event_id,
+// sender, timestamp) comes from the outer m.room.encrypted event; the body
+// comes from the decrypted `{ type, content }`.
+function toMsgFromDecrypted(outerEv, clear) {
+  return {
+    eventId: outerEv.event_id,
+    sender: outerEv.sender,
+    body: messageBody(clear),
+    ts: outerEv.origin_server_ts || 0,
+    mine: outerEv.sender === session?.userId,
+  };
+}
+
+// Placeholder for an event we couldn't decrypt (no room key — almost always
+// history sent before this device logged in). `utd` lets the renderer style it.
+function utdMsg(outerEv) {
+  return {
+    eventId: outerEv.event_id,
+    sender: outerEv.sender,
+    body: "🔒 unable to decrypt",
+    ts: outerEv.origin_server_ts || 0,
+    mine: outerEv.sender === session?.userId,
+    utd: true,
+  };
+}
+
 function addMessage(r, msg) {
   if (!msg.eventId || r.seen.has(msg.eventId)) return false;
   r.seen.add(msg.eventId);
@@ -197,7 +340,7 @@ function addMessage(r, msg) {
   return true;
 }
 
-function processSync(data) {
+async function processSync(data, initial) {
   const joined = data.rooms?.join || {};
   let roomsChanged = false;
   for (const [roomId, room] of Object.entries(joined)) {
@@ -205,9 +348,24 @@ function processSync(data) {
     for (const ev of room.state?.events || []) applyState(r, ev);
     const fresh = [];
     for (const ev of room.timeline?.events || []) {
-      if (ev.type === "m.room.encryption") { r.encrypted = true; continue; }
-      if (ev.type === "m.room.name" || ev.type === "m.room.canonical_alias") { applyState(r, ev); continue; }
-      if (ev.type === "m.room.encrypted") { r.encrypted = true; continue; }
+      if (ev.type === "m.room.encryption" || ev.type === "m.room.name" || ev.type === "m.room.canonical_alias" || ev.type === "m.room.history_visibility") { applyState(r, ev); continue; }
+      if (ev.type === "m.room.encrypted") {
+        r.encrypted = true;
+        let msg = null;
+        if (mxcrypto.isReady()) {
+          try {
+            const clear = await mxcrypto.decryptEvent(ev, roomId);
+            if (clear && clear.type === "m.room.message") msg = toMsgFromDecrypted(ev, clear);
+          } catch {
+            msg = utdMsg(ev);
+            if (!initial) rememberUtd(r, ev);   // retry live key/message races; skip the backlog
+          }
+        } else {
+          msg = utdMsg(ev);
+        }
+        if (msg && addMessage(r, msg)) fresh.push(msg);
+        continue;
+      }
       if (ev.type === "m.room.message") {
         const msg = toMsg(ev);
         if (addMessage(r, msg)) fresh.push(msg);
@@ -224,13 +382,254 @@ function processSync(data) {
   if (roomsChanged) broadcast("matrix:rooms", roomSummaries());
 }
 
+// ─── matrix.org OAuth device login + token refresh ──────────────────────────
+// matrix.org delegates auth to MAS (OAuth2). We sign in with the device-code
+// "approve on your phone" grant — no password touches the app — and its access
+// tokens are short-lived (~5 min), so we refresh them transparently. The
+// reusable OAuth client_id is persisted so we register only once.
+function oauthClientFile() { return path.join(app.getPath("userData"), "matrix-oauth-client.json"); }
+// `full:true` marks a client registered with BOTH the device grant and
+// authorization_code, so an older device-only client is re-registered before
+// the browser flow uses it.
+function loadOAuthClient() {
+  try { const c = JSON.parse(fs.readFileSync(oauthClientFile(), "utf8")); return (c.clientId && c.full) ? c.clientId : null; } catch { return null; }
+}
+function saveOAuthClient(clientId) {
+  try { fs.writeFileSync(oauthClientFile(), JSON.stringify({ clientId, full: true }), { mode: 0o600 }); } catch (e) { warn(`oauth client write failed: ${e.message}`); }
+}
+async function ensureOAuthClient(disc) {
+  let clientId = loadOAuthClient();
+  if (!clientId) {
+    clientId = await oauth.registerClient({ registrationEndpoint: disc.registrationEndpoint, clientName: "Shape Rotator OS", clientUri: "https://github.com/dmarzzz/shape-rotator-os" });
+    saveOAuthClient(clientId);
+  }
+  return clientId;
+}
+
+// Establish a matrix.org session from freshly-granted OAuth tokens (shared by
+// the device-code and browser flows): persist, whoami for the user id, sync.
+async function establishOAuthSession(disc, deviceId, tok, clientId) {
+  stopSync(); rooms.clear(); since = null;
+  const sess = {
+    homeserver: disc.homeserver, userId: null, deviceId,
+    oauth: { clientId, tokenEndpoint: disc.tokenEndpoint, refreshToken: tok.refreshToken, expiresAt: Date.now() + (tok.expiresIn || 300) * 1000 },
+  };
+  saveSession(sess, tok.accessToken);   // resets crypto for the new device
+  // whoami is REQUIRED, not best-effort: the OlmMachine and "is this my message?"
+  // both key off a real user id. Persisting userId:null would silently break
+  // crypto for the entire session, so a transient failure here fails the login
+  // (retry once) rather than establishing a half-session.
+  let gotUser = false;
+  for (let attempt = 0; attempt < 2 && !gotUser; attempt++) {
+    try {
+      const who = await fetch(disc.homeserver + "/_matrix/client/v3/account/whoami", { headers: { Authorization: `Bearer ${tok.accessToken}` } });
+      const wb = await who.json().catch(() => ({}));
+      if (wb.user_id) { session.userId = wb.user_id; gotUser = true; }
+      if (wb.device_id) session.deviceId = wb.device_id;
+    } catch {}
+  }
+  if (!gotUser) {
+    clearSession();
+    setState("logged_out", "Couldn't confirm your matrix.org account — please sign in again.");
+    return { ok: false, error: "couldn't confirm account (whoami failed)" };
+  }
+  persistSession();
+  log(`matrix.org sign-in complete for ${session.userId}`);
+  startSync();
+  return { ok: true, userId: session.userId };
+}
+
+let refreshing = null;
+// Returns "ok" | "fatal" | "transient".
+async function doRefresh() {
+  try {
+    const r = await oauth.refresh({ tokenEndpoint: session.oauth.tokenEndpoint, clientId: session.oauth.clientId, refreshToken: session.oauth.refreshToken });
+    if (r.ok) {
+      token = r.accessToken;
+      session.oauth.refreshToken = r.refreshToken;   // MAS rotates it — must persist the new one
+      session.oauth.expiresAt = Date.now() + (r.expiresIn || 300) * 1000;
+      persistSession();
+      return "ok";
+    }
+    warn(`token refresh ${r.fatal ? "rejected — session expired" : "failed transiently"}: ${r.error}`);
+    return r.fatal ? "fatal" : "transient";
+  } catch (e) { warn(`token refresh error: ${e.message}`); return "transient"; }
+  finally { refreshing = null; }
+}
+
+// Keep an OAuth access token valid: refresh when within 90s of expiry, or when
+// forced after a soft-logout 401. Single-flight. Returns "ok" | "fatal" |
+// "transient" ("ok" for long-lived-token sessions — password / token-paste
+// against the cohort server — which never refresh).
+async function ensureFreshToken(force = false) {
+  if (!session?.oauth?.refreshToken) return "ok";
+  if (!force && Date.now() < (session.oauth.expiresAt || 0) - 90000) return "ok";
+  if (!refreshing) refreshing = doRefresh();
+  return refreshing;
+}
+
+let deviceCancel = false;
+function cancelDevice() { deviceCancel = true; }
+
+// "Approve on your phone" sign-in against matrix.org (OAuth device grant). Shows
+// the user a short code + URL, then polls until they approve on another device.
+async function loginMatrixOrg() {
+  deviceCancel = false;
+  setState("connecting");
+  try {
+    const disc = await oauth.discover("matrix.org");
+    const clientId = await ensureOAuthClient(disc);
+    const deviceId = oauth.newDeviceId();
+    const da = await oauth.startDeviceAuthorization({ deviceAuthorizationEndpoint: disc.deviceAuthorizationEndpoint, clientId, deviceId });
+    broadcast("matrix:device-code", { userCode: da.userCode, verificationUri: da.verificationUri, expiresIn: da.expiresIn });
+    const result = await oauth.pollForToken({ tokenEndpoint: disc.tokenEndpoint, clientId, deviceCode: da.deviceCode, interval: da.interval, expiresIn: da.expiresIn, isCancelled: () => deviceCancel });
+    if (result.cancelled) { setState("logged_out"); return { ok: false, error: "cancelled" }; }
+    if (result.denied) { setState("logged_out"); return { ok: false, error: "sign-in was declined" }; }
+    if (result.expired) { setState("logged_out"); return { ok: false, error: "the code expired — start again" }; }
+    if (result.error) { setState("logged_out", result.error); return { ok: false, error: result.error }; }
+    return await establishOAuthSession(disc, deviceId, result, clientId);
+  } catch (e) {
+    setState("logged_out", e.message);
+    return { ok: false, error: e.message };
+  }
+}
+
+// Loopback HTTP server that catches the OAuth redirect on 127.0.0.1:<ephemeral>.
+// Resolves with the authorization code once the browser redirects back.
+function startLoopback(expectedState) {
+  return new Promise((resolve, reject) => {
+    let settle;
+    const codePromise = new Promise((res, rej) => { settle = { res, rej }; });
+    const srv = http.createServer((req, res) => {
+      let u;
+      try { u = new URL(req.url, "http://127.0.0.1"); } catch { res.writeHead(400); res.end(); return; }
+      if (u.pathname !== "/callback") { res.writeHead(404); res.end(); return; }
+      res.writeHead(200, { "Content-Type": "text/html" });
+      res.end("<!doctype html><meta charset=utf-8><body style='font-family:system-ui;text-align:center;padding-top:48px;color:#333'>Signed in. You can close this tab and return to Shape Rotator OS.</body>");
+      const err = u.searchParams.get("error");
+      const st = u.searchParams.get("state");
+      const code = u.searchParams.get("code");
+      if (err) settle.rej(new Error(err));
+      else if (st !== expectedState) settle.rej(new Error("state mismatch — please try again"));
+      else if (code) settle.res(code);
+      else settle.rej(new Error("no code returned"));
+    });
+    srv.on("error", reject);
+    srv.listen(0, "127.0.0.1", () => {
+      const port = srv.address().port;
+      const to = setTimeout(() => settle.rej(new Error("timed out waiting for sign-in")), 5 * 60 * 1000);
+      const close = () => { clearTimeout(to); try { srv.close(); } catch {} };
+      // Reject the pending wait so the renderer's Cancel tears the flow down
+      // immediately (otherwise the await hangs to the 5-min timeout and then
+      // paints a phantom "timed out" over whatever the user moved on to).
+      const cancel = (reason) => { settle.rej(new Error(reason || "cancelled")); };
+      codePromise.then(close, close);
+      resolve({ port, codePromise, close, cancel });
+    });
+  });
+}
+
+// Cancel handle for the in-flight matrix.org browser flow, so the renderer's
+// Cancel button aborts the main-process loopback instead of leaking it for 5
+// minutes (and then painting a phantom error).
+let mxorgBrowserCancel = null;
+function cancelMatrixOrgBrowser() { try { mxorgBrowserCancel?.("cancelled"); } catch {} }
+
+// OAuth in the user's own browser (authorization_code + PKCE). Password — if the
+// browser even needs one — goes to matrix.org's page, never the app.
+async function loginMatrixOrgBrowser() {
+  setState("connecting");
+  let close = null;
+  try {
+    const disc = await oauth.discover("matrix.org");
+    if (!disc.authorizationEndpoint) throw new Error("server has no authorization endpoint");
+    const clientId = await ensureOAuthClient(disc);
+    const deviceId = oauth.newDeviceId();
+    const { verifier, challenge } = oauth.pkce();
+    const state = oauth.randomState();
+    const lo = await startLoopback(state);
+    close = lo.close;
+    mxorgBrowserCancel = lo.cancel;
+    const redirectUri = `http://127.0.0.1:${lo.port}/callback`;
+    const authUrl = oauth.buildAuthorizationUrl({ authorizationEndpoint: disc.authorizationEndpoint, clientId, redirectUri, deviceId, codeChallenge: challenge, state });
+    shell.openExternal(authUrl);
+    const code = await lo.codePromise;
+    const tok = await oauth.exchangeCode({ tokenEndpoint: disc.tokenEndpoint, clientId, code, redirectUri, codeVerifier: verifier });
+    return await establishOAuthSession(disc, deviceId, tok, clientId);
+  } catch (e) {
+    // A user-driven cancel must not leave an error on the gate (it would render
+    // as a "please sign in again" reauth notice over a fresh gate).
+    if (e.message === "cancelled") { setState("logged_out"); return { ok: false, error: "cancelled" }; }
+    setState("logged_out", e.message);
+    return { ok: false, error: e.message };
+  } finally {
+    mxorgBrowserCancel = null;
+    try { close?.(); } catch {}
+  }
+}
+
+// ── decryption retry ─────────────────────────────────────────────────────────
+// A room key sometimes lands a sync or two after the message it unlocks (the
+// sender shares it as a separate to-device step). We keep a small set of recent
+// undecryptable LIVE events and re-attempt them each sync until the key arrives
+// or we give up. Backlog UTDs (pre-login) are never stored — we have no key for
+// them and never will without key-backup.
+const MAX_UTD_RETRY = 50;        // most-recent live UTDs kept per room
+const MAX_UTD_TRIES = 12;        // attempts before we accept the key isn't coming
+
+function rememberUtd(r, ev) {
+  if (!ev.event_id || r.utdEvents.has(ev.event_id)) return;
+  r.utdEvents.set(ev.event_id, { ev, tries: 0 });
+  while (r.utdEvents.size > MAX_UTD_RETRY) r.utdEvents.delete(r.utdEvents.keys().next().value);
+}
+
+async function retryDecryptions() {
+  if (!mxcrypto.isReady()) return;
+  let listChanged = false;
+  for (const [roomId, r] of rooms) {
+    if (!r.utdEvents?.size) continue;
+    const resolved = [];
+    for (const [eventId, rec] of [...r.utdEvents]) {
+      try {
+        const clear = await mxcrypto.decryptEvent(rec.ev, roomId);
+        const idx = r.msgs.findIndex((m) => m.eventId === eventId);
+        if (clear && clear.type === "m.room.message") {
+          const upgraded = toMsgFromDecrypted(rec.ev, clear);
+          if (idx >= 0) r.msgs[idx] = upgraded;
+          resolved.push(upgraded);
+        } else if (idx >= 0) {
+          r.msgs.splice(idx, 1);   // decrypted to a non-message — drop the placeholder
+        }
+        r.utdEvents.delete(eventId);
+      } catch {
+        if (++rec.tries >= MAX_UTD_TRIES) r.utdEvents.delete(eventId);
+      }
+    }
+    if (resolved.length) { broadcast("matrix:messages", { roomId, messages: resolved }); listChanged = true; }
+  }
+  if (listChanged) broadcast("matrix:rooms", roomSummaries());
+}
+
+// Clean session teardown when a session genuinely can't be recovered (refresh
+// token dead / token revoked). Surfaces a reason the gate shows, so it never
+// feels like a silent logout.
+function logOutExpired(reason) {
+  clearSession();
+  running = false;
+  setState("logged_out", reason || "Your session expired — please sign in again.");
+  broadcast("matrix:rooms", []);
+}
+
 // ─── sync loop ──────────────────────────────────────────────────────────────
 
 async function syncLoop() {
   let backoff = 1000;
+  if ((await ensureFreshToken()) === "fatal") { logOutExpired(); return; }   // expired OAuth token from a prior session
+  await ensureCrypto();       // ready before the first snapshot so live messages decrypt
   while (running) {
     abort = new AbortController();
     try {
+      if ((await ensureFreshToken()) === "fatal") { logOutExpired(); return; }
       const url = new URL(hsBase() + "/_matrix/client/v3/sync");
       url.searchParams.set("filter", JSON.stringify(SYNC_FILTER));
       if (since) {
@@ -241,17 +640,35 @@ async function syncLoop() {
       }
       const res = await fetch(url, { headers: authHeaders(), signal: abort.signal });
       if (res.status === 401) {
+        const eb = await res.json().catch(() => ({}));
+        // OAuth soft-logout = the access token just expired — try to refresh.
+        if (session?.oauth?.refreshToken && eb.soft_logout) {
+          const r = await ensureFreshToken(true);
+          if (r === "ok") { backoff = 1000; continue; }                       // refreshed → retry
+          if (r === "transient") throw new Error("token refresh unavailable");  // network hiccup → back off, NOT a logout
+          // r === "fatal" → refresh token genuinely dead; fall through to logout
+        }
         warn("access token rejected (401) — logging out");
-        clearSession();
-        running = false;
-        setState("logged_out", "session expired — sign in again");
-        broadcast("matrix:rooms", []);
+        logOutExpired("Your session expired — please sign in again.");
         return;
       }
       if (!res.ok) throw new Error(`sync HTTP ${res.status}`);
       const data = await res.json();
+      const initial = !since;
       since = data.next_batch;
-      processSync(data);
+      // Feed the crypto engine first (to-device carries the room keys), so the
+      // timeline events in this same response can be decrypted below.
+      if (mxcrypto.isReady()) {
+        await mxcrypto.onSyncChanges({
+          toDevice: data.to_device?.events,
+          changed: data.device_lists?.changed,
+          left: data.device_lists?.left,
+          otkCounts: data.device_one_time_keys_count,
+          fallbackKeys: data.device_unused_fallback_key_types,
+        });
+      }
+      await processSync(data, initial);
+      await retryDecryptions();   // unlock any live messages whose key just arrived
       if (state !== "syncing") setState("syncing");
       backoff = 1000;
     } catch (e) {
@@ -285,6 +702,7 @@ function getStatus() {
     userId: session?.userId || null,
     homeserver: session?.homeserver || DEFAULT_HS,
     error: lastError || "",
+    cryptoReady: mxcrypto.isReady(),
   };
 }
 
@@ -654,24 +1072,41 @@ function getRooms() { return roomSummaries(); }
 
 function getMessages(roomId) {
   const r = rooms.get(roomId);
-  if (!r) return { roomId, encrypted: false, messages: [] };
-  return { roomId, name: roomName(r, roomId), encrypted: !!r.encrypted, messages: r.msgs.slice() };
+  if (!r) return { roomId, encrypted: false, cryptoReady: mxcrypto.isReady(), messages: [] };
+  return { roomId, name: roomName(r, roomId), encrypted: !!r.encrypted, cryptoReady: mxcrypto.isReady(), messages: r.msgs.slice() };
+}
+
+async function getJoinedMembers(roomId) {
+  const url = `${hsBase()}/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/joined_members`;
+  const res = await fetch(url, { headers: authHeaders() });
+  const data = await res.json().catch(() => ({}));
+  return Object.keys(data.joined || {});
 }
 
 async function send(roomId, body) {
   if (!token || !session) return { ok: false, error: "not signed in" };
+  await ensureFreshToken();
   const r = rooms.get(roomId);
-  if (r?.encrypted) return { ok: false, error: "room is end-to-end encrypted — not supported yet" };
   const text = String(body || "").trim();
   if (!text) return { ok: false, error: "empty message" };
+  const content = { msgtype: "m.text", body: text };
   const txnId = `srwk-${Date.now()}-${txn++}`;
   try {
-    const url = `${hsBase()}/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/send/m.room.message/${encodeURIComponent(txnId)}`;
-    const res = await fetch(url, {
-      method: "PUT",
-      headers: authHeaders(),
-      body: JSON.stringify({ msgtype: "m.text", body: text }),
-    });
+    let eventType = "m.room.message";
+    let payload = content;
+    if (r?.encrypted) {
+      if (!mxcrypto.isReady()) return { ok: false, error: "encryption isn't ready yet — try again in a moment" };
+      // Establish sessions + share the Megolm key to every member device, then
+      // encrypt. Sharing to unverified devices is on so Element peers can read it.
+      const members = await getJoinedMembers(roomId);
+      payload = await mxcrypto.encryptForRoom({
+        roomId, members, encInfo: r.encInfo, historyVisibility: r.historyVisibility,
+        eventType: "m.room.message", content,
+      });
+      eventType = "m.room.encrypted";
+    }
+    const url = `${hsBase()}/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/send/${eventType}/${encodeURIComponent(txnId)}`;
+    const res = await fetch(url, { method: "PUT", headers: authHeaders(), body: JSON.stringify(payload) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.event_id) return { ok: false, error: data.error || `send failed (HTTP ${res.status})` };
     return { ok: true, eventId: data.event_id };
@@ -682,6 +1117,7 @@ async function send(roomId, body) {
 
 function start(electronApp) {
   app = electronApp;
+  migrateOffSafeStorage();
   loadSession();
   if (session && token) {
     log(`resuming session for ${session.userId}`);
@@ -696,5 +1132,6 @@ function stop() { stopSync(); cancelSSO(); }
 module.exports = {
   start, stop,
   getStatus, getFlows, login, loginToken, loginSSO, loginViaDevice, loginWithCode, loginWithAccessToken, cancelSSO, logout,
+  loginMatrixOrg, loginMatrixOrgBrowser, cancelDevice, cancelMatrixOrgBrowser,
   getRooms, getMessages, send,
 };

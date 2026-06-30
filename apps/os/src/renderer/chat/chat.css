@@ -22,9 +22,11 @@
   width: 100%;
   height: 100%;
   display: flex;
-  align-items: center;
+  align-items: flex-start;     /* anchor the card's top: expanding the cohort
+                                  section grows DOWN, the title/button don't move */
   justify-content: center;
-  padding: 40px;
+  padding: 12vh 40px 40px;     /* sit in the upper-middle; top stays put on expand */
+  overflow-y: auto;            /* if the expanded form is tall, scroll, don't clip */
 }
 .chat-gate-card {
   width: 100%;
@@ -42,11 +44,16 @@
   color: rgba(var(--ink-rgb), 0.4);
   margin-bottom: 14px;
 }
+.chat-gate-icon {
+  display: flex; justify-content: center;
+  color: rgba(var(--ink-rgb), 0.38); margin-bottom: 14px;
+}
 .chat-gate-title {
-  margin: 0 0 8px;
-  font-size: 22px;
+  margin: 0 0 20px;
+  font-size: 20px;
   font-weight: 500;
   letter-spacing: -0.01em;
+  text-align: center;
 }
 .chat-gate-sub {
   margin: 0 0 22px;
@@ -104,6 +111,21 @@
 .chat-login-msg { font-family: var(--font-mono); font-size: 11px; color: rgba(var(--ink-rgb), 0.5); min-height: 14px; }
 .chat-login-msg.is-error { color: #e8896b; }
 
+/* sign-in option groups */
+.chat-gate-grouplabel {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: rgba(var(--ink-rgb), 0.4); margin: 6px 0 10px;
+}
+/* re-auth notice — shown when a session expired, so a logout never feels silent */
+.chat-gate-reauth {
+  margin: 0 0 14px; padding: 8px 11px; border-radius: 6px;
+  font-size: 12px; line-height: 1.45; color: rgba(var(--ink-rgb), 0.75);
+  background: rgba(var(--ink-rgb), 0.05); border: 1px solid rgba(var(--ink-rgb), 0.12);
+}
+.chat-mxorg-browser { display: block; width: 100%; padding: 12px 16px; margin-top: 0; }
+.chat-btn-ghost { border-color: transparent; background: none; color: rgba(var(--ink-rgb), 0.62); }
+.chat-btn-ghost:hover:not(:disabled) { background: rgba(var(--ink-rgb), 0.05); border-color: rgba(var(--ink-rgb), 0.2); }
+
 /* browser sign-in (SSO) */
 .chat-gate-body { display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
 .chat-sso {
@@ -140,6 +162,16 @@
 .chat-seg-btn.is-active { background: rgba(var(--ink-rgb), 0.1); color: rgba(var(--ink-rgb), 0.95); }
 .chat-pane.is-hidden { display: none; }
 .chat-token-form { display: flex; flex-direction: column; gap: 10px; }
+.chat-token-row { display: flex; gap: 8px; align-items: stretch; }
+.chat-token-row .chat-input-text { flex: 1 1 auto; min-width: 0; }
+.chat-token-submit {
+  flex: 0 0 auto; width: 42px; padding: 0; margin-top: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+/* drop the hint into the empty space below the field (don't grow the card:
+   the extra top gap is offset by trimming the form's bottom slack) */
+.chat-token-form .chat-gate-hint { margin-top: 18px; }
+.chat-token-form .chat-login-msg { min-height: 0; margin-top: -4px; }
 .chat-gate-hint {
   margin: -2px 0 2px; font-family: var(--font-mono); font-size: 11px;
   color: rgba(var(--ink-rgb), 0.42);
@@ -150,9 +182,9 @@
 .chat-sso-cancel { align-self: flex-start; font-size: 11px; padding: 6px 12px; }
 
 /* temporary developer (password) path — de-emphasised, collapsed by default */
-.chat-dev { margin-top: 6px; }
+.chat-dev { margin-top: 20px; }
 .chat-dev > summary {
-  cursor: pointer; list-style: none;
+  cursor: pointer; list-style: none; text-align: center;
   font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.08em;
   color: rgba(var(--ink-rgb), 0.34); padding: 4px 0;
 }
@@ -166,6 +198,31 @@
   font-family: var(--font-mono); font-size: 10px; line-height: 1.5;
   color: rgba(var(--ink-rgb), 0.4); margin: 0;
 }
+
+/* ── matrix.org device ("approve on phone") sign-in ──────────────────────── */
+.chat-device { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 8px 0 14px; }
+.chat-device-step {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.04em;
+  color: rgba(var(--ink-rgb), 0.5); margin: 8px 0 0;
+}
+.chat-device-url {
+  font-family: var(--font-mono); font-size: 13px; font-weight: 500;
+  color: var(--ink-hi); text-align: center;
+  padding: 6px 12px; border-radius: 6px; background: rgba(var(--ink-rgb), 0.05);
+}
+.chat-device-code {
+  font-family: var(--font-mono); font-size: 30px; font-weight: 600;
+  letter-spacing: 0.28em; color: var(--sr-red); padding-left: 0.28em;
+}
+.chat-device-hint {
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.06em;
+  color: rgba(var(--ink-rgb), 0.35); margin: 4px 0 0;
+}
+.chat-device-cancel {
+  display: block; margin: 0 auto; background: none; border: 0; cursor: pointer;
+  font-family: var(--font-mono); font-size: 11px; color: rgba(var(--ink-rgb), 0.4);
+}
+.chat-device-cancel:hover { color: rgba(var(--ink-rgb), 0.7); }
 
 /* ── chat shell ─────────────────────────────────────────────────────────── */
 .chat-main {
@@ -252,6 +309,7 @@
 }
 .chat-room-name { font-size: 15px; font-weight: 500; }
 .chat-room-meta {
+  margin-left: auto;   /* push "end-to-end encrypted" to the right edge of the bar */
   font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em;
   text-transform: uppercase; color: rgba(var(--ink-rgb), 0.36);
 }
@@ -303,6 +361,13 @@
   text-transform: uppercase; color: rgba(var(--ink-rgb), 0.6);
 }
 .chat-locked-sub { font-size: 12px; line-height: 1.5; color: rgba(var(--ink-rgb), 0.4); }
+
+/* undecryptable message(s) — the pre-login backlog we have no room key for */
+.chat-utd {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.04em;
+  color: rgba(var(--ink-rgb), 0.32);
+  padding: 2px 0; text-align: center;
+}
 
 /* composer */
 .chat-composer {

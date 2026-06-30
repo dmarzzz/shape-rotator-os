@@ -27,6 +27,7 @@
     "bundle:check": "node scripts/bundle-renderer.cjs --check"
   },
   "dependencies": {
+    "@matrix-org/matrix-sdk-crypto-nodejs": "^0.4.0",
     "electron-updater": "^6.8.3",
     "three": "^0.184.0"
   },
@@ -74,6 +75,12 @@
       "buildResources": "build-resources"
     },
     "asar": true,
+    "asarUnpack": [
+      "**/*.node",
+      "node_modules/@matrix-org/matrix-sdk-crypto-nodejs/**",
+      "matrix-crypto.js",
+      "matrix-crypto-proc.js"
+    ],
     "publish": [
       {
         "provider": "github",

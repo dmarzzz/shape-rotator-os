@@ -188,15 +188,6 @@ body:not([data-active-tab="links"]) .links-only { display: none !important; }
 /* chat-only elements only on the matrix tab (cohort matrix chat). */
 body:not([data-active-tab="matrix"]) .chat-only { display: none !important; }
 
-/* matrix shows in the nav but isn't enterable yet — the login + E2EE work
-   isn't shipped to users. Grayed out + non-clickable so it reads as "coming
-   soon" without exposing the half-built page. To enable, delete this rule. */
-.nav-cat[data-tab="matrix"] {
-  pointer-events: none;
-  cursor: default;
-  opacity: 0.4;
-}
-
 /* search lives as an overlay inside the Atlas app (formerly its own
  * tab). Shown when on apps→atlas AND data-atlas-search="open". */
 body:not([data-active-tab="apps"]) .search-only,

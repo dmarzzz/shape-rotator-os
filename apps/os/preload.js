@@ -213,6 +213,10 @@ contextBridge.exposeInMainWorld("api", {
     loginDevice: (p) => ipcRenderer.invoke("matrix:login-device", p),
     loginCode:  (p) => ipcRenderer.invoke("matrix:login-code", p),
     loginAccessToken: (p) => ipcRenderer.invoke("matrix:login-access-token", p),
+    loginMatrixOrg: () => ipcRenderer.invoke("matrix:login-matrixorg"),
+    loginMatrixOrgBrowser: () => ipcRenderer.invoke("matrix:login-matrixorg-browser"),
+    cancelDevice: () => ipcRenderer.invoke("matrix:cancel-device"),
+    cancelMatrixOrgBrowser: () => ipcRenderer.invoke("matrix:cancel-matrixorg-browser"),
     cancelSSO:  () => ipcRenderer.invoke("matrix:cancel-sso"),
     login:      (p) => ipcRenderer.invoke("matrix:login", p),
     loginToken: (p) => ipcRenderer.invoke("matrix:login-token", p),
@@ -234,6 +238,11 @@ contextBridge.exposeInMainWorld("api", {
       const handler = (_e, m) => { try { cb(m); } catch {} };
       ipcRenderer.on("matrix:messages", handler);
       return () => ipcRenderer.removeListener("matrix:messages", handler);
+    },
+    onDeviceCode: (cb) => {
+      const handler = (_e, d) => { try { cb(d); } catch {} };
+      ipcRenderer.on("matrix:device-code", handler);
+      return () => ipcRenderer.removeListener("matrix:device-code", handler);
     },
   },
 });
