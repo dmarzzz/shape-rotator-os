@@ -502,27 +502,16 @@ export function mountChat(host) {
     tl.scrollTop = tl.scrollHeight;
   }
 
-  // Render messages, collapsing consecutive undecryptable ones (the pre-login
-  // backlog) into a single muted line so the timeline isn't a wall of padlocks.
+  // Render messages. Undecryptable ones (the pre-login backlog we have no key
+  // for) are simply omitted — they're still readable in Element on a device
+  // that holds the keys. (Restoring them here needs key-backup support, which
+  // we've deferred.)
   function renderTimelineMsgs(msgs) {
-    const out = [];
-    let utd = 0;
-    const flush = () => {
-      if (!utd) return;
-      out.push(`<div class="chat-utd">🔒 ${utd} earlier message${utd > 1 ? "s" : ""} can't be decrypted — sent before this device signed in</div>`);
-      utd = 0;
-    };
-    for (const m of msgs) {
-      if (m.utd) { utd++; continue; }
-      flush();
-      out.push(renderMsg(m));
-    }
-    flush();
-    return out.join("");
+    return msgs.filter((m) => !m.utd).map(renderMsg).join("");
   }
 
   function renderMsg(m) {
-    if (m.utd) return `<div class="chat-utd">🔒 can't decrypt this message</div>`;
+    if (m.utd) return "";
     const name = senderName(m.sender);
     return `
       <div class="chat-msg${m.mine ? " is-mine" : ""}">
