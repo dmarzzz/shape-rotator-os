@@ -89,7 +89,7 @@ export function mountChat(host) {
           <h2 class="chat-gate-title">sign in to matrix</h2>
           ${status.error ? `<p class="chat-gate-reauth">${esc(status.error)}</p>` : ""}
           <button class="chat-btn chat-btn-primary chat-mxorg-browser" type="button">sign in with your browser</button>
-          <details class="chat-dev"><summary>use a cohort server account instead</summary>
+          <details class="chat-dev"><summary>use a cohort server account</summary>
             <div class="chat-gate-body"><div class="chat-gate-checking">checking sign-in…</div></div>
           </details>
         </div>
@@ -207,7 +207,7 @@ export function mountChat(host) {
             <input class="chat-input-text" name="token" type="password" placeholder="paste an access token" spellcheck="false" autocapitalize="off" />
             <button class="chat-btn chat-btn-primary chat-token-submit" type="submit" title="sign in" aria-label="sign in">${CHECK_GLYPH}</button>
           </div>
-          <p class="chat-gate-hint">From Element on a computer: <code>Settings → Help &amp; About → Advanced → Access Token</code> (not shown on the phone app)</p>
+          <p class="chat-gate-hint">Element on desktop → <code>Help &amp; About → Access Token</code></p>
           <div class="chat-login-msg" role="status" aria-live="polite"></div>
         </form>`;
       wireTokenForm();
