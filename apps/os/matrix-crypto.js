@@ -129,10 +129,14 @@ async function onSyncChanges({ toDevice, changed, left, otkCounts, fallbackKeys 
       fallbackKeys || [],
     );
     // Diagnostic: surface incoming to-device events (room keys arrive this way),
-    // so we can tell "key never arrived" from "arrived but decrypt raced".
+    // so we can tell "key never arrived" from "arrived but decrypt raced". Log
+    // ONLY the count + event types — never the bodies: a decrypted m.room_key
+    // carries the live Megolm session key, so serialising the event to stderr
+    // would leak it into logs/crash reports (truncation doesn't save us; a key
+    // fits well under any limit).
     try {
       const evs = JSON.parse(processed || "[]");
-      if (Array.isArray(evs) && evs.length) log(`to-device in (${evs.length}): ${JSON.stringify(evs).slice(0, 500)}`);
+      if (Array.isArray(evs) && evs.length) log(`to-device in (${evs.length}): ${evs.map((e) => (e && e.type) || "?").join(",")}`);
     } catch {}
     await drainNoLock();
   });

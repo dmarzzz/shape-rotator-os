@@ -74,6 +74,12 @@
       "buildResources": "build-resources"
     },
     "asar": true,
+    "asarUnpack": [
+      "**/*.node",
+      "node_modules/@matrix-org/matrix-sdk-crypto-nodejs/**",
+      "matrix-crypto.js",
+      "matrix-crypto-proc.js"
+    ],
     "publish": [
       {
         "provider": "github",

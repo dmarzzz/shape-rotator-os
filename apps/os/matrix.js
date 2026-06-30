@@ -21,17 +21,24 @@
 //   loginToken() — adopt an existing access token
 //   logout()     — drop the session + stop sync
 //
-// Persistence (under app userData)
-//   matrix-session.json — { homeserver, userId, deviceId }
-//   matrix-token.enc    — access token, encrypted via Electron safeStorage
-//                         (Keychain / libsecret / DPAPI); plaintext fallback
-//                         with a warning when encryption is unavailable.
+// Persistence (under app userData — keyed to productName, stable across updates)
+//   matrix-session.json — { homeserver, userId, deviceId, oauth? }
+//   matrix-token        — access token, plaintext, mode 0600
+//
+// We deliberately do NOT use Electron safeStorage (OS keychain) here. The app
+// ships UNSIGNED, and on an unsigned build macOS pops a "enter your login
+// password" Keychain prompt and ties access to the (per-build) code signature —
+// so the token would become unreadable after an update and silently log the
+// user out. A 0600 file in the per-user userData dir avoids the prompt and
+// survives updates. The dir is already user-private; the token is a revocable
+// access token, not a password. (If the app is ever Developer-ID signed +
+// notarized, safeStorage becomes viable again and this can be revisited.)
 
 const fs = require("node:fs");
 const path = require("node:path");
 const http = require("node:http");
 const crypto = require("node:crypto");
-const { BrowserWindow, safeStorage, shell, net } = require("electron");
+const { BrowserWindow, shell, net } = require("electron");
 
 // Route every homeserver request through Electron's net.fetch (Chromium's
 // network stack: the SYSTEM cert store, proxies, HTTP/2) rather than Node's
@@ -42,10 +49,13 @@ const { BrowserWindow, safeStorage, shell, net } = require("electron");
 // fetch inside deviceHelperHtml is a string template and is unaffected.
 const fetch = (...args) => net.fetch(...args);
 
-// Olm/Megolm engine (matrix-crypto.js). Required eagerly but the native module
-// only loads on first init(), so a missing/broken binary degrades to "encrypted
-// rooms stay locked" rather than crashing the whole client.
-const mxcrypto = require("./matrix-crypto");
+// Olm/Megolm engine, isolated in a utilityProcess (matrix-crypto-host.js drives
+// it; matrix-crypto-proc.js runs the native @matrix-org/matrix-sdk-crypto-nodejs
+// engine out-of-process). The native module can panic (SIGABRT) — uncatchable by
+// JS — so we keep it OUT of the main process: a crash there only kills the child
+// and we degrade to "encrypted rooms stay locked", never taking the app down.
+// Same async surface as the in-process engine, so call sites below are unchanged.
+const mxcrypto = require("./matrix-crypto-host");
 const oauth = require("./matrix-oauth");
 
 // The cohort homeserver (docs/MATRIX.md). The Client-Server API base is the
@@ -86,30 +96,56 @@ const rooms = new Map();         // roomId → { name, alias, encrypted, unread,
 // ─── persistence ──────────────────────────────────────────────────────────
 
 function sessionFile() { return path.join(app.getPath("userData"), "matrix-session.json"); }
-function tokenFile() { return path.join(app.getPath("userData"), "matrix-token.enc"); }
+function tokenFile() { return path.join(app.getPath("userData"), "matrix-token"); }
+// Pre-migration keychain-encrypted token from earlier dev builds (see header).
+function legacyTokenFile() { return path.join(app.getPath("userData"), "matrix-token.enc"); }
+
+// Atomic write: a temp file in the same dir + rename, so a crash/power-loss
+// mid-write can never leave a truncated session/token on disk. This matters
+// for the OAuth refresh-token rotation: MAS invalidates the old refresh token
+// the instant it issues a new one, so a half-written matrix-session.json would
+// strand a dead token and force a re-login on next launch.
+function atomicWrite(file, data, mode) {
+  const tmp = `${file}.tmp-${process.pid}`;
+  try {
+    fs.writeFileSync(tmp, data, { mode });
+    fs.renameSync(tmp, file);
+  } catch (e) {
+    try { fs.unlinkSync(tmp); } catch {}   // don't leave a half-written temp behind
+    throw e;
+  }
+}
 
 function loadSession() {
   try {
     session = JSON.parse(fs.readFileSync(sessionFile(), "utf8"));
   } catch { session = null; }
   try {
-    const buf = fs.readFileSync(tokenFile());
-    token = safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(buf) : buf.toString("utf8");
+    token = fs.readFileSync(tokenFile(), "utf8");
   } catch { token = null; }
   if (!session || !token) { session = null; token = null; }
 }
 
 // Write the current session + token to disk (no crypto teardown — used by both
-// a fresh login and a transparent token refresh).
+// a fresh login and a transparent token refresh). Plaintext 0600 file; see the
+// header for why we don't use safeStorage.
 function persistSession() {
-  try { fs.writeFileSync(sessionFile(), JSON.stringify(session), { mode: 0o600 }); } catch (e) { warn(`session write failed: ${e.message}`); }
+  try { atomicWrite(sessionFile(), JSON.stringify(session), 0o600); } catch (e) { warn(`session write failed: ${e.message}`); }
+  try { atomicWrite(tokenFile(), token, 0o600); } catch (e) { warn(`token write failed: ${e.message}`); }
+}
+
+// One-time cleanup for installs that ran an earlier dev build which stored the
+// token via safeStorage (matrix-token.enc) + a keychain-encrypted crypto store
+// key. We can no longer read those (and don't want the keychain prompt), so drop
+// them; the next sign-in regenerates everything as plaintext. Matrix shipped
+// disabled before this release, so real users have no legacy files — no-op there.
+function migrateOffSafeStorage() {
   try {
-    const out = safeStorage.isEncryptionAvailable()
-      ? safeStorage.encryptString(token)
-      : Buffer.from(token, "utf8");
-    if (!safeStorage.isEncryptionAvailable()) warn("safeStorage unavailable — matrix token stored in plaintext");
-    fs.writeFileSync(tokenFile(), out, { mode: 0o600 });
-  } catch (e) { warn(`token write failed: ${e.message}`); }
+    if (!fs.existsSync(legacyTokenFile())) return;
+    fs.unlinkSync(legacyTokenFile());
+    try { fs.unlinkSync(cryptoKeyFile()); } catch {}
+    log("migrated off safeStorage — cleared legacy keychain-encrypted token + crypto key");
+  } catch {}
 }
 
 function saveSession(sess, tok) {
@@ -128,6 +164,7 @@ function clearSession() {
   cryptoTried = false;
   try { fs.unlinkSync(sessionFile()); } catch {}
   try { fs.unlinkSync(tokenFile()); } catch {}
+  try { fs.unlinkSync(legacyTokenFile()); } catch {}
 }
 
 // ─── E2EE crypto integration ────────────────────────────────────────────────
@@ -142,19 +179,17 @@ function cryptoStoreDir() {
 
 function cryptoKeyFile() { return path.join(app.getPath("userData"), "matrix-crypto", "store.key"); }
 
-// A random passphrase that encrypts the crypto store at rest, persisted via the
-// OS keychain (safeStorage) exactly like the access token.
+// A random passphrase that encrypts the crypto store at rest. Plaintext 0600
+// file alongside the token (same reasoning — see the header: no keychain prompt,
+// survives updates).
 function cryptoPassphrase() {
   try {
-    const buf = fs.readFileSync(cryptoKeyFile());
-    return safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(buf) : buf.toString("utf8");
+    return fs.readFileSync(cryptoKeyFile(), "utf8");
   } catch {}
   const pass = crypto.randomBytes(32).toString("base64");
   try {
     fs.mkdirSync(path.dirname(cryptoKeyFile()), { recursive: true });
-    const out = safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(pass) : Buffer.from(pass, "utf8");
-    if (!safeStorage.isEncryptionAvailable()) warn("safeStorage unavailable — crypto store key stored in plaintext");
-    fs.writeFileSync(cryptoKeyFile(), out, { mode: 0o600 });
+    atomicWrite(cryptoKeyFile(), pass, 0o600);
   } catch (e) { warn(`crypto key write failed: ${e.message}`); }
   return pass;
 }
@@ -380,13 +415,25 @@ async function establishOAuthSession(disc, deviceId, tok, clientId) {
     oauth: { clientId, tokenEndpoint: disc.tokenEndpoint, refreshToken: tok.refreshToken, expiresAt: Date.now() + (tok.expiresIn || 300) * 1000 },
   };
   saveSession(sess, tok.accessToken);   // resets crypto for the new device
-  try {
-    const who = await fetch(disc.homeserver + "/_matrix/client/v3/account/whoami", { headers: { Authorization: `Bearer ${tok.accessToken}` } });
-    const wb = await who.json().catch(() => ({}));
-    if (wb.user_id) session.userId = wb.user_id;
-    if (wb.device_id) session.deviceId = wb.device_id;
-    persistSession();
-  } catch {}
+  // whoami is REQUIRED, not best-effort: the OlmMachine and "is this my message?"
+  // both key off a real user id. Persisting userId:null would silently break
+  // crypto for the entire session, so a transient failure here fails the login
+  // (retry once) rather than establishing a half-session.
+  let gotUser = false;
+  for (let attempt = 0; attempt < 2 && !gotUser; attempt++) {
+    try {
+      const who = await fetch(disc.homeserver + "/_matrix/client/v3/account/whoami", { headers: { Authorization: `Bearer ${tok.accessToken}` } });
+      const wb = await who.json().catch(() => ({}));
+      if (wb.user_id) { session.userId = wb.user_id; gotUser = true; }
+      if (wb.device_id) session.deviceId = wb.device_id;
+    } catch {}
+  }
+  if (!gotUser) {
+    clearSession();
+    setState("logged_out", "Couldn't confirm your matrix.org account — please sign in again.");
+    return { ok: false, error: "couldn't confirm account (whoami failed)" };
+  }
+  persistSession();
   log(`matrix.org sign-in complete for ${session.userId}`);
   startSync();
   return { ok: true, userId: session.userId };
@@ -472,11 +519,21 @@ function startLoopback(expectedState) {
       const port = srv.address().port;
       const to = setTimeout(() => settle.rej(new Error("timed out waiting for sign-in")), 5 * 60 * 1000);
       const close = () => { clearTimeout(to); try { srv.close(); } catch {} };
+      // Reject the pending wait so the renderer's Cancel tears the flow down
+      // immediately (otherwise the await hangs to the 5-min timeout and then
+      // paints a phantom "timed out" over whatever the user moved on to).
+      const cancel = (reason) => { settle.rej(new Error(reason || "cancelled")); };
       codePromise.then(close, close);
-      resolve({ port, codePromise, close });
+      resolve({ port, codePromise, close, cancel });
     });
   });
 }
+
+// Cancel handle for the in-flight matrix.org browser flow, so the renderer's
+// Cancel button aborts the main-process loopback instead of leaking it for 5
+// minutes (and then painting a phantom error).
+let mxorgBrowserCancel = null;
+function cancelMatrixOrgBrowser() { try { mxorgBrowserCancel?.("cancelled"); } catch {} }
 
 // OAuth in the user's own browser (authorization_code + PKCE). Password — if the
 // browser even needs one — goes to matrix.org's page, never the app.
@@ -492,6 +549,7 @@ async function loginMatrixOrgBrowser() {
     const state = oauth.randomState();
     const lo = await startLoopback(state);
     close = lo.close;
+    mxorgBrowserCancel = lo.cancel;
     const redirectUri = `http://127.0.0.1:${lo.port}/callback`;
     const authUrl = oauth.buildAuthorizationUrl({ authorizationEndpoint: disc.authorizationEndpoint, clientId, redirectUri, deviceId, codeChallenge: challenge, state });
     shell.openExternal(authUrl);
@@ -499,9 +557,13 @@ async function loginMatrixOrgBrowser() {
     const tok = await oauth.exchangeCode({ tokenEndpoint: disc.tokenEndpoint, clientId, code, redirectUri, codeVerifier: verifier });
     return await establishOAuthSession(disc, deviceId, tok, clientId);
   } catch (e) {
+    // A user-driven cancel must not leave an error on the gate (it would render
+    // as a "please sign in again" reauth notice over a fresh gate).
+    if (e.message === "cancelled") { setState("logged_out"); return { ok: false, error: "cancelled" }; }
     setState("logged_out", e.message);
     return { ok: false, error: e.message };
   } finally {
+    mxorgBrowserCancel = null;
     try { close?.(); } catch {}
   }
 }
@@ -1055,6 +1117,7 @@ async function send(roomId, body) {
 
 function start(electronApp) {
   app = electronApp;
+  migrateOffSafeStorage();
   loadSession();
   if (session && token) {
     log(`resuming session for ${session.userId}`);
@@ -1069,6 +1132,6 @@ function stop() { stopSync(); cancelSSO(); }
 module.exports = {
   start, stop,
   getStatus, getFlows, login, loginToken, loginSSO, loginViaDevice, loginWithCode, loginWithAccessToken, cancelSSO, logout,
-  loginMatrixOrg, loginMatrixOrgBrowser, cancelDevice,
+  loginMatrixOrg, loginMatrixOrgBrowser, cancelDevice, cancelMatrixOrgBrowser,
   getRooms, getMessages, send,
 };

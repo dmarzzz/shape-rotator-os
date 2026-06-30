@@ -178,6 +178,7 @@ contextBridge.exposeInMainWorld("api", {
     loginMatrixOrg: () => ipcRenderer.invoke("matrix:login-matrixorg"),
     loginMatrixOrgBrowser: () => ipcRenderer.invoke("matrix:login-matrixorg-browser"),
     cancelDevice: () => ipcRenderer.invoke("matrix:cancel-device"),
+    cancelMatrixOrgBrowser: () => ipcRenderer.invoke("matrix:cancel-matrixorg-browser"),
     cancelSSO:  () => ipcRenderer.invoke("matrix:cancel-sso"),
     login:      (p) => ipcRenderer.invoke("matrix:login", p),
     loginToken: (p) => ipcRenderer.invoke("matrix:login-token", p),

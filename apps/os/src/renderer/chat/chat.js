@@ -81,7 +81,13 @@ export function mountChat(host) {
   // say so plainly and tuck a clearly-temporary password path under "developer
   // sign-in" so the channels are still testable in the meantime.
   function renderGate() {
+    // Fresh-session boundary: drop any prior-account state so a re-login in the
+    // same run starts clean — no stale timeline, and auto-select fires again.
     loadedRoom = null;
+    autoSelected = false;
+    activeRoomId = null;
+    messagesByRoom.clear();
+    rooms = [];
     host.innerHTML = `
       <div class="chat-gate">
         <div class="chat-gate-card">
@@ -104,6 +110,7 @@ export function mountChat(host) {
     signingIn = true;
     renderBrowserWait();
     api.loginMatrixOrgBrowser().then((res) => {
+      if (!signingIn) return;   // user cancelled / moved on — ignore a late result
       signingIn = false;
       if (res && res.ok) { render(); return; }
       if (res && res.error === "cancelled") return;
@@ -119,7 +126,7 @@ export function mountChat(host) {
         <button class="chat-btn chat-device-cancel" type="button">cancel</button>
       </div></div>`;
     const c = host.querySelector(".chat-device-cancel");
-    if (c) c.addEventListener("click", () => { signingIn = false; renderGate(); });
+    if (c) c.addEventListener("click", () => { signingIn = false; api.cancelMatrixOrgBrowser(); renderGate(); });
   }
 
   // ── matrix.org "approve with a code on another device" (device grant) ────────

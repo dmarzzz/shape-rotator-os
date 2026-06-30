@@ -1493,6 +1493,7 @@ ipcMain.handle("matrix:login-access-token", async (_e, p) => matrix.loginWithAcc
 ipcMain.handle("matrix:login-matrixorg", async () => matrix.loginMatrixOrg());
 ipcMain.handle("matrix:login-matrixorg-browser", async () => matrix.loginMatrixOrgBrowser());
 ipcMain.handle("matrix:cancel-device", async () => { matrix.cancelDevice(); return { ok: true }; });
+ipcMain.handle("matrix:cancel-matrixorg-browser", async () => { matrix.cancelMatrixOrgBrowser(); return { ok: true }; });
 ipcMain.handle("matrix:cancel-sso", async () => { matrix.cancelSSO(); return { ok: true }; });
 ipcMain.handle("matrix:login", async (_e, p) => matrix.login(p || {}));
 ipcMain.handle("matrix:login-token", async (_e, p) => matrix.loginToken(p || {}));
