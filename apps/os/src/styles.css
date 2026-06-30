@@ -12716,7 +12716,11 @@ body[data-sidebar="hidden"] .fg-update-banner { display: none; }
 .fg-share-fab {
   position: fixed;
   right: 16px;
-  bottom: 16px;
+  /* Top-right, BELOW the draggable top tab strip (--content-top-h) — not
+     16px from the window top, which lands inside that strip and clips the
+     button on the page's top line. The cohort-chat launcher
+     (.cohort-chat-dial-wrap, z-index 1201) now owns the bottom-right corner. */
+  top: calc(var(--content-top-h, 35px) + var(--space-3, 12px));
   z-index: 50;
   -webkit-app-region: no-drag;
   display: inline-flex;
