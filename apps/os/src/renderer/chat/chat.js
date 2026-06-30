@@ -206,13 +206,8 @@ export function mountChat(host) {
           <p class="chat-gate-hint">From a Matrix client you're signed in to (Element, Cinny…): <code>Settings → Help &amp; About → Access Token</code></p>
           <button class="chat-btn chat-btn-primary" type="submit">sign in</button>
           <div class="chat-login-msg" role="status" aria-live="polite"></div>
-        </form>
-        <details class="chat-dev">
-          <summary>or sign in with a password</summary>
-          ${passwordFormHtml()}
-        </details>`;
+        </form>`;
       wireTokenForm();
-      wirePasswordForm();
     } else {
       body.innerHTML = `
         <p class="chat-gate-note">No password-free sign-in is available on this homeserver yet. Until it is, there's nothing to type here.</p>
