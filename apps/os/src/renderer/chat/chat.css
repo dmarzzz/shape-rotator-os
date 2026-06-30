@@ -162,6 +162,12 @@
 .chat-seg-btn.is-active { background: rgba(var(--ink-rgb), 0.1); color: rgba(var(--ink-rgb), 0.95); }
 .chat-pane.is-hidden { display: none; }
 .chat-token-form { display: flex; flex-direction: column; gap: 10px; }
+.chat-token-row { display: flex; gap: 8px; align-items: stretch; }
+.chat-token-row .chat-input-text { flex: 1 1 auto; min-width: 0; }
+.chat-token-submit {
+  flex: 0 0 auto; width: 42px; padding: 0; margin-top: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+}
 .chat-gate-hint {
   margin: -2px 0 2px; font-family: var(--font-mono); font-size: 11px;
   color: rgba(var(--ink-rgb), 0.42);
