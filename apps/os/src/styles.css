@@ -188,15 +188,6 @@ body:not([data-active-tab="links"]) .links-only { display: none !important; }
 /* chat-only elements only on the matrix tab (cohort matrix chat). */
 body:not([data-active-tab="matrix"]) .chat-only { display: none !important; }
 
-/* matrix shows in the nav but isn't enterable yet — the login + E2EE work
-   isn't shipped to users. Grayed out + non-clickable so it reads as "coming
-   soon" without exposing the half-built page. To enable, delete this rule. */
-.nav-cat[data-tab="matrix"] {
-  pointer-events: none;
-  cursor: default;
-  opacity: 0.4;
-}
-
 /* search lives as an overlay inside the Atlas app (formerly its own
  * tab). Shown when on apps→atlas AND data-atlas-search="open". */
 body:not([data-active-tab="apps"]) .search-only,
@@ -12716,7 +12707,11 @@ body[data-sidebar="hidden"] .fg-update-banner { display: none; }
 .fg-share-fab {
   position: fixed;
   right: 16px;
-  bottom: 16px;
+  /* Top-right, BELOW the draggable top tab strip (--content-top-h) — not
+     16px from the window top, which lands inside that strip and clips the
+     button on the page's top line. The cohort-chat launcher
+     (.cohort-chat-dial-wrap, z-index 1201) now owns the bottom-right corner. */
+  top: calc(var(--content-top-h, 35px) + var(--space-3, 12px));
   z-index: 50;
   -webkit-app-region: no-drag;
   display: inline-flex;
@@ -13128,7 +13123,13 @@ body[data-active-tab="alchemy"] #alchemy-view[data-alch-mode-current="membrane"]
 .alch-pf-target {
   display: grid; grid-template-columns: 110px 1fr auto;
   gap: 12px; align-items: center;
+  margin-bottom: 8px;       /* match the form's row gap so PERSON sits a row's
+                               breath above NAME instead of flush against it */
 }
+/* No inline claim button (your own seal, or ADD mode) → drop the trailing
+ * auto column so the picker select reaches the same right edge as the
+ * NAME / TEAM rows below it. */
+.alch-pf-target:not(:has(.alch-pf-claim)) { grid-template-columns: 110px 1fr; }
 .alch-pf-target label { display: contents; }
 .alch-pf-target-select[disabled] { opacity: 0.55; cursor: default; }
 /* Wide windows: the editor form flows into two columns. Textarea rows
@@ -17189,13 +17190,15 @@ body[data-blank] .blank-tab { display: flex; }
 /* active row — red icon + bright label, exactly like the active OS page */
 body[data-active-tab="apps"]    .primary-nav .nav-cat--dest[data-tab="apps"]    .ar-label,
 body[data-active-tab="network"] .primary-nav .nav-cat--dest[data-tab="network"] .ar-label,
-body[data-active-tab="links"]   .primary-nav .nav-cat--dest[data-tab="links"]   .ar-label {
+body[data-active-tab="links"]   .primary-nav .nav-cat--dest[data-tab="links"]   .ar-label,
+body[data-active-tab="matrix"]  .primary-nav .nav-cat--dest[data-tab="matrix"]  .ar-label {
   color: var(--ink-hi);
   font-weight: 500;
 }
 body[data-active-tab="apps"]    .primary-nav .nav-cat--dest[data-tab="apps"]    .ar-num,
 body[data-active-tab="network"] .primary-nav .nav-cat--dest[data-tab="network"] .ar-num,
-body[data-active-tab="links"]   .primary-nav .nav-cat--dest[data-tab="links"]   .ar-num {
+body[data-active-tab="links"]   .primary-nav .nav-cat--dest[data-tab="links"]   .ar-num,
+body[data-active-tab="matrix"]  .primary-nav .nav-cat--dest[data-tab="matrix"]  .ar-num {
   opacity: 1;
   color: var(--sr-red);
 }
@@ -17229,6 +17232,27 @@ body[data-active-tab="links"]   .primary-nav .nav-cat--dest[data-tab="links"]   
 }
 .primary-nav .alchemy-rail-btn[aria-selected="true"] .ar-num {
   opacity: 1 !important;
+}
+/* …but the OS rail page is only "current" while the operating-system tab is
+ * active. On a top-level destination (apps / network / links / matrix) the
+ * rail's remembered page must NOT keep its active highlight — otherwise the
+ * page you were last on still looks selected next to the destination you just
+ * opened. Quiet the active row back to its rest treatment off-alchemy. */
+body:not([data-active-tab="alchemy"]) .primary-nav .alchemy-rail-btn[aria-selected="true"] .ar-label {
+  color: rgba(var(--ink-rgb), 0.80) !important;
+  font-weight: 400 !important;
+}
+body:not([data-active-tab="alchemy"]) .primary-nav .alchemy-rail-btn[aria-selected="true"] .ar-num {
+  opacity: 0.72 !important;
+  color: currentColor !important;   /* drop the red icon tint */
+}
+/* …and collapse any rail sub-nav that was expanded under the active page, so
+ * leaving the operating-system tab also closes its open disclosure. Higher
+ * specificity than `.alch-rail-sub[data-open="true"]`, and visibility:hidden
+ * also pulls the clipped rows out of the tab order + a11y tree. */
+body:not([data-active-tab="alchemy"]) .alch-rail-sub {
+  height: 0;
+  visibility: hidden;
 }
 
 /* ── rail sub-navs — per-page disclosures of a page's views (cohort, context,
@@ -21127,6 +21151,37 @@ html[data-theme="light"] .alch-detail-disclosure summary:focus-visible .alch-sec
 }
 @media (prefers-reduced-motion: reduce) {
   .alchemy-rail-btn.ar-unread .ar-unread-badge { animation: none; }
+}
+
+/* The matrix nav-cat carries the same unread badge as the OS rail rows
+ * (managed by matrix-unread.js, fed by the main-process Matrix sync). The row
+ * is full-width with a 40px left padding, so the badge sits ~14px from the nav
+ * edge — the same gutter the rail badges land in. */
+.primary-nav .nav-cat--dest[data-tab="matrix"] { position: relative; overflow: visible; }
+.primary-nav .nav-cat--dest[data-tab="matrix"] .ar-unread-badge {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  min-width: 13px;
+  height: 13px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--ink-hi);
+  color: var(--ed-bg-0);
+  font-family: var(--sr-font-mono);
+  font-size: 8px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 13px;
+  text-align: center;
+}
+.primary-nav .nav-cat--dest[data-tab="matrix"].ar-unread .ar-unread-badge {
+  animation: arUnreadPulse 1.2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .primary-nav .nav-cat--dest[data-tab="matrix"].ar-unread .ar-unread-badge { animation: none; }
 }
 
 /* Program tab icons — same stroke-icon language as the rail/view navs. */

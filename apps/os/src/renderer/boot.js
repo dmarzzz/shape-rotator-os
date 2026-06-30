@@ -54,6 +54,7 @@ import {
   wireRendererWarmupHints,
 } from "./lazy-renderers.js";
 import { createLazyModule } from "./lazy-module.js";
+import { initMatrixUnread } from "./matrix-unread.js";
 import { loadStylesheetOnce } from "./stylesheet-loader.js";
 import { getManifest, getSyncLog, getNodeLog, getHealth } from "./sync-client.js";
 import { subscribeToCohortChanges, subscribeToSyncState, getCohortSurface } from "./cohort-source.js";
@@ -723,6 +724,10 @@ async function boot() {
   wireAppsGrid();
   wireSwarmPanelLauncher();
   wireRendererWarmupHints();
+  // Unread badge on the matrix nav entry — fed by the main-process Matrix sync
+  // (runs from app start, so the count is live even if the chat tab is never
+  // opened). Mirrors the OS rail's what's-new badges.
+  initMatrixUnread();
   initNavHistory();
   setupShareLinks();
   wireAtlasOfflinePanel();
@@ -4781,6 +4786,12 @@ function initNavHistory() {
   window.addEventListener("mouseup", onAux, true);
   window.addEventListener("mousedown", (e) => { if (e.button === 3 || e.button === 4) e.preventDefault(); }, true);
   window.addEventListener("auxclick", (e) => { if (e.button === 3 || e.button === 4) e.preventDefault(); }, true);
+  // A file dropped anywhere but an explicit drop target makes Electron navigate
+  // the window to file://… — swallow stray drag/drops app-wide so they can't
+  // blow away the app. Real targets (e.g. the transcript dropzone) call
+  // stopPropagation, so their own drops still reach them.
+  window.addEventListener("dragover", (e) => { e.preventDefault(); });
+  window.addEventListener("drop", (e) => { e.preventDefault(); });
   window.addEventListener("keydown", (e) => {
     const t = e.target;
     const tag = t?.tagName?.toUpperCase?.();
@@ -5479,15 +5490,6 @@ function openSearchFromLauncher(e) {
       toast({ kind: "error", message: `search failed: ${err?.message || err}` });
     });
 }
-function openCohortMirrorFromLauncher(e) {
-  if (e) { e.preventDefault(); e.stopPropagation(); }
-  loadCohortChat()
-    .then((m) => (m.openCohortMirror ? m.openCohortMirror() : m.openCohortChat()))
-    .catch((err) => {
-      console.error("[cohort-chat] mirror failed:", err);
-      toast({ kind: "error", message: `mirror failed: ${err?.message || err}` });
-    });
-}
 function setLauncherActionState(action, { state = "", label = "", hint = "", ttl = 0 } = {}) {
   const btn = document.querySelector(`[data-cohort-chat-action="${action}"]`);
   if (!btn) return;
@@ -5569,7 +5571,6 @@ function routeCohortChatAction(e) {
   if (action === "settings") return openCohortChatSettingsFromLauncher(e);
   if (action === "sync" || action === "updates") return openCohortSyncFromLauncher(e);
   if (action === "transcript") return openTranscriptUploadFromLauncher(e);
-  if (action === "mirror") return openCohortMirrorFromLauncher(e);
   return openCohortChatFromLauncher(e);
 }
 // "Ask the cohort" — its own button in the search controls + a GLOBAL
@@ -5616,50 +5617,13 @@ function wireCohortChatLauncher() {
   };
   setActionMenuOpen(false);
   if (dial) {
-    let longPressTimer = null;
-    let suppressNextDialClick = false;
-    const clearLongPress = () => {
-      if (longPressTimer) window.clearTimeout(longPressTimer);
-      longPressTimer = null;
-    };
+    // The corner dial is a plain toggle now — click opens/closes the chat. The
+    // hover/focus/long-press popup menu was removed; setActionMenuOpen(false)
+    // above keeps the (unused) menu inert.
     dial.addEventListener("pointerover", warmCohortChatAfterPaint, { passive: true });
     dial.addEventListener("focus", warmCohortChatAfterPaint);
-    dial.addEventListener("pointerdown", (e) => {
-      if (e.pointerType === "mouse" && e.button !== 0) return;
-      clearLongPress();
-      longPressTimer = window.setTimeout(() => {
-        suppressNextDialClick = true;
-        setActionMenuOpen(true);
-        try { dial.focus(); } catch {}
-      }, 360);
-    });
-    dial.addEventListener("pointerup", clearLongPress);
-    dial.addEventListener("pointercancel", clearLongPress);
     dial.addEventListener("click", (e) => {
-      if (suppressNextDialClick) {
-        e.preventDefault();
-        e.stopPropagation();
-        suppressNextDialClick = false;
-        return;
-      }
-      setActionMenuOpen(false);
       toggleCohortChatFromLauncher(e);
-    });
-  }
-  if (dialWrap) {
-    dialWrap.addEventListener("pointerenter", (e) => {
-      if (e.pointerType === "mouse") setActionMenuOpen(true);
-    }, { passive: true });
-    dialWrap.addEventListener("pointerleave", (e) => {
-      if (e.pointerType === "mouse") setActionMenuOpen(false);
-    }, { passive: true });
-    dialWrap.addEventListener("focusin", () => setActionMenuOpen(true));
-    dialWrap.addEventListener("focusout", () => {
-      setTimeout(() => {
-        if (!dialWrap.contains(document.activeElement)) {
-          setActionMenuOpen(false);
-        }
-      }, 0);
     });
   }
   document.addEventListener("pointerdown", (e) => {

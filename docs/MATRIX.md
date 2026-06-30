@@ -63,6 +63,32 @@ knock-approver and related bots:
 A [`/matrix-bot-setup`](https://github.com/dmarzzz/shape-rotator-field-kit/blob/main/skills/matrix-bot-setup/SKILL.md)
 skill in the field-kit will eventually wrap this; until then it's a stub.
 
+## the Shape Rotator OS chat tab
+
+The desktop app has a built-in **matrix** tab — read + write to the cohort
+channels without leaving the OS. Sign in with your browser (matrix.org) or a
+cohort-server account; nothing but the homeserver ever sees your password.
+
+End-to-end encryption support, by platform:
+
+- **macOS (Apple Silicon / arm64), Windows, Linux** — full E2EE. Encrypted
+  rooms decrypt and you can post to them.
+- **macOS (Intel / x64)** — **plain channels only.** The native crypto engine
+  (`@matrix-org/matrix-sdk-crypto-nodejs`) ships an arm64 binary; the x64 build
+  has no matching binary, so encryption can't start. Unencrypted channels work
+  normally; encrypted rooms list but stay locked ("end-to-end encrypted —
+  couldn't start on this device"). Read those rooms in Element instead. (To add
+  Intel E2EE later, stage a `darwin-x64`/universal `.node` per-arch in
+  `os-release.yml`, mirroring the `swf-node`/`whisper` fetch pattern.)
+
+Encryption runs in an isolated helper process, so even if it fails to start (or
+the native engine crashes) the rest of the app keeps running — you just lose
+decryption of encrypted rooms, never the whole app.
+
+History sent **before** your app device signed in stays "unable to decrypt"
+(it's a property of Matrix E2EE without key backup, not a bug) — open it in a
+client that already holds the keys.
+
 ## what's in the space
 
 - **Announcements** — from organizers. Turn notifications on.

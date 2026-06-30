@@ -114,7 +114,7 @@
 .selfrep-ghost { background: transparent; border: 1px solid var(--ds-border-strong); color: var(--ds-ink-1); }
 .selfrep-ghost:hover { background: var(--ds-surface-3); }
 .selfrep-ghost:disabled:hover { background: transparent; }
-.selfrep-primary { background: var(--ds-accent); border: 1px solid var(--ds-accent); color: var(--ds-surface-1); }
+.selfrep-primary { background: var(--ds-accent); border: 1px solid var(--ds-accent); color: var(--ds-on-accent); }
 .selfrep-primary:hover { background: var(--ds-accent-hover); border-color: var(--ds-accent-hover); }
 .selfrep-primary:disabled:hover { background: var(--ds-accent); border-color: var(--ds-accent); }
 

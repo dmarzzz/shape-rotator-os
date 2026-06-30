@@ -12,19 +12,25 @@
   overflow: hidden;
   display: flex;
   color: rgba(var(--ink-rgb), 0.9);
-  font-family: var(--font-sans);
+  /* Color-emoji fallback — JetBrains Mono / the UI sans carry no emoji glyphs,
+     so append the platform emoji fonts everywhere chat text (or a reaction)
+     can contain one. */
+  --chat-emoji: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji";
+  font-family: var(--font-sans), var(--chat-emoji);
   background: radial-gradient(ellipse 120% 90% at 50% -20%, #2C2728 0%, #231F20 65%, #1A1719 100%);
 }
-.chat-host { width: 100%; height: 100%; }
+.chat-host { width: 100%; height: 100%; position: relative; }
 
 /* ── login gate ─────────────────────────────────────────────────────────── */
 .chat-gate {
   width: 100%;
   height: 100%;
   display: flex;
-  align-items: center;
+  align-items: flex-start;     /* anchor the card's top: expanding the cohort
+                                  section grows DOWN, the title/button don't move */
   justify-content: center;
-  padding: 40px;
+  padding: 12vh 40px 40px;     /* sit in the upper-middle; top stays put on expand */
+  overflow-y: auto;            /* if the expanded form is tall, scroll, don't clip */
 }
 .chat-gate-card {
   width: 100%;
@@ -42,11 +48,16 @@
   color: rgba(var(--ink-rgb), 0.4);
   margin-bottom: 14px;
 }
+.chat-gate-icon {
+  display: flex; justify-content: center;
+  color: rgba(var(--ink-rgb), 0.38); margin-bottom: 14px;
+}
 .chat-gate-title {
-  margin: 0 0 8px;
-  font-size: 22px;
+  margin: 0 0 20px;
+  font-size: 20px;
   font-weight: 500;
   letter-spacing: -0.01em;
+  text-align: center;
 }
 .chat-gate-sub {
   margin: 0 0 22px;
@@ -104,6 +115,21 @@
 .chat-login-msg { font-family: var(--font-mono); font-size: 11px; color: rgba(var(--ink-rgb), 0.5); min-height: 14px; }
 .chat-login-msg.is-error { color: #e8896b; }
 
+/* sign-in option groups */
+.chat-gate-grouplabel {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: rgba(var(--ink-rgb), 0.4); margin: 6px 0 10px;
+}
+/* re-auth notice — shown when a session expired, so a logout never feels silent */
+.chat-gate-reauth {
+  margin: 0 0 14px; padding: 8px 11px; border-radius: 6px;
+  font-size: 12px; line-height: 1.45; color: rgba(var(--ink-rgb), 0.75);
+  background: rgba(var(--ink-rgb), 0.05); border: 1px solid rgba(var(--ink-rgb), 0.12);
+}
+.chat-mxorg-browser { display: block; width: 100%; padding: 12px 16px; margin-top: 0; }
+.chat-btn-ghost { border-color: transparent; background: none; color: rgba(var(--ink-rgb), 0.62); }
+.chat-btn-ghost:hover:not(:disabled) { background: rgba(var(--ink-rgb), 0.05); border-color: rgba(var(--ink-rgb), 0.2); }
+
 /* browser sign-in (SSO) */
 .chat-gate-body { display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
 .chat-sso {
@@ -140,6 +166,16 @@
 .chat-seg-btn.is-active { background: rgba(var(--ink-rgb), 0.1); color: rgba(var(--ink-rgb), 0.95); }
 .chat-pane.is-hidden { display: none; }
 .chat-token-form { display: flex; flex-direction: column; gap: 10px; }
+.chat-token-row { display: flex; gap: 8px; align-items: stretch; }
+.chat-token-row .chat-input-text { flex: 1 1 auto; min-width: 0; }
+.chat-token-submit {
+  flex: 0 0 auto; width: 42px; padding: 0; margin-top: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+/* drop the hint into the empty space below the field (don't grow the card:
+   the extra top gap is offset by trimming the form's bottom slack) */
+.chat-token-form .chat-gate-hint { margin-top: 18px; }
+.chat-token-form .chat-login-msg { min-height: 0; margin-top: -4px; }
 .chat-gate-hint {
   margin: -2px 0 2px; font-family: var(--font-mono); font-size: 11px;
   color: rgba(var(--ink-rgb), 0.42);
@@ -150,9 +186,9 @@
 .chat-sso-cancel { align-self: flex-start; font-size: 11px; padding: 6px 12px; }
 
 /* temporary developer (password) path — de-emphasised, collapsed by default */
-.chat-dev { margin-top: 6px; }
+.chat-dev { margin-top: 20px; }
 .chat-dev > summary {
-  cursor: pointer; list-style: none;
+  cursor: pointer; list-style: none; text-align: center;
   font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.08em;
   color: rgba(var(--ink-rgb), 0.34); padding: 4px 0;
 }
@@ -166,6 +202,31 @@
   font-family: var(--font-mono); font-size: 10px; line-height: 1.5;
   color: rgba(var(--ink-rgb), 0.4); margin: 0;
 }
+
+/* ── matrix.org device ("approve on phone") sign-in ──────────────────────── */
+.chat-device { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 8px 0 14px; }
+.chat-device-step {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.04em;
+  color: rgba(var(--ink-rgb), 0.5); margin: 8px 0 0;
+}
+.chat-device-url {
+  font-family: var(--font-mono); font-size: 13px; font-weight: 500;
+  color: var(--ink-hi); text-align: center;
+  padding: 6px 12px; border-radius: 6px; background: rgba(var(--ink-rgb), 0.05);
+}
+.chat-device-code {
+  font-family: var(--font-mono); font-size: 30px; font-weight: 600;
+  letter-spacing: 0.28em; color: var(--sr-red); padding-left: 0.28em;
+}
+.chat-device-hint {
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.06em;
+  color: rgba(var(--ink-rgb), 0.35); margin: 4px 0 0;
+}
+.chat-device-cancel {
+  display: block; margin: 0 auto; background: none; border: 0; cursor: pointer;
+  font-family: var(--font-mono); font-size: 11px; color: rgba(var(--ink-rgb), 0.4);
+}
+.chat-device-cancel:hover { color: rgba(var(--ink-rgb), 0.7); }
 
 /* ── chat shell ─────────────────────────────────────────────────────────── */
 .chat-main {
@@ -181,6 +242,11 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* min-width:0 lets this grid column hold its 240px instead of stretching to
+   * fit the longest preview; overflow:hidden is the backstop so nothing can
+   * spill past the panel border even if a width calc is off. */
+  min-width: 0;
+  overflow: hidden;
   border-right: 1px solid rgba(var(--ink-rgb), 0.1);
 }
 .chat-rooms-head {
@@ -205,8 +271,8 @@
 .chat-signout:hover { color: rgba(var(--ink-rgb), 0.8); }
 
 .chat-room-list {
-  list-style: none; margin: 0; padding: 6px;
-  overflow-y: auto; min-height: 0; flex: 1 1 auto;
+  list-style: none; margin: 0; padding: 6px 0;
+  overflow-y: auto; overflow-x: hidden; min-height: 0; min-width: 0; flex: 1 1 auto;
   scrollbar-width: thin;
 }
 .chat-room-empty {
@@ -215,17 +281,18 @@
 }
 .chat-room-btn {
   appearance: none; cursor: pointer; text-align: left;
-  display: flex; flex-direction: column; gap: 3px;
-  width: 100%; padding: 8px 10px; margin-bottom: 2px;
-  background: none; border: 1px solid transparent; border-radius: 6px;
+  display: block;   /* block (not flex) so children are width-constrained and truncate */
+  width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box;
+  padding: 8px 14px;
+  background: none; border: 0; border-radius: 0;
   color: inherit;
   transition: background 120ms ease;
 }
 .chat-room-btn:hover { background: rgba(var(--ink-rgb), 0.05); }
-.chat-room-btn.is-active { background: rgba(var(--ink-rgb), 0.08); border-color: rgba(var(--ink-rgb), 0.14); }
-.chat-room-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.chat-room-btn.is-active { background: rgba(var(--ink-rgb), 0.1); }
+.chat-room-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
 .chat-room-btn-name {
-  font-size: 13px; font-weight: 500;
+  font-size: 13px; font-weight: 500; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .chat-lock { font-size: 10px; opacity: 0.7; }
@@ -237,8 +304,22 @@
   background: color-mix(in srgb, var(--alchemy-oxide-bright, #d05332) 70%, transparent);
   color: #fff; border-radius: 9px;
 }
+/* last-message preview: who sent it on its own line, then the message.
+ * Plain block layout (not flex) so each line truncates reliably; padding-right
+ * pulls the ellipsis cut-off in from the panel edge so text never crowds the
+ * right border. */
 .chat-room-preview {
-  font-family: var(--font-mono); font-size: 10.5px;
+  display: block;
+  min-width: 0; padding-right: 16px; margin-top: 3px;
+  font-family: var(--font-mono), var(--chat-emoji); font-size: 10.5px;
+}
+.chat-room-preview-who {
+  display: block; min-width: 0; max-width: 100%;
+  color: rgba(var(--ink-rgb), 0.55); font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.chat-room-preview-msg {
+  display: block; min-width: 0; max-width: 100%; margin-top: 1px;
   color: rgba(var(--ink-rgb), 0.38);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -252,6 +333,7 @@
 }
 .chat-room-name { font-size: 15px; font-weight: 500; }
 .chat-room-meta {
+  margin-left: auto;   /* push "end-to-end encrypted" to the right edge of the bar */
   font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em;
   text-transform: uppercase; color: rgba(var(--ink-rgb), 0.36);
 }
@@ -268,29 +350,136 @@
   font-family: var(--font-mono); font-size: 12px;
   color: rgba(var(--ink-rgb), 0.3); letter-spacing: 0.06em;
 }
+/* Each message is a bordered card: a header row (avatar + name on the left,
+ * time on the right) above the message body. */
 .chat-msg {
-  display: grid;
-  grid-template-columns: minmax(70px, 130px) 1fr auto;
-  gap: 10px;
-  align-items: baseline;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 10px 8px;
+  border: 1px solid rgba(var(--ink-rgb), 0.1);
+  border-radius: 8px;
+  background: rgba(var(--ink-rgb), 0.02);
   font-size: 13px;
   line-height: 1.45;
 }
+.chat-msg + .chat-msg { margin-top: 6px; }
+.chat-msg.is-mine {
+  border-color: rgba(var(--ink-rgb), 0.16);
+  background: rgba(var(--ink-rgb), 0.05);
+}
+.chat-msg-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.chat-avatar {
+  flex: 0 0 auto;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: 9px; font-weight: 600;
+  background-color: hsl(var(--sender-hue, 0), 62%, 72%);
+  color: #0a0a0a;
+  overflow: hidden;
+  background-size: cover; background-position: center; background-repeat: no-repeat;
+}
 .chat-msg-sender {
   font-family: var(--font-mono); font-size: 11.5px; font-weight: 500;
-  text-align: right;
+  text-align: left;
+  color: hsl(var(--sender-hue, 0), 62%, 72%);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  min-width: 0;
+}
+.chat-msg-time {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-family: var(--font-mono); font-size: 9.5px;
+  color: rgba(var(--ink-rgb), 0.28);
+  white-space: nowrap;
 }
 .chat-msg-body {
   color: rgba(var(--ink-rgb), 0.9);
   white-space: pre-wrap; word-break: break-word; min-width: 0;
 }
 .chat-msg.is-mine .chat-msg-body { color: rgba(var(--ink-rgb), 1); }
-.chat-msg-time {
-  font-family: var(--font-mono); font-size: 9.5px;
-  color: rgba(var(--ink-rgb), 0.28);
-  white-space: nowrap;
+.chat-link {
+  color: #5e9dff;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  word-break: break-all;
 }
+.chat-link:hover { color: #7db0ff; }
+.chat-link:hover { text-decoration-thickness: 2px; }
+
+/* edited marker — quiet, after the sender name */
+.chat-msg-edited {
+  font-family: var(--font-mono); font-size: 9px;
+  color: rgba(var(--ink-rgb), 0.3);
+}
+/* reply quote — the parent message this one replies to */
+.chat-msg-reply {
+  display: flex; gap: 5px; align-items: baseline;
+  padding: 2px 7px; margin-bottom: 1px;
+  border-left: 2px solid rgba(var(--ink-rgb), 0.22);
+  font-size: 11.5px; line-height: 1.35;
+  color: rgba(var(--ink-rgb), 0.5);
+  overflow: hidden;
+}
+.chat-msg-reply-who { font-family: var(--font-mono); font-weight: 600; flex: 0 0 auto; color: hsl(var(--sender-hue, 0), 62%, 72%); }
+.chat-msg-reply-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+/* reaction pills under a message */
+.chat-reacts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.chat-react {
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 1px 7px;
+  border: 1px solid rgba(var(--ink-rgb), 0.16);
+  border-radius: 999px;
+  background: rgba(var(--ink-rgb), 0.04);
+  font-family: var(--font-mono), var(--chat-emoji); font-size: 11px;
+  color: rgba(var(--ink-rgb), 0.7);
+}
+.chat-react:hover { border-color: rgba(var(--ink-rgb), 0.3); }
+.chat-react.is-mine {
+  border-color: rgba(var(--ink-rgb), 0.28);
+  background: rgba(var(--ink-rgb), 0.1);
+  color: var(--ink-hi);
+}
+
+/* right-click context menu */
+.chat-ctx-menu {
+  position: absolute; z-index: 50;
+  min-width: 150px;
+  padding: 5px;
+  background: var(--ed-bg-0, #0d0c0a);
+  border: 1px solid rgba(var(--ink-rgb), 0.18);
+  border-radius: 9px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  display: flex; flex-direction: column; gap: 1px;
+}
+.chat-ctx-emojis {
+  display: flex; gap: 2px; padding: 2px 2px 5px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.1);
+}
+.chat-ctx-emoji {
+  cursor: pointer; flex: 1 1 auto;
+  background: none; border: 0; border-radius: 6px;
+  padding: 4px 0; font-size: 16px; line-height: 1;
+  font-family: var(--chat-emoji), var(--font-sans);
+}
+.chat-ctx-emoji:hover { background: rgba(var(--ink-rgb), 0.1); }
+.chat-ctx-item {
+  cursor: pointer; text-align: left;
+  background: none; border: 0; border-radius: 6px;
+  padding: 7px 9px;
+  font-family: var(--font-sans); font-size: 12.5px;
+  color: rgba(var(--ink-rgb), 0.85);
+}
+.chat-ctx-item:hover { background: rgba(var(--ink-rgb), 0.1); color: var(--ink-hi); }
 
 /* locked (encrypted) room */
 .chat-locked {
@@ -304,13 +493,39 @@
 }
 .chat-locked-sub { font-size: 12px; line-height: 1.5; color: rgba(var(--ink-rgb), 0.4); }
 
+/* undecryptable message(s) — the pre-login backlog we have no room key for */
+.chat-utd {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.04em;
+  color: rgba(var(--ink-rgb), 0.32);
+  padding: 2px 0; text-align: center;
+}
+
 /* composer */
 .chat-composer {
-  display: flex; align-items: flex-end; gap: 8px;
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px;
   padding: 12px 16px 14px;
   border-top: 1px solid rgba(var(--ink-rgb), 0.1);
   position: relative;
 }
+/* "replying to…" / "editing…" chip — full-width row above the input. */
+.chat-compose-context {
+  flex: 0 0 100%;
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 9px;
+  border-left: 2px solid rgba(var(--ink-rgb), 0.35);
+  background: rgba(var(--ink-rgb), 0.04);
+  border-radius: 4px;
+  font-family: var(--font-mono); font-size: 11px;
+  color: rgba(var(--ink-rgb), 0.6);
+}
+.chat-cc-label { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-cc-who { color: var(--ink-hi); font-weight: 600; }
+.chat-cc-cancel {
+  flex: 0 0 auto; cursor: pointer;
+  background: none; border: 0; color: rgba(var(--ink-rgb), 0.5);
+  font-size: 12px; line-height: 1; padding: 2px 4px;
+}
+.chat-cc-cancel:hover { color: var(--ink-hi); }
 .chat-compose-input {
   flex: 1 1 auto;
   resize: none;
@@ -330,4 +545,29 @@
   position: absolute; top: -6px; left: 16px; transform: translateY(-100%);
   font-family: var(--font-mono); font-size: 11px; color: #e8896b;
   background: rgba(0,0,0,0.5); padding: 3px 8px; border-radius: 5px;
+}
+
+/* ── light mode ──────────────────────────────────────────────────────────
+ * Most of the chat rides on --ink-rgb / --ed-bg-0 / --ink-hi, which the
+ * global :root[data-theme="light"] block already flips to dark-ink-on-paper.
+ * Here we override only what's hardcoded for dark: the surface gradient, the
+ * per-user sender colors (the dark-mode pastels wash out on paper, so go
+ * darker + more saturated), the link blue, and a couple of dark-tuned chrome
+ * bits. The whole thing re-themes live when the toggle flips — no re-render. */
+:root[data-theme="light"] .chat-view {
+  background: radial-gradient(ellipse 120% 90% at 50% -20%, #FCFCFB 0%, #F4F4F2 60%, #EBEBE8 100%);
+}
+:root[data-theme="light"] .chat-avatar {
+  background-color: hsl(var(--sender-hue, 0), 52%, 50%);
+  color: #fff;
+}
+:root[data-theme="light"] .chat-msg-sender,
+:root[data-theme="light"] .chat-msg-reply-who {
+  color: hsl(var(--sender-hue, 0), 55%, 38%);
+}
+:root[data-theme="light"] .chat-link { color: #2563eb; }
+:root[data-theme="light"] .chat-link:hover { color: #1d4ed8; }
+:root[data-theme="light"] .chat-ctx-menu { box-shadow: 0 10px 28px rgba(0,0,0,0.16); }
+:root[data-theme="light"] .chat-composer-error {
+  color: #b4341f; background: rgba(0,0,0,0.06);
 }

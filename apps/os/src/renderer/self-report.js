@@ -411,6 +411,7 @@ async function collectGithubDigest(person, githubFallback = "", { surface = null
 }
 
 let host = null;
+let inlineHost = false; // true when rendered into a provided container (the chat panel), not a body overlay
 let busyTimer = null;
 let runGen = 0; // bumped on close; a long async pass captures it and drops a stale result
 function clearBusyTimer() { if (busyTimer) { clearInterval(busyTimer); busyTimer = null; } }
@@ -419,22 +420,37 @@ function onKey(e) { if (e.key === "Escape") closeSelfReport(); }
 export function closeSelfReport() {
   runGen += 1;
   clearBusyTimer();
-  if (host) { host.remove(); host = null; }
+  if (host) {
+    if (inlineHost) host.innerHTML = "";  // the panel owns the node — just clear it, never remove
+    else host.remove();
+    host = null;
+  }
+  inlineHost = false;
   document.removeEventListener("keydown", onKey);
 }
 
-export async function openSelfReport({ person, githubDigest = "", autoRunPrevious = false, sourceChoices = null } = {}) {
+// Pass `mount` to render INSIDE that element (the chat panel's sync/mirror view)
+// instead of a full-screen body overlay — no backdrop, no global Escape (the
+// panel owns close). All step renderers just set host.innerHTML, so they work
+// unchanged either way.
+export async function openSelfReport({ person, githubDigest = "", autoRunPrevious = false, sourceChoices = null, mount = null } = {}) {
   if (!person || !person.record_id) return;
   await ensureStylesheet();
   closeSelfReport();
-  host = document.createElement("div");
-  host.className = "selfrep-overlay";
-  host.setAttribute("role", "dialog");
-  host.setAttribute("aria-modal", "true");
-  document.body.appendChild(host);
-  document.addEventListener("keydown", onKey);
-  // Click the backdrop (not the card) to dismiss.
-  host.addEventListener("mousedown", (e) => { if (e.target === host) closeSelfReport(); });
+  if (mount) {
+    inlineHost = true;
+    host = mount;
+    host.innerHTML = "";
+  } else {
+    host = document.createElement("div");
+    host.className = "selfrep-overlay";
+    host.setAttribute("role", "dialog");
+    host.setAttribute("aria-modal", "true");
+    document.body.appendChild(host);
+    document.addEventListener("keydown", onKey);
+    // Click the backdrop (not the card) to dismiss.
+    host.addEventListener("mousedown", (e) => { if (e.target === host) closeSelfReport(); });
+  }
   const previous = coerceAutoUpdateChoices(sourceChoices) || getAutoUpdateChoices(person.record_id);
   if (autoRunPrevious && previous) {
     runSelfReport(person, {

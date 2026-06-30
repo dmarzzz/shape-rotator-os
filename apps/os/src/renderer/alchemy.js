@@ -1056,9 +1056,9 @@ function updateRailUnread() {
     unreadActivityRows.filter((row) => askIntent(row.record) === "come_join" && !isAskMine(row.record, askIdentity)),
     counts.activity || 0,
   );
-  const ctxCount = unreadCountForFingerprints("context", contextVaultFingerprints());
+  const ctxCount = unreadCountForFingerprints("context-v2", contextVaultFingerprints());
   if (ctxCount > 0) counts.context = ctxCount;
-  const calCount = unreadCountForFingerprints("calendar-grid", calendarFingerprints());
+  const calCount = unreadCountForFingerprints("calendar-pub", calendarFingerprints());
   if (calCount > 0) counts.calendar = calCount;
   const totalUnread = Object.values(counts).reduce((sum, n) => sum + (Number(n) || 0), 0);
   syncAppUnreadCount(totalUnread);
@@ -1676,8 +1676,8 @@ function renderModeContent() {
       if (seenMode === "intel") seenMode = "context";
       if (seenMode === "asks") seenMode = "activity";
       markModeSeen(seenMode, state.cohort);
-      if (seenMode === "context") markFingerprintsSeen("context", contextVaultFingerprints());
-      if (seenMode === "calendar") markFingerprintsSeen("calendar-grid", calendarFingerprints());
+      if (seenMode === "context") markFingerprintsSeen("context-v2", contextVaultFingerprints());
+      if (seenMode === "calendar") markFingerprintsSeen("calendar-pub", calendarFingerprints());
     }
     updateRailUnread();
   } catch (err) {
@@ -11029,7 +11029,7 @@ function refreshCalendarView() {
   // Live calendar data just painted in while the user is on the page — that
   // counts as seen (mirrors the what's-new stamp in render()).
   if (state.active && !document.hidden) {
-    markFingerprintsSeen("calendar-grid", calendarFingerprints());
+    markFingerprintsSeen("calendar-pub", calendarFingerprints());
     updateRailUnread();
   }
 }
@@ -14778,19 +14778,30 @@ const CONTEXT_SCAN_INTERVAL_MS = 5 * 60 * 1000;
 let contextScanTimer = null;
 
 function contextVaultFingerprints() {
+  // Fingerprint only the on-disk scan manifest (article entries + raw
+  // scripts) — NOT the live cohort_articles overlay that
+  // contextArticleSources merges in. That overlay loads asynchronously from
+  // Supabase (applyArticleOverlay) and is absent at boot, so mixing it in
+  // made the boot-time count and the on-view "seen" stamp hash two different
+  // snapshots, relighting the badge for content the user had already seen on
+  // every launch. The manifest is stable on disk, so both reads agree.
   const m = state.contextVault?.manifest;
-  return fingerprintItems([...contextArticleSources(m), ...((m?.raw_scripts) || [])]);
+  return fingerprintItems([...((m?.sources) || []), ...((m?.raw_scripts) || [])]);
 }
 
-// What's-new channel for the calendar. The calendar page renders the
-// phala calendar grid (cal.data / surface.calendar) — NOT surface.events,
-// whose anchor overlay is dropped in renderCalendarHtml — so its unread
-// count must fingerprint the grid the user actually sees: one entry per
-// non-empty cell, keyed by tab + position. Stored under "calendar-grid"
-// (fresh key, so existing baselines from the old events-based channel
-// prime silently instead of flooding the badge).
+// What's-new channel for the calendar. Fingerprints the phala calendar grid
+// (surface.calendar) — NOT surface.events, whose anchor overlay is dropped in
+// renderCalendarHtml — as one entry per non-empty cell, keyed by tab +
+// position. We read the published cohort-surface grid (state.cohort.calendar),
+// which loads once at boot and is stable, rather than the live overlay
+// (state.calendar.data) that seedCalendarData fetches only on page entry: the
+// overlay is absent at boot, so counting against it while the "seen" stamp was
+// taken from it on the page hashed two different snapshots and relit the badge
+// for an unchanged calendar on every launch. Stored under "calendar-pub"
+// (fresh key, so the old "calendar-grid" baseline primes silently instead of
+// flooding the badge).
 function calendarFingerprints() {
-  const data = state.calendar?.data || state.cohort?.calendar || null;
+  const data = state.cohort?.calendar || state.calendar?.data || null;
   const tabs = data?.tabs;
   if (!tabs || typeof tabs !== "object") return [];
   const items = [];

@@ -164,6 +164,17 @@ function mimeTypeForFile(filePath) {
 
 function validateTranscriptFile(filePath) {
   const resolved = path.resolve(String(filePath || ""));
+  // Reject symlinks before following them. The path can now come from the
+  // renderer (drag-drop / file-first submit), not just the native picker, so a
+  // planted symlink with an allowlisted extension (e.g. notes.txt -> ~/.ssh/id_rsa)
+  // could otherwise smuggle an arbitrary file past the extension check below.
+  // lstat does NOT follow the link; a real user pick is never a symlink.
+  const lstat = fs.lstatSync(resolved);
+  if (lstat.isSymbolicLink()) {
+    const error = new Error("Selected path is a symbolic link.");
+    error.code = "symlink_rejected";
+    throw error;
+  }
   const stat = fs.statSync(resolved);
   if (!stat.isFile()) {
     const error = new Error("Selected path is not a file.");
@@ -182,6 +193,25 @@ function validateTranscriptFile(filePath) {
     throw error;
   }
   return { resolved, stat, ext };
+}
+
+// Validate a chosen file and return display info WITHOUT staging/uploading it.
+// Lets the renderer show the picked file (name/size/type) before submit, and
+// validates drag-and-drop paths the same way the native picker does.
+function inspectTranscriptFile(filePath) {
+  try {
+    const { resolved, stat, ext } = validateTranscriptFile(filePath);
+    return {
+      ok: true,
+      filePath: resolved,
+      name: path.basename(resolved),
+      sizeBytes: stat.size,
+      ext,
+      mimeType: mimeTypeForFile(resolved),
+    };
+  } catch (error) {
+    return { ok: false, reason: error?.code || "invalid_file", detail: error?.message || String(error) };
+  }
 }
 
 function sha256File(filePath) {
@@ -456,9 +486,10 @@ async function submitTranscriptIntake({
   }
 }
 
-async function pickAndSubmitTranscriptIntake({ browserWindow, dialogImpl, ...opts } = {}) {
-  const policy = loadTranscriptPolicy();
-  routeForTranscriptType(policy, opts.sessionType);
+// Open the native file picker and return the validated file's display info
+// (no staging/upload yet). The renderer calls this first so the user can see
+// what they picked before filling in metadata and submitting.
+async function pickTranscriptFile({ browserWindow, dialogImpl } = {}) {
   const dialogApi = dialogImpl || require("electron").dialog;
   const selection = await dialogApi.showOpenDialog(browserWindow, {
     title: "Add transcript",
@@ -469,7 +500,15 @@ async function pickAndSubmitTranscriptIntake({ browserWindow, dialogImpl, ...opt
     ],
   });
   if (selection?.canceled || !selection?.filePaths?.[0]) return { ok: false, reason: "canceled" };
-  return submitTranscriptIntake({ ...opts, filePath: selection.filePaths[0] });
+  return inspectTranscriptFile(selection.filePaths[0]);
+}
+
+async function pickAndSubmitTranscriptIntake({ browserWindow, dialogImpl, ...opts } = {}) {
+  const policy = loadTranscriptPolicy();
+  routeForTranscriptType(policy, opts.sessionType);
+  const picked = await pickTranscriptFile({ browserWindow, dialogImpl });
+  if (!picked.ok) return picked;
+  return submitTranscriptIntake({ ...opts, filePath: picked.filePath });
 }
 
 module.exports = {
@@ -478,11 +517,13 @@ module.exports = {
   MAX_UPLOAD_BYTES,
   buildTranscriptIntakeBody,
   getTranscriptIntakeOptions,
+  inspectTranscriptFile,
   loadTranscriptPolicy,
   normalizeSupabaseConfig,
   routeForTranscriptType,
   sessionTypeEntries,
   stageTranscriptFile,
   submitTranscriptIntake,
+  pickTranscriptFile,
   pickAndSubmitTranscriptIntake,
 };
