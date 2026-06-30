@@ -168,6 +168,10 @@
   flex: 0 0 auto; width: 42px; padding: 0; margin-top: 0;
   display: inline-flex; align-items: center; justify-content: center;
 }
+/* drop the hint into the empty space below the field (don't grow the card:
+   the extra top gap is offset by trimming the form's bottom slack) */
+.chat-token-form .chat-gate-hint { margin-top: 18px; }
+.chat-token-form .chat-login-msg { min-height: 0; margin-top: -4px; }
 .chat-gate-hint {
   margin: -2px 0 2px; font-family: var(--font-mono); font-size: 11px;
   color: rgba(var(--ink-rgb), 0.42);
