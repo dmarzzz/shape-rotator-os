@@ -56,6 +56,7 @@ export function mountChat(host) {
   let loadedRoom = null;            // roomId whose timeline is currently in the DOM
   let showing = null;               // "gate" | "shell" — what's in the DOM now
   let autoSelected = false;
+  let signingIn = false;            // matrix.org device flow owns the view while true
 
   // The Matrix bridge lives in the main process + preload. Those only load on
   // a FULL app start — if window.api.matrix is missing, the app was reloaded
@@ -83,10 +84,85 @@ export function mountChat(host) {
       <div class="chat-gate">
         <div class="chat-gate-card">
           <h2 class="chat-gate-title">sign in to matrix</h2>
-          <div class="chat-gate-body"><div class="chat-gate-checking">checking sign-in…</div></div>
+          <p class="chat-gate-grouplabel">matrix.org — your own account</p>
+          <button class="chat-btn chat-btn-primary chat-mxorg-browser" type="button">sign in in this computer's browser</button>
+          <button class="chat-btn chat-btn-ghost chat-mxorg-code" type="button">approve with a code on another device</button>
+          <details class="chat-dev"><summary>use a cohort server account instead</summary>
+            <div class="chat-gate-body"><div class="chat-gate-checking">checking sign-in…</div></div>
+          </details>
         </div>
       </div>`;
+    const b = host.querySelector(".chat-mxorg-browser");
+    if (b) b.addEventListener("click", startMatrixOrgBrowserLogin);
+    const c = host.querySelector(".chat-mxorg-code");
+    if (c) c.addEventListener("click", startMatrixOrgLogin);
     refreshGateOptions();
+  }
+
+  // ── matrix.org sign-in via the computer's browser (auth-code + PKCE) ─────────
+  function startMatrixOrgBrowserLogin() {
+    signingIn = true;
+    renderBrowserWait();
+    api.loginMatrixOrgBrowser().then((res) => {
+      signingIn = false;
+      if (res && res.ok) { render(); return; }
+      if (res && res.error === "cancelled") return;
+      renderDeviceError((res && res.error) || "sign-in failed");
+    });
+  }
+
+  function renderBrowserWait() {
+    host.innerHTML = `
+      <div class="chat-gate"><div class="chat-gate-card">
+        <h2 class="chat-gate-title">sign in with matrix.org</h2>
+        <div class="chat-device"><div class="chat-gate-checking">opening your browser — sign in / approve there, then come back. this finishes on its own.</div></div>
+        <button class="chat-btn chat-device-cancel" type="button">cancel</button>
+      </div></div>`;
+    const c = host.querySelector(".chat-device-cancel");
+    if (c) c.addEventListener("click", () => { signingIn = false; renderGate(); });
+  }
+
+  // ── matrix.org "approve with a code on another device" (device grant) ────────
+  function startMatrixOrgLogin() {
+    signingIn = true;
+    renderDeviceScreen(null);   // "starting…" until the code arrives via onDeviceCode
+    api.loginMatrixOrg().then((res) => {
+      signingIn = false;
+      if (res && res.ok) { render(); return; }         // drop into the chat shell
+      if (res && res.error === "cancelled") return;    // cancel handler already re-rendered
+      renderDeviceError((res && res.error) || "sign-in failed");
+    });
+  }
+
+  function renderDeviceScreen(code) {
+    host.innerHTML = `
+      <div class="chat-gate"><div class="chat-gate-card">
+        <h2 class="chat-gate-title">sign in with matrix.org</h2>
+        <div class="chat-device">${code ? deviceCodeHtml(code) : `<div class="chat-gate-checking">starting sign-in…</div>`}</div>
+        <button class="chat-btn chat-device-cancel" type="button">cancel</button>
+      </div></div>`;
+    const c = host.querySelector(".chat-device-cancel");
+    if (c) c.addEventListener("click", () => { signingIn = false; api.cancelDevice(); renderGate(); });
+  }
+
+  function deviceCodeHtml({ userCode, verificationUri }) {
+    return `
+      <p class="chat-device-step">1 — on your phone, open</p>
+      <div class="chat-device-url">${esc(verificationUri || "account.matrix.org/link")}</div>
+      <p class="chat-device-step">2 — enter this code and approve</p>
+      <div class="chat-device-code">${esc(userCode)}</div>
+      <p class="chat-device-hint">waiting for you to approve…</p>`;
+  }
+
+  function renderDeviceError(msg) {
+    host.innerHTML = `
+      <div class="chat-gate"><div class="chat-gate-card">
+        <h2 class="chat-gate-title">sign in with matrix.org</h2>
+        <div class="chat-gate-error">${esc(msg)}</div>
+        <button class="chat-btn chat-btn-primary chat-retry" type="button">try again</button>
+      </div></div>`;
+    const r = host.querySelector(".chat-retry");
+    if (r) r.addEventListener("click", renderGate);
   }
 
   async function refreshGateOptions() {
@@ -142,9 +218,14 @@ export function mountChat(host) {
         </div>
         <div class="chat-pane is-hidden" data-pane="mobile">
           <p class="chat-gate-note">Approve from a phone you're already signed in to — <strong>not enabled yet</strong>. It needs a one-time change on the homeserver (a rendezvous relay) before phones can approve a sign-in. Ping the admin to switch it on.</p>
-        </div>`;
+        </div>
+        <details class="chat-dev">
+          <summary>or sign in with a password</summary>
+          ${passwordFormHtml()}
+        </details>`;
       wireSegmented();
       wireTokenForm();
+      wirePasswordForm();
     } else {
       body.innerHTML = `
         <p class="chat-gate-note">No password-free sign-in is available on this homeserver yet. Until it is, there's nothing to type here.</p>
@@ -391,8 +472,8 @@ export function mountChat(host) {
     const data = await api.messages(roomId);
     messagesByRoom.set(roomId, data.messages || []);
     loadedRoom = roomId;
-    renderTimeline(roomId, data.encrypted);
-    setComposerEnabled(!data.encrypted);
+    renderTimeline(roomId, data.encrypted, data.cryptoReady);
+    setComposerEnabled(!data.encrypted || data.cryptoReady);
   }
 
   function setComposerEnabled(on) {
@@ -405,11 +486,11 @@ export function mountChat(host) {
     if (btn) btn.disabled = !on;
   }
 
-  function renderTimeline(roomId, encrypted) {
+  function renderTimeline(roomId, encrypted, cryptoReady) {
     const tl = host.querySelector(".chat-timeline");
     if (!tl) return;
-    if (encrypted) {
-      tl.innerHTML = `<div class="chat-locked"><div class="chat-locked-glyph">🔒</div><div class="chat-locked-title">end-to-end encrypted</div><div class="chat-locked-sub">This room is encrypted. Reading it needs E2EE support, which isn't in this build yet — open it in Element for now.</div></div>`;
+    if (encrypted && !cryptoReady) {
+      tl.innerHTML = `<div class="chat-locked"><div class="chat-locked-glyph">🔒</div><div class="chat-locked-title">end-to-end encrypted</div><div class="chat-locked-sub">Encryption couldn't start on this device yet. Try reopening the app, or open this room in Element.</div></div>`;
       return;
     }
     const msgs = messagesByRoom.get(roomId) || [];
@@ -417,11 +498,31 @@ export function mountChat(host) {
       tl.innerHTML = `<div class="chat-empty">no messages yet.</div>`;
       return;
     }
-    tl.innerHTML = msgs.map(renderMsg).join("");
+    tl.innerHTML = renderTimelineMsgs(msgs);
     tl.scrollTop = tl.scrollHeight;
   }
 
+  // Render messages, collapsing consecutive undecryptable ones (the pre-login
+  // backlog) into a single muted line so the timeline isn't a wall of padlocks.
+  function renderTimelineMsgs(msgs) {
+    const out = [];
+    let utd = 0;
+    const flush = () => {
+      if (!utd) return;
+      out.push(`<div class="chat-utd">🔒 ${utd} earlier message${utd > 1 ? "s" : ""} can't be decrypted — sent before this device signed in</div>`);
+      utd = 0;
+    };
+    for (const m of msgs) {
+      if (m.utd) { utd++; continue; }
+      flush();
+      out.push(renderMsg(m));
+    }
+    flush();
+    return out.join("");
+  }
+
   function renderMsg(m) {
+    if (m.utd) return `<div class="chat-utd">🔒 can't decrypt this message</div>`;
     const name = senderName(m.sender);
     return `
       <div class="chat-msg${m.mine ? " is-mine" : ""}">
@@ -431,26 +532,34 @@ export function mountChat(host) {
       </div>`;
   }
 
-  // Append live messages to the active room without a full re-render.
+  // Merge live messages into the active room. New messages append; a message
+  // we already have but that just decrypted (utd → cleartext) replaces in place.
   function appendMessages(roomId, msgs) {
     const cache = messagesByRoom.get(roomId) || [];
-    const seen = new Set(cache.map((m) => m.eventId));
-    for (const m of msgs) if (!seen.has(m.eventId)) cache.push(m);
+    const byId = new Map(cache.map((m) => [m.eventId, m]));
+    let changed = false;
+    for (const m of msgs) {
+      const existing = byId.get(m.eventId);
+      if (!existing) { cache.push(m); byId.set(m.eventId, m); changed = true; }
+      else if (existing.utd && !m.utd) {
+        const idx = cache.findIndex((x) => x.eventId === m.eventId);
+        if (idx >= 0) cache[idx] = m;
+        changed = true;
+      }
+    }
     messagesByRoom.set(roomId, cache);
-    if (roomId !== activeRoomId || loadedRoom !== roomId) return;
+    if (!changed || roomId !== activeRoomId || loadedRoom !== roomId) return;
+    cache.sort((a, b) => a.ts - b.ts);
     const tl = host.querySelector(".chat-timeline");
     if (!tl) return;
-    if (tl.querySelector(".chat-empty")) tl.innerHTML = "";
     const nearBottom = tl.scrollHeight - tl.scrollTop - tl.clientHeight < 80;
-    for (const m of msgs) {
-      if (seen.has(m.eventId)) continue;
-      tl.insertAdjacentHTML("beforeend", renderMsg(m));
-    }
+    tl.innerHTML = renderTimelineMsgs(cache);
     if (nearBottom) tl.scrollTop = tl.scrollHeight;
   }
 
   // ─── render router ─────────────────────────────────────────────────────────
   function render() {
+    if (signingIn) return;   // the matrix.org device screen owns the view until it resolves
     const want = status.state === "logged_out" ? "gate" : "shell";
     if (want === showing) {
       if (want === "shell") renderRoomList();
@@ -465,8 +574,9 @@ export function mountChat(host) {
   // channel so the view isn't an empty pane.
   function maybeAutoSelect() {
     if (autoSelected || !rooms.length) return;
-    const firstReadable = rooms.find((r) => !r.encrypted) || rooms[0];
-    if (firstReadable) { autoSelected = true; selectRoom(firstReadable.roomId); }
+    // With crypto live, encrypted rooms are readable — just open the most recent.
+    const pick = status.cryptoReady ? rooms[0] : (rooms.find((r) => !r.encrypted) || rooms[0]);
+    if (pick) { autoSelected = true; selectRoom(pick.roomId); }
   }
 
   // Paint immediately so the tab is never an empty pane — the gate (or the
@@ -485,6 +595,7 @@ export function mountChat(host) {
       if (showing === "shell") renderRoomList(); // refresh previews/unread
     }
   });
+  api.onDeviceCode((code) => { if (signingIn && code) renderDeviceScreen(code); });
 
   // Initial state pull.
   (async () => {

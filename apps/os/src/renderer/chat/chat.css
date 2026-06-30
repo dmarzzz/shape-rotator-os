@@ -104,6 +104,15 @@
 .chat-login-msg { font-family: var(--font-mono); font-size: 11px; color: rgba(var(--ink-rgb), 0.5); min-height: 14px; }
 .chat-login-msg.is-error { color: #e8896b; }
 
+/* sign-in option groups */
+.chat-gate-grouplabel {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: rgba(var(--ink-rgb), 0.4); margin: 6px 0 10px;
+}
+.chat-mxorg-browser, .chat-mxorg-code { display: block; width: 100%; margin-top: 8px; }
+.chat-btn-ghost { border-color: transparent; background: none; color: rgba(var(--ink-rgb), 0.62); }
+.chat-btn-ghost:hover:not(:disabled) { background: rgba(var(--ink-rgb), 0.05); border-color: rgba(var(--ink-rgb), 0.2); }
+
 /* browser sign-in (SSO) */
 .chat-gate-body { display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
 .chat-sso {
@@ -166,6 +175,31 @@
   font-family: var(--font-mono); font-size: 10px; line-height: 1.5;
   color: rgba(var(--ink-rgb), 0.4); margin: 0;
 }
+
+/* ── matrix.org device ("approve on phone") sign-in ──────────────────────── */
+.chat-device { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 8px 0 14px; }
+.chat-device-step {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.04em;
+  color: rgba(var(--ink-rgb), 0.5); margin: 8px 0 0;
+}
+.chat-device-url {
+  font-family: var(--font-mono); font-size: 13px; font-weight: 500;
+  color: var(--ink-hi); text-align: center;
+  padding: 6px 12px; border-radius: 6px; background: rgba(var(--ink-rgb), 0.05);
+}
+.chat-device-code {
+  font-family: var(--font-mono); font-size: 30px; font-weight: 600;
+  letter-spacing: 0.28em; color: var(--sr-red); padding-left: 0.28em;
+}
+.chat-device-hint {
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.06em;
+  color: rgba(var(--ink-rgb), 0.35); margin: 4px 0 0;
+}
+.chat-device-cancel {
+  display: block; margin: 0 auto; background: none; border: 0; cursor: pointer;
+  font-family: var(--font-mono); font-size: 11px; color: rgba(var(--ink-rgb), 0.4);
+}
+.chat-device-cancel:hover { color: rgba(var(--ink-rgb), 0.7); }
 
 /* ── chat shell ─────────────────────────────────────────────────────────── */
 .chat-main {
@@ -303,6 +337,13 @@
   text-transform: uppercase; color: rgba(var(--ink-rgb), 0.6);
 }
 .chat-locked-sub { font-size: 12px; line-height: 1.5; color: rgba(var(--ink-rgb), 0.4); }
+
+/* undecryptable message(s) — the pre-login backlog we have no room key for */
+.chat-utd {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.04em;
+  color: rgba(var(--ink-rgb), 0.32);
+  padding: 2px 0; text-align: center;
+}
 
 /* composer */
 .chat-composer {

@@ -93,9 +93,10 @@
         <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg></span>
         <span class="nav-cat-label ar-label">apps</span>
       </button>
-      <!-- matrix tab temporarily hidden for this release (chat almost works;
-           re-enable after the next round of fixes). Tab logic stays wired. -->
-      <button class="nav-cat nav-cat--dest" data-tab="matrix" type="button" aria-selected="false" hidden style="display:none">
+      <!-- matrix tab — cohort chat (E2EE + matrix.org sign-in). Visible + live
+           on this dev branch; re-hide (add `hidden style="display:none"` + the
+           styles.css disable rule) before a public release if not ready. -->
+      <button class="nav-cat nav-cat--dest" data-tab="matrix" type="button" aria-selected="false">
         <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
         <span class="nav-cat-label ar-label">matrix</span>
         <span class="ar-hint">chat · cohort · e2ee</span>
