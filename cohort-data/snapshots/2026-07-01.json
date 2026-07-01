@@ -1,0 +1,61 @@
+{
+  "generated_at": "2026-07-01T06:55:26.403Z",
+  "date": "2026-07-01",
+  "count": 3,
+  "events": [
+    {
+      "id": "d0acd645-de49-46ee-813d-4b9a28e1e7fc",
+      "record_id": "mikeishiring",
+      "actor": "mikeishiring",
+      "event_type": "self_report",
+      "field": null,
+      "value": {
+        "fields": [
+          "now",
+          "weekly_intention",
+          "skills",
+          "skill_areas",
+          "seeking",
+          "offering",
+          "prior_work"
+        ]
+      },
+      "weight": "loud",
+      "supersedes": null,
+      "created_at": "2026-06-28T17:52:57.71698+00:00"
+    },
+    {
+      "id": "1ba3ca59-06f8-40ad-8aa9-de8c0319314b",
+      "record_id": "mikeishiring",
+      "actor": "mikeishiring",
+      "event_type": "self_report",
+      "field": null,
+      "value": {
+        "fields": [
+          "weekly_intention"
+        ]
+      },
+      "weight": "loud",
+      "supersedes": null,
+      "created_at": "2026-06-28T19:32:51.87128+00:00"
+    },
+    {
+      "id": "4516de68-3184-4666-8fa7-f60bafffefa8",
+      "record_id": "albiona-hoti",
+      "actor": "albiona-hoti",
+      "event_type": "self_report",
+      "field": null,
+      "value": {
+        "fields": [
+          "now",
+          "weekly_intention",
+          "seeking",
+          "offering"
+        ]
+      },
+      "weight": "loud",
+      "supersedes": null,
+      "created_at": "2026-06-29T02:03:33.209915+00:00"
+    }
+  ]
+}
