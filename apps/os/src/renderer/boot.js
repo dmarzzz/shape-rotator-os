@@ -4407,6 +4407,11 @@ function wirePrimaryNavIntent(primaryNav) {
     primaryNav.dataset.navIntent = reason;
     document.body.dataset.navDrawer = open ? "open" : "closed";
   };
+  const syncOpenState = () => {
+    const classOpen = primaryNav.classList.contains("is-nav-intent-open");
+    if (isOpen !== classOpen) isOpen = classOpen;
+    return isOpen;
+  };
   const trackPointer = (event) => {
     const t = event.timeStamp || performance.now();
     if (!lastPointer) {
@@ -4459,6 +4464,7 @@ function wirePrimaryNavIntent(primaryNav) {
 
   document.addEventListener("pointermove", (event) => {
     if (event.pointerType && event.pointerType !== "mouse") return;
+    syncOpenState();
     const motion = trackPointer(event);
     const { hotWidth, navWidth } = metrics();
     const yInWindow = event.clientY >= 0 && event.clientY <= window.innerHeight;
@@ -4484,7 +4490,7 @@ function wirePrimaryNavIntent(primaryNav) {
       return;
     }
     scheduleClose(motion, "page");
-  }, { passive: true });
+  }, { capture: true, passive: true });
 
   primaryNav.addEventListener("focusin", () => setOpen(true, "focus", 160));
   primaryNav.addEventListener("focusout", () => {
