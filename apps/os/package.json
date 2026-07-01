@@ -142,13 +142,6 @@
           "filter": [
             "**/*"
           ]
-        },
-        {
-          "from": "../../cohort-data/articles/",
-          "to": "cohort-data/articles/",
-          "filter": [
-            "**/*.md"
-          ]
         }
       ]
     },
@@ -220,13 +213,6 @@
           "filter": [
             "**/*"
           ]
-        },
-        {
-          "from": "../../cohort-data/articles/",
-          "to": "cohort-data/articles/",
-          "filter": [
-            "**/*.md"
-          ]
         }
       ]
     },
@@ -283,13 +269,6 @@
           "to": "whisper/",
           "filter": [
             "**/*"
-          ]
-        },
-        {
-          "from": "../../cohort-data/articles/",
-          "to": "cohort-data/articles/",
-          "filter": [
-            "**/*.md"
           ]
         }
       ]

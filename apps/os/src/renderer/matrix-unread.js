@@ -18,7 +18,7 @@ let loggedIn = false;
 let started = false;
 
 function matrixBtn() {
-  return document.querySelector('.primary-nav .nav-cat--dest[data-tab="matrix"]');
+  return document.querySelector('.primary-nav .nav-cat[data-tab="matrix"]');
 }
 
 function unreadTotal() {

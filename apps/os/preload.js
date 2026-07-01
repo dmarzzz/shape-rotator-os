@@ -83,6 +83,10 @@ contextBridge.exposeInMainWorld("api", {
   },
   // calendar export — PNG (recommended for messaging) or PDF.
   exportCalendar:        (opts)   => ipcRenderer.invoke("fg:export-calendar", opts),
+  // capture a region of the focused window as a PNG data URL (getBoundingClientRect
+  // rect in CSS px, or omit for the whole page). Used by the Context reader snapshot,
+  // which hands the data URL to exportCalendar for the native save dialog.
+  captureRect:           (rect)   => ipcRenderer.invoke("fg:capture-rect", rect || null),
   // bundled swf-node supervisor — see apps/os/swf-node.js. The renderer
   // can poll getSwfNodeStatus() for a one-shot read, or subscribe via
   // onSwfNodeStatus(cb) to a stream of state changes (idle | starting |

@@ -101,6 +101,7 @@ ipcMain.handle("daybook:open-window", () => {
 // renderer module that throws at import time — which static asar analysis
 // can't see and which dev mode (runs from source) can't reproduce.
 const SMOKE_TEST = process.argv.includes("--smoke-test") || process.env.SROS_SMOKE_TEST === "1";
+const NAV_VISUAL_AUDIT = process.env.SROS_NAV_AUDIT === "1";
 
 function configureSmokeUserData() {
   if (!SMOKE_TEST) return;
@@ -1248,7 +1249,13 @@ function sourceFromManifest(sourceId) {
   return source ? { manifest, source } : { manifest, source: null };
 }
 
-function quietWindowChromeOptions({ overlayColor = "#0c0a09", overlaySymbolColor = "#f4f1e8", overlayHeight = 35 } = {}) {
+function quietWindowChromeOptions(options = {}) {
+  const {
+    overlayColor = "#0c0a09",
+    overlaySymbolColor = "#f4f1e8",
+    overlayHeight = 35,
+    ...rest
+  } = options;
   const isMac = process.platform === "darwin";
   const isWin = process.platform === "win32";
   return {
@@ -1261,6 +1268,7 @@ function quietWindowChromeOptions({ overlayColor = "#0c0a09", overlaySymbolColor
         height: overlayHeight,
       },
     } : {}),
+    ...rest,
   };
 }
 
@@ -1293,10 +1301,9 @@ function createWindow() {
       }
     } catch {}
   }
-  const win = new BrowserWindow({
+  const win = new BrowserWindow(quietWindowChromeOptions({
     width: ws.width, height: ws.height, x: ws.x, y: ws.y,
     minWidth: 960, minHeight: 600,
-    ...quietWindowChromeOptions(),
     backgroundColor: "#03020c",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -1304,7 +1311,7 @@ function createWindow() {
       sandbox: false,
       nodeIntegration: false,
     },
-  });
+  }));
   hideNativeMenuBar(win);
   if (ws.fullscreen) win.setFullScreen(true);
   if (process.env.SRWK_ALWAYS_ON_TOP === "1") win.setAlwaysOnTop(true);
@@ -1372,9 +1379,9 @@ function createHermesWindow() {
     hermesWin.focus();
     return hermesWin;
   }
-  hermesWin = new BrowserWindow({
+  hermesWin = new BrowserWindow(quietWindowChromeOptions({
     width: 760, height: 680, minWidth: 560, minHeight: 480,
-    ...quietWindowChromeOptions({ overlayColor: "#03020c" }),
+    overlayColor: "#03020c",
     backgroundColor: "#03020c",
     title: "ask cohort · hermes",
     webPreferences: {
@@ -1383,7 +1390,7 @@ function createHermesWindow() {
       sandbox: false,
       nodeIntegration: false,
     },
-  });
+  }));
   hideNativeMenuBar(hermesWin);
   hermesWin.loadFile(path.join(__dirname, "src", "hermes", "index.html"));
   if (process.env.SRWK_DEVTOOLS) hermesWin.webContents.openDevTools({ mode: "detach" });
@@ -1902,6 +1909,7 @@ ipcMain.handle("fg:swarm:start", async (_e, opts) => {
     workers:   o.workers,
     swfNodeUrl:   swfReady.url,
     swfNodeToken: swfNode.getAgentToken() || "",
+    isPackaged:   app.isPackaged,
   });
 });
 
@@ -1909,7 +1917,7 @@ ipcMain.handle("fg:swarm:stop",   async () => swarm ? swarm.stop() : { ok: false
 
 ipcMain.handle("fg:swarm:config:get", async () => {
   const cfg = readSwarmConfig();
-  const agent = loadSwarm().getAgentInfo();
+  const agent = loadSwarm().getAgentInfo({ isPackaged: app.isPackaged });
   return {
     lmModel:   cfg.lmModel   || "anthropic/claude-sonnet-4-6",
     lmApiBase: cfg.lmApiBase || "",
@@ -2643,6 +2651,32 @@ ipcMain.handle("fg:export-calendar", async (_e, opts = {}) => {
   }
 });
 
+// Capture a region of the focused window as a PNG data URL. Rect is CSS pixels
+// (element.getBoundingClientRect); omit to capture the whole page. The renderer
+// hands the returned data URL to fg:export-calendar to reuse its save dialog.
+ipcMain.handle("fg:capture-rect", async (_e, rect = null) => {
+  try {
+    const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+    if (!win) return { ok: false, reason: "no_window" };
+    let opts;
+    if (rect && Number.isFinite(rect.width) && Number.isFinite(rect.height)
+        && rect.width > 0 && rect.height > 0) {
+      opts = {
+        x: Math.max(0, Math.round(rect.x)),
+        y: Math.max(0, Math.round(rect.y)),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+      };
+    }
+    const img = opts
+      ? await win.webContents.capturePage(opts)
+      : await win.webContents.capturePage();
+    return { ok: true, dataUrl: img.toDataURL() };
+  } catch (e) {
+    return { ok: false, reason: "capture_failed", detail: String(e && e.message || e) };
+  }
+});
+
 // ─── deep links: sros://xxxxx ───────────────────────────────────────────────
 // Register the custom scheme so the OS hands `sros://` links to us, then route
 // them to the renderer (boot.js applyDeepLink). Arrival paths:
@@ -2696,7 +2730,7 @@ app.on("open-url", (event, url) => { event.preventDefault(); deliverDeepLink(url
 // Windows/Linux: a second `sros://` launch spawns a new process. Take the
 // single-instance lock so it forwards into THIS instance instead of opening a
 // duplicate. Scoped to non-darwin so macOS multi-instance behaviour is unchanged.
-if (process.platform !== "darwin") {
+if (process.platform !== "darwin" && !NAV_VISUAL_AUDIT) {
   if (!app.requestSingleInstanceLock()) {
     app.quit();
   } else {

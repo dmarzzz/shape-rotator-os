@@ -7,7 +7,7 @@
 // a MutationObserver on the datasets the app already maintains.
 //
 //   location = {
-//     tab: "alchemy" | "apps" | "network" | "links",
+//     tab: "alchemy" | "apps" | "network" | "links" | "matrix",
 //     mode?,        // OS sub-page when tab === "alchemy"
 //     constellationMode?, // Constellation sub-view, e.g. "map" | "collab"
 //     programPage?, // Program Info page, e.g. "onboarding" | "overview"
@@ -50,20 +50,32 @@ const MODE_LABEL = {
   constellation: "cohort",
   calendar: "calendar", profile: "profile",
   mirror: "mirror",
-  program: "program info", asks: "asks & activity", context: "context", icons: "icons",
-  activity: "asks & activity",
+  program: "program info", asks: "context · activity", context: "context", icons: "icons",
+  activity: "context · activity",
 };
 
 // Short suffixes for the cohort page's constellation views and the context
 // page's views — tab titles read "cohort · map", "context · evidence", etc.
 const CONST_VIEW_LABEL = { map: "map", ring: "map", journey: "journey", stack: "stack", collab: "collab" };
-const CONTEXT_VIEW_LABEL = { raw: "transcripts", evidence: "evidence" };
+const CONTEXT_VIEW_LABEL = { articles: "articles", raw: "transcripts", evidence: "evidence", activity: "activity" };
+
+const APP_CARD_TARGETS = {
+  atlas: { tab: "apps", appsView: "atlas" },
+  easel: { tab: "apps", appsView: "easel" },
+  network: { tab: "network", netSub: "network" },
+};
+
+function appCardLocation(key) {
+  const loc = APP_CARD_TARGETS[String(key || "").toLowerCase()];
+  return loc ? { ...loc } : null;
+}
 
 function normalizeContextView(view) {
   const v = String(view || "").toLowerCase();
   if (v === "article") return "articles";
   if (v === "transcript" || v === "transcripts") return "raw";
   if (v === "card" || v === "cards" || v === "intel" || v === "signals" || v === "data") return "evidence";
+  if (v === "ask" || v === "asks" || v === "activity") return "activity";
   return v === "articles" || v === "raw" || v === "evidence" ? v : "";
 }
 
@@ -143,6 +155,10 @@ function normalizeLocation(loc) {
   if (loc.tab === "alchemy" && loc.mode === "context") {
     const hasContextView = loc.contextView != null && String(loc.contextView) !== "";
     const contextView = hasContextView ? (normalizeContextView(loc.contextView) || "articles") : "";
+    if (contextView === "activity") {
+      const { contextView: _contextView, ...rest } = loc;
+      return { ...rest, mode: "activity" };
+    }
     if (contextView !== (loc.contextView || "")) return { ...loc, contextView };
   }
   // calendar2 graduated to THE calendar (2026-06) — old trial tabs reopen
@@ -358,6 +374,8 @@ function resolveNavTarget(el) {
   if (rail) return { tab: "alchemy", mode: rail.dataset.alchMode };
   const cat = el.closest(".nav-cat[data-tab]");
   if (cat) return { tab: cat.dataset.tab };
+  const appCard = el.closest("[data-app-key]");
+  if (appCard) return appCardLocation(appCard.dataset.appKey);
   let alch = null;
   try { alch = Alchemy.getLocation?.(); } catch {}
   const alchMode = alch?.mode || currentAlchMode() || "shapes";

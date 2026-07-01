@@ -49,7 +49,9 @@ const CTX_VIEWS    = ["articles", "raw", "evidence"];
 // historical code keep resolving if we ever rename an internal view id. Empty
 // at launch.
 const VIEW_ALIASES = {
-  "alchemy/asks": "alchemy/activity",
+  "alchemy/activity": "alchemy/context/activity",
+  "alchemy/asks": "alchemy/context/activity",
+  "alchemy/context/asks": "alchemy/context/activity",
   "alchemy/onboarding": "alchemy/program/onboarding",
   "alchemy/constellation/shipped": "alchemy/mirror",
   "alchemy/intel": "alchemy/context/evidence",
@@ -88,6 +90,7 @@ function canonicalContextView(raw) {
   if (v === "article") return "articles";
   if (v === "transcript" || v === "transcripts") return "raw";
   if (v === "card" || v === "cards" || v === "intel" || v === "signals" || v === "data") return "evidence";
+  if (v === "ask" || v === "asks" || v === "activity") return "activity";
   return CTX_VIEWS.includes(v) ? v : "";
 }
 
@@ -106,7 +109,7 @@ function canonicalView(snap) {
   if (tab === "alchemy") {
     if (s.alchMode === "onboarding") return "alchemy/program/onboarding";
     const mode = ALCH_MODES.includes(s.alchMode) ? s.alchMode : "membrane";
-    if (mode === "asks") return "alchemy/activity";
+    if (mode === "asks" || mode === "activity") return "alchemy/context/activity";
     if (mode === "constellation" && String(s.constMode || "").toLowerCase() === "shipped") {
       return "alchemy/mirror";
     }
@@ -132,7 +135,7 @@ function enumerateViews() {
   const out = [];
   const push = (key, snap) => out.push({ key, snap });
 
-  for (const mode of ["membrane", "shapes", "calendar", "mirror", "profile", "program", "activity"]) {
+  for (const mode of ["membrane", "shapes", "calendar", "mirror", "profile", "program"]) {
     push("alchemy/" + mode, { tab: "alchemy", alchMode: mode });
   }
   push("alchemy/program/onboarding", { tab: "alchemy", alchMode: "program", programPage: "onboarding" });
@@ -140,6 +143,7 @@ function enumerateViews() {
   for (const lens of CONST_LENSES) push("alchemy/constellation/" + lens, { tab: "alchemy", alchMode: "constellation", constMode: lens });
   push("alchemy/context", { tab: "alchemy", alchMode: "context" });
   for (const v of CTX_VIEWS) push("alchemy/context/" + v, { tab: "alchemy", alchMode: "context", ctxView: v });
+  push("alchemy/context/activity", { tab: "alchemy", alchMode: "activity" });
 
   push("apps/grid", { tab: "apps", appsView: "" });
   for (const a of APPS_VIEWS) push("apps/" + a, { tab: "apps", appsView: a });
