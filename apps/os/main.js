@@ -1248,6 +1248,30 @@ function sourceFromManifest(sourceId) {
   return source ? { manifest, source } : { manifest, source: null };
 }
 
+function quietWindowChromeOptions({ overlayColor = "#0c0a09", overlaySymbolColor = "#f4f1e8", overlayHeight = 35 } = {}) {
+  const isMac = process.platform === "darwin";
+  const isWin = process.platform === "win32";
+  return {
+    autoHideMenuBar: !isMac,
+    titleBarStyle: isMac ? "customButtonsOnHover" : (isWin ? "hidden" : "hiddenInset"),
+    ...(isWin ? {
+      titleBarOverlay: {
+        color: overlayColor,
+        symbolColor: overlaySymbolColor,
+        height: overlayHeight,
+      },
+    } : {}),
+  };
+}
+
+function hideNativeMenuBar(win) {
+  if (process.platform === "darwin" || !win || win.isDestroyed?.()) return;
+  try {
+    win.setAutoHideMenuBar(true);
+    win.setMenuBarVisibility(false);
+  } catch {}
+}
+
 function createWindow() {
   const ws = readJSON(WINDOW_STATE, { width: 1600, height: 1000 });
   // Bounds-validate the saved x/y against currently-attached displays —
@@ -1272,7 +1296,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: ws.width, height: ws.height, x: ws.x, y: ws.y,
     minWidth: 960, minHeight: 600,
-    titleBarStyle: "hiddenInset",
+    ...quietWindowChromeOptions(),
     backgroundColor: "#03020c",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -1281,6 +1305,7 @@ function createWindow() {
       nodeIntegration: false,
     },
   });
+  hideNativeMenuBar(win);
   if (ws.fullscreen) win.setFullScreen(true);
   if (process.env.SRWK_ALWAYS_ON_TOP === "1") win.setAlwaysOnTop(true);
   win.loadFile(path.join(__dirname, "src", "index.html"));
@@ -1349,7 +1374,7 @@ function createHermesWindow() {
   }
   hermesWin = new BrowserWindow({
     width: 760, height: 680, minWidth: 560, minHeight: 480,
-    titleBarStyle: "hiddenInset",
+    ...quietWindowChromeOptions({ overlayColor: "#03020c" }),
     backgroundColor: "#03020c",
     title: "ask cohort · hermes",
     webPreferences: {
@@ -1359,6 +1384,7 @@ function createHermesWindow() {
       nodeIntegration: false,
     },
   });
+  hideNativeMenuBar(hermesWin);
   hermesWin.loadFile(path.join(__dirname, "src", "hermes", "index.html"));
   if (process.env.SRWK_DEVTOOLS) hermesWin.webContents.openDevTools({ mode: "detach" });
   hermesWin.on("closed", () => { hermesWin = null; });
@@ -1496,6 +1522,9 @@ function buildAppMenu() {
     { role: "windowMenu" },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+  if (!isMac) {
+    for (const win of BrowserWindow.getAllWindows()) hideNativeMenuBar(win);
+  }
 }
 
 // Renderer fallback for Cmd/Ctrl +/-/0 when it's not on a cohort view —

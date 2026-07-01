@@ -61,7 +61,13 @@ html, body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
-:root { --tab-bar-h: 0px; --nav-w: 280px; --content-top-h: 35px; }
+:root {
+  --tab-bar-h: 0px;
+  --nav-w: 280px;
+  --content-top-h: 35px;
+  --window-controls-left-w: max(0px, calc(env(titlebar-area-x, 0px) - var(--nav-w)));
+  --window-controls-right-w: max(0px, calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw)));
+}
 /* App shell (2026-06): a persistent left navigation (#primary-nav) in the
    `nav` column and the content in `main`. The right column gets a persistent
    browser-tab strip (`ctop` → #content-top) on every tab. Every top-level view
@@ -16961,7 +16967,7 @@ textarea.alch-cv-compose-body-input { min-height: 150px; line-height: 1.6; }
 .content-top {
   display: flex;
   align-items: stretch;
-  padding: 0;
+  padding: 0 var(--window-controls-right-w) 0 var(--window-controls-left-w);
   box-sizing: border-box;
   background: var(--ed-bg-0, #0c0a09);
   border-bottom: 1px solid var(--ed-rule, rgba(var(--ink-rgb), 0.10));
