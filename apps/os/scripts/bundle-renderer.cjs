@@ -43,7 +43,7 @@ const outfile = check
       bundle: true,
       format: "esm",           // preserves import.meta.url (cohort-source.js)
       platform: "browser",
-      target: ["chrome120"],   // electron 33 ships chromium ~130
+      target: ["chrome120"],   // conservative floor; Electron 43 ships newer Chromium
       outfile,
       sourcemap: !check,
       metafile: true,

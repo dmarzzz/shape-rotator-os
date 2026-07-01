@@ -1,8 +1,8 @@
 // easel-ndi.js — NDI sender for the "easel" app (main process).
 //
-// Wraps @stagetimerio/grandiose, an N-API binding for the NDI SDK. N-API is
-// ABI-stable, so the prebuilt/source-built .node loads under Electron with no
-// electron-rebuild (verified against Electron 33 + NDI runtime 6.x).
+// Optionally wraps @stagetimerio/grandiose, an N-API binding for the NDI SDK.
+// The release build does not bundle it; when absent, the UI shows "NDI
+// unavailable" and the rest of the app keeps running.
 //
 // Flow: the renderer captures a screen/window via desktopCapturer, draws each
 // frame to a canvas, and ships the RGBA pixel buffer here over IPC; we hand it

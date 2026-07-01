@@ -235,18 +235,14 @@ export function mountChat(host) {
       body.innerHTML = `${buttons}<div class="chat-gate-status" role="status" aria-live="polite"></div>`;
       body.querySelectorAll(".chat-sso").forEach((b) => b.addEventListener("click", () => startSSO(b.dataset.idp)));
     } else if (tokenFlow) {
-      // Paste an access token from any client you're already signed in to (the
-      // token never leaves this machine). Password is the tucked-away fallback.
       body.innerHTML = `
-        <form class="chat-token-form" autocomplete="off">
-          <div class="chat-token-row">
-            <input class="chat-input-text" name="token" type="password" placeholder="paste an access token" spellcheck="false" autocapitalize="off" />
-            <button class="chat-btn chat-btn-primary chat-token-submit" type="submit" title="sign in" aria-label="sign in">${CHECK_GLYPH}</button>
-          </div>
-          <p class="chat-gate-hint">Element on desktop → <code>Help &amp; About → Access Token</code></p>
+        <div class="chat-device-form">
+          <p class="chat-gate-note">Use a device you already trust. Shape Rotator OS receives a one-time code, not that device's access token.</p>
+          <button class="chat-btn chat-btn-primary chat-device-login" type="button">sign in with another device</button>
           <div class="chat-login-msg" role="status" aria-live="polite"></div>
-        </form>`;
-      wireTokenForm();
+        </div>`;
+      const device = body.querySelector(".chat-device-login");
+      if (device) device.addEventListener("click", startDevice);
     } else {
       body.innerHTML = `
         <p class="chat-gate-note">No password-free sign-in is available on this homeserver yet. Until it is, there's nothing to type here.</p>
@@ -291,24 +287,6 @@ export function mountChat(host) {
       if (msg) { msg.textContent = "redeeming…"; msg.className = "chat-login-msg"; }
       btn.disabled = true;
       const res = await api.loginCode({ homeserver: DEFAULT_HS, token: String(fd.get("code") || "").trim() });
-      btn.disabled = false;
-      if (res && res.ok) { if (msg) msg.textContent = "connecting…"; }
-      else if (msg) { msg.textContent = (res && res.error) || "sign-in failed"; msg.className = "chat-login-msg is-error"; }
-    });
-  }
-
-  function wireTokenForm() {
-    const form = host.querySelector(".chat-token-form");
-    if (!form) return;
-    const msg = form.querySelector(".chat-login-msg");
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const tok = String(new FormData(form).get("token") || "").trim();
-      const btn = form.querySelector("button[type=submit]");
-      if (!tok) { if (msg) { msg.textContent = "paste your access token first"; msg.className = "chat-login-msg is-error"; } return; }
-      if (msg) { msg.textContent = "signing in…"; msg.className = "chat-login-msg"; }
-      btn.disabled = true;
-      const res = await api.loginAccessToken({ homeserver: DEFAULT_HS, accessToken: tok });
       btn.disabled = false;
       if (res && res.ok) { if (msg) msg.textContent = "connecting…"; }
       else if (msg) { msg.textContent = (res && res.error) || "sign-in failed"; msg.className = "chat-login-msg is-error"; }
