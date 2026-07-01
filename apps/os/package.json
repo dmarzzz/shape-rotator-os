@@ -31,14 +31,11 @@
     "electron-updater": "^6.8.3",
     "three": "^0.184.0"
   },
-  "optionalDependencies": {
-    "@stagetimerio/grandiose": "^0.2.0"
-  },
   "devDependencies": {
     "@electron/asar": "^3.4.1",
-    "electron": "^33.0.0",
+    "electron": "^43.0.0",
     "electron-builder": "^26.8.1",
-    "esbuild": "^0.24.2"
+    "esbuild": "^0.28.1"
   },
   "build": {
     "appId": "com.shape-rotator.os",
@@ -52,7 +49,7 @@
         ]
       }
     ],
-    "electronVersion": "33.4.11",
+    "electronVersion": "43.0.0",
     "npmRebuild": false,
     "nodeGypRebuild": false,
     "buildDependenciesFromSource": false,

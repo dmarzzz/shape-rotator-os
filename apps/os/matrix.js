@@ -1,24 +1,21 @@
 // matrix.js
 //
-// A minimal Matrix client that lives in the MAIN process and talks to the
-// cohort homeserver over the plain Client-Server HTTP API (no SDK, no E2EE).
+// A compact Matrix client that lives in the MAIN process and talks to the
+// cohort homeserver over the Client-Server HTTP API, with E2EE delegated to the
+// crash-contained crypto helper process.
 // The renderer never touches the network — it drives this module over IPC and
 // receives rooms/messages as broadcast events. That keeps the renderer's CSP
 // strict (it only does loopback IPC) and means the heavy lift (login, the
 // long-poll /sync loop, sending) all happens in Node where `fetch` is free of
 // CSP and CORS.
 //
-// SCOPE (v1): unencrypted channels only — read + write. Encrypted rooms (DMs,
-// any room with m.room.encryption) are listed but flagged `encrypted:true`;
-// their ciphertext is never decrypted here. When we add E2EE we swap THIS
-// module's transport for matrix-js-sdk + rust-crypto behind the same IPC
-// surface — the renderer doesn't change.
+// SCOPE: cohort chat rooms, including current-message Olm/Megolm E2EE. The
+// renderer still never touches the homeserver; it drives this module over IPC.
 //
 // Session lifecycle
 //   start(app)   — call on app.whenReady; resumes sync if a token is saved
 //   stop()       — call on before-quit; aborts the sync loop
 //   login(...)   — password login, persists the session, starts sync
-//   loginToken() — adopt an existing access token
 //   logout()     — drop the session + stop sync
 //
 // Persistence (under app userData — keyed to productName, stable across updates)
@@ -197,16 +194,22 @@ function cryptoPassphrase() {
 }
 
 // Authed homeserver call for the crypto engine. Returns { status, body } and
-// only throws on network failure, so the engine can distinguish "retry" (no
-// response / 5xx) from "mark as sent" (got a response).
+// only throws when no authenticated request should be made. The crypto engine
+// marks a request sent only after a 2xx response, so auth/rate-limit/server
+// failures remain retryable.
 async function cryptoHttp(method, apiPath, bodyObj) {
-  await ensureFreshToken();
-  const res = await fetch(hsBase() + apiPath, {
-    method,
-    headers: authHeaders(),
-    body: bodyObj === undefined ? undefined : JSON.stringify(bodyObj),
-  });
-  const body = await res.json().catch(() => ({}));
+  await ensureFreshTokenFor("crypto request");
+  const doFetch = async () => {
+    const res = await fetch(hsBase() + apiPath, {
+      method,
+      headers: authHeaders(),
+      body: bodyObj === undefined ? undefined : JSON.stringify(bodyObj),
+    });
+    const body = await res.json().catch(() => ({}));
+    return { res, body };
+  };
+  const first = await doFetch();
+  const { res, body } = await retrySoftLogoutOnce(first.res, first.body, doFetch, "crypto request");
   return { status: res.status, body };
 }
 
@@ -237,6 +240,35 @@ function log(msg) { try { process.stderr.write(`[matrix:log] ${msg}\n`); } catch
 
 function hsBase() { return (session?.homeserver || DEFAULT_HS).replace(/\/+$/, ""); }
 function authHeaders() { return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }; }
+
+function currentAccessTokenStillUsable() {
+  return !session?.oauth?.refreshToken || Date.now() < (session.oauth.expiresAt || 0);
+}
+
+async function ensureFreshTokenFor(action) {
+  const refreshed = await ensureFreshToken();
+  if (refreshed === "ok") return;
+  if (refreshed === "fatal") {
+    logOutExpired("Your session expired — please sign in again.");
+    throw new Error("Your session expired — please sign in again.");
+  }
+  if (!currentAccessTokenStillUsable()) {
+    throw new Error(`Couldn't refresh Matrix session before ${action}; retry when your connection is back.`);
+  }
+  warn(`token refresh unavailable before ${action}; trying the current access token`);
+}
+
+async function retrySoftLogoutOnce(res, body, retry, action) {
+  if (res.status !== 401 || !body?.soft_logout || !session?.oauth?.refreshToken) return { res, body };
+  const refreshed = await ensureFreshToken(true);
+  if (refreshed === "ok") return retry();
+  if (refreshed === "fatal") {
+    logOutExpired("Your session expired — please sign in again.");
+    throw new Error("Your session expired — please sign in again.");
+  }
+  warn(`soft-logout during ${action}, but token refresh is transiently unavailable`);
+  return { res, body };
+}
 
 function broadcast(channel, payload) {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -611,8 +643,8 @@ async function doRefresh() {
 
 // Keep an OAuth access token valid: refresh when within 90s of expiry, or when
 // forced after a soft-logout 401. Single-flight. Returns "ok" | "fatal" |
-// "transient" ("ok" for long-lived-token sessions — password / token-paste
-// against the cohort server — which never refresh).
+// "transient" ("ok" for long-lived password-login sessions against the
+// cohort server, which never refresh).
 async function ensureFreshToken(force = false) {
   if (!session?.oauth?.refreshToken) return "ok";
   if (!force && Date.now() < (session.oauth.expiresAt || 0) - 90000) return "ok";
@@ -886,24 +918,6 @@ async function login({ homeserver, user, password } = {}) {
   }
 }
 
-async function loginToken({ homeserver, token: tok } = {}) {
-  const hs = (homeserver || DEFAULT_HS).replace(/\/+$/, "");
-  try {
-    const res = await fetch(hs + "/_matrix/client/v3/account/whoami", {
-      headers: { Authorization: `Bearer ${tok}` },
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.user_id) return { ok: false, error: data.error || "token rejected" };
-    stopSync();
-    rooms.clear(); since = null;
-    saveSession({ homeserver: hs, userId: data.user_id, deviceId: data.device_id || null }, tok);
-    startSync();
-    return { ok: true, userId: data.user_id };
-  } catch (e) {
-    return { ok: false, error: e.message };
-  }
-}
-
 // ─── browser sign-in (SSO) ──────────────────────────────────────────────────
 // The credential-free path: the app opens the homeserver's SSO page in the
 // user's real browser, they authenticate with the cohort identity provider
@@ -1039,37 +1053,6 @@ async function loginWithCode({ homeserver, token } = {}) {
   const code = String(token || "").trim();
   if (!code) return { ok: false, error: "paste a login code first" };
   return applyLoginToken(hs, code);
-}
-
-// In-app device sign-in: the renderer hands us an access token from a device
-// the user is already signed into. We mint a short-lived login token from it
-// (get_token), redeem that for our OWN device session, and discard the access
-// token (we only persist the fresh token from redemption). The renderer can't
-// reach the homeserver directly (CSP), so the access token transits the main
-// process transiently — same trust as the rest of the app; never written down.
-async function loginWithAccessToken({ homeserver, accessToken } = {}) {
-  const hs = (homeserver || DEFAULT_HS).replace(/\/+$/, "");
-  const at = String(accessToken || "").trim();
-  if (!at) return { ok: false, error: "paste your access token first" };
-  let loginToken;
-  try {
-    const r = await fetch(hs + "/_matrix/client/v1/login/get_token", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${at}`, "Content-Type": "application/json" },
-      body: "{}",
-    });
-    const d = await r.json().catch(() => ({}));
-    if (r.status === 401 && d && d.flows) {
-      return { ok: false, error: "this server needs re-authentication for device sign-in (UIA) — not supported yet" };
-    }
-    if (!r.ok || !d.login_token) {
-      return { ok: false, error: d.error || d.errcode || `couldn't mint a code (HTTP ${r.status})` };
-    }
-    loginToken = d.login_token;
-  } catch (e) {
-    return { ok: false, error: e.message };
-  }
-  return applyLoginToken(hs, loginToken);
 }
 
 // ─── device-approval sign-in (MSC3882 login-token) ──────────────────────────
@@ -1230,9 +1213,22 @@ function getMessages(roomId) {
 
 async function getJoinedMembers(roomId) {
   const url = `${hsBase()}/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/joined_members`;
-  const res = await fetch(url, { headers: authHeaders() });
-  const data = await res.json().catch(() => ({}));
-  return Object.keys(data.joined || {});
+  await ensureFreshTokenFor("encrypted send");
+  const doFetch = async () => {
+    const res = await fetch(url, { headers: authHeaders() });
+    const body = await res.json().catch(() => ({}));
+    return { res, body };
+  };
+  const first = await doFetch();
+  const { res, body } = await retrySoftLogoutOnce(first.res, first.body, doFetch, "encrypted member lookup");
+  if (!res.ok) throw new Error(body.error || body.errcode || `couldn't read room members (HTTP ${res.status})`);
+  if (!body.joined || typeof body.joined !== "object" || Array.isArray(body.joined)) {
+    throw new Error("homeserver did not return joined room members");
+  }
+  const members = Object.keys(body.joined);
+  if (session?.userId && !members.includes(session.userId)) members.push(session.userId);
+  if (!members.length) throw new Error("homeserver returned no joined room members");
+  return members;
 }
 
 // PUT one event into a room and return { ok, eventId }.
@@ -1266,13 +1262,13 @@ async function buildMessage(roomId, r, content, relatesTo) {
 
 async function send(roomId, body, opts = {}) {
   if (!token || !session) return { ok: false, error: "not signed in" };
-  await ensureFreshToken();
-  const r = rooms.get(roomId);
-  const text = String(body || "").trim();
-  if (!text) return { ok: false, error: "empty message" };
-  const content = { msgtype: "m.text", body: text };
-  const relatesTo = opts.replyTo ? { "m.in_reply_to": { event_id: opts.replyTo } } : null;
   try {
+    await ensureFreshTokenFor("send");
+    const r = rooms.get(roomId);
+    const text = String(body || "").trim();
+    if (!text) return { ok: false, error: "empty message" };
+    const content = { msgtype: "m.text", body: text };
+    const relatesTo = opts.replyTo ? { "m.in_reply_to": { event_id: opts.replyTo } } : null;
     const { eventType, payload } = await buildMessage(roomId, r, content, relatesTo);
     return await rawSend(roomId, eventType, payload);
   } catch (e) {
@@ -1284,13 +1280,13 @@ async function send(roomId, body, opts = {}) {
 // m.replace relation rides on the outer event (see buildMessage).
 async function editMessage(roomId, eventId, body) {
   if (!token || !session) return { ok: false, error: "not signed in" };
-  await ensureFreshToken();
-  const r = rooms.get(roomId);
-  const text = String(body || "").trim();
-  if (!text) return { ok: false, error: "empty message" };
-  if (!eventId) return { ok: false, error: "no target" };
-  const content = { msgtype: "m.text", body: `* ${text}`, "m.new_content": { msgtype: "m.text", body: text } };
   try {
+    await ensureFreshTokenFor("edit");
+    const r = rooms.get(roomId);
+    const text = String(body || "").trim();
+    if (!text) return { ok: false, error: "empty message" };
+    if (!eventId) return { ok: false, error: "no target" };
+    const content = { msgtype: "m.text", body: `* ${text}`, "m.new_content": { msgtype: "m.text", body: text } };
     const { eventType, payload } = await buildMessage(roomId, r, content, { rel_type: "m.replace", event_id: eventId });
     return await rawSend(roomId, eventType, payload);
   } catch (e) {
@@ -1303,14 +1299,14 @@ async function editMessage(roomId, eventId, body) {
 async function react(roomId, eventId, key) {
   if (!token || !session) return { ok: false, error: "not signed in" };
   if (!eventId || !key) return { ok: false, error: "bad reaction" };
-  await ensureFreshToken();
-  const r = rooms.get(roomId);
-  const existing = r?.myReactions?.get(eventId)?.get(key);
-  if (existing) return redactEvent(roomId, existing);
   // Wrap like every other outbound path: a network-layer fetch rejection would
   // otherwise reject the IPC invoke (renderer unhandledrejection) instead of
   // returning the uniform { ok, error } shape callers expect.
   try {
+    await ensureFreshTokenFor("reaction");
+    const r = rooms.get(roomId);
+    const existing = r?.myReactions?.get(eventId)?.get(key);
+    if (existing) return redactEvent(roomId, existing);
     return await rawSend(roomId, "m.reaction", { "m.relates_to": { rel_type: "m.annotation", event_id: eventId, key } });
   } catch (e) {
     return { ok: false, error: e.message };
@@ -1319,10 +1315,10 @@ async function react(roomId, eventId, key) {
 
 async function redactEvent(roomId, eventId) {
   if (!token || !session) return { ok: false, error: "not signed in" };
-  await ensureFreshToken();
   const txnId = `srwk-${Date.now()}-${txn++}`;
   const url = `${hsBase()}/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/redact/${encodeURIComponent(eventId)}/${encodeURIComponent(txnId)}`;
   try {
+    await ensureFreshTokenFor("redact");
     const res = await fetch(url, { method: "PUT", headers: authHeaders(), body: JSON.stringify({}) });
     if (!res.ok) { const d = await res.json().catch(() => ({})); return { ok: false, error: d.error || `redact failed (HTTP ${res.status})` }; }
     return { ok: true };
@@ -1346,10 +1342,10 @@ async function markRead(roomId) {
   const eventId = r.lastEventId || (r.msgs.length ? r.msgs[r.msgs.length - 1].eventId : null);
   if (!eventId) return { ok: true, skipped: "no event" };
   if (eventId === r.lastReadEventId && !r.unread) return { ok: true, skipped: "already read" };
-  r.lastReadEventId = eventId;
-  if (r.unread) { r.unread = 0; broadcast("matrix:rooms", roomSummaries()); }
   try {
-    await ensureFreshToken();
+    await ensureFreshTokenFor("read receipt");
+    r.lastReadEventId = eventId;
+    if (r.unread) { r.unread = 0; broadcast("matrix:rooms", roomSummaries()); }
     const url = `${hsBase()}/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/read_markers`;
     const res = await fetch(url, {
       method: "POST",
@@ -1448,7 +1444,7 @@ function stop() { stopSync(); cancelSSO(); }
 
 module.exports = {
   start, stop,
-  getStatus, getFlows, login, loginToken, loginSSO, loginViaDevice, loginWithCode, loginWithAccessToken, cancelSSO, logout,
+  getStatus, getFlows, login, loginSSO, loginViaDevice, loginWithCode, cancelSSO, logout,
   loginMatrixOrg, loginMatrixOrgBrowser, cancelDevice, cancelMatrixOrgBrowser,
   getRooms, getMessages, send, markRead, getAvatar, react, editMessage, redactEvent,
 };

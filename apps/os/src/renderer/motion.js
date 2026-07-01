@@ -6,7 +6,7 @@
 // Why hand-roll this:
 //  - Framer Motion / GSAP would dominate the bundle and the design
 //    sensibility. The visualizer is small + opinionated. ~200 lines is enough.
-//  - View Transitions API is shipping in Chromium 111+; Electron 33 is
+//  - View Transitions API is shipping in Chromium 111+; current Electron is
 //    fine. We feature-detect and fall back to instant.
 //  - Spring constants tuned by feel against Sonner / Vaul references:
 //    tension 170, friction 26 reads as "thrown but not bouncy."

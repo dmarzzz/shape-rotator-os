@@ -27,6 +27,16 @@ let selfUserId = null;
 function warn(msg) { try { process.stderr.write(`[matrix-crypto:warn] ${msg}\n`); } catch {} }
 function log(msg) { try { process.stderr.write(`[matrix-crypto:log] ${msg}\n`); } catch {} }
 
+function cryptoRequestSucceeded(resp) {
+  return !!resp && Number(resp.status) >= 200 && Number(resp.status) < 300;
+}
+
+function cryptoRequestFailure(reqType, resp) {
+  const status = resp && resp.status !== undefined ? `HTTP ${resp.status}` : "no HTTP status";
+  const body = resp && resp.body && (resp.body.error || resp.body.errcode);
+  return `request ${reqType} ${status}${body ? ` (${body})` : ""}`;
+}
+
 // ── serialise every machine operation through one chain ──────────────────────
 // The OlmMachine store is transactional, but the protocol requires that request
 // draining and key sharing never interleave. A single mutex keeps it correct
@@ -96,7 +106,10 @@ async function sendOutgoingRequest(req) {
     warn(`request ${req.type} network error: ${e.message} — will retry`);
     return false; // transient: leave unmarked so it's retried next drain
   }
-  if (resp.status >= 500) { warn(`request ${req.type} HTTP ${resp.status} — will retry`); return false; }
+  if (!cryptoRequestSucceeded(resp)) {
+    warn(`${cryptoRequestFailure(req.type, resp)} — will retry, not marking sent`);
+    return false;
+  }
   await machine.markRequestAsSent(req.id, req.type, JSON.stringify(resp.body || {}));
   return true;
 }
@@ -159,6 +172,7 @@ async function decryptEvent(rawEvent, roomId) {
 //   historyVisibility : the room's m.room.history_visibility string
 async function encryptForRoom({ roomId, members, encInfo, historyVisibility, eventType, content }) {
   if (!machine) throw new Error("crypto not ready");
+  if (!Array.isArray(members) || members.length === 0) throw new Error("encrypted room member list is empty");
   const users = (members || []).map((u) => new B.UserId(u));
   return withLock(async () => {
     await machine.updateTrackedUsers(users);
@@ -166,6 +180,7 @@ async function encryptForRoom({ roomId, members, encInfo, historyVisibility, eve
     const claim = await machine.getMissingSessions(users);
     if (claim) {
       const r = await httpFn("POST", "/_matrix/client/v3/keys/claim", JSON.parse(claim.body));
+      if (!cryptoRequestSucceeded(r)) throw new Error(`${cryptoRequestFailure(claim.type, r)} before sharing room key`);
       await machine.markRequestAsSent(claim.id, claim.type, JSON.stringify(r.body || {}));
     }
     const settings = new B.EncryptionSettings();
@@ -177,6 +192,7 @@ async function encryptForRoom({ roomId, members, encInfo, historyVisibility, eve
 
     for (const req of await machine.shareRoomKey(new B.RoomId(roomId), users, settings)) {
       const r = await httpFn("PUT", `/_matrix/client/v3/sendToDevice/${encodeURIComponent(req.eventType)}/${encodeURIComponent(req.txnId)}`, JSON.parse(req.body));
+      if (!cryptoRequestSucceeded(r)) throw new Error(`${cryptoRequestFailure(req.type, r)} while sharing room key`);
       await machine.markRequestAsSent(req.id, req.type, JSON.stringify(r.body || {}));
     }
     const encrypted = await machine.encryptRoomEvent(new B.RoomId(roomId), eventType, JSON.stringify(content));
@@ -192,4 +208,4 @@ function close() {
   chain = Promise.resolve();
 }
 
-module.exports = { init, isReady, onSyncChanges, decryptEvent, encryptForRoom, close };
+module.exports = { init, isReady, onSyncChanges, decryptEvent, encryptForRoom, close, _test: { cryptoRequestSucceeded } };

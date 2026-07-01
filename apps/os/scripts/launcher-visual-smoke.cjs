@@ -178,7 +178,7 @@ app.whenReady().then(async () => {
     `);
 
     const labels = metrics.actions.map((item) => item.action);
-    const expected = ["chat", "search", "transcript", "sync", "mirror"];
+    const expected = ["chat", "search", "transcript", "sync"];
     if (JSON.stringify(labels) !== JSON.stringify(expected)) fail("unexpected action order", metrics);
     if (metrics.menu.x < 0 || metrics.menu.y < 0 || metrics.menu.right > metrics.viewport.width || metrics.menu.bottom > metrics.viewport.height) {
       fail("menu overflows viewport", metrics);

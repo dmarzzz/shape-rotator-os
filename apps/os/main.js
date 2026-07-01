@@ -59,7 +59,7 @@ function runSmokeTest() {
     },
   });
   win.webContents.on("console-message", (_e, a, b) => {
-    // Electron 33 emits (event, MessageDetails{level:number, message}); older
+    // Modern Electron emits (event, MessageDetails{level:number, message}); older
     // builds emit (event, level:number, message, …). Handle BOTH — the old
     // handler read the details OBJECT as `lvl`, so `lvl >= 2` was always false
     // and NO renderer output (errors, warnings, [smoke-cp] checkpoints) was ever
@@ -1602,21 +1602,19 @@ ipcMain.handle("fg:swf-agent-token", async () => swfNode.getAgentToken() || null
 // homeserver over the Client-Server HTTP API and streams rooms/messages
 // to the renderer via webContents.send on the "matrix:status|rooms|
 // messages" channels. The renderer (src/renderer/chat/) drives it through
-// these invoke handlers. v1 is unencrypted channels only; E2EE is a later
-// swap behind this same surface.
+// these invoke handlers. Matrix E2EE is owned by the main-process bridge and
+// crash-contained crypto helper; the renderer never receives Matrix secrets.
 ipcMain.handle("matrix:get-status", async () => matrix.getStatus());
 ipcMain.handle("matrix:flows", async (_e, hs) => matrix.getFlows(hs));
 ipcMain.handle("matrix:login-sso", async (_e, p) => matrix.loginSSO(p || {}));
 ipcMain.handle("matrix:login-device", async (_e, p) => matrix.loginViaDevice(p || {}));
 ipcMain.handle("matrix:login-code", async (_e, p) => matrix.loginWithCode(p || {}));
-ipcMain.handle("matrix:login-access-token", async (_e, p) => matrix.loginWithAccessToken(p || {}));
 ipcMain.handle("matrix:login-matrixorg", async () => matrix.loginMatrixOrg());
 ipcMain.handle("matrix:login-matrixorg-browser", async () => matrix.loginMatrixOrgBrowser());
 ipcMain.handle("matrix:cancel-device", async () => { matrix.cancelDevice(); return { ok: true }; });
 ipcMain.handle("matrix:cancel-matrixorg-browser", async () => { matrix.cancelMatrixOrgBrowser(); return { ok: true }; });
 ipcMain.handle("matrix:cancel-sso", async () => { matrix.cancelSSO(); return { ok: true }; });
 ipcMain.handle("matrix:login", async (_e, p) => matrix.login(p || {}));
-ipcMain.handle("matrix:login-token", async (_e, p) => matrix.loginToken(p || {}));
 ipcMain.handle("matrix:logout", async () => matrix.logout());
 ipcMain.handle("matrix:get-rooms", async () => matrix.getRooms());
 ipcMain.handle("matrix:get-messages", async (_e, roomId) => matrix.getMessages(roomId));

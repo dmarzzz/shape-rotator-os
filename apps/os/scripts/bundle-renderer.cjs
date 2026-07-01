@@ -36,6 +36,18 @@ const outfile = check
   ? path.join(fs.mkdtempSync(path.join(os.tmpdir(), "sros-bundle-")), "boot.bundle.js")
   : path.join(APP_DIR, "dist-renderer", "boot.bundle.js");
 
+function resolveNodeModuleFile(pkg, rel) {
+  let dir = APP_DIR;
+  for (let i = 0; i < 8; i++) {
+    const candidate = path.join(dir, "node_modules", pkg, rel);
+    if (fs.existsSync(candidate)) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  throw new Error(`could not resolve ${pkg}/${rel} from ${APP_DIR}`);
+}
+
 (async () => {
   try {
     const result = await esbuild.build({
@@ -43,13 +55,13 @@ const outfile = check
       bundle: true,
       format: "esm",           // preserves import.meta.url (cohort-source.js)
       platform: "browser",
-      target: ["chrome120"],   // electron 33 ships chromium ~130
+      target: ["chrome120"],   // conservative floor; Electron 43 ships newer Chromium
       outfile,
       sourcemap: !check,
       metafile: true,
       logLevel: "warning",
       alias: {
-        "three": path.join(APP_DIR, "node_modules", "three", "build", "three.module.js"),
+        "three": resolveNodeModuleFile("three", path.join("build", "three.module.js")),
         "js-yaml": path.join(APP_DIR, "src", "vendor", "js-yaml.mjs"),
         "@shape-rotator/shape-ui": path.join(APP_DIR, "src", "vendor", "shape-ui", "index.js"),
       },
