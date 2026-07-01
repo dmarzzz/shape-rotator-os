@@ -342,6 +342,13 @@ const state = {
     roots: [],
     mode: "articles",
     query: "",
+    tag: null,
+    prefs: null,          // lazy-loaded personalization (width / measure / size / accent)
+    preview: null,        // active restyle lens: { style, mode: "one" | "all" } — never persisted
+    previewId: null,      // the source id a "one" preview applies to
+    lastStyle: "",        // last restyle picked (used by "rewrite all")
+    previewCache: {},      // `${style}::${id}` -> rewritten markdown (in-memory only)
+    previewPending: {},    // `${style}::${id}` -> true while the bot is rewriting
     selectedId: null,
     selectedRawId: null,
     selectedText: "",
@@ -431,7 +438,8 @@ export function mount(container) {
       localStorage.setItem(ALCHEMY_LS_KEY, "mirror");
       localStorage.setItem(CONST_MODE_LS_KEY, "map");
     }
-    // Context page view (articles | raw | evidence) survives reloads.
+    // Context page view (articles | raw | evidence) survives reloads. Activity
+    // is menu-nested under Context, but remains its own renderer/mode.
     state.contextVault.mode = contextNormalizeView(localStorage.getItem(CONTEXT_VIEW_LS_KEY) || state.contextVault.mode);
     // intel folded into the context page (2026-06), then retired from the
     // context nav (2026-06-28): old intel users land on evidence.
@@ -517,6 +525,7 @@ export function mount(container) {
   loadEventsCache();
   if (state.container) {
     state.container.dataset.alchModeCurrent = state.mode;
+    document.body.dataset.alchMode = state.mode;
     if (state.mode === "constellation") {
       state.container.dataset.constModeCurrent = constNormalizeConstellationMode(state.constellationMode);
     } else {
@@ -1105,6 +1114,7 @@ function updateRailUnread() {
     return;
   }
   const counts = unreadCounts(state.cohort);
+  const activityUnreadCount = Number(counts.activity || 0);
   const unreadActivityRows = unreadRecordsForMode("activity", state.cohort);
   let askIdentity = {};
   try { askIdentity = currentAskContext().askIdentity || {}; } catch {}
@@ -1114,6 +1124,8 @@ function updateRailUnread() {
   );
   const ctxCount = unreadCountForFingerprints("context-v2", contextVaultFingerprints());
   if (ctxCount > 0) counts.context = ctxCount;
+  if (activityUnreadCount > 0) counts.context = (Number(counts.context || 0) + activityUnreadCount);
+  delete counts.activity; // folded into Context; avoid double-counting app unread.
   const calCount = unreadCountForFingerprints("calendar-pub", calendarFingerprints());
   if (calCount > 0) counts.calendar = calCount;
   const totalUnread = Object.values(counts).reduce((sum, n) => sum + (Number(n) || 0), 0);
@@ -1139,12 +1151,12 @@ function updateRailUnread() {
 function syncRailSelection() {
   if (!state.rail) return;
   // Constellation views live inside the cohort page now (2026-06), so the
-  // "shapes" rail entry lights up for both internal modes. Same for intel,
-  // which lives inside the context page.
+  // "shapes" rail entry lights up for both internal modes. Same for intel and
+  // activity, which now read as Context children in the menu.
   let activeMode = state.mode === "collab" ? "constellation" : state.mode;
   if (activeMode === "constellation") activeMode = "shapes";
   if (activeMode === "intel") activeMode = "context";
-  if (activeMode === "asks") activeMode = "activity";
+  if (activeMode === "asks" || activeMode === "activity") activeMode = "context";
   for (const btn of state.rail.querySelectorAll(".alchemy-rail-btn")) {
     btn.setAttribute("aria-selected", btn.dataset.alchMode === activeMode ? "true" : "false");
   }
@@ -1239,6 +1251,17 @@ function selectContextView(view) {
   return true;
 }
 
+// Activity keeps its renderer/mode, but is presented under Context in the rail.
+function selectContextActivityView() {
+  if (state.mode === "activity" && !state.detailRecordId) return false;
+  state.mode = "activity";
+  clearDetailIfOpen();
+  try { localStorage.setItem(ALCHEMY_LS_KEY, "activity"); } catch {}
+  syncRailSelection();
+  render();
+  return true;
+}
+
 // Switch to a calendar view ("cal" grid | "presence" gantt). Navigates to the
 // calendar page first if needed; mirror of selectContextView.
 function selectCalendarView(view) {
@@ -1305,10 +1328,17 @@ function railSubnavSpecs() {
       railMode: "context",
       id: "context-subnav",
       ariaLabel: "context views",
-      views: () => CONTEXT_VIEWS.map(v => ({ key: v.view, label: v.label, hint: v.hint })),
-      current: () => (state.mode === "context" ? contextNormalizeView(state.contextVault.mode) : null),
-      select: (key) => selectContextView(key),
-      isActive: () => state.mode === "context" && !state.detailRecordId,
+      views: () => [
+        ...CONTEXT_VIEWS.map(v => ({ key: v.view, label: v.label, hint: v.hint })),
+        { key: "activity", label: "asks & activity", hint: "open asks and cohort updates" },
+      ],
+      current: () => (
+        state.mode === "activity" || state.mode === "asks"
+          ? "activity"
+          : (state.mode === "context" ? contextNormalizeView(state.contextVault.mode) : null)
+      ),
+      select: (key) => key === "activity" ? selectContextActivityView() : selectContextView(key),
+      isActive: () => (state.mode === "context" || state.mode === "activity" || state.mode === "asks") && !state.detailRecordId,
     },
     {
       railMode: "calendar",
@@ -1516,6 +1546,7 @@ function render(opts = {}) {
   // (membrane.css especially) can target the right surface.
   if (state.container) {
     state.container.dataset.alchModeCurrent = state.mode;
+    document.body.dataset.alchMode = state.mode;
     if (state.mode === "constellation") {
       state.container.dataset.constModeCurrent = constNormalizeConstellationMode(state.constellationMode);
     } else {
@@ -14571,11 +14602,9 @@ function wireAsks() {
 }
 
 // ─── context vault ──────────────────────────────────────────────────
-// Local article-index surface. Raw source notes stay on disk in
-// user-controlled folders; main.js builds one private article index plus
-// a metadata manifest under Electron userData/context-vault. The renderer
-// can then promote selected, public-safe summaries into the existing
-// GitHub PR flow for asks or program notes.
+// Context surface. Public/hosted articles arrive through cohort-source.js
+// (`surface.cohort_articles`). Electron can additionally expose an optional
+// device raw-file lane through IPC, but the page must work without it.
 
 function contextVaultAvailable() {
   return !!(window.api?.loadContextVault && window.api?.scanContextVault);
@@ -14583,7 +14612,16 @@ function contextVaultAvailable() {
 
 async function loadContextVault({ scan = false } = {}) {
   if (!contextVaultAvailable()) {
-    state.contextVault.error = "Context Vault IPC is not available in this build.";
+    state.contextVault.manifest = {
+      schema_version: 2,
+      sources: [],
+      raw_scripts: [],
+      roots: [],
+      totals: { articles: 0, sources: 0, raw_scripts: 0 },
+    };
+    state.contextVault.roots = [];
+    state.contextVault.error = "";
+    state.contextVault.message = "";
     state.contextVault.loaded = true;
     state.contextVault.loading = false;
     render();
@@ -14725,9 +14763,9 @@ async function selectContextSource(sourceId) {
   render();
 }
 
-// The context page's views. Articles + transcripts come from the local vault;
-// evidence is the reviewed/public-safe transcript-card lane. Retired names
-// (signals/data/intel/cards) normalize to evidence so old links keep working.
+// The context page's views. Articles prefer hosted/public cohort articles and
+// can be enriched by an optional device-local vault; evidence is the reviewed
+// public-safe transcript-card lane. Retired names normalize to evidence.
 function contextNormalizeView(raw) {
   const v = String(raw || "").toLowerCase();
   if (v === "article") return "articles";
@@ -14739,7 +14777,7 @@ function contextNormalizeView(raw) {
 
 const CONTEXT_VIEWS = [
   { view: "articles", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>', label: "articles", hint: "reader-facing drafts from the vault" },
-  { view: "raw",      glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="21" x2="3" y1="6" y2="6"/><line x1="15" x2="3" y1="12" y2="12"/><line x1="17" x2="3" y1="18" y2="18"/></svg>', label: "transcripts", hint: "your local raw vault + the cohort's distilled readouts (live)" },
+  { view: "raw",      glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="21" x2="3" y1="6" y2="6"/><line x1="15" x2="3" y1="12" y2="12"/><line x1="17" x2="3" y1="18" y2="18"/></svg>', label: "transcripts", hint: "distilled readouts + optional device raw files" },
   { view: "evidence", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg>', label: "evidence", hint: "distilled evidence cards, live from Supabase" },
 ];
 
@@ -14991,9 +15029,24 @@ function buildContextArticleMarkdown(source) {
 }
 
 function renderContextReaderHtml(source) {
+  // Ephemeral restyle preview: if the bot has rewritten this article, show that
+  // Markdown instead — clearly banner-marked "not saved". While it's rewriting,
+  // keep the original visible under a "working" banner.
+  const pStyle = contextPreviewApplies(source);
+  const pMd = pStyle ? contextPreviewMd(source) : null;
+  if (pMd) {
+    return `
+      <article class="alch-cv-reader alch-cv-article-md">
+        ${contextPreviewBannerHtml(pStyle, false)}
+        ${renderProgramMarkdown(pMd)}
+      </article>
+    `;
+  }
+  const banner = pStyle ? contextPreviewBannerHtml(pStyle, contextPreviewPending(source)) : "";
   if (source?.article_body_md) {
     return `
       <article class="alch-cv-reader alch-cv-article-md">
+        ${banner}
         ${renderProgramMarkdown(source.article_body_md)}
       </article>
     `;
@@ -15008,6 +15061,7 @@ function renderContextReaderHtml(source) {
   `).join("");
   return `
     <article class="alch-cv-reader">
+      ${banner}
       <p class="alch-cv-reader-kicker">${escHtml(reader.kicker)}</p>
       <h1>${escHtml(title)}</h1>
       <p class="alch-cv-reader-lede">${escHtml(reader.lede)}</p>
@@ -15029,6 +15083,21 @@ function renderContextVaultDetail(selected) {
           <span class="alch-cv-eyebrow">reader draft · markdown</span>
         </div>
         <div class="alch-cv-detail-actions">
+          <div class="alch-cv-restyle-wrap">
+            <button class="alch-cv-md-action" type="button" data-cv-restyle-toggle aria-expanded="false" title="ask the corner bot to restyle this — preview only, not saved">
+              <span class="alch-cv-md-action-label">restyle</span>
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="alch-cv-restyle-menu" data-cv-restyle-menu>
+              <p class="alch-cv-restyle-head">The corner bot rewrites this into a preview. Nothing's saved.</p>
+              <button class="alch-cv-restyle-opt" type="button" data-cv-restyle="plainer">Plainer</button>
+              <button class="alch-cv-restyle-opt" type="button" data-cv-restyle="shorter">Shorter</button>
+              <button class="alch-cv-restyle-opt" type="button" data-cv-restyle="technical">More technical</button>
+              <button class="alch-cv-restyle-opt" type="button" data-cv-restyle="eli5">ELI5</button>
+              <div class="alch-cv-restyle-sep"></div>
+              <button class="alch-cv-restyle-opt is-all" type="button" data-cv-restyle-all>Rewrite all articles</button>
+            </div>
+          </div>
           <button class="alch-cv-md-action" type="button" data-cv-copy-article="${escAttr(selected.id)}" title="copy ${escAttr(selectedMdFile)}">
             <span class="alch-cv-md-action-label">copy .md</span>
             <span class="alch-cv-md-action-file">${escHtml(selectedMdFile)}</span>
@@ -15046,8 +15115,8 @@ function renderContextVaultDetail(selected) {
     </article>
   ` : `
     <article class="alch-cv-detail alch-cv-empty-detail">
-      <h3>no articles indexed yet</h3>
-      <p>Refresh the private article index to load articles.</p>
+      <h3>no articles yet</h3>
+      <p>Published context will appear here when it is available.</p>
     </article>
   `;
 }
@@ -15240,8 +15309,8 @@ function renderContextVaultRawDetail(selected) {
   if (!selected) {
     return `
       <article class="alch-cv-detail alch-cv-empty-detail">
-        <h3>no transcripts indexed yet</h3>
-        <p>Refresh the context vault to load bundled and local transcripts.</p>
+        <h3>no raw transcripts on this device</h3>
+        <p>Paste context above to submit it, or switch to distilled when readouts are available.</p>
       </article>
     `;
   }
@@ -15520,12 +15589,10 @@ function evidenceTierToggleHtml(tier) {
   </div>`;
 }
 
-// ─── Transcripts tab: raw (local vault) ↔ distilled (cohort) source toggle ───
-// The transcripts tab shows two sources: the user's LOCAL raw vault (manifest
-// raw_scripts, on this machine) and the cohort's DISTILLED readouts read live from
-// Supabase (cohort_app_transcript_distillations, overlaid by cohort-source.js
-// applyDistillationOverlay). Distilled is empty until a cohort key is provisioned —
-// the public web / un-provisioned build shows raw only.
+// ─── Transcripts tab: raw (device files) ↔ distilled (hosted cohort) toggle ───
+// The transcripts tab has an optional device-local raw lane (Electron IPC only)
+// and a portable distilled-readout lane from Supabase. Public/browser builds may
+// have neither; that is a normal empty state, not a setup failure.
 const TRANSCRIPTS_SOURCE_LS_KEY = "srfg:transcripts_source";
 
 function contextDistilledList() {
@@ -15539,8 +15606,8 @@ function contextDistilledById(id) {
 }
 
 // Which source the transcripts tab shows. Honors an explicit toggle choice; with
-// none, prefers distilled when the app actually read any (cohort key present), else
-// falls back to the local raw vault — never lands on an empty side.
+// none, prefers distilled when the app actually read any, else raw. Raw may still
+// be empty on public/browser builds; the empty state explains that calmly.
 function contextTranscriptsSource() {
   let saved = "";
   try { saved = String(localStorage.getItem(TRANSCRIPTS_SOURCE_LS_KEY) || "").toLowerCase(); } catch {}
@@ -15571,7 +15638,7 @@ async function submitCohortKeyForm(form) {
   const hasKey = !!String(raw || "").trim();
   cv.error = "";
   if (!hasKey) {
-    cv.message = "Cohort key cleared — showing your local raw vault.";
+    cv.message = "Cohort key cleared — showing any raw files available on this device.";
     try { localStorage.setItem(TRANSCRIPTS_SOURCE_LS_KEY, "raw"); } catch {}
     renderContextVault(); wireContextVault();
     return;
@@ -15594,7 +15661,7 @@ function transcriptsSourceToggleHtml(source, rawCount, distilledCount) {
   const opt = (s, label, count, hint) =>
     `<button class="alch-ev-tier-btn${source === s ? " is-on" : ""}" data-cv-tsource="${s}" type="button" aria-pressed="${source === s}" title="${escAttr(hint)}">${label}${Number.isFinite(count) ? ` ${count}` : ""}</button>`;
   return `<div class="alch-ev-tier alch-cv-tsource" role="group" aria-label="transcripts source">
-    ${opt("raw", "raw", rawCount, "your local vault — raw source transcripts on this machine")}
+    ${opt("raw", "raw", rawCount, "optional raw source files on this device")}
     ${opt("distilled", "distilled", distilledCount, "cohort tier — cleaned, paraphrased session readouts, read live from Supabase")}
   </div>`;
 }
@@ -15643,8 +15710,8 @@ function renderDistilledTranscriptDetail(selected) {
   if (!selected) {
     const configured = cohortKeyConfigured();
     const lede = configured
-      ? `A cohort key is set, but no distilled readouts came back — the key may be wrong/expired, or no sessions are distilled, reviewed &amp; published yet. Re-enter a key below, or switch to <em>raw</em> above for your local vault.`
-      : `The cohort's distilled readouts load live from Supabase once a cohort key is provisioned. Paste one below to read them on this machine, or switch to <em>raw</em> above for your local vault.`;
+      ? `A cohort key is set, but no distilled readouts came back — the key may be wrong/expired, or no sessions are distilled, reviewed &amp; published yet. Re-enter a key below, or check raw only if this device has source files.`
+      : `The cohort's distilled readouts load live from Supabase once a cohort key is provisioned. Public builds can still use the generalized evidence tab without any local files.`;
     return `
       <article class="alch-cv-detail alch-cv-empty-detail">
         <h3>no distilled transcripts yet</h3>
@@ -15733,6 +15800,285 @@ function renderContextEvidence(tier, t3cards, t2cards, insights) {
   return `${toggle}${body}`;
 }
 
+// ── Context reader personalization (device-only prefs) ──────────────────
+const CV_PREFS_LS = { w: "srwk:cv_sidebar_w", measure: "srwk:cv_measure", size: "srwk:cv_size", accent: "srwk:cv_accent" };
+// personal accent -> hover pair. The chosen accent tints ONLY this page (set on
+// .alch-cv), never the shared design system.
+const CV_ACCENTS = { "#EAB308": "#FACC15", "#3B82F6": "#60A5FA", "#22C55E": "#4ADE80", "#8B5CF6": "#A78BFA", "#EC4899": "#F472B6" };
+
+function contextPrefs() {
+  const cv = state.contextVault;
+  if (cv.prefs) return cv.prefs;
+  const get = (k, d) => { try { return localStorage.getItem(k) || d; } catch { return d; } };
+  const w = parseInt(get(CV_PREFS_LS.w, ""), 10);
+  cv.prefs = {
+    sidebarW: Number.isFinite(w) ? Math.max(180, Math.min(380, w)) : 264,
+    measure: get(CV_PREFS_LS.measure, "70ch"),
+    size: get(CV_PREFS_LS.size, "15px"),
+    accent: (get(CV_PREFS_LS.accent, "") || "").toUpperCase(),
+  };
+  return cv.prefs;
+}
+
+function saveContextPref(key, value) {
+  try { localStorage.setItem(key, value); } catch {}
+}
+
+// Push the current prefs onto the live .alch-cv element as CSS vars. Runs after
+// every full render; detail-only swaps keep the vars since .alch-cv isn't rebuilt.
+function applyContextPrefs() {
+  const p = contextPrefs();
+  const root = state.canvas && state.canvas.querySelector(".alch-cv");
+  if (!root) return;
+  root.style.setProperty("--cv-sidebar-w", `${p.sidebarW}px`);
+  root.style.setProperty("--cv-measure", p.measure);
+  root.style.setProperty("--cv-fs", p.size);
+  if (p.accent && CV_ACCENTS[p.accent]) {
+    root.style.setProperty("--ds-accent", p.accent);
+    root.style.setProperty("--ds-accent-hover", CV_ACCENTS[p.accent]);
+  } else {
+    root.style.removeProperty("--ds-accent");
+    root.style.removeProperty("--ds-accent-hover");
+  }
+}
+
+// The header toolbar: snapshot + reader settings (width / text size / accent).
+function canCaptureContextSnapshot() {
+  return !!(
+    typeof window !== "undefined"
+    && window.api
+    && typeof window.api.captureRect === "function"
+    && typeof window.api.exportCalendar === "function"
+  );
+}
+
+function contextToolbarHtml() {
+  const p = contextPrefs();
+  const canSnapshot = canCaptureContextSnapshot();
+  const seg = (set, val, cur, label) =>
+    `<button class="alch-cv-seg${val === cur ? " is-on" : ""}" type="button" data-cv-pref="${set}" data-v="${escAttr(val)}">${label}</button>`;
+  const activeAccent = (p.accent && CV_ACCENTS[p.accent]) ? p.accent : "#EAB308";
+  const sw = (val) =>
+    `<button class="alch-cv-sw${val === activeAccent ? " is-on" : ""}" type="button" data-cv-pref="accent" data-v="${val}" style="background:${val}" title="${val}" aria-label="accent ${val}"></button>`;
+  return `
+    <div class="alch-cv-toolbar">
+      <button class="alch-cv-tool${canSnapshot ? "" : " is-disabled"}" type="button" data-cv-snapshot${canSnapshot ? "" : " disabled aria-disabled=\"true\""} title="${canSnapshot ? "Save this reader as a PNG" : "Snapshots are available in the desktop app"}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-2h6l2 2h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg>snapshot
+      </button>
+      <button class="alch-cv-tool" type="button" data-cv-settings aria-expanded="false" title="Reader settings — make it yours">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>Aa
+      </button>
+      <div class="alch-cv-pop" data-cv-pop>
+        <div class="alch-cv-pop-group">
+          <h5>Reading width</h5>
+          <div class="alch-cv-seg-row">${seg("measure", "56ch", p.measure, "narrow")}${seg("measure", "70ch", p.measure, "comfortable")}${seg("measure", "84ch", p.measure, "wide")}</div>
+        </div>
+        <div class="alch-cv-pop-group">
+          <h5>Text size</h5>
+          <div class="alch-cv-seg-row">${seg("size", "14px", p.size, "small")}${seg("size", "15px", p.size, "medium")}${seg("size", "17px", p.size, "large")}</div>
+        </div>
+        <div class="alch-cv-pop-group">
+          <h5>Your accent</h5>
+          <div class="alch-cv-sw-row">${Object.keys(CV_ACCENTS).map(sw).join("")}</div>
+        </div>
+        <p class="alch-cv-pop-note">Saved to this device only — your copy. The shared design system doesn't change.</p>
+      </div>
+    </div>`;
+}
+
+// Tags for the current view — articles: skill_areas; distilled: themes; raw: source_kind.
+function contextTagsForView(mode, tsource, sources, rawScripts, distilled) {
+  const set = new Set();
+  const add = (arr) => (Array.isArray(arr) ? arr : []).forEach((t) => { const s = String(t || "").trim(); if (s) set.add(s); });
+  if (mode === "articles") (sources || []).forEach((s) => add(s.skill_areas));
+  else if (tsource === "distilled") (distilled || []).forEach((s) => add(s.themes));
+  else (rawScripts || []).forEach((s) => { const k = String(s.source_kind || "").trim(); if (k) set.add(k); });
+  return [...set].slice(0, 20);
+}
+
+function contextTagChipsHtml(tags, active) {
+  if (!tags || !tags.length) return "";
+  return `<div class="alch-cv-tags">${tags.map((t) =>
+    `<button class="alch-cv-tag${t === active ? " is-on" : ""}" type="button" data-cv-tag="${escAttr(t)}">#${escHtml(t)}</button>`).join("")}</div>`;
+}
+
+function contextSourceTagsAttr(source) {
+  const tags = Array.isArray(source && source.skill_areas) ? source.skill_areas : [];
+  const bits = [...tags, source && source.article_section].map((t) => String(t || "").trim()).filter(Boolean);
+  return escAttr(bits.join(" "));
+}
+
+// ── Bot restyle (ephemeral, never saved) ────────────────────────────────
+const RESTYLE_LABELS = { plainer: "plainer", shorter: "shorter", technical: "more technical", eli5: "ELI5" };
+const RESTYLE_INSTR = {
+  plainer: "Rewrite it in plain, friendly English. Keep every point and the section structure; just simplify the wording. Keep it about the same length.",
+  shorter: "Rewrite it about half as long. Keep the title and section headings and the key points; cut the elaboration.",
+  technical: "Rewrite it for a technical reader — precise, with more concrete implementation detail. Keep the section structure.",
+  eli5: "Rewrite it so a smart friend outside the field understands it — simple analogies, no jargon. Keep the section headings.",
+};
+function contextRestylePrompt(source, md, style) {
+  return [
+    "You are restyling a Markdown article into a personal, unsaved PREVIEW. This is a pure rewrite task: do NOT propose actions, do NOT add commentary, a preamble, or a sign-off.",
+    `Restyle instruction: ${RESTYLE_INSTR[style] || "Rewrite it more clearly."}`,
+    "Keep the same Markdown shape: one top-level `# title`, then `## sections`. Output ONLY the rewritten Markdown — nothing before or after it.",
+    "",
+    "ARTICLE:",
+    "```markdown",
+    md,
+    "```",
+  ].join("\n");
+}
+function contextCleanRewrite(text) {
+  let s = String(text || "").trim();
+  const m = s.match(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$/);
+  if (m) s = m[1].trim();
+  return s;
+}
+
+function previewKey(style, id) { return `${style}::${id}`; }
+// Which restyle applies to a given article (null if none / not an article view).
+function contextPreviewApplies(source) {
+  const pv = state.contextVault.preview;
+  if (!pv || !source) return null;
+  if (pv.mode === "all") return pv.style;
+  if (pv.mode === "one" && state.contextVault.previewId === source.id) return pv.style;
+  return null;
+}
+function contextPreviewMd(source) {
+  const style = contextPreviewApplies(source);
+  return style ? (state.contextVault.previewCache[previewKey(style, source.id)] || null) : null;
+}
+function contextPreviewPending(source) {
+  const style = contextPreviewApplies(source);
+  return style ? !!state.contextVault.previewPending[previewKey(style, source.id)] : false;
+}
+function contextPreviewBannerHtml(style, pending) {
+  const label = escHtml(RESTYLE_LABELS[style] || style);
+  return pending
+    ? `<div class="alch-cv-pvbanner is-working"><span class="alch-cv-pvdot"></span><b>preview</b> the bot is rewriting this — ${label}…<button class="alch-cv-pvrevert" type="button" data-cv-revert>cancel</button></div>`
+    : `<div class="alch-cv-pvbanner"><span class="alch-cv-pvdot"></span><b>preview</b> restyled ${label} · not saved<button class="alch-cv-pvrevert" type="button" data-cv-revert>revert</button></div>`;
+}
+
+// Re-render just the selected article's detail pane in place (mirrors selectContextSource).
+function refreshContextArticleDetail() {
+  const selected = contextSourceById(state.contextVault.selectedId);
+  const detail = state.canvas && state.canvas.querySelector(".alch-cv-detail");
+  if (selected && detail) {
+    detail.outerHTML = renderContextVaultDetail(selected);
+    wireContextVaultDetailActions(state.canvas);
+  }
+}
+
+async function requestContextRewrite(source, style) {
+  const cv = state.contextVault;
+  const key = previewKey(style, source.id);
+  if (cv.previewCache[key]) return true;
+  cv.previewPending[key] = true;
+  if (state.mode === "context" && cv.selectedId === source.id) refreshContextArticleDetail();
+  let res;
+  try {
+    const mod = await import("./cohort-chat.js");
+    res = await mod.runCohortEphemeralPrompt(
+      contextRestylePrompt(source, buildContextArticleMarkdown(source), style),
+      { userLabel: `Restyle “${contextArticleTitle(source)}” — ${RESTYLE_LABELS[style] || style} (preview only, not saved)` },
+    );
+  } catch (e) { res = { ok: false, error: (e && e.message) || "chat unavailable" }; }
+  delete cv.previewPending[key];
+  const ok = !!(res && res.ok && res.text);
+  if (ok) cv.previewCache[key] = contextCleanRewrite(res.text);
+  if (state.mode === "context" && cv.selectedId === source.id) refreshContextArticleDetail();
+  return ok ? true : (res || { ok: false, error: "no reply" });
+}
+
+// "Restyle this" — rewrite the open article into a one-off preview.
+async function restyleOneArticle(style) {
+  const cv = state.contextVault;
+  const source = contextSourceById(cv.selectedId);
+  if (!source) return;
+  cv.lastStyle = style;
+  cv.preview = { style, mode: "one" };
+  cv.previewId = source.id;
+  if (state.mode === "context") { renderContextVault(); wireContextVault(); }
+  const r = await requestContextRewrite(source, style);
+  if (r !== true) {
+    if (r && r.error === "busy") contextToast("The bot is busy right now — try again in a moment.", true);
+    else contextToast(`Couldn't rewrite: ${(r && r.error) || "no reply"}`, true);
+  }
+}
+
+// "Rewrite all articles" — set the lens, then rewrite each one in turn, caching
+// results. Reverting mid-run stops the queue. Nothing is written anywhere.
+async function rewriteAllArticles(style) {
+  const cv = state.contextVault;
+  cv.lastStyle = style;
+  cv.preview = { style, mode: "all" };
+  cv.previewId = null;
+  if (state.mode === "context") { renderContextVault(); wireContextVault(); }
+  const sources = contextArticleSources();
+  let done = 0, failed = 0;
+  for (let i = 0; i < sources.length; i += 1) {
+    if (!cv.preview || cv.preview.mode !== "all" || cv.preview.style !== style) return; // reverted
+    contextToast(`Rewriting ${i + 1}/${sources.length} — ${RESTYLE_LABELS[style] || style}…`, false);
+    const r = await requestContextRewrite(sources[i], style);
+    if (r === true) done += 1; else failed += 1;
+  }
+  contextToast(failed
+    ? `Rewrote ${done}, ${failed} couldn't be done — preview only, nothing saved.`
+    : `Rewrote all ${done} — preview only, nothing saved.`, failed > 0);
+}
+
+function clearContextPreview() {
+  const cv = state.contextVault;
+  cv.preview = null;
+  cv.previewId = null;
+  if (state.mode === "context") { renderContextVault(); wireContextVault(); }
+}
+
+// ── Snapshot the reader to a PNG (reuses the capture + save IPCs) ────────
+const CV_ICON_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+const CV_ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+
+function contextToast(text, isError = false, path = "") {
+  let el = document.querySelector(".alch-cv-toast");
+  if (!el) { el = document.createElement("div"); document.body.appendChild(el); }
+  el.className = `alch-cv-toast${isError ? " is-error" : ""}`;
+  el.innerHTML = `<span class="alch-cv-toast-ic">${isError ? CV_ICON_X : CV_ICON_CHECK}</span>`
+    + `<span class="alch-cv-toast-msg">${escHtml(text)}</span>`
+    + (path ? `<span class="alch-cv-toast-path">${escHtml(path)}</span>` : "");
+  requestAnimationFrame(() => el.classList.add("is-show"));
+  clearTimeout(state.contextVault._toastT);
+  state.contextVault._toastT = setTimeout(() => { el.classList.remove("is-show"); }, 3400);
+}
+
+async function snapshotContextReader() {
+  const target = (state.canvas && (state.canvas.querySelector(".alch-cv-reader") || state.canvas.querySelector(".alch-cv"))) || null;
+  if (!target) return;
+  if (!window.api || typeof window.api.captureRect !== "function") {
+    contextToast("Snapshots need the desktop app.", true);
+    return;
+  }
+  const r = target.getBoundingClientRect();
+  const rect = {
+    x: Math.max(0, r.left),
+    y: Math.max(0, r.top),
+    width: Math.min(r.width, window.innerWidth - Math.max(0, r.left)),
+    height: Math.min(r.height, window.innerHeight - Math.max(0, r.top)),
+  };
+  let cap;
+  try { cap = await window.api.captureRect(rect); } catch (e) { cap = { ok: false }; }
+  if (!cap || !cap.ok || !cap.dataUrl) { contextToast("Couldn't capture the reader.", true); return; }
+  const source = contextSourceById(state.contextVault.selectedId);
+  const base = contextSlug(source ? contextArticleTitle(source) : "context", "context");
+  const filename = `shape-rotator-${base}${state.contextVault.preview ? "-preview" : ""}`;
+  if (!window.api.exportCalendar) { contextToast("Saved to clipboard isn't available here.", true); return; }
+  let saved;
+  try { saved = await window.api.exportCalendar({ format: "png", dataUrl: cap.dataUrl, filename }); }
+  catch (e) { saved = { ok: false }; }
+  if (saved && saved.ok) contextToast("Saved snapshot", false, saved.path || "");
+  else if (saved && saved.reason === "cancelled") { /* user dismissed the dialog */ }
+  else contextToast("Couldn't save the snapshot.", true);
+}
+
 function renderContextVault() {
   const cv = state.contextVault;
   const view = contextNormalizeView(cv.mode);
@@ -15756,7 +16102,7 @@ function renderContextVault() {
     const { t2cards, t3cards, insights } = contextEvidenceData();
     state.canvas.innerHTML = `
       <section class="alch-cv">
-        ${pageHeadHtml({ nav })}
+        ${pageHeadHtml({ nav, side: contextToolbarHtml() })}
         ${renderContextEvidence(tier, t3cards, t2cards, insights)}
       </section>
     `;
@@ -15769,8 +16115,8 @@ function renderContextVault() {
   const selectedRaw = pendingRaw || contextRawScriptById(cv.selectedRawId) || rawScripts[0] || null;
   if (selected && !cv.selectedId) cv.selectedId = selected.id;
   if (selectedRaw && !cv.selectedRawId) cv.selectedRawId = selectedRaw.id;
-  // Transcripts tab has two sources: the local raw vault and the cohort's live
-  // distilled readouts. A toggle swaps the sidebar list + the detail pane.
+  // Transcripts tab has two possible sources: optional device raw files and the
+  // cohort's hosted distilled readouts. A toggle swaps the list + detail pane.
   const tsource = mode === "raw" ? contextTranscriptsSource() : "raw";
   const distilled = mode === "raw" ? contextDistilledList() : [];
   const selectedDistilled = tsource === "distilled"
@@ -15785,8 +16131,10 @@ function renderContextVault() {
       const selectedCls = selected && selected.id === s.id ? " is-selected" : "";
       const title = contextArticleTitle(s);
       const meta = contextArticleMeta(s);
+      const pvBadge = contextPreviewApplies(s) ? `<span class="alch-cv-pvbadge">preview</span>` : "";
       return `
-        <button class="alch-cv-source${selectedCls}" type="button" data-cv-source="${escAttr(s.id)}">
+        <button class="alch-cv-source${selectedCls}" type="button" data-cv-source="${escAttr(s.id)}" data-cv-tags="${contextSourceTagsAttr(s)}">
+          ${pvBadge}
           <strong>${escHtml(title)}</strong>
           ${meta ? `<span class="alch-cv-source-meta">${escHtml(meta)}</span>` : ""}
         </button>
@@ -15797,7 +16145,7 @@ function renderContextVault() {
     sourceRows = distilled.map(s => {
       const selectedCls = selectedDistilled && selectedDistilled.id === s.id ? " is-selected" : "";
       return `
-        <button class="alch-cv-source alch-cv-transcript-source${selectedCls}" type="button" data-cv-distilled-source="${escAttr(s.id)}">
+        <button class="alch-cv-source alch-cv-transcript-source${selectedCls}" type="button" data-cv-distilled-source="${escAttr(s.id)}" data-cv-tags="${escAttr((Array.isArray(s.themes) ? s.themes : []).join(" "))}">
           <strong>${escHtml(distilledTranscriptTitle(s))}</strong>
           <span class="alch-cv-source-meta">${escHtml(distilledTranscriptMeta(s))}</span>
         </button>
@@ -15808,7 +16156,7 @@ function renderContextVault() {
     sourceRows = rawScripts.map(s => {
       const selectedCls = selectedRaw && selectedRaw.id === s.id ? " is-selected" : "";
       return `
-        <button class="alch-cv-source alch-cv-transcript-source${selectedCls}" type="button" data-cv-raw-source="${escAttr(s.id)}">
+        <button class="alch-cv-source alch-cv-transcript-source${selectedCls}" type="button" data-cv-raw-source="${escAttr(s.id)}" data-cv-tags="${escAttr(String(s.source_kind || ""))}">
           <strong>${escHtml(contextRawScriptTitle(s))}</strong>
           <span class="alch-cv-source-meta">${escHtml(contextRawScriptMeta(s))}</span>
         </button>
@@ -15819,10 +16167,16 @@ function renderContextVault() {
 
   const emptyLabel = mode === "articles" ? "articles"
     : tsource === "distilled" ? "distilled readouts" : "transcripts";
+  const emptySourceCopy = mode === "articles"
+    ? "No articles available yet."
+    : tsource === "distilled"
+      ? "No distilled readouts available yet."
+      : "No raw files available on this device.";
+  const tagList = contextTagsForView(mode, tsource, sources, rawScripts, distilled);
 
   state.canvas.innerHTML = `
     <section class="alch-cv">
-      ${pageHeadHtml({ nav })}
+      ${pageHeadHtml({ nav, side: contextToolbarHtml() })}
       ${mode === "raw" ? renderContextComposer() : ""}
       ${mode === "raw" ? transcriptsSourceToggleHtml(tsource, rawScripts.length, distilled.length) : ""}
       ${cv.message ? `<p class="alch-cv-message">${escHtml(cv.message)}</p>` : ""}
@@ -15831,10 +16185,13 @@ function renderContextVault() {
         <aside class="alch-cv-sidebar">
           <div class="alch-cv-search">
             <svg class="alch-cv-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-            <input type="search" class="alch-cv-search-input" data-cv-search value="${escAttr(cv.query || "")}" placeholder="Filter ${escAttr(emptyLabel)}…" spellcheck="false" autocomplete="off" aria-label="filter ${escAttr(emptyLabel)}" />
+            <input type="search" class="alch-cv-search-input" data-cv-search value="${escAttr(cv.query || "")}" placeholder="Search ${escAttr(emptyLabel)} or #tag…" spellcheck="false" autocomplete="off" aria-label="search ${escAttr(emptyLabel)}" />
+            <button class="alch-cv-search-clear" type="button" data-cv-search-clear>clear</button>
           </div>
-          <div class="alch-cv-sources">${sourceRows || `<p class="alch-cv-muted">refresh to load ${emptyLabel}.</p>`}</div>
+          ${contextTagChipsHtml(tagList, cv.tag)}
+          <div class="alch-cv-sources">${sourceRows || `<p class="alch-cv-muted">${emptySourceCopy}</p>`}</div>
         </aside>
+        <div class="alch-cv-handle" data-cv-handle title="Drag to resize · double-click to reset"><span class="alch-cv-wl">${contextPrefs().sidebarW}px</span></div>
         ${detail}
       </div>
     </section>
@@ -15900,42 +16257,133 @@ function wireContextVault() {
       state.contextVault.composeOpen = details.open;
     });
   }
-  wireContextVaultSearch();
+  wireContextVaultFilter();
+  wireContextVaultToolbar();
+  wireContextVaultResize();
+  applyContextPrefs();
   wireContextVaultDetailActions(state.canvas);
 }
 
-// Live sidebar filter. Filters the rendered source rows in place (show/hide) so
-// the input keeps focus + caret across keystrokes — no re-render per character.
-function wireContextVaultSearch() {
+// Live sidebar filter — text (title / subject / tags) AND an optional tag chip.
+// Filters rows in place (show/hide) so the input keeps focus + caret; no re-render.
+function wireContextVaultFilter() {
+  const cv = state.contextVault;
   const input = state.canvas.querySelector("[data-cv-search]");
-  if (!input) return;
   const sources = state.canvas.querySelector(".alch-cv-sources");
+  const clearBtn = state.canvas.querySelector("[data-cv-search-clear]");
+  const chips = state.canvas.querySelectorAll("[data-cv-tag]");
   const apply = () => {
-    const q = String(input.value || "").trim().toLowerCase();
-    state.contextVault.query = input.value || "";
-    if (!sources) return;
-    const rows = sources.querySelectorAll(".alch-cv-source");
-    let shown = 0;
-    for (const row of rows) {
-      const match = !q || (row.textContent || "").toLowerCase().includes(q);
-      row.hidden = !match;
-      if (match) shown += 1;
-    }
-    let empty = sources.querySelector(".alch-cv-filter-empty");
-    if (rows.length && !shown) {
-      if (!empty) {
-        empty = document.createElement("p");
-        empty.className = "alch-cv-muted alch-cv-filter-empty";
-        sources.appendChild(empty);
+    const q = String(cv.query || "").trim().toLowerCase();
+    const tag = cv.tag ? String(cv.tag).toLowerCase() : "";
+    if (sources) {
+      const rows = sources.querySelectorAll(".alch-cv-source");
+      let shown = 0;
+      for (const row of rows) {
+        const text = (row.textContent || "").toLowerCase();
+        const tags = (row.dataset.cvTags || "").toLowerCase();
+        const okQ = !q || text.includes(q) || tags.includes(q);
+        const okTag = !tag || tags.split(/\s+/).includes(tag);
+        const ok = okQ && okTag;
+        row.hidden = !ok;
+        if (ok) shown += 1;
       }
-      empty.textContent = `No matches for “${input.value.trim()}”.`;
-      empty.hidden = false;
-    } else if (empty) {
-      empty.hidden = true;
+      let empty = sources.querySelector(".alch-cv-filter-empty");
+      if (rows.length && !shown) {
+        if (!empty) {
+          empty = document.createElement("p");
+          empty.className = "alch-cv-muted alch-cv-filter-empty";
+          sources.appendChild(empty);
+        }
+        empty.textContent = "Nothing matches — clear the filter to see all.";
+        empty.hidden = false;
+      } else if (empty) {
+        empty.hidden = true;
+      }
     }
+    if (clearBtn) clearBtn.classList.toggle("is-show", !!(q || tag));
+    for (const chip of chips) chip.classList.toggle("is-on", String(chip.dataset.cvTag).toLowerCase() === tag);
   };
-  input.addEventListener("input", apply);
-  if (state.contextVault.query) apply();
+  if (input) input.addEventListener("input", () => { cv.query = input.value || ""; apply(); });
+  if (clearBtn) clearBtn.addEventListener("click", () => { cv.query = ""; cv.tag = null; if (input) input.value = ""; apply(); });
+  for (const chip of chips) {
+    chip.addEventListener("click", () => { const t = chip.dataset.cvTag; cv.tag = (cv.tag === t) ? null : t; apply(); });
+  }
+  if (cv.query || cv.tag) apply();
+}
+
+// Header tools: snapshot + the reader-settings popover (width / size / accent).
+function wireContextVaultToolbar() {
+  const snapBtn = state.canvas.querySelector("[data-cv-snapshot]");
+  if (snapBtn && !snapBtn.disabled) snapBtn.addEventListener("click", () => { void snapshotContextReader(); });
+  const setBtn = state.canvas.querySelector("[data-cv-settings]");
+  const pop = state.canvas.querySelector("[data-cv-pop]");
+  if (!setBtn || !pop) return;
+  const closePop = () => { pop.classList.remove("is-open"); setBtn.classList.remove("is-on"); setBtn.setAttribute("aria-expanded", "false"); };
+  setBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const open = pop.classList.toggle("is-open");
+    setBtn.classList.toggle("is-on", open);
+    setBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+  pop.addEventListener("click", (e) => e.stopPropagation());
+  // one outside-click closer, replaced each render so listeners never pile up
+  const cv = state.contextVault;
+  if (cv._popDocHandler) document.removeEventListener("click", cv._popDocHandler);
+  cv._popDocHandler = () => closePop();
+  document.addEventListener("click", cv._popDocHandler);
+  for (const b of pop.querySelectorAll("[data-cv-pref]")) {
+    b.addEventListener("click", () => {
+      const set = b.dataset.cvPref;
+      const v = b.dataset.v;
+      const p = contextPrefs();
+      if (set === "measure") { p.measure = v; saveContextPref(CV_PREFS_LS.measure, v); }
+      else if (set === "size") { p.size = v; saveContextPref(CV_PREFS_LS.size, v); }
+      else if (set === "accent") { p.accent = String(v).toUpperCase(); saveContextPref(CV_PREFS_LS.accent, p.accent); }
+      const group = b.closest(".alch-cv-seg-row, .alch-cv-sw-row");
+      if (group) for (const x of group.children) x.classList.toggle("is-on", x === b);
+      applyContextPrefs();
+    });
+  }
+}
+
+// Drag the divider to resize the list column; double-click resets to default.
+function wireContextVaultResize() {
+  const cv = state.contextVault;
+  contextPrefs();
+  const handle = state.canvas.querySelector("[data-cv-handle]");
+  const layout = state.canvas.querySelector(".alch-cv-layout");
+  const root = state.canvas.querySelector(".alch-cv");
+  const wl = handle && handle.querySelector(".alch-cv-wl");
+  if (!handle || !layout || !root) return;
+  let dragging = false;
+  const setW = (w) => {
+    const clamped = Math.max(180, Math.min(380, Math.round(w)));
+    cv.prefs.sidebarW = clamped;
+    root.style.setProperty("--cv-sidebar-w", `${clamped}px`);
+    if (wl) wl.textContent = `${clamped}px`;
+  };
+  handle.addEventListener("pointerdown", (e) => {
+    dragging = true;
+    try { handle.setPointerCapture(e.pointerId); } catch {}
+    layout.classList.add("is-resizing");
+    e.preventDefault();
+  });
+  handle.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    const rect = layout.getBoundingClientRect();
+    let w = e.clientX - rect.left;
+    if (Math.abs(w - 264) < 10) w = 264;   // magnetic snap to the default
+    setW(w);
+  });
+  const end = () => {
+    if (!dragging) return;
+    dragging = false;
+    layout.classList.remove("is-resizing");
+    saveContextPref(CV_PREFS_LS.w, String(cv.prefs.sidebarW));
+  };
+  handle.addEventListener("pointerup", end);
+  handle.addEventListener("pointercancel", end);
+  handle.addEventListener("dblclick", () => { setW(264); saveContextPref(CV_PREFS_LS.w, "264"); });
 }
 
 function wireContextVaultDetailActions(root = state.canvas) {

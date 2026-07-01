@@ -443,7 +443,7 @@ function announceUpdateAvailable(latest) {
   showUpdateBanner();
 }
 
-// Build the banner once and park it above the footer row. The action area
+// Build the banner once and park it above the drawer footer row. The action area
 // is a real <button> (keyboard focusable). Deliberately no dismiss
 // affordance — the only way to clear it is to update; it leaves when the
 // click kicks off the download (the icon's progress ring takes over).
@@ -459,7 +459,7 @@ function showUpdateBanner() {
     banner.remove();
     onUpdateIconClick();
   });
-  document.body.appendChild(banner);
+  (document.getElementById("primary-nav") || document.body).appendChild(banner);
 }
 
 // A download attempt failed. The loud banner was already removed on click and
@@ -609,11 +609,8 @@ async function boot() {
   // returns reason: "dev_mode").
   wireAppUpdateChip();
 
-  // Park the profile link + version stamp together in a footer row that
-  // overlays the bottom of the left side panel (profile on the left,
-  // version right-aligned to the panel edge). Mounted at body level and
-  // sized to the panel in CSS — keeping it OUT of #sidebar avoids that
-  // element's backdrop-filter clipping the fixed strip.
+  // Park the profile link + version stamp together in the hover drawer footer:
+  // profile on the left, version/status right-aligned to the panel edge.
   try {
     const pill = document.getElementById("identity-pill");
     const ver  = document.getElementById("fg-version-chip");
@@ -621,10 +618,10 @@ async function boot() {
       const row = document.createElement("div");
       row.id = "fg-footer-row";
       row.className = "fg-footer-row";
-      document.body.appendChild(row);
+      (document.getElementById("primary-nav") || document.body).appendChild(row);
       row.appendChild(pill);
 
-      // links moved back into the left nav (under network) 2026-06; no longer
+      // links moved back into the left nav 2026-06; no longer
       // a footer chip.
 
       // Update status icon — empty at rest; shows a spinner while checking,
@@ -4357,6 +4354,163 @@ function migrateLegacyTab(t) {
   return null;
 }
 
+function wirePrimaryNavIntent(primaryNav) {
+  if (!primaryNav) return;
+  const supportsFineHover = (() => {
+    try { return window.matchMedia("(hover: hover) and (pointer: fine)").matches; }
+    catch { return true; }
+  })();
+  if (!supportsFineHover) return;
+
+  let isOpen = primaryNav.classList.contains("is-nav-intent-open");
+  let openTimer = null;
+  let closeTimer = null;
+  let pendingOpenAt = 0;
+  let pointerHeldNavFocus = false;
+  let lastPointer = null;
+
+  const numberVar = (name, fallback) => {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue(name);
+    const n = Number.parseFloat(raw);
+    return Number.isFinite(n) ? n : fallback;
+  };
+  const metrics = () => ({
+    hotWidth: numberVar("--nav-hot-w", 28),
+    navWidth: numberVar("--nav-w", 280),
+  });
+  const clearOpen = () => {
+    if (!openTimer) return;
+    clearTimeout(openTimer);
+    openTimer = null;
+    pendingOpenAt = 0;
+  };
+  const clearClose = () => {
+    if (!closeTimer) return;
+    clearTimeout(closeTimer);
+    closeTimer = null;
+  };
+  const setMotion = (duration, opening) => {
+    const surface = opening ? Math.max(150, duration - 12) : Math.max(105, duration - 24);
+    const content = opening ? Math.max(125, duration - 45) : Math.max(90, duration - 35);
+    primaryNav.style.setProperty("--nav-motion-ms", `${duration}ms`);
+    primaryNav.style.setProperty("--nav-surface-ms", `${surface}ms`);
+    primaryNav.style.setProperty("--nav-content-ms", `${content}ms`);
+    primaryNav.style.setProperty("--nav-content-open-ms", `${content}ms`);
+    primaryNav.style.setProperty("--nav-content-delay", opening ? "28ms" : "0ms");
+  };
+  const setOpen = (open, reason, duration) => {
+    clearOpen();
+    clearClose();
+    isOpen = open;
+    setMotion(duration, open);
+    primaryNav.classList.toggle("is-nav-intent-open", open);
+    primaryNav.dataset.navIntent = reason;
+    document.body.dataset.navDrawer = open ? "open" : "closed";
+  };
+  const trackPointer = (event) => {
+    const t = event.timeStamp || performance.now();
+    if (!lastPointer) {
+      lastPointer = { x: event.clientX, y: event.clientY, t };
+      return { dx: 0, dy: 0, speed: 0 };
+    }
+    const dt = Math.max(8, t - lastPointer.t);
+    const dx = event.clientX - lastPointer.x;
+    const dy = event.clientY - lastPointer.y;
+    lastPointer = { x: event.clientX, y: event.clientY, t };
+    return { dx, dy, speed: Math.hypot(dx, dy) / dt };
+  };
+  const openPlan = (event, motion, hotWidth) => {
+    const deepEdge = event.clientX <= Math.max(9, hotWidth * 0.45);
+    const movingTowardEdge = motion.dx < -0.15 || event.clientX <= Math.max(10, hotWidth * 0.36);
+    if (deepEdge && motion.speed >= 0.72) return { delay: 0, duration: 145, reason: "edge-fast" };
+    if (deepEdge) return { delay: 22, duration: 175, reason: "edge-direct" };
+    if (movingTowardEdge && motion.speed >= 0.52) return { delay: 36, duration: 180, reason: "edge-approach" };
+    if (motion.speed <= 0.18) return { delay: 96, duration: 230, reason: "edge-slow" };
+    return { delay: 64, duration: 205, reason: "edge-intent" };
+  };
+  const scheduleOpen = (event, motion) => {
+    clearClose();
+    if (isOpen) return;
+    const { hotWidth } = metrics();
+    const plan = openPlan(event, motion, hotWidth);
+    const dueAt = performance.now() + plan.delay;
+    if (openTimer && plan.delay !== 0 && pendingOpenAt <= dueAt) return;
+    clearOpen();
+    pendingOpenAt = dueAt;
+    openTimer = setTimeout(() => {
+      openTimer = null;
+      pendingOpenAt = 0;
+      setOpen(true, plan.reason, plan.duration);
+    }, plan.delay);
+  };
+  const scheduleClose = (motion, reason = "page") => {
+    clearOpen();
+    if (!isOpen || closeTimer) return;
+    const fastExit = motion.speed >= 0.64;
+    const delay = fastExit ? 58 : 118;
+    const duration = fastExit ? 130 : 175;
+    closeTimer = setTimeout(() => {
+      closeTimer = null;
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && primaryNav.contains(active)) return;
+      setOpen(false, reason, duration);
+    }, delay);
+  };
+
+  document.addEventListener("pointermove", (event) => {
+    if (event.pointerType && event.pointerType !== "mouse") return;
+    const motion = trackPointer(event);
+    const { hotWidth, navWidth } = metrics();
+    const yInWindow = event.clientY >= 0 && event.clientY <= window.innerHeight;
+    if (!yInWindow) {
+      if (isOpen) scheduleClose(motion, "outside");
+      return;
+    }
+    const inClosedLane = !isOpen && event.clientX >= 0 && event.clientX <= hotWidth + 12;
+    if (inClosedLane) {
+      scheduleOpen(event, motion);
+      return;
+    }
+    if (!isOpen) {
+      if (event.clientX > hotWidth + 18) clearOpen();
+      return;
+    }
+    const insideDrawer = event.clientX >= 0 && event.clientX <= navWidth + 14;
+    const inGraceCurve = event.clientX > navWidth + 14
+      && event.clientX <= navWidth + 58
+      && Math.abs(motion.dx) <= 1.4;
+    if (insideDrawer || inGraceCurve) {
+      clearClose();
+      return;
+    }
+    scheduleClose(motion, "page");
+  }, { passive: true });
+
+  primaryNav.addEventListener("focusin", () => setOpen(true, "focus", 160));
+  primaryNav.addEventListener("focusout", () => {
+    setTimeout(() => {
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && primaryNav.contains(active)) return;
+      if (!primaryNav.matches(":hover")) setOpen(false, "focusout", 140);
+    }, 0);
+  });
+  primaryNav.addEventListener("pointerdown", () => {
+    pointerHeldNavFocus = true;
+  }, { capture: true, passive: true });
+  primaryNav.addEventListener("keydown", (event) => {
+    pointerHeldNavFocus = false;
+    if (event.key === "Escape") setOpen(false, "escape", 120);
+  }, true);
+  primaryNav.addEventListener("pointerleave", () => {
+    if (!pointerHeldNavFocus) return;
+    pointerHeldNavFocus = false;
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && primaryNav.contains(active)) {
+      try { active.blur(); } catch {}
+    }
+  }, { passive: true });
+}
+
 function wireTabs() {
   const bar = document.getElementById("tab-bar");
   let initial = "alchemy";
@@ -4417,6 +4571,8 @@ function wireTabs() {
   // operating-system sub-pages are handled separately below.
   const primaryNav = document.getElementById("primary-nav");
   if (primaryNav) {
+    wirePrimaryNavIntent(primaryNav);
+
     primaryNav.addEventListener("click", (e) => {
       const btn = e.target.closest(".nav-cat[data-tab]");
       if (!btn) return;
@@ -4481,6 +4637,16 @@ function wireTabs() {
 // Apps tab landing — wires the grid's app cards (data-app-key) and the
 // "← apps" back-bar that ships inside each app sub-view. Set/clear
 // body[data-apps-view] so the visibility CSS does the rest.
+function openNetworkAppRoute() {
+  delete document.body.dataset.appsView;
+  try { localStorage.removeItem(APPS_LS_KEY); } catch {}
+  setNetworkSub("network");
+  warmTabModule("network");
+  Alchemy.closeMembraneMenu();
+  morphActiveTab("network", () => applyActiveTab("network"));
+  try { localStorage.setItem(TAB_LS_KEY, "network"); } catch {}
+}
+
 function wireAppsGrid() {
   document.addEventListener("click", (e) => {
     const card = e.target.closest("[data-app-key]");
@@ -4488,6 +4654,8 @@ function wireAppsGrid() {
       const key = card.dataset.appKey;
       // router opens as a pop-out window, not an apps-stage sub-view.
       if (key === "daybook") { openRouter(); return; }
+      // network is an app launcher in the Apps grid, backed by its existing tab.
+      if (key === "network") { openNetworkAppRoute(); return; }
       if (!APPS_VIEWS.has(key)) return;
       warmAppModule(key);
       document.body.dataset.appsView = key;
@@ -4851,6 +5019,7 @@ function registerVisualizerShortcutsAndCommands() {
   const openApp = (key) => {
     // router is a pop-out window, not an apps-stage view.
     if (key === "daybook") { openRouter(); return; }
+    if (key === "network") { openNetworkAppRoute(); return; }
     if (!APPS_VIEWS.has(key)) return;
     warmAppModule(key);
     document.body.dataset.appsView = key;

@@ -968,12 +968,17 @@ function createController() {
     settingsEl.setAttribute("aria-hidden", "true");
   }
 
+  // Set while a headless one-shot (runEphemeral) is in flight — see finishRun,
+  // which resolves it with the reply text and skips the history push.
+  let pendingEphemeral = null;
+
   function finishRun(label, failMsg) {
     clearInterval(elapsedTimer); elapsedTimer = null;
     setStatus(failMsg ? "error" : "idle", label || "idle");
     sendBtn.hidden = false;
     stopBtn.hidden = true;
     let parsed = null;
+    let ephemeralText = "";
     if (activeBubbleBody) {
       const finalText = activeStream ? activeStream.finalText() : "";
       if (finalText) {
@@ -988,13 +993,19 @@ function createController() {
         }
         activeBubbleBody.hidden = false;
         activeBubbleBody.textContent = display || finalText;
-        history.push({ role: "assistant", content: display || finalText });
+        ephemeralText = display || finalText;
+        // Ephemeral one-shots (article restyle) never join the conversation.
+        if (!pendingEphemeral) history.push({ role: "assistant", content: display || finalText });
       } else {
         // No answer — show the diagnostic (the CLI's own stderr if we have it).
         activeBubbleBody.hidden = false;
         activeBubbleBody.textContent = failMsg || diagnoseFailure();
         activeBubbleBody.classList.add("is-error");
       }
+    }
+    if (pendingEphemeral) {
+      const resolveEphemeral = pendingEphemeral; pendingEphemeral = null;
+      try { resolveEphemeral({ ok: !failMsg && !!ephemeralText, text: ephemeralText, error: failMsg || "" }); } catch {}
     }
     clearRunCard({ error: !!failMsg || !!(activeBubbleBody && activeBubbleBody.classList.contains("is-error")) });
     if (failMsg) setPreMsg(failMsg, "error");
@@ -1382,10 +1393,29 @@ function createController() {
     }
   });
 
+  // Headless one-shot: run a prebuilt prompt (no cohort context, no action
+  // contract) and resolve with the reply text. Streams into the (possibly
+  // hidden) panel so opening the bot later shows a trace, but never joins the
+  // conversation history and never opens/grows the window. Rejects if a turn is
+  // already live. Used by other surfaces — e.g. the Context reader's restyle.
+  function runEphemeral(prompt, { userLabel = "" } = {}) {
+    if (activeStream) return Promise.resolve({ ok: false, text: "", error: "busy" });
+    if (userLabel) { try { appendBubble("user", userLabel); } catch {} }
+    return new Promise((resolve) => {
+      pendingEphemeral = resolve;
+      try { runTurn(String(prompt || ""), { ephemeral: true }); }
+      catch (e) {
+        pendingEphemeral = null;
+        resolve({ ok: false, text: "", error: (e && e.message) || "run failed" });
+      }
+    });
+  }
+
   return {
     open,
     close,
     openSettings,
+    runEphemeral,
     isOpen: () => !panel.hidden,
     notice(text) {
       open();
@@ -1460,4 +1490,15 @@ export async function toggleCohortChat() {
   const c = getController();
   if (!c) { console.warn("[cohort-chat] panel markup missing"); return; }
   c.isOpen() ? c.close() : c.open();
+}
+
+// Headless programmatic rewrite for other surfaces (e.g. the Context reader's
+// "restyle for me"). Resolves { ok, text, error }. Nothing is persisted — the
+// reply is not written to disk, Supabase, or the article; the caller renders it
+// as an ephemeral preview only.
+export async function runCohortEphemeralPrompt(prompt, opts = {}) {
+  await warmCohortChat();
+  const c = getController();
+  if (!c || typeof c.runEphemeral !== "function") return { ok: false, text: "", error: "chat unavailable" };
+  return c.runEphemeral(prompt, opts);
 }

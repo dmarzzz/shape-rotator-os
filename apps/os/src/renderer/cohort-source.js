@@ -880,14 +880,13 @@ async function applyArticleOverlay(surface) {
 // (the distributed app) reads the GATED cohort distillations (the role-gated
 // cohort_app_transcript_distillations view) and hangs them on
 // surface.transcript_distillations.artifacts so the transcripts tab can show the
-// cleaned readouts next to the local raw vault. No cohort key (public web /
-// un-provisioned build) or a Supabase outage leaves whatever the surface carries —
-// the bundle ships only distillation counts (artifacts stripped), so the tab stays
-// raw-only until a cohort key is provisioned.
+// cleaned readouts into the transcripts tab without requiring local raw files.
+// No cohort key (public web / un-provisioned build) or a Supabase outage leaves
+// whatever the surface carries; the generalized evidence tab remains usable.
 async function applyDistillationOverlay(surface) {
   // The cohort_app distillation view is live (see COHORT_APP_READER_ENABLED). With a
-  // cohort key the distilled readouts load into the transcripts tab; with no key the
-  // fetch no-ops and the tab serves the local raw vault only. Never throws.
+  // cohort key the distilled readouts load into the transcripts tab; with no key
+  // the fetch no-ops and the public/browser app keeps its normal empty state.
   if (!COHORT_APP_READER_ENABLED) return surface;
   try {
     const { artifacts, source } = await fetchCohortDistillations();

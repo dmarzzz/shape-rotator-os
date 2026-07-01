@@ -56,12 +56,22 @@
   --ds-border:        var(--hairline, rgba(241,236,231,0.14));
   --ds-border-strong: rgba(241,236,231,0.26);
 
-  --ds-accent:        var(--red-1, #EAB308);          /* the one accent */
-  --ds-accent-hover:  var(--red-2, #FACC15);
-  --ds-accent-soft:   color-mix(in srgb, var(--ds-accent) 16%, transparent); /* selected wash */
+  /* per-page accent trio — a page gives itself an identity by overriding these
+     three under its own route scope (see the page-scope blocks). Everything
+     below reads THROUGH them, so one 3-line override re-themes a whole page's
+     focus rings, primary buttons and selected washes. Defaults to the brand
+     yellow so any surface without a scope block stays exactly as it was. */
+  --page-accent:       var(--red-1, #EAB308);
+  --page-accent-hover: var(--red-2, #FACC15);
+  --page-accent-soft:  color-mix(in srgb, var(--page-accent) 16%, transparent);
+  --page-focus:        var(--page-accent-hover);
+
+  --ds-accent:        var(--page-accent);             /* was fixed --red-1 */
+  --ds-accent-hover:  var(--page-accent-hover);
+  --ds-accent-soft:   var(--page-accent-soft);        /* selected wash */
   --ds-on-accent:     #1a1410;                        /* ink on accent fill */
   --ds-danger:        var(--c-error, #FF6B7A);
-  --ds-focus:         var(--red-2, #FACC15);
+  --ds-focus:         var(--page-focus);
 
   /* elevation — one menu/popover shadow (was 0.45–0.55 + glass specular per page) */
   --ds-shadow-menu:   0 12px 32px rgba(0,0,0,0.45);
@@ -77,6 +87,39 @@
   --ds-control-weight: var(--ds-weight-med);
   --ds-dur:           var(--dur-fast, 120ms);
   --ds-ease:          var(--ease-out, cubic-bezier(0.16,1,0.3,1));
+}
+
+/* Re-point the CONSUMED accent tokens at the per-page trio, declared on <body>.
+   This MUST be on `body`, not `:root`/`html`: a custom property that references
+   another (`--ds-accent: var(--page-accent)`) is substituted at the element the
+   declaration sits on, then inherits the RESOLVED value. Pages override
+   --page-accent on <body>, so the tokens that read it have to be (re)declared at
+   the same level or the body override never reaches them (it would resolve
+   --page-accent at :root = yellow and inherit yellow). Declaring here re-derives
+   soft/focus and re-points both the --ds-* tokens and the legacy aliases the
+   pre-design-system chrome still reads (rail numeral + OS-tab underline via
+   --sr-red, alchemy mode oxide, the canvas-drawn --cal-oxide). Defaults to the
+   yellow trio, so a page with no scope block is unchanged; a page only needs to
+   set --page-accent (+ -hover). The floating overlays are listed too so they
+   re-substitute at their OWN --page-accent (pinned neutral in styles.css) rather
+   than inheriting the page behind them. */
+html[data-ds] body,
+html[data-ds] .cohort-chat-panel,
+html[data-ds] .cohort-chat-dial-wrap,
+html[data-ds] .swarm-panel {
+  --page-accent-soft: color-mix(in srgb, var(--page-accent) 16%, transparent);
+  --page-focus:       var(--page-accent-hover);
+
+  --ds-accent:        var(--page-accent);
+  --ds-accent-hover:  var(--page-accent-hover);
+  --ds-accent-soft:   var(--page-accent-soft);
+  --ds-focus:         var(--page-focus);
+
+  --accent:               var(--page-accent);
+  --sr-red:               var(--page-accent);
+  --alchemy-oxide:        var(--page-accent);
+  --alchemy-oxide-bright: var(--page-accent-hover);
+  --cal-oxide:            var(--page-accent);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

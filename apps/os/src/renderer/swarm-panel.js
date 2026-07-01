@@ -109,7 +109,11 @@ function createSwarmPanelController() {
       }
       if (!cfg.agent.binFound) {
         startBtn.disabled = true;
-        setPreMsg("research-agent binary not found. Install at ~/research-swarm (git clone dmarzzz/research-swarm; uv sync) or set RESEARCH_AGENT_BIN. The swarm needs the Python CLI to run.", "error");
+        const packaged = !!(cfg.agent && cfg.agent.isPackaged);
+        setPreMsg(packaged
+          ? "research swarm is not bundled in this build. The rest of the app still works; use a build with the sidecar when you need swarm runs."
+          : "research-agent binary not found. Developers can set RESEARCH_AGENT_BIN or install a research-swarm checkout for local testing.",
+          "error");
         return;
       }
       startBtn.disabled = false;

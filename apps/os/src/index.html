@@ -39,18 +39,23 @@
     </div>
 
     <!-- Primary navigation. Top-level categories (operating system / apps /
-         network / links) switch the active tab; the operating-system pages
+         links) switch the active tab; the operating-system pages
          are nested beneath it as an always-expanded sub-list (the rail,
          relocated here 2026-06 from inside #alchemy-view). -->
     <aside id="primary-nav" class="primary-nav" aria-label="primary navigation">
-      <button class="nav-cat nav-cat--eyebrow" data-tab="alchemy" type="button" aria-selected="true">
+      <div class="nav-cat nav-cat--eyebrow" aria-hidden="true">
         <span class="nav-cat-label">operating system</span>
-      </button>
+      </div>
       <nav class="alchemy-rail" role="tablist" aria-label="operating system pages">
         <button class="alchemy-rail-btn" data-alch-mode="membrane" type="button" aria-selected="true">
           <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.341 6.484A10 10 0 0 1 10.266 21.85"/><path d="M3.659 17.516A10 10 0 0 1 13.74 2.152"/><circle cx="12" cy="12" r="3"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="19" r="2"/></svg></span>
           <span class="ar-label">membrane</span>
           <span class="ar-hint">self · cohort · events · asks</span>
+        </button>
+        <!-- matrix is a routed app tab, but it belongs visually next to Membrane. -->
+        <button class="nav-cat nav-cat--rail-app" data-tab="matrix" type="button" aria-selected="false">
+          <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+          <span class="nav-cat-label ar-label">matrix</span>
         </button>
         <!-- profile removed from the rail 2026-06 — the page is reached via
              the identity pill in the bottom-left footer (identity.js). -->
@@ -79,36 +84,20 @@
         <button class="alchemy-rail-btn" data-alch-mode="context" type="button" aria-selected="false">
           <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg></span>
           <span class="ar-label">context</span>
-          <span class="ar-hint">articles · transcripts · evidence</span>
-        </button>
-        <button class="alchemy-rail-btn" data-alch-mode="activity" type="button" aria-selected="false">
-          <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg></span>
-          <span class="ar-label">asks &amp; activity</span>
-          <span class="ar-hint">asks · cohort updates</span>
+          <span class="ar-hint">articles · transcripts · asks</span>
         </button>
       </nav>
-      <!-- apps / network — top-level destinations, now in the rail's own row
+      <!-- apps — top-level destination. Network launches from the Apps grid,
+           not from an indented sidebar submenu. Destination rows use the rail's own row
            grammar (icon · label · hint) so the column reads as one even list
            instead of three orphaned headers. They keep class="nav-cat" +
            data-tab (boot.js routing) and .nav-cat-label (find.js / tabs.js
            label read); the --dest modifier re-skins them (styles.css).
-           `links` was demoted to a quiet footer chip (see boot.js footer-row)
-           — it's a static external bookmark grid, not a peer of the OS pages. -->
+           `links` stays last because it is a static external bookmark grid,
+           not a peer of the OS pages. -->
       <button class="nav-cat nav-cat--dest" data-tab="apps" type="button" aria-selected="false">
         <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg></span>
         <span class="nav-cat-label ar-label">apps</span>
-      </button>
-      <!-- matrix tab — cohort chat (E2EE + matrix.org sign-in). Visible + live
-           on this dev branch; re-hide (add `hidden style="display:none"` + the
-           styles.css disable rule) before a public release if not ready. -->
-      <button class="nav-cat nav-cat--dest" data-tab="matrix" type="button" aria-selected="false">
-        <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
-        <span class="nav-cat-label ar-label">matrix</span>
-        <span class="ar-hint">chat · cohort · e2ee</span>
-      </button>
-      <button class="nav-cat nav-cat--dest" data-tab="network" type="button" aria-selected="false">
-        <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg></span>
-        <span class="nav-cat-label ar-label">network</span>
       </button>
       <button class="nav-cat nav-cat--dest" data-tab="links" type="button" aria-selected="false">
         <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></span>
@@ -128,8 +117,8 @@
       <!-- new-tab search launcher is injected here by renderer/find.js -->
     </div>
 
-    <!-- Apps tab: a grid of small tools. Clicking a card swaps the
-         visible view to that app via body[data-apps-view="<key>"]. -->
+    <!-- Apps tab: a grid of small tools. Most cards swap an Apps subview via
+         body[data-apps-view="<key>"]; Network opens its existing routed tab. -->
     <section id="apps-grid" class="apps-grid apps-only" aria-label="apps">
       <header class="apps-grid-head">
         <h1 class="apps-grid-title">apps</h1>
@@ -137,7 +126,7 @@
       </header>
       <ul class="apps-grid-list" role="list">
         <li>
-          <button class="app-card" type="button" data-app-key="atlas" aria-label="open atlas">
+          <button class="app-card" type="button" data-app-key="atlas" aria-label="open atlas workspace">
             <span class="app-card-icon" aria-hidden="true">
               <svg viewBox="0 0 64 64" width="100%" height="100%">
                 <!-- compact icon — four clusters of dots arranged like a
@@ -161,10 +150,34 @@
               </svg>
             </span>
             <span class="app-card-label">atlas</span>
+            <span class="app-card-kind" aria-hidden="true">workspace</span>
           </button>
         </li>
         <li>
-          <button class="app-card" type="button" data-app-key="easel" aria-label="open easel">
+          <button class="app-card" type="button" data-app-key="network" aria-label="open network tab">
+            <span class="app-card-icon" aria-hidden="true">
+              <svg viewBox="0 0 64 64" width="100%" height="100%">
+                <circle cx="32" cy="32" r="4" fill="#EAB308"/>
+                <g fill="none" stroke="#EBEEFA" stroke-width="2" stroke-linecap="round" opacity="0.82">
+                  <path d="M17 47 C8 38 8 26 17 17"/>
+                  <path d="M23 41 C17 35 17 29 23 23"/>
+                  <path d="M41 23 C47 29 47 35 41 41"/>
+                  <path d="M47 17 C56 26 56 38 47 47"/>
+                </g>
+                <g fill="#EAB308">
+                  <circle cx="18" cy="18" r="2.4"/>
+                  <circle cx="46" cy="18" r="2.4"/>
+                  <circle cx="18" cy="46" r="2.4"/>
+                  <circle cx="46" cy="46" r="2.4"/>
+                </g>
+              </svg>
+            </span>
+            <span class="app-card-label">network</span>
+            <span class="app-card-kind" aria-hidden="true">tab</span>
+          </button>
+        </li>
+        <li>
+          <button class="app-card" type="button" data-app-key="easel" aria-label="open easel workspace">
             <span class="app-card-icon" aria-hidden="true">
               <svg viewBox="0 0 64 64" width="100%" height="100%">
                 <!-- a screen + NDI broadcast arcs -->
@@ -178,10 +191,11 @@
               </svg>
             </span>
             <span class="app-card-label">easel</span>
+            <span class="app-card-kind" aria-hidden="true">workspace</span>
           </button>
         </li>
         <li>
-          <button class="app-card" type="button" data-app-key="daybook" aria-label="open router">
+          <button class="app-card" type="button" data-app-key="daybook" aria-label="open router pop-out window">
             <span class="app-card-icon" aria-hidden="true">
               <svg viewBox="0 0 64 64" width="100%" height="100%">
                 <!-- an open notebook: two facing pages + ruled lines -->
@@ -195,6 +209,7 @@
               </svg>
             </span>
             <span class="app-card-label">router</span>
+            <span class="app-card-kind" aria-hidden="true">pop-out</span>
           </button>
         </li>
       </ul>
