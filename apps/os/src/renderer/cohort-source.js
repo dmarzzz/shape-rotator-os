@@ -29,6 +29,7 @@ import { fetchPublicEvidenceCards, fetchCohortEvidenceCards, COHORT_APP_READER_E
 import { evidenceDependencyRecords, insightCollaborationDependencyRecords, collaborationContributionDependencyRecords, attributeInsightCards, dedupeDependencyEdges, connectionEdgesFromInsightCards, frozenAttributionFromInsightCards } from "./cohort-evidence-index.mjs";
 import { fetchCohortArticles } from "./supabase-articles.mjs";
 import { fetchCohortDistillations } from "./supabase-distillations.mjs";
+import { fetchCohortTranscriptRouting } from "./supabase-transcript-routing.mjs";
 import { fetchAllSpheres } from "./supabase-sphere.mjs";
 import { fetchApprovedProfileUpdates } from "./supabase-self-report.mjs";
 import { fetchCohortFeed } from "./supabase-cohort-events.mjs";
@@ -198,6 +199,7 @@ function emptyShape() {
     github_releases: [],
     transcript_evidence: {},
     transcript_distillations: {},
+    transcript_routing: [],
     cohort_intel: {},
     cohort_insights: {},
     person_timeline: {},
@@ -262,6 +264,10 @@ function normalize(data) {
     github_releases: Array.isArray(data?.github_releases) ? data.github_releases : [],
     transcript_evidence: objectMap(data?.transcript_evidence),
     transcript_distillations: objectMap(data?.transcript_distillations),
+    // Per-person transcript relevance routing read LIVE from Supabase
+    // (cohort_app_transcript_routing) by applyTranscriptRoutingOverlay. Empty in the
+    // committed bundle; passed through so an LS-cached set survives first paint.
+    transcript_routing: Array.isArray(data?.transcript_routing) ? data.transcript_routing : [],
     cohort_intel: objectMap(data?.cohort_intel),
     cohort_insights: objectMap(data?.cohort_insights),
     person_timeline: timelineMap(data?.person_timeline),
@@ -903,6 +909,25 @@ async function applyDistillationOverlay(surface) {
   return surface;
 }
 
+// Apply the live Supabase per-person routing overlay. A build carrying a cohort key
+// reads the GATED cohort_app_transcript_routing view (which transcripts are relevant
+// to each member, scored + reasoned by the engine) and hangs the rows on
+// surface.transcript_routing. The renderer filters to the viewing member's own
+// record_id on device. No cohort key or a Supabase outage leaves the surface as-is.
+async function applyTranscriptRoutingOverlay(surface) {
+  if (!COHORT_APP_READER_ENABLED) return surface;
+  try {
+    const { rows, source } = await fetchCohortTranscriptRouting();
+    if (source === "supabase-cohort") {
+      surface.transcript_routing = rows;
+      surface._routingSource = source;
+    }
+  } catch {
+    // keep whatever the surface already carries
+  }
+  return surface;
+}
+
 // Apply the live Supabase per-person sphere overlay. Each customized person has
 // a row in os_spheres (record_id → five visual dials); we fold the whole map
 // onto the surface as `person_spheres` so the card/detail renderers can emit
@@ -1263,6 +1288,7 @@ function _startBackgroundRefresh({ forceGithub = false } = {}) {
       await applyCohortEventsOverlay(merged);
       await applyReleaseOverlay(merged);
       await applyConnectionsOverlay(merged);
+      await applyTranscriptRoutingOverlay(merged);
       merged._sig = signatureOf(merged);
       // Did anything actually change? If not, no subscriber notify.
       const prevSig = _cache?._sig;

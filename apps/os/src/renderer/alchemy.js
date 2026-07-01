@@ -14734,13 +14734,15 @@ function contextNormalizeView(raw) {
   if (v === "transcript" || v === "transcripts") return "raw";
   if (v === "card" || v === "cards") return "evidence";
   if (v === "intel" || v === "signals" || v === "data") return "evidence";
-  return (v === "articles" || v === "raw" || v === "evidence") ? v : "articles";
+  if (v === "routing" || v === "relevant" || v === "for-you") return "routing";
+  return (v === "articles" || v === "raw" || v === "evidence" || v === "routing") ? v : "articles";
 }
 
 const CONTEXT_VIEWS = [
   { view: "articles", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>', label: "articles", hint: "reader-facing drafts from the vault" },
   { view: "raw",      glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="21" x2="3" y1="6" y2="6"/><line x1="15" x2="3" y1="12" y2="12"/><line x1="17" x2="3" y1="18" y2="18"/></svg>', label: "transcripts", hint: "your local raw vault + the cohort's distilled readouts (live)" },
   { view: "evidence", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg>', label: "evidence", hint: "distilled evidence cards, live from Supabase" },
+  { view: "routing",  glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><line x1="12" x2="12" y1="2" y2="6"/><line x1="12" x2="12" y1="18" y2="22"/><line x1="2" x2="6" y1="12" y2="12"/><line x1="18" x2="22" y1="12" y2="12"/><circle cx="12" cy="12" r="2"/></svg>', label: "for you", hint: "transcripts routed to you, scored + reasoned, live from Supabase" },
 ];
 
 function setContextVaultMode(mode) {
@@ -15733,6 +15735,67 @@ function renderContextEvidence(tier, t3cards, t2cards, insights) {
   return `${toggle}${body}`;
 }
 
+// Human labels for the engine's routing basis codes (why a transcript reached you).
+const ROUTING_BASIS_LABEL = {
+  named_participant: "you were named",
+  own_team_discussed: "your team",
+  github_team_edge: "github edge",
+  skill_overlap: "topical",
+  lexical_theme: "recurring theme",
+  seeking_offering: "seeking / offering",
+};
+
+// The transcripts routed to the VIEWING member (the on-device "for you" filter over
+// surface.transcript_routing, populated by applyTranscriptRoutingOverlay). Returns
+// { me, rows } — me is "" when no cohort identity is claimed yet.
+function myRoutingRows() {
+  const identity = getIdentity();
+  const me = identity && identity.record_id ? String(identity.record_id) : "";
+  const all = Array.isArray(state.cohort?.transcript_routing) ? state.cohort.transcript_routing : [];
+  const rows = me
+    ? all.filter((r) => r && String(r.record_id) === me).slice().sort((a, b) => (Number(b.score) || 0) - (Number(a.score) || 0))
+    : [];
+  return { me, rows };
+}
+
+// "For you" view — the sidebar lists your relevant transcripts (score + basis),
+// the detail pane shows the reason. Mirrors the context two-pane layout.
+function renderContextRouting() {
+  const cv = state.contextVault;
+  const { me, rows } = myRoutingRows();
+  if (!me) {
+    return `<div class="alch-cv-layout"><main class="alch-cv-detail"><p class="alch-cv-muted">Claim your cohort identity to see the transcripts routed to you.</p></main></div>`;
+  }
+  const selected = rows.find((r) => r.session_title === cv.selectedRoutingTitle) || rows[0] || null;
+  if (selected && !cv.selectedRoutingTitle) cv.selectedRoutingTitle = selected.session_title;
+  const sourceRows = rows.map((r) => {
+    const cls = selected && selected.session_title === r.session_title ? " is-selected" : "";
+    const pct = Number.isFinite(Number(r.score)) ? `${Math.round(Number(r.score) * 100)}%` : "";
+    const label = ROUTING_BASIS_LABEL[r.basis] || r.basis || "";
+    return `
+      <button class="alch-cv-source${cls}" type="button" data-cv-routing-source="${escAttr(r.session_title)}">
+        <strong>${escHtml(r.session_title)}</strong>
+        <span class="alch-cv-source-meta">${escHtml(r.session_type || "session")}${label ? ` · ${escHtml(label)}` : ""}${pct ? ` · ${pct}` : ""}</span>
+      </button>
+    `;
+  }).join("");
+  const detail = selected
+    ? `<main class="alch-cv-detail">
+        <h2>${escHtml(selected.session_title)}</h2>
+        <p class="alch-cv-source-meta">${escHtml(selected.session_type || "session")}${Number.isFinite(Number(selected.score)) ? ` · relevance ${Math.round(Number(selected.score) * 100)}%` : ""}</p>
+        <p>${escHtml(selected.reason || "")}</p>
+      </main>`
+    : `<main class="alch-cv-detail"><p class="alch-cv-muted">Select a transcript to see why it's routed to you.</p></main>`;
+  return `
+    <div class="alch-cv-layout">
+      <aside class="alch-cv-sidebar">
+        <div class="alch-cv-sources">${sourceRows || `<p class="alch-cv-muted">No transcripts routed to you yet — they load on the next cohort refresh.</p>`}</div>
+      </aside>
+      ${detail}
+    </div>
+  `;
+}
+
 function renderContextVault() {
   const cv = state.contextVault;
   const view = contextNormalizeView(cv.mode);
@@ -15758,6 +15821,17 @@ function renderContextVault() {
       <section class="alch-cv">
         ${pageHeadHtml({ nav })}
         ${renderContextEvidence(tier, t3cards, t2cards, insights)}
+      </section>
+    `;
+    return;
+  }
+
+  // "For you" — per-person transcript routing, filtered on-device to the viewer.
+  if (view === "routing") {
+    state.canvas.innerHTML = `
+      <section class="alch-cv">
+        ${pageHeadHtml({ nav })}
+        ${renderContextRouting()}
       </section>
     `;
     return;
@@ -15865,6 +15939,13 @@ function wireContextVault() {
   }
   for (const btn of state.canvas.querySelectorAll("[data-cv-raw-source]")) {
     btn.addEventListener("click", () => selectContextRawScript(btn.dataset.cvRawSource));
+  }
+  for (const btn of state.canvas.querySelectorAll("[data-cv-routing-source]")) {
+    btn.addEventListener("click", () => {
+      state.contextVault.selectedRoutingTitle = btn.dataset.cvRoutingSource;
+      renderContextVault();
+      wireContextVault();
+    });
   }
   for (const btn of state.canvas.querySelectorAll("[data-cv-tsource]")) {
     btn.addEventListener("click", () => setContextTranscriptsSource(btn.dataset.cvTsource));
