@@ -13,9 +13,13 @@ test("cohort source reschedules refresh cadence when sync availability changes",
 
   const scheduleIndex = source.indexOf("function scheduleRefresh()");
   const intervalIndex = source.indexOf("const interval = refreshIntervalMs();", scheduleIndex);
-  const setIntervalIndex = source.indexOf("_refreshTimer = setInterval(refreshTick, interval);", scheduleIndex);
+  const setIntervalIndex = source.indexOf("_refreshTimer = setInterval(runRefreshTickIfVisible, interval);", scheduleIndex);
+  const visibilityIndex = source.indexOf("bindRefreshVisibilityWake();", scheduleIndex);
 
   assert.ok(scheduleIndex > 0);
   assert.ok(intervalIndex > scheduleIndex);
   assert.ok(setIntervalIndex > intervalIndex);
+  assert.ok(visibilityIndex > setIntervalIndex);
+  assert.match(source, /removeEventListener\("visibilitychange", _refreshVisibilityHandler\);/);
+  assert.match(source, /_refreshVisibilityBound = false;/);
 });

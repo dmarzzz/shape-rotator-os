@@ -19662,7 +19662,7 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   min-height: 0;
   max-height: calc(100vh - var(--content-top-h, 35px) - 76px);
   padding: 14px 24px 12px 0;
-  border-right: 1px solid rgba(var(--ink-rgb), 0.08);
+  border-right: 1px solid var(--ds-border, rgba(241, 236, 231, 0.14));
 }
 
 
@@ -19686,41 +19686,57 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
 }
 
 .alch-cv-source {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
   width: 100%;
   min-height: 54px;
-  padding: 10px 10px 10px 18px;
-  border: 1px solid transparent;
-  border-left: 1px solid rgba(var(--ink-rgb), 0.10);
-  border-radius: 0 7px 7px 0;
+  padding: 10px 12px 10px 16px;
+  border: 0;
+  border-radius: var(--ds-radius, 8px);
   background: transparent;
-  color: rgba(var(--ink-rgb), 0.66);
+  color: var(--ds-ink-3, rgba(241, 236, 231, 0.52));
   text-align: left;
   cursor: pointer;
-  transition: background 180ms ease, border-color 180ms ease, color 180ms ease, padding-left 180ms ease;
+  transition: background 140ms var(--ds-ease, cubic-bezier(0.16, 1, 0.3, 1)),
+              color 140ms var(--ds-ease, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+/* selected/hover marker — a scaleY accent bar (transform, never padding) */
+.alch-cv-source::before {
+  content: "";
+  position: absolute;
+  left: 4px; top: 11px; bottom: 11px;
+  width: 2px; border-radius: 2px;
+  background: var(--ds-accent, #EAB308);
+  transform: scaleY(0); transform-origin: center;
+  opacity: 0;
+  transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 160ms var(--ds-ease, ease);
 }
 
 .alch-cv-source:hover {
-  border-left-color: rgba(var(--ink-rgb), 0.26);
-  background: rgba(var(--ink-rgb), 0.035);
-  color: rgba(var(--ink-rgb), 0.90);
+  background: var(--ds-surface-3, rgba(241, 236, 231, 0.045));
+  color: var(--ds-ink-2, rgba(241, 236, 231, 0.74));
 }
 
 .alch-cv-source.is-selected {
-  padding-left: 20px;
-  border-left-color: #c1a872;
-  background: linear-gradient(90deg, rgba(193, 168, 114, 0.13), rgba(var(--ink-rgb), 0.035) 62%, transparent);
-  color: rgb(var(--ink-rgb));
+  background: var(--ds-accent-soft, color-mix(in srgb, #EAB308 16%, transparent));
+  color: var(--ds-ink-1, rgba(241, 236, 231, 0.94));
 }
+
+.alch-cv-source.is-selected::before { transform: scaleY(1); opacity: 1; }
 
 .alch-cv-source strong {
   display: block;
   overflow-wrap: anywhere;
-  color: rgb(var(--ink-rgb));
-  font: 460 14px/1.25 var(--sans);
+  color: var(--ds-ink-2, rgba(241, 236, 231, 0.74));
+  font: var(--ds-weight-med, 500) var(--ds-text-base, 14px)/1.3 var(--ds-font-ui, sans-serif);
+  transition: color 140ms var(--ds-ease, ease);
 }
+
+.alch-cv-source:hover strong,
+.alch-cv-source.is-selected strong { color: var(--ds-ink-1, rgba(241, 236, 231, 0.94)); }
 
 .alch-cv-transcript-source {
   gap: 7px;
@@ -19745,10 +19761,10 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
 
 
 .alch-cv-source-meta {
-  color: rgba(var(--ink-rgb), 0.38);
-  font: 500 10px/1.2 var(--mono);
-  letter-spacing: 0;
-  text-transform: lowercase;
+  color: var(--ds-ink-4, rgba(241, 236, 231, 0.32));
+  font: var(--ds-weight-med, 500) var(--ds-text-2xs, 10px)/1.3 var(--ds-font-mono, monospace);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 
@@ -19785,24 +19801,28 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   align-items: baseline;
   gap: 10px;
   max-width: 160px;
-  padding: 6px 10px;
-  border: 1px solid rgba(var(--ink-rgb), 0.13);
-  border-radius: 999px;
-  background: rgba(var(--ink-rgb), 0.035);
-  color: rgba(var(--ink-rgb), 0.88);
+  padding: 6px 12px;
+  border: 1px solid var(--ds-border-strong, rgba(241, 236, 231, 0.26));
+  border-radius: var(--ds-radius, 8px);
+  background: var(--ds-surface-3, rgba(241, 236, 231, 0.045));
+  color: var(--ds-ink-1, rgba(241, 236, 231, 0.94));
   cursor: pointer;
-  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+  transition: background 120ms var(--ds-ease, ease), border-color 120ms var(--ds-ease, ease),
+              color 120ms var(--ds-ease, ease), transform 100ms var(--ds-ease, ease);
 }
 
 .alch-cv-md-action:hover {
-  border-color: rgba(var(--ink-rgb), 0.30);
-  background: rgba(var(--ink-rgb), 0.075);
-  transform: translateY(-1px);
+  border-color: var(--ds-ink-3, rgba(241, 236, 231, 0.52));
+  background: var(--ds-surface-4, rgba(241, 236, 231, 0.09));
 }
 
+.alch-cv-md-action:active { transform: scale(0.96); }
+
+/* copied — confirmation stays on the one accent, not a second (green) hue */
 .alch-cv-md-action[data-state="copied"] {
-  border-color: rgba(90, 213, 155, 0.42);
-  background: rgba(90, 213, 155, 0.08);
+  border-color: var(--ds-accent, #EAB308);
+  background: var(--ds-accent-soft, color-mix(in srgb, #EAB308 16%, transparent));
+  color: var(--ds-accent-hover, #FACC15);
 }
 
 .alch-cv-md-action-label {
@@ -19875,65 +19895,65 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
 
 .alch-cv-reader-kicker {
   margin: 0;
-  color: rgba(var(--ink-rgb), 0.42);
-  font-family: var(--sr-font-mono, var(--mono, monospace));
-  font-size: 11px;
-  font-weight: 560;
+  color: var(--ds-accent, #EAB308);
+  font-family: var(--ds-font-mono, monospace);
+  font-size: var(--ds-text-xs, 11px);
+  font-weight: var(--ds-weight-med, 500);
   line-height: 1.1;
-  letter-spacing: 0;
-  text-transform: lowercase;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .alch-cv-reader h1 {
   max-width: 30ch;
   margin: 0;
-  color: rgb(var(--ink-rgb));
-  font-family: var(--sr-font-sans, var(--sans, system-ui, sans-serif));
+  color: var(--ds-ink-1, rgb(241, 236, 231));
+  font-family: var(--ds-font-ui, system-ui, sans-serif);
   font-size: clamp(23px, 1.9vw, 30px);
-  font-weight: 500;
-  line-height: 1.18;
-  letter-spacing: 0;
+  font-weight: var(--ds-weight-semi, 600);
+  line-height: 1.12;
+  letter-spacing: -0.01em;
 }
 
 .alch-cv-reader-lede {
   max-width: 62ch;
   margin: 0 0 6px;
-  color: rgba(var(--ink-rgb), 0.78);
-  font-family: var(--sr-font-sans, var(--sans, system-ui, sans-serif));
+  color: var(--ds-ink-3, rgba(241, 236, 231, 0.52));
+  font-family: var(--ds-font-ui, system-ui, sans-serif);
   font-size: 16px;
-  font-weight: 420;
-  line-height: 1.68;
+  font-weight: var(--ds-weight-reg, 400);
+  line-height: 1.62;
 }
 
 .alch-cv-reader-section {
   display: grid;
   gap: 8px;
   padding-top: 16px;
-  border-top: 1px solid rgba(var(--ink-rgb), 0.075);
+  border-top: 1px solid var(--ds-border, rgba(241, 236, 231, 0.14));
 }
 
 .alch-cv-reader-section h3 {
   margin: 0;
-  color: rgba(var(--ink-rgb), 0.88);
-  font-family: var(--sr-font-sans, var(--sans, system-ui, sans-serif));
+  color: var(--ds-ink-1, rgba(241, 236, 231, 0.94));
+  font-family: var(--ds-font-ui, system-ui, sans-serif);
   font-size: 18px;
-  font-weight: 540;
+  font-weight: var(--ds-weight-semi, 600);
   line-height: 1.25;
-  letter-spacing: 0;
+  letter-spacing: -0.01em;
 }
 
 .alch-cv-reader-section p {
   max-width: 68ch;
   margin: 0;
-  color: rgba(var(--ink-rgb), 0.72);
-  font-family: var(--sr-font-sans, var(--sans, system-ui, sans-serif));
+  color: var(--ds-ink-2, rgba(241, 236, 231, 0.74));
+  font-family: var(--ds-font-ui, system-ui, sans-serif);
   font-size: 15px;
-  font-weight: 400;
+  font-weight: var(--ds-weight-reg, 400);
   line-height: 1.74;
 }
 
 .alch-cv-reader-takeaway {
-  border-color: rgba(var(--ink-rgb), 0.16);
+  border-color: var(--ds-border-strong, rgba(241, 236, 231, 0.26));
   padding-bottom: 2px;
 }
 
@@ -20115,7 +20135,78 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
 
 .alch-cv-result {
   padding-top: 8px;
-  border-top: 1px solid rgba(var(--ink-rgb), 0.10);
+  border-top: 1px solid var(--ds-border, rgba(241, 236, 231, 0.14));
+}
+
+/* ── Filter + reading affordances (luxe pass · DS tokens) ─────────────── */
+.alch-cv-search { position: relative; margin: 0 0 12px; flex: 0 0 auto; }
+
+.alch-cv-search-input {
+  width: 100%;
+  height: var(--ds-control-h, 30px);
+  padding: 0 11px 0 30px;
+  border-radius: var(--ds-radius, 8px);
+  border: 1px solid var(--ds-border, rgba(241, 236, 231, 0.14));
+  background: var(--ds-surface-3, rgba(241, 236, 231, 0.045));
+  color: var(--ds-ink-1, rgba(241, 236, 231, 0.94));
+  font: var(--ds-weight-reg, 400) var(--ds-text-sm, 12px)/1.4 var(--ds-font-mono, monospace);
+  outline: none;
+  transition: border-color 120ms var(--ds-ease, ease), box-shadow 120ms var(--ds-ease, ease);
+}
+.alch-cv-search-input::placeholder { color: var(--ds-ink-4, rgba(241, 236, 231, 0.32)); }
+.alch-cv-search-input:focus {
+  border-color: var(--ds-accent, #EAB308);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ds-accent, #EAB308) 30%, transparent);
+}
+.alch-cv-search-icon {
+  position: absolute; left: 9px; top: 50%;
+  width: 14px; height: 14px; transform: translateY(-50%);
+  color: var(--ds-ink-3, rgba(241, 236, 231, 0.52)); pointer-events: none;
+}
+.alch-cv-filter-empty { margin: 6px 4px; }
+
+/* reading-progress bar — sticky at the reader top, section ticks along it.
+   Progress + outline consolidated onto one element. */
+.alch-cv-progress {
+  position: sticky; top: 0; z-index: 4;
+  height: 2px; margin: 0 0 2px;
+  border-radius: 2px;
+  background: var(--ds-border, rgba(241, 236, 231, 0.14));
+}
+.alch-cv-progress-fill {
+  display: block; height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--ds-accent, #EAB308), var(--ds-accent-hover, #FACC15));
+  transform: scaleX(0); transform-origin: left;
+}
+.alch-cv-progress-tick {
+  position: absolute; top: 50%;
+  width: 14px; height: 14px;
+  transform: translate(-50%, -50%);
+  border: 0; background: transparent; padding: 0; cursor: pointer;
+}
+.alch-cv-progress-tick::after {
+  content: ""; position: absolute; inset: 0; margin: auto;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--ds-border-strong, rgba(241, 236, 231, 0.26));
+  box-shadow: 0 0 0 3px var(--ds-surface-1, #231F20);
+  transition: background 200ms var(--ds-ease, ease), transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.alch-cv-progress-tick.is-done::after { background: var(--ds-accent, #EAB308); }
+.alch-cv-progress-tick.is-active::after { background: var(--ds-accent-hover, #FACC15); transform: scale(1.4); }
+
+/* detail enter — a gentle rise (transform + opacity only) */
+@keyframes alch-cv-detail-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.alch-cv-detail { animation: alch-cv-detail-in 240ms cubic-bezier(0.22, 1, 0.36, 1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .alch-cv-detail { animation: none; }
+  .alch-cv-source::before,
+  .alch-cv-progress-fill,
+  .alch-cv-progress-tick::after { transition: none; }
 }
 
 @media (max-width: 720px) {

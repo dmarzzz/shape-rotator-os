@@ -4,16 +4,95 @@ const fs = require("node:fs");
 const os = require("node:os");
 const crypto = require("node:crypto");
 const swfNode = require("./swf-node");
-const swarm = require("./swarm-node");
 const cohortChat = require("./cohort-chat-node");
-const ghNode = require("./gh-node");
-const easelNdi = require("./easel-ndi");
-const matrix = require("./matrix");
-const transcriptIntake = require("./transcript-intake");
-// Daybook (apps→daybook): registering this module wires every `daybook:*`
-// ipcMain handler (digest pipeline, scope/redaction, onboarding). Side-effect
-// require, mirroring the prefs/swarm/easel handlers below. See daybook-main.js.
-require("./daybook-main");
+let swarm = null;
+let swarmBridgeWired = false;
+let ghNode = null;
+let easelNdi = null;
+let matrix = null;
+let matrixStarted = false;
+let transcriptIntake = null;
+const MATRIX_DEFAULT_HS = "https://mtrx.shaperotator.xyz";
+
+function loadSwarm() {
+  if (!swarm) swarm = require("./swarm-node");
+  if (!swarmBridgeWired) {
+    swarmBridgeWired = true;
+    swarm.onStatus((s) => broadcastSwarm("fg:swarm:status-changed", s));
+    swarm.onOutput((o) => broadcastSwarm("fg:swarm:output", o));
+  }
+  return swarm;
+}
+
+function loadGhNode() {
+  if (!ghNode) ghNode = require("./gh-node");
+  return ghNode;
+}
+
+function loadEaselNdi() {
+  if (!easelNdi) easelNdi = require("./easel-ndi");
+  return easelNdi;
+}
+
+function loadTranscriptIntake() {
+  if (!transcriptIntake) transcriptIntake = require("./transcript-intake");
+  return transcriptIntake;
+}
+
+function hasMatrixSessionToResume() {
+  try {
+    const userData = app.getPath("userData");
+    return fs.existsSync(path.join(userData, "matrix-session.json"))
+      && (
+        fs.existsSync(path.join(userData, "matrix-token"))
+        || fs.existsSync(path.join(userData, "matrix-token.enc"))
+      );
+  } catch {
+    return false;
+  }
+}
+
+function matrixLoggedOutStatus() {
+  return {
+    state: "logged_out",
+    userId: null,
+    homeserver: MATRIX_DEFAULT_HS,
+    error: "",
+    cryptoReady: false,
+  };
+}
+
+function shouldLoadMatrixForPassiveRead() {
+  return !!matrix || hasMatrixSessionToResume();
+}
+
+function loadMatrix({ start = true } = {}) {
+  if (!matrix) matrix = require("./matrix");
+  if (start && !matrixStarted) {
+    matrix.start(app);
+    matrixStarted = true;
+  }
+  return matrix;
+}
+// Daybook/router is a pop-out app. Keep its digest/redaction/link/whisper module
+// graph off the main-window boot path; load it the first time the user opens it.
+let daybookMain = null;
+function loadDaybookMain() {
+  if (!daybookMain) {
+    global.__SROS_DAYBOOK_OPEN_WINDOW_REGISTERED = true;
+    daybookMain = require("./daybook-main");
+  }
+  return daybookMain;
+}
+
+ipcMain.handle("daybook:open-window", () => {
+  const daybook = loadDaybookMain();
+  if (typeof daybook.openRouterWindow === "function") {
+    daybook.openRouterWindow();
+    return { ok: true };
+  }
+  return { ok: false, error: "router window unavailable" };
+});
 
 // Headless launch self-test. `--smoke-test` (or SROS_SMOKE_TEST=1) boots
 // the renderer in a hidden window, waits for boot.js to signal ready, and
@@ -37,6 +116,43 @@ const DEEPLINK_SCHEME = "sros";
 function runSmokeTest() {
   const TIMEOUT_MS = Number(process.env.SROS_SMOKE_TIMEOUT_MS) || 45000;
   const log = (m) => process.stdout.write(`[smoke] ${m}\n`);
+  const mib = (kb) => `${(Number(kb || 0) / 1024).toFixed(1)}MiB`;
+  const logSmokeMetrics = async () => {
+    if (process.env.SROS_SMOKE_METRICS !== "1") return;
+    try {
+      const mem = await process.getProcessMemoryInfo();
+      log(`metrics main resident=${mib(mem.residentSet)} private=${mib(mem.private)} shared=${mib(mem.shared)}`);
+    } catch (err) {
+      log(`metrics main unavailable: ${err && err.message}`);
+    }
+    try {
+      const metrics = app.getAppMetrics();
+      const totalWorkingSet = metrics.reduce((sum, row) => sum + Number(row?.memory?.workingSetSize || 0), 0);
+      const rows = metrics
+        .map((row) => `${row.type || row.name || row.pid}:${mib(row?.memory?.workingSetSize)}`)
+        .join(", ");
+      log(`metrics app processCount=${metrics.length} workingSet=${mib(totalWorkingSet)} [${rows}]`);
+    } catch (err) {
+      log(`metrics app unavailable: ${err && err.message}`);
+    }
+    try {
+      const lazySpecs = [
+        "./daybook-main",
+        "./swarm-node",
+        "./gh-node",
+        "./easel-ndi",
+        "./matrix",
+        "./transcript-intake",
+      ];
+      const states = lazySpecs.map((spec) => {
+        const key = path.basename(spec);
+        return `${key}=${require.cache[require.resolve(spec)] ? "loaded" : "cold"}`;
+      });
+      log(`metrics lazy-main ${states.join(" ")}`);
+    } catch (err) {
+      log(`metrics lazy-main unavailable: ${err && err.message}`);
+    }
+  };
   let settled = false;
   const finish = (code, why) => {
     if (settled) return;
@@ -79,7 +195,10 @@ function runSmokeTest() {
   // where renderer console-message capture is not. The last one logged before
   // the timeout pinpoints the blocking phase.
   ipcMain.on("smoke:trace", (_e, label) => log(`cp:${label}`));
-  ipcMain.once("smoke:ready", () => finish(0, "renderer signalled ready"));
+  ipcMain.once("smoke:ready", async () => {
+    await logSmokeMetrics();
+    finish(0, "renderer signalled ready");
+  });
   // ?smoke=1 lets boot.js emit [smoke-cp] checkpoint markers (surfaced above via
   // console-message) so a headless-CI boot hang reports HOW FAR boot() got.
   win.loadFile(path.join(__dirname, "src", "index.html"), { query: { smoke: "1" } });
@@ -1604,26 +1723,30 @@ ipcMain.handle("fg:swf-agent-token", async () => swfNode.getAgentToken() || null
 // messages" channels. The renderer (src/renderer/chat/) drives it through
 // these invoke handlers. Matrix E2EE is owned by the main-process bridge and
 // crash-contained crypto helper; the renderer never receives Matrix secrets.
-ipcMain.handle("matrix:get-status", async () => matrix.getStatus());
-ipcMain.handle("matrix:flows", async (_e, hs) => matrix.getFlows(hs));
-ipcMain.handle("matrix:login-sso", async (_e, p) => matrix.loginSSO(p || {}));
-ipcMain.handle("matrix:login-device", async (_e, p) => matrix.loginViaDevice(p || {}));
-ipcMain.handle("matrix:login-code", async (_e, p) => matrix.loginWithCode(p || {}));
-ipcMain.handle("matrix:login-matrixorg", async () => matrix.loginMatrixOrg());
-ipcMain.handle("matrix:login-matrixorg-browser", async () => matrix.loginMatrixOrgBrowser());
-ipcMain.handle("matrix:cancel-device", async () => { matrix.cancelDevice(); return { ok: true }; });
-ipcMain.handle("matrix:cancel-matrixorg-browser", async () => { matrix.cancelMatrixOrgBrowser(); return { ok: true }; });
-ipcMain.handle("matrix:cancel-sso", async () => { matrix.cancelSSO(); return { ok: true }; });
-ipcMain.handle("matrix:login", async (_e, p) => matrix.login(p || {}));
-ipcMain.handle("matrix:logout", async () => matrix.logout());
-ipcMain.handle("matrix:get-rooms", async () => matrix.getRooms());
-ipcMain.handle("matrix:get-messages", async (_e, roomId) => matrix.getMessages(roomId));
-ipcMain.handle("matrix:send", async (_e, { roomId, body, replyTo } = {}) => matrix.send(roomId, body, { replyTo }));
-ipcMain.handle("matrix:react", async (_e, { roomId, eventId, key } = {}) => matrix.react(roomId, eventId, key));
-ipcMain.handle("matrix:edit", async (_e, { roomId, eventId, body } = {}) => matrix.editMessage(roomId, eventId, body));
-ipcMain.handle("matrix:redact", async (_e, { roomId, eventId } = {}) => matrix.redactEvent(roomId, eventId));
-ipcMain.handle("matrix:mark-read", async (_e, roomId) => matrix.markRead(roomId));
-ipcMain.handle("matrix:avatar", async (_e, { userId, size } = {}) => matrix.getAvatar(userId, size));
+ipcMain.handle("matrix:get-status", async () => (
+  shouldLoadMatrixForPassiveRead() ? loadMatrix().getStatus() : matrixLoggedOutStatus()
+));
+ipcMain.handle("matrix:flows", async (_e, hs) => loadMatrix().getFlows(hs));
+ipcMain.handle("matrix:login-sso", async (_e, p) => loadMatrix().loginSSO(p || {}));
+ipcMain.handle("matrix:login-device", async (_e, p) => loadMatrix().loginViaDevice(p || {}));
+ipcMain.handle("matrix:login-code", async (_e, p) => loadMatrix().loginWithCode(p || {}));
+ipcMain.handle("matrix:login-matrixorg", async () => loadMatrix().loginMatrixOrg());
+ipcMain.handle("matrix:login-matrixorg-browser", async () => loadMatrix().loginMatrixOrgBrowser());
+ipcMain.handle("matrix:cancel-device", async () => { if (matrix) matrix.cancelDevice(); return { ok: true }; });
+ipcMain.handle("matrix:cancel-matrixorg-browser", async () => { if (matrix) matrix.cancelMatrixOrgBrowser(); return { ok: true }; });
+ipcMain.handle("matrix:cancel-sso", async () => { if (matrix) matrix.cancelSSO(); return { ok: true }; });
+ipcMain.handle("matrix:login", async (_e, p) => loadMatrix().login(p || {}));
+ipcMain.handle("matrix:logout", async () => loadMatrix().logout());
+ipcMain.handle("matrix:get-rooms", async () => (
+  shouldLoadMatrixForPassiveRead() ? loadMatrix().getRooms() : []
+));
+ipcMain.handle("matrix:get-messages", async (_e, roomId) => loadMatrix().getMessages(roomId));
+ipcMain.handle("matrix:send", async (_e, { roomId, body, replyTo } = {}) => loadMatrix().send(roomId, body, { replyTo }));
+ipcMain.handle("matrix:react", async (_e, { roomId, eventId, key } = {}) => loadMatrix().react(roomId, eventId, key));
+ipcMain.handle("matrix:edit", async (_e, { roomId, eventId, body } = {}) => loadMatrix().editMessage(roomId, eventId, body));
+ipcMain.handle("matrix:redact", async (_e, { roomId, eventId } = {}) => loadMatrix().redactEvent(roomId, eventId));
+ipcMain.handle("matrix:mark-read", async (_e, roomId) => loadMatrix().markRead(roomId));
+ipcMain.handle("matrix:avatar", async (_e, { userId, size } = {}) => loadMatrix().getAvatar(userId, size));
 
 // ─── swarm-mode IPC ──────────────────────────────────────────────────
 //
@@ -1682,7 +1805,7 @@ function writeSwarmApiKey(plain) {
   } catch (e) { process.stderr.write(`[swarm] api key write failed: ${e.message}\n`); return false; }
 }
 
-ipcMain.handle("fg:swarm:status", async () => swarm.getStatus());
+ipcMain.handle("fg:swarm:status", async () => swarm ? swarm.getStatus() : { state: "idle" });
 
 // Poll swf-node's /health until 200 or the deadline. The supervisor's
 // "running" state doesn't guarantee the HTTP server is bound yet —
@@ -1742,7 +1865,7 @@ ipcMain.handle("fg:swarm:start", async (_e, opts) => {
   const lmApiBase = o.lmApiBase || cfg.lmApiBase || "";
   let   lmApiKey  = o.lmApiKey;
   if (!lmApiKey && lmModel.startsWith("anthropic/")) lmApiKey = readSwarmApiKey();
-  return swarm.start({
+  return loadSwarm().start({
     requestId: o.requestId || `req_${Math.random().toString(36).slice(2, 10)}`,
     query:     o.query,
     lmModel, lmApiKey, lmApiBase,
@@ -1753,11 +1876,11 @@ ipcMain.handle("fg:swarm:start", async (_e, opts) => {
   });
 });
 
-ipcMain.handle("fg:swarm:stop",   async () => swarm.stop());
+ipcMain.handle("fg:swarm:stop",   async () => swarm ? swarm.stop() : { ok: false, reason: "not_running" });
 
 ipcMain.handle("fg:swarm:config:get", async () => {
   const cfg = readSwarmConfig();
-  const agent = swarm.getAgentInfo();
+  const agent = loadSwarm().getAgentInfo();
   return {
     lmModel:   cfg.lmModel   || "anthropic/claude-sonnet-4-6",
     lmApiBase: cfg.lmApiBase || "",
@@ -1780,15 +1903,15 @@ ipcMain.handle("fg:swarm:config:set", async (_e, opts) => {
   return { ok: true };
 });
 
-// Bridge swarm-node's local emitters to renderer IPC. The single
-// BrowserWindow we own gets every event.
+// Bridge local subprocess emitters to renderer IPC. The single BrowserWindow
+// we own gets every event.
 function broadcastSwarm(channel, payload) {
   for (const w of BrowserWindow.getAllWindows()) {
     try { w.webContents.send(channel, payload); } catch {}
   }
 }
-swarm.onStatus((s) => broadcastSwarm("fg:swarm:status-changed", s));
-swarm.onOutput((o) => broadcastSwarm("fg:swarm:output", o));
+cohortChat.onStatus((s) => broadcastSwarm("fg:cohort-chat:status-changed", s));
+cohortChat.onOutput((o) => broadcastSwarm("fg:cohort-chat:output", o));
 
 // ─── cohort-chat IPC ─────────────────────────────────────────────────
 //
@@ -1929,17 +2052,14 @@ ipcMain.handle("fg:cohort-chat:stop", async () => cohortChat.stop());
 // so private repos are included; the renderer keeps only a scrubbed digest.
 // scanPrivateGithub self-reports gh install/auth state in its result, so the
 // renderer needs no separate status probe.
-ipcMain.handle("fg:gh:scan-private", async (_e, opts) => ghNode.scanPrivateGithub(opts || {}));
+ipcMain.handle("fg:gh:scan-private", async (_e, opts) => loadGhNode().scanPrivateGithub(opts || {}));
 
-cohortChat.onStatus((s) => broadcastSwarm("fg:cohort-chat:status-changed", s));
-cohortChat.onOutput((o) => broadcastSwarm("fg:cohort-chat:output", o));
-
-ipcMain.handle("fg:transcript-intake:options", async () => transcriptIntake.getTranscriptIntakeOptions());
+ipcMain.handle("fg:transcript-intake:options", async () => loadTranscriptIntake().getTranscriptIntakeOptions());
 // Open the native file picker (file-first UI). Returns the validated file's
 // display info without staging/uploading; the renderer submits separately.
 ipcMain.handle("fg:transcript-intake:pick", async (e) => {
   try {
-    return await transcriptIntake.pickTranscriptFile({ browserWindow: BrowserWindow.fromWebContents(e.sender) });
+    return await loadTranscriptIntake().pickTranscriptFile({ browserWindow: BrowserWindow.fromWebContents(e.sender) });
   } catch (error) {
     return { ok: false, reason: error?.code || "pick_failed", detail: error?.message || String(error) };
   }
@@ -1947,7 +2067,7 @@ ipcMain.handle("fg:transcript-intake:pick", async (e) => {
 // Validate a drag-and-dropped path the same way the picker does.
 ipcMain.handle("fg:transcript-intake:inspect", async (_e, filePath) => {
   try {
-    return transcriptIntake.inspectTranscriptFile(String(filePath || ""));
+    return loadTranscriptIntake().inspectTranscriptFile(String(filePath || ""));
   } catch (error) {
     return { ok: false, reason: error?.code || "invalid_file", detail: error?.message || String(error) };
   }
@@ -1966,9 +2086,9 @@ ipcMain.handle("fg:transcript-intake:submit", async (e, opts = {}) => {
     // File already chosen in the renderer → submit it directly. Fall back to
     // the picker only if no path was passed (legacy callers).
     if (opts.filePath) {
-      return await transcriptIntake.submitTranscriptIntake({ ...args, filePath: String(opts.filePath) });
+      return await loadTranscriptIntake().submitTranscriptIntake({ ...args, filePath: String(opts.filePath) });
     }
-    return await transcriptIntake.pickAndSubmitTranscriptIntake({
+    return await loadTranscriptIntake().pickAndSubmitTranscriptIntake({
       ...args,
       browserWindow: BrowserWindow.fromWebContents(e.sender),
     });
@@ -1986,7 +2106,7 @@ ipcMain.handle("fg:transcript-intake:submit", async (e, opts = {}) => {
 // broadcast as an NDI source. Source enumeration must run in main
 // (desktopCapturer is main-process in Electron); the renderer turns the
 // chosen id into a MediaStream via getUserMedia.
-ipcMain.handle("easel:available", async () => easelNdi.isAvailable());
+ipcMain.handle("easel:available", async () => loadEaselNdi().isAvailable());
 ipcMain.handle("easel:list-sources", async () => {
   const { desktopCapturer } = require("electron");
   const sources = await desktopCapturer.getSources({
@@ -2003,7 +2123,7 @@ ipcMain.handle("easel:list-sources", async () => {
 });
 ipcMain.handle("easel:start", async (e, opts) => {
   try {
-    const res = await easelNdi.start(opts && opts.name);
+    const res = await loadEaselNdi().start(opts && opts.name);
     // While broadcasting, keep the renderer's capture pump running at full
     // FPS even when the OS window is backgrounded/occluded. Otherwise
     // switching to another app throttles its timers and the NDI stream
@@ -2012,23 +2132,23 @@ ipcMain.handle("easel:start", async (e, opts) => {
     return res;
   } catch (err) { return { ok: false, error: err.message }; }
 });
-ipcMain.handle("easel:frame", async (_e, frame) => easelNdi.sendFrame(frame));
-ipcMain.handle("easel:stats", async () => easelNdi.stats());
+ipcMain.handle("easel:frame", async (_e, frame) => loadEaselNdi().sendFrame(frame));
+ipcMain.handle("easel:stats", async () => easelNdi ? easelNdi.stats() : { live: false, name: "", connections: 0, frames: 0 });
 ipcMain.handle("easel:stop", async (e) => {
   try { e.sender.setBackgroundThrottling(true); } catch {}
-  return easelNdi.stop();
+  return easelNdi ? easelNdi.stop() : true;
 });
 // ─── easel · receive side (watch others on the LAN) ───
 // Discover NDI sources + stream the chosen source's frames back to the
 // renderer. Frame data crosses IPC as a Uint8Array (RGBA, line-stride);
 // the renderer puts it on a canvas via putImageData.
-ipcMain.handle("easel:find-sources", async (_e, opts) => easelNdi.find(opts || {}));
+ipcMain.handle("easel:find-sources", async (_e, opts) => loadEaselNdi().find(opts || {}));
 ipcMain.handle("easel:rx-start", async (e, opts) => {
   const wc = e.sender;
   // Keep the renderer's frame-draw work running smoothly even when the app
   // window is backgrounded (same reason we do it for the sender side).
   try { wc.setBackgroundThrottling(false); } catch {}
-  return easelNdi.recvStart({
+  return loadEaselNdi().recvStart({
     sourceName: opts && opts.sourceName,
     onFrame: (frame) => {
       if (wc.isDestroyed()) return;
@@ -2043,19 +2163,19 @@ ipcMain.handle("easel:rx-start", async (e, opts) => {
 ipcMain.handle("easel:rx-stop", async (e) => {
   // Only re-throttle if the sender side isn't still live.
   try {
-    const sStats = easelNdi.stats && easelNdi.stats();
+    const sStats = easelNdi && easelNdi.stats && easelNdi.stats();
     if (!sStats || !sStats.live) e.sender.setBackgroundThrottling(true);
   } catch {}
-  return easelNdi.recvStop();
+  return easelNdi ? easelNdi.recvStop() : true;
 });
-ipcMain.handle("easel:rx-stats", async () => easelNdi.recvStats());
+ipcMain.handle("easel:rx-stats", async () => easelNdi ? easelNdi.recvStats() : { active: false, sourceName: "", frames: 0 });
 
 // Per-source thumbnail receivers — drive the live previews inside each
 // LAN feed card. Frames stream back via "easel:thumb-frame" tagged with
 // sourceName so the renderer can route to the right card canvas.
 ipcMain.handle("easel:thumb-start", async (e, opts) => {
   const wc = e.sender;
-  return easelNdi.thumbStart({
+  return loadEaselNdi().thumbStart({
     sourceName: opts && opts.sourceName,
     onFrame: (frame) => {
       if (wc.isDestroyed()) return;
@@ -2063,8 +2183,8 @@ ipcMain.handle("easel:thumb-start", async (e, opts) => {
     },
   });
 });
-ipcMain.handle("easel:thumb-stop", async (_e, opts) => easelNdi.thumbStop(opts && opts.sourceName));
-ipcMain.handle("easel:thumb-stop-all", async () => easelNdi.thumbStopAll());
+ipcMain.handle("easel:thumb-stop", async (_e, opts) => easelNdi ? easelNdi.thumbStop(opts && opts.sourceName) : true);
+ipcMain.handle("easel:thumb-stop-all", async () => easelNdi ? easelNdi.thumbStopAll() : true);
 
 // Dev-only sync-client smoke test. Triggers the renderer's
 // window.__srfgSyncClientSelfTest() helper (apps/os/src/renderer/sync-client.js
@@ -2591,9 +2711,10 @@ app.whenReady().then(() => {
   // the binary is missing, start() short-circuits to "unsupported"
   // and the renderer keeps the legacy "swf-node not running" UX.
   swfNode.start(app, broadcastSwfNodeStatus);
-  // Resume the cohort Matrix session (if signed in) once a window exists so
-  // its rooms/messages broadcasts have a webContents target.
-  matrix.start(app);
+  // Resume the cohort Matrix session only if there is one to resume. Otherwise
+  // leave the Matrix HTTP client module off the default boot heap; opening the
+  // chat tab loads it through the IPC handlers above.
+  if (hasMatrixSessionToResume()) loadMatrix();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
     recheckDaemon();
@@ -2610,7 +2731,7 @@ app.whenReady().then(() => {
 // immediately and the child becomes our zombie.
 let _quittingSwfNode = false;
 app.on("before-quit", (event) => {
-  try { matrix.stop(); } catch {}
+  try { if (matrix) matrix.stop(); } catch {}
   if (_quittingSwfNode) return;
   const status = swfNode.getStatus();
   if (status === "idle" || status === "unsupported" || status === "crashed") return;

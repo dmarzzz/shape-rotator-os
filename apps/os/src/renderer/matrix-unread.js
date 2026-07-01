@@ -2,11 +2,11 @@
 //
 // Mirrors the OS rail's what's-new badges: a small numbered circle in the
 // gutter left of the matrix icon showing how many unread cohort-chat messages
-// are waiting. The Matrix bridge (apps/os/matrix.js) syncs in the MAIN process
-// from app start — independent of whether the chat tab has ever been mounted —
-// and broadcasts room summaries (each with a per-room `unread` count) over
-// api.matrix.onRooms. The badge is just the sum of those counts, so it always
-// agrees with the per-room badges in the chat room list.
+// are waiting. When a saved Matrix session exists, the Matrix bridge
+// (apps/os/matrix.js) resumes sync in the MAIN process at app start and
+// broadcasts room summaries (each with a per-room `unread` count) over
+// api.matrix.onRooms. Signed-out boots stay cheap: the initial status/rooms
+// probes return logged-out/empty without loading the Matrix module.
 //
 // The counts are authoritative: chat.js sends a read receipt when the user
 // opens a channel (api.markRead), so the homeserver zeroes that room's
