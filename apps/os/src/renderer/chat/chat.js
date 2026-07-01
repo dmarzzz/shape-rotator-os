@@ -539,6 +539,19 @@ export function mountChat(host) {
     api.markRead?.(roomId);
   }
 
+  async function refreshActiveRoomFromMain() {
+    if (!activeRoomId || loadedRoom !== activeRoomId) return;
+    const roomId = activeRoomId;
+    try {
+      const data = await api.messages(roomId);
+      if (activeRoomId !== roomId || loadedRoom !== roomId) return;
+      messagesByRoom.set(roomId, data.messages || []);
+      reactionsByRoom.set(roomId, data.reactions || {});
+      renderTimeline(roomId, data.encrypted, data.cryptoReady);
+      setComposerEnabled(!data.encrypted || data.cryptoReady);
+    } catch {}
+  }
+
   function setComposerEnabled(on) {
     const input = host.querySelector(".chat-compose-input");
     const btn = host.querySelector(".chat-send");
@@ -810,7 +823,12 @@ export function mountChat(host) {
   render();
 
   // ─── live subscriptions ────────────────────────────────────────────────────
-  api.onStatus((s) => { status = s || status; render(); });
+  api.onStatus((s) => {
+    const hadCrypto = !!status.cryptoReady;
+    status = s || status;
+    render();
+    if (!hadCrypto && status.cryptoReady) refreshActiveRoomFromMain();
+  });
   api.onRooms((list) => {
     rooms = Array.isArray(list) ? list : [];
     if (showing === "shell") { renderRoomList(); maybeAutoSelect(); }
