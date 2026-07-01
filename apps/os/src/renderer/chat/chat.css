@@ -86,6 +86,7 @@
   outline: none;
 }
 .chat-input-text:focus { border-color: rgba(var(--ink-rgb), 0.38); background: rgba(var(--ink-rgb), 0.06); }
+.chat-input-text:focus-visible { outline: 2px solid var(--page-focus, var(--ds-focus)); outline-offset: 1px; }
 
 .chat-btn {
   appearance: none;
@@ -530,6 +531,7 @@
   max-height: 120px;
 }
 .chat-compose-input:focus { border-color: rgba(var(--ink-rgb), 0.34); }
+.chat-compose-input:focus-visible { outline: 2px solid var(--page-focus, var(--ds-focus)); outline-offset: 1px; }
 .chat-compose-input:disabled { opacity: 0.5; }
 .chat-send { flex: 0 0 auto; align-self: stretch; }
 .chat-composer-error {

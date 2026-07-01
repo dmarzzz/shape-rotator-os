@@ -120,6 +120,10 @@ html[data-ds] .swarm-panel {
   --alchemy-oxide:        var(--page-accent);
   --alchemy-oxide-bright: var(--page-accent-hover);
   --cal-oxide:            var(--page-accent);
+  /* NOT per-page: the "live / now / local" cyan is the app's integrating thread.
+     It was a legacy alias of --accent, so the per-page system turned it into the
+     page colour (yellow inside cyan halos on network). Pin it to the status cyan. */
+  --neon-cyan:            var(--status-local, #5AF0FF);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -392,4 +396,37 @@ html[data-ds] :is(.ac-sent-opt, .ac-jbn-opt, .c2-rowsctl-opt, .c2-scope-opt, .cw
                   [aria-checked="true"], .is-active, .is-selected) {
   background: var(--ds-accent-soft) !important;
   color: var(--ds-ink-1) !important;
+}
+
+/* ── A11Y: keyboard-focus / press / disabled for the nav + segmented families ──
+   The button group above already gives action + icon buttons a focus ring, but
+   the system DELIBERATELY excluded the nav rail, the browser-tab strip and the
+   segmented/scope controls (see the button section) — so those had NO keyboard
+   focus affordance at all (the audit's #1 finding, ~7 surfaces). Fill that gap
+   here, keyed to the page accent so the ring matches the page. `!important` on
+   the outline beats any stray `outline:none` reset; the family list is scoped so
+   surfaces with their own good focus styling (membrane, self-report) stay put. */
+html[data-ds] :is(
+  .nav-cat, .alchemy-rail-btn, .alch-rail-sub-btn,
+  .os-tab, .os-tab-new, .os-tab-close,
+  .cc-tab, .tab-btn, .chat-seg-btn, .chat-room-btn,
+  .traffic-chip, .net-subtab, .net-mode-btn, .livegraph-mode-btn,
+  .alch-prog-tab, .alch-page-view-btn, .c2-scope-btn, .cw-scope-btn
+):focus-visible {
+  outline: 2px solid var(--page-focus, var(--ds-focus)) !important;
+  outline-offset: 2px;
+}
+/* Press feedback (reduced-motion-guarded) — a click now registers. */
+@media (prefers-reduced-motion: no-preference) {
+  html[data-ds] :is(
+    .os-tab, .cc-tab, .traffic-chip, .net-subtab, .net-mode-btn, .alch-prog-tab
+  ):active {
+    transform: scale(0.985);
+    transition: transform 110ms var(--ds-ease, ease);
+  }
+}
+/* Disabled — a JS-disabled control no longer looks enabled. */
+html[data-ds] :is(.traffic-chip, .net-subtab, .cc-tab, .chat-room-btn):disabled {
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
 }
