@@ -33,8 +33,6 @@ import {
 } from "@shape-rotator/shape-ui";
 import { saveSphere, SPHERE_DIALS, SPHERE_DEFAULTS, SPHERE_BG_DEFAULT, SPHERE_BG_MIX_DEFAULT, SPHERE_TIME_DEFAULT, SPHERE_BG_PRESETS, normalizeHex } from "./supabase-sphere.mjs";
 import { highlightGLSL } from "./shader-dsl.mjs";
-import { getSubscriptions, addSubscription, removeSubscription, reorderSubscriptions, SUBSCRIPTION_KINDS } from "./calendar-subscriptions.js";
-import { CALENDAR_TRANSCRIPT_MATCHES } from "../content/context/calendar-transcript-matches.js";
 import {
   aggregateSkillAreas, buildCohortIndex, buildCollabModel, collabAffKey, collabHasText,
   dependencyPairKey, dependencySafeToken,
@@ -60,7 +58,7 @@ import { unreadCounts, unreadRecordsForMode, markModeSeen, fingerprintItems, unr
 import { evidenceMoveCards, indexCohortEvidence, rankEvidenceNeighbors, teamEvidence, recentClaims, teamTimeline, claimLane, teamProgressRollup } from "./cohort-evidence-index.mjs";
 import { cardTraceBodyHtml, cardTraceHtml } from "./cohort-trace-view.mjs";
 import { getCohortTimeline } from "./cohort-timeline.js";
-import { isPresent, buildDefaultTimeline, buildFollowedTimeline } from "./cohort-timeline-tracks.mjs";
+import { isPresent, buildDefaultTimeline } from "./cohort-timeline-tracks.mjs";
 import { renderTimelineLanesHtml } from "./cohort-timeline-render.mjs";
 import { getStandingWeekly } from "./cohort-standing-weekly.js";
 import { periodScrubberHtml, wireScrubber, weekStopsFrom, snapshotStopsFrom } from "./cohort-period-scrubber.mjs";
@@ -295,8 +293,11 @@ const state = {
   cohort: null,        // { teams, clusters, people, program, asks, cohort_vocab } from cohort-source
   cohortTimeline: null,         // generated timeline read model; snapshots carry public cohort surfaces
   cohortTimelineLoading: false,
+  cohortTimelinePromise: null,
   cohortTimelineError: "",
   standingWeekly: null,         // per-week PMF stage/standing (Supabase team_standing_weekly → cohort-standing-weekly.json); drives the goal-view timeline + momentum
+  standingWeeklyLoaded: false,
+  standingWeeklyPromise: null,
   constellationTimelineIdx: null,  // selected snapshot index within cohortTimeline.snapshots
   constellationShowDelta: false,
   profile: null,       // local-only: { user, editor state, ... }
@@ -330,7 +331,6 @@ const state = {
     detach: null,                 // teardown returned by attachCalendarPageBehavior
     catHidden: [],                // category keys the legend-filter has switched off
     scope: null,                  // team record_id the signals are focused on (null = all cohort)
-    subscriptions: null,          // followed lanes for the program-axis board; lazily loaded from localStorage (calendar-subscriptions.js)
   },
   events: [],          // normalized feed items, latest-first
   fetchedAt: 0,
@@ -341,6 +341,7 @@ const state = {
     manifest: null,
     roots: [],
     mode: "articles",
+    query: "",
     selectedId: null,
     selectedRawId: null,
     selectedText: "",
@@ -661,9 +662,6 @@ export function mount(container) {
     console.error("[alchemy] cohort load failed:", err);
     state.canvas.innerHTML = `<p class="alch-callout"><strong>cohort data unavailable</strong><br/>${escHtml(err.message || String(err))}</p>`;
   });
-  loadCohortTimeline().then(() => {
-    if (state.mounted && (state.mode === "constellation" || state.mode === "shapes" || state.detailReturnMode === "constellation")) render();
-  }).catch(() => {});
   state.unsubscribe = subscribeToCohortChanges(() => {
     loadCohort().then(() => render({ instant: true })).catch(() => {});
   });
@@ -880,19 +878,77 @@ async function loadCohort() {
 }
 
 async function loadCohortTimeline() {
-  if (state.cohortTimeline || state.cohortTimelineLoading) return;
+  if (state.cohortTimeline) return state.cohortTimeline;
+  if (state.cohortTimelinePromise) return state.cohortTimelinePromise;
   state.cohortTimelineLoading = true;
-  try {
-    state.cohortTimeline = await getCohortTimeline();
-    try { state.standingWeekly = await getStandingWeekly(); } catch (e) { state.standingWeekly = null; }
-    state.cohortTimelineError = "";
-    ensureConstellationTimelineIdx();
-  } catch (err) {
-    console.warn("[alchemy] cohort timeline load failed:", err?.message || err);
-    state.cohortTimelineError = err?.message || String(err);
-  } finally {
-    state.cohortTimelineLoading = false;
-  }
+  state.cohortTimelinePromise = (async () => {
+    try {
+      const [timeline] = await Promise.all([
+        getCohortTimeline(),
+        loadStandingWeekly(),
+      ]);
+      state.cohortTimeline = timeline;
+      state.cohortTimelineError = "";
+      ensureConstellationTimelineIdx();
+      return state.cohortTimeline;
+    } catch (err) {
+      console.warn("[alchemy] cohort timeline load failed:", err?.message || err);
+      state.cohortTimelineError = err?.message || String(err);
+      return null;
+    } finally {
+      state.cohortTimelineLoading = false;
+      state.cohortTimelinePromise = null;
+    }
+  })();
+  return state.cohortTimelinePromise;
+}
+
+async function loadStandingWeekly() {
+  if (state.standingWeekly || state.standingWeeklyLoaded) return state.standingWeekly;
+  if (state.standingWeeklyPromise) return state.standingWeeklyPromise;
+  state.standingWeeklyPromise = (async () => {
+    try {
+      state.standingWeekly = await getStandingWeekly();
+      return state.standingWeekly;
+    } catch (err) {
+      console.warn("[alchemy] standing weekly load failed:", err?.message || err);
+      state.standingWeekly = null;
+      return null;
+    } finally {
+      state.standingWeeklyLoaded = true;
+      state.standingWeeklyPromise = null;
+    }
+  })();
+  return state.standingWeeklyPromise;
+}
+
+function currentViewNeedsStandingWeekly() {
+  if (state.mode === "program" || state.mode === "shapes" || state.mode === "constellation") return true;
+  if (!state.detailRecordId) return false;
+  return state.detailReturnMode === "program"
+    || state.detailReturnMode === "shapes"
+    || state.detailReturnMode === "constellation";
+}
+
+function ensureStandingWeeklyForCurrentView() {
+  if (!currentViewNeedsStandingWeekly()) return;
+  if (state.standingWeekly || state.standingWeeklyLoaded || state.standingWeeklyPromise) return;
+  loadStandingWeekly().then(() => {
+    if (state.mounted && currentViewNeedsStandingWeekly()) render({ instant: true });
+  }).catch(() => {});
+}
+
+function currentViewNeedsCohortTimeline() {
+  if (state.detailRecordId && state.detailReturnMode === "constellation") return true;
+  return state.mode === "shapes" || state.mode === "constellation";
+}
+
+function ensureCohortTimelineForCurrentView() {
+  if (!currentViewNeedsCohortTimeline()) return;
+  if (state.cohortTimeline || state.cohortTimelineLoading) return;
+  loadCohortTimeline().then(() => {
+    if (state.mounted && currentViewNeedsCohortTimeline()) render({ instant: true });
+  }).catch(() => {});
 }
 
 function constellationSnapshots() {
@@ -1498,6 +1554,8 @@ function render(opts = {}) {
   // Chromium throttles timers in background Electron windows, and
   // navigation must not leave state/detail URLs ahead of the painted DOM.
   canvas.classList.remove("is-leaving", "is-entering");
+  ensureStandingWeeklyForCurrentView();
+  ensureCohortTimelineForCurrentView();
   renderModeContent();
 }
 
@@ -10965,32 +11023,9 @@ function paintCalendarView({ wire = false } = {}) {
   // left over from the retired agenda tab degrades to the calendar grid.
   if (cal.view !== "presence" && cal.view !== "cal") cal.view = "cal";
   const presence = cal.view === "presence";
-  if (cal.subscriptions == null) cal.subscriptions = getSubscriptions();
-  // The bottom of the page is now a single program-axis "follow board": the
-  // user's followed lanes (the subscription store) rendered on the shared
-  // cohort-timeline axis. Build it from the followed (un-hidden) lanes + the
-  // cohort surface; each lane resolves to points/bars/band via the per-kind
-  // builders in cohort-timeline-tracks.mjs. (No more lane/category prefs — the
-  // picker adds/removes lanes instead; calendar-timeline-prefs is retired here.)
-  const cohort = state.cohort || {};
-  const teamNameById = new Map(
-    (cohort.teams || [])
-      .filter((t) => t && t.record_id)
-      .map((t) => [t.record_id, t.name || t.record_id]),
-  );
-  const followed = (cal.subscriptions || []).filter((s) => !s.hidden);
-  const followedTimeline = buildFollowedTimeline(
-    followed,
-    {
-      whatsNew: cohort.whats_new || [],
-      standingWeekly: state.standingWeekly,
-      people: cohort.people || [],
-      evidenceCards: cohort.transcript_evidence_cards || [],
-      teamNameById,
-      transcriptMatches: CALENDAR_TRANSCRIPT_MATCHES,
-    },
-    { startMs: PROGRAM_START_MS, endMs: PROGRAM_END_MS, nowMs: Date.now() },
-  );
+  // The calendar page is the week grid alone now — the program-axis "follow board"
+  // that used to ride under it (followed subscription lanes) was removed, so the
+  // host no longer builds or passes a followed timeline.
   state.canvas.innerHTML = calendarModule.renderCalendarPage({
     data: cal.data,
     calendarGoogleEvents: state.cohort?.calendar_google_events || {},
@@ -11001,13 +11036,6 @@ function paintCalendarView({ wire = false } = {}) {
     activity: Array.isArray(state.cohort?.whats_new) ? state.cohort.whats_new : [],
     catHidden: Array.isArray(cal.catHidden) ? cal.catHidden : [],
     signals: presence ? null : computeCalendarSignals(),
-    subscriptions: cal.subscriptions,
-    laneKinds: SUBSCRIPTION_KINDS,
-    timelineHtml: presence ? "" : renderTimelineLanesHtml(followedTimeline, { interactive: true }),
-    timelineSummary: presence ? null : {
-      lanes: followedTimeline.lanes.length,
-      points: followedTimeline.lanes.reduce((n, lane) => n + (lane.count || 0), 0),
-    },
   });
   if (presence) {
     mountAvailabilityCanvas();
@@ -11107,184 +11135,6 @@ function wireCalendar() {
       });
     }
 
-    // ── follow-board lanes: reveal a marker, remove a lane, add/reorder lanes ──
-    // Click a marker (.ctl-dot[data-c2-timeline-item]) to expand it in the shared
-    // calendar popover; "open team →" routes to the dossier when the point is
-    // team-attributed. Replaces the old per-day feed-item reveal.
-    for (const m of state.canvas.querySelectorAll("[data-c2-timeline-item]")) {
-      m.addEventListener("click", (e) => {
-        calendarLazy.peek()?.openCalendarTimelineItem?.(e.currentTarget, {
-          onOpenTeam: (rid) => openDetail(rid, "calendar"),
-        });
-      });
-    }
-    for (const x of state.canvas.querySelectorAll("[data-c2-subrow-remove]")) {
-      x.addEventListener("click", (e) => {
-        e.stopPropagation();
-        cal.rowsRefocus = "add";   // land on the add trigger after repaint, not <body>
-        cal.subscriptions = removeSubscription(x.getAttribute("data-c2-subrow-remove"));
-        refreshCalendarView();
-      });
-    }
-    // ── reorder: drag the gutter, click ▴/▾, or Alt+↑/↓ — all animated (FLIP) ──
-    const clearDrop = () => {
-      for (const el of state.canvas.querySelectorAll(".drop-before, .drop-after")) el.classList.remove("drop-before", "drop-after");
-    };
-    // FLIP: record each row's top, apply the reorder + repaint, then glide every
-    // row from its old position to its new one so the swap reads as motion.
-    const flipReorder = (apply) => {
-      const before = new Map();
-      for (const el of state.canvas.querySelectorAll("[data-c2-subrow-id]")) {
-        before.set(el.getAttribute("data-c2-subrow-id"), el.getBoundingClientRect().top);
-      }
-      apply();   // mutate cal.subscriptions + refreshCalendarView() (replaces the DOM)
-      let reduce = false;
-      try { reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.getAttribute("data-reduce-motion") === "1"; } catch {}
-      if (reduce) return;
-      const rows = [...state.canvas.querySelectorAll("[data-c2-subrow-id]")];
-      for (const el of rows) {
-        const old = before.get(el.getAttribute("data-c2-subrow-id"));
-        if (old == null) continue;
-        const dy = old - el.getBoundingClientRect().top;
-        if (!dy) continue;
-        el.style.transition = "none";
-        el.style.transform = `translateY(${dy}px)`;
-      }
-      requestAnimationFrame(() => {
-        for (const el of rows) {
-          if (!el.style.transform) continue;
-          el.style.transition = "transform 280ms cubic-bezier(0.22, 1, 0.36, 1)";
-          el.style.transform = "";
-          el.addEventListener("transitionend", () => { el.style.transition = ""; }, { once: true });
-        }
-      });
-    };
-    const moveRow = (rowEl, dir) => {
-      const id = rowEl.getAttribute("data-c2-subrow-id");
-      const sib = dir === "up" ? rowEl.previousElementSibling : rowEl.nextElementSibling;
-      if (!sib || !sib.matches?.("[data-c2-subrow-id]")) return;
-      cal.rowsRefocus = "row:" + id;
-      flipReorder(() => { cal.subscriptions = reorderSubscriptions(id, sib.getAttribute("data-c2-subrow-id"), dir === "down"); refreshCalendarView(); });
-    };
-    let dragRowId = null;
-    for (const row of state.canvas.querySelectorAll("[data-c2-subrow-id]")) {
-      const handle = row.querySelector(".rr-frowlab[draggable]") || row;
-      handle.addEventListener("dragstart", (e) => {
-        dragRowId = row.getAttribute("data-c2-subrow-id");
-        row.classList.add("is-dragging");
-        try { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", dragRowId); } catch {}
-      });
-      handle.addEventListener("dragend", () => { row.classList.remove("is-dragging"); clearDrop(); dragRowId = null; });
-      row.addEventListener("dragover", (e) => {
-        if (!dragRowId || row.getAttribute("data-c2-subrow-id") === dragRowId) return;
-        e.preventDefault();
-        try { e.dataTransfer.dropEffect = "move"; } catch {}
-        const r = row.getBoundingClientRect();
-        const after = (e.clientY - r.top) > r.height / 2;
-        clearDrop();
-        row.classList.add(after ? "drop-after" : "drop-before");
-      });
-      row.addEventListener("drop", (e) => {
-        e.preventDefault();
-        const targetId = row.getAttribute("data-c2-subrow-id");
-        const dId = dragRowId;
-        if (!dId || dId === targetId) { clearDrop(); return; }
-        const r = row.getBoundingClientRect();
-        const after = (e.clientY - r.top) > r.height / 2;
-        cal.rowsRefocus = "row:" + dId;
-        flipReorder(() => { cal.subscriptions = reorderSubscriptions(dId, targetId, after); refreshCalendarView(); });
-        dragRowId = null;
-      });
-      // click ▴/▾ to move (no hold) — the discoverable alternative to dragging
-      for (const mv of row.querySelectorAll("[data-c2-subrow-move]")) {
-        mv.addEventListener("click", (e) => { e.stopPropagation(); e.preventDefault(); moveRow(row, mv.getAttribute("data-c2-subrow-move")); });
-      }
-      // keyboard reorder — Alt+↑/↓ moves the focused row (non-pointer users)
-      const lab = row.querySelector(".rr-frowlab[tabindex]");
-      lab?.addEventListener("keydown", (e) => {
-        if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
-        e.preventDefault();
-        moveRow(row, e.key === "ArrowUp" ? "up" : "down");
-      });
-    }
-    // dropping onto the "+ add a lane" affordance moves the row to the end
-    const addRowEl = state.canvas.querySelector(".rr-fb-add, .rr-addrow");
-    if (addRowEl) {
-      addRowEl.addEventListener("dragover", (e) => { if (dragRowId) { e.preventDefault(); try { e.dataTransfer.dropEffect = "move"; } catch {} } });
-      addRowEl.addEventListener("drop", (e) => {
-        if (!dragRowId) return;
-        e.preventDefault();
-        const rows = state.canvas.querySelectorAll("[data-c2-subrow-id]");
-        const lastId = rows[rows.length - 1]?.getAttribute("data-c2-subrow-id");
-        const dId = dragRowId;
-        if (lastId && lastId !== dId) { cal.rowsRefocus = "row:" + dId; flipReorder(() => { cal.subscriptions = reorderSubscriptions(dId, lastId, true); refreshCalendarView(); }); }
-        dragRowId = null;
-      });
-    }
-    const addBtn = state.canvas.querySelector("[data-c2-subrow-add]");
-    const addMenu = state.canvas.querySelector(".c2-rowsctl-menu");
-    if (addBtn && addMenu) {
-      const opts = [...addMenu.querySelectorAll("[data-c2-subrow-kind]")];
-      const setAddOpen = (open) => {
-        addMenu.toggleAttribute("hidden", !open);
-        addBtn.setAttribute("aria-expanded", open ? "true" : "false");
-        cal.rowsMenuOpen = open;
-        if (open) opts[0]?.focus();
-      };
-      addBtn.addEventListener("click", (e) => { e.stopPropagation(); setAddOpen(addMenu.hasAttribute("hidden")); });
-      addBtn.addEventListener("keydown", (e) => {
-        if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " " || e.key === "Spacebar") { e.preventDefault(); setAddOpen(true); }
-      });
-      for (const opt of opts) {
-        opt.addEventListener("click", () => {
-          const kind = opt.getAttribute("data-c2-subrow-kind");
-          const subjectId = opt.getAttribute("data-c2-subrow-subject") || null;
-          const label = opt.getAttribute("data-c2-subrow-label") || "";
-          // checklist toggle: subscribed → remove that row; not subscribed → add it.
-          // Keep the menu open across ticks + remember which option to refocus.
-          const existing = (cal.subscriptions || []).find(r => r.kind === kind && (r.subjectId || null) === subjectId);
-          cal.rowsMenuOpen = true;
-          cal.rowsLastToggled = kind + ":" + (subjectId || "");
-          cal.subscriptions = existing ? removeSubscription(existing.id) : addSubscription({ kind, subjectId, label });
-          refreshCalendarView();
-        });
-      }
-      addMenu.addEventListener("keydown", (e) => {
-        const i = opts.indexOf(document.activeElement);
-        if (e.key === "ArrowDown") { e.preventDefault(); opts[Math.min(opts.length - 1, i + 1)]?.focus(); }
-        else if (e.key === "ArrowUp") { e.preventDefault(); opts[Math.max(0, i - 1)]?.focus(); }
-        else if (e.key === "Home") { e.preventDefault(); opts[0]?.focus(); }
-        else if (e.key === "End") { e.preventDefault(); opts[opts.length - 1]?.focus(); }
-        else if (e.key === "Escape") { e.preventDefault(); setAddOpen(false); addBtn.focus(); }
-      });
-      if (!state.c2SubrowOutsideBound) {
-        state.c2SubrowOutsideBound = true;
-        document.addEventListener("click", (e) => {
-          if (state.mode !== "calendar") return;
-          const mn = state.canvas?.querySelector(".c2-rowsctl-menu");
-          if (mn && !mn.hasAttribute("hidden") && !e.target.closest("[data-c2-subrow-ctl]")) {
-            mn.setAttribute("hidden", "");
-            state.calendar.rowsMenuOpen = false;
-            state.canvas.querySelector("[data-c2-subrow-add]")?.setAttribute("aria-expanded", "false");
-          }
-        });
-      }
-      // restore focus after a mutation repaint — reopen the menu on the toggled
-      // option, or land on the moved row / add trigger (never drop focus to <body>).
-      if (cal.rowsMenuOpen) {
-        setAddOpen(true);
-        const want = cal.rowsLastToggled;
-        const tgt = want ? opts.find(o => (o.getAttribute("data-c2-subrow-kind") + ":" + (o.getAttribute("data-c2-subrow-subject") || "")) === want) : null;
-        (tgt || opts[0])?.focus();
-      } else if (cal.rowsRefocus) {
-        const ref = cal.rowsRefocus;
-        const el = ref === "add" ? addBtn
-          : ref.startsWith("row:") ? state.canvas.querySelector(`[data-c2-subrow-id="${ref.slice(4)}"] .rr-frowlab`) : null;
-        el?.focus?.();
-      }
-      cal.rowsRefocus = null;
-    }
-
   }
 
   // presence-view extras — gantt export + the "edit my availability" jump.
@@ -11330,9 +11180,6 @@ function wireCalendar() {
       calendarLazy.peek()?.openCalendarEvent?.(card.dataset.c2Ev, { anchor: event.currentTarget });
     });
   }
-
-  // (Follow-board markers use [data-c2-timeline-item] → openCalendarTimelineItem,
-  // wired in the lanes block above; the old feed-row + dot-rail reveals are gone.)
 
   for (const btn of state.canvas.querySelectorAll("[data-c2-retry]")) {
     btn.addEventListener("click", () => {
@@ -14818,6 +14665,7 @@ function calendarFingerprints() {
 
 async function autoRefreshContextVault() {
   if (!contextVaultAvailable()) return;
+  if (document.hidden) return;
   const cv = state.contextVault;
   if (cv.loading || cv.scanInFlight) return;
   cv.scanInFlight = true;
@@ -14852,6 +14700,9 @@ function startContextAutoRefresh() {
   if (contextScanTimer) return;
   setTimeout(autoRefreshContextVault, 5000);
   contextScanTimer = setInterval(autoRefreshContextVault, CONTEXT_SCAN_INTERVAL_MS);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) autoRefreshContextVault();
+  });
 }
 
 async function selectContextSource(sourceId) {
@@ -15978,6 +15829,10 @@ function renderContextVault() {
       ${cv.error ? `<p class="alch-cv-error">${escHtml(cv.error)}</p>` : ""}
       <div class="alch-cv-layout">
         <aside class="alch-cv-sidebar">
+          <div class="alch-cv-search">
+            <svg class="alch-cv-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="search" class="alch-cv-search-input" data-cv-search value="${escAttr(cv.query || "")}" placeholder="Filter ${escAttr(emptyLabel)}…" spellcheck="false" autocomplete="off" aria-label="filter ${escAttr(emptyLabel)}" />
+          </div>
           <div class="alch-cv-sources">${sourceRows || `<p class="alch-cv-muted">refresh to load ${emptyLabel}.</p>`}</div>
         </aside>
         ${detail}
@@ -16045,11 +15900,47 @@ function wireContextVault() {
       state.contextVault.composeOpen = details.open;
     });
   }
+  wireContextVaultSearch();
   wireContextVaultDetailActions(state.canvas);
+}
+
+// Live sidebar filter. Filters the rendered source rows in place (show/hide) so
+// the input keeps focus + caret across keystrokes — no re-render per character.
+function wireContextVaultSearch() {
+  const input = state.canvas.querySelector("[data-cv-search]");
+  if (!input) return;
+  const sources = state.canvas.querySelector(".alch-cv-sources");
+  const apply = () => {
+    const q = String(input.value || "").trim().toLowerCase();
+    state.contextVault.query = input.value || "";
+    if (!sources) return;
+    const rows = sources.querySelectorAll(".alch-cv-source");
+    let shown = 0;
+    for (const row of rows) {
+      const match = !q || (row.textContent || "").toLowerCase().includes(q);
+      row.hidden = !match;
+      if (match) shown += 1;
+    }
+    let empty = sources.querySelector(".alch-cv-filter-empty");
+    if (rows.length && !shown) {
+      if (!empty) {
+        empty = document.createElement("p");
+        empty.className = "alch-cv-muted alch-cv-filter-empty";
+        sources.appendChild(empty);
+      }
+      empty.textContent = `No matches for “${input.value.trim()}”.`;
+      empty.hidden = false;
+    } else if (empty) {
+      empty.hidden = true;
+    }
+  };
+  input.addEventListener("input", apply);
+  if (state.contextVault.query) apply();
 }
 
 function wireContextVaultDetailActions(root = state.canvas) {
   if (!root) return;
+  setupContextReadingSpine(root);
   for (const btn of root.querySelectorAll("[data-cv-reveal-corpus]")) {
     btn.addEventListener("click", async () => {
       if (window.api?.revealContextVaultCorpus) await window.api.revealContextVaultCorpus();
@@ -16140,6 +16031,97 @@ function wireContextVaultDetailActions(root = state.canvas) {
       }
     });
   }
+}
+
+// Reading-progress spine for the context reader: a sticky 2px bar at the top of
+// the detail whose fill tracks scroll through the article, plus a clickable tick
+// per section (h2/h3). Injected here so it re-inits on every detail swap; the
+// scroll listener is torn down before each re-init so listeners never pile up.
+function setupContextReadingSpine(root = state.canvas) {
+  const canvas = state.canvas;
+  if (!canvas) return;
+  if (state.contextVault._spineCleanup) {
+    try { state.contextVault._spineCleanup(); } catch {}
+    state.contextVault._spineCleanup = null;
+  }
+  const container = root || canvas;
+  const detail = container.querySelector?.(".alch-cv-detail");
+  if (!detail) return;
+  const stale = detail.querySelector(":scope > .alch-cv-progress");
+  if (stale) stale.remove();
+  const reader = detail.querySelector(".alch-cv-reader");
+  if (!reader) return;
+  const scroller = canvas.classList?.contains("alchemy-canvas")
+    ? canvas
+    : (canvas.closest?.(".alchemy-canvas") || canvas);
+  if (!scroller) return;
+
+  const bar = document.createElement("div");
+  bar.className = "alch-cv-progress";
+  bar.setAttribute("aria-hidden", "true");
+  const fill = document.createElement("i");
+  fill.className = "alch-cv-progress-fill";
+  bar.appendChild(fill);
+  detail.insertBefore(bar, detail.firstChild);
+
+  const heads = Array.from(reader.querySelectorAll("h2, h3, .alch-prog-h2, .alch-prog-h3"));
+  const ticks = [];
+
+  const layout = () => {
+    for (const t of ticks) t.el.remove();
+    ticks.length = 0;
+    const dH = detail.offsetHeight || 1;
+    const dTop = detail.getBoundingClientRect().top;
+    for (const h of heads) {
+      const frac = Math.max(0, Math.min(1, (h.getBoundingClientRect().top - dTop) / dH));
+      const el = document.createElement("button");
+      el.type = "button";
+      el.className = "alch-cv-progress-tick";
+      el.style.left = `${(frac * 100).toFixed(2)}%`;
+      el.title = (h.textContent || "").trim().slice(0, 64);
+      el.addEventListener("click", () => {
+        const y = h.getBoundingClientRect().top - scroller.getBoundingClientRect().top
+          + scroller.scrollTop - 24;
+        scroller.scrollTo({ top: y, behavior: "smooth" });
+      });
+      bar.appendChild(el);
+      ticks.push({ el, head: h });
+    }
+  };
+
+  const update = () => {
+    const dRect = detail.getBoundingClientRect();
+    const sRect = scroller.getBoundingClientRect();
+    const detailTop = dRect.top - sRect.top + scroller.scrollTop;
+    const range = Math.max(1, detail.offsetHeight - scroller.clientHeight);
+    const p = Math.max(0, Math.min(1, (scroller.scrollTop - detailTop) / range));
+    fill.style.transform = `scaleX(${p.toFixed(4)})`;
+    let act = -1;
+    for (let i = 0; i < ticks.length; i += 1) {
+      if (ticks[i].head.getBoundingClientRect().top - sRect.top <= 120) act = i;
+    }
+    for (let i = 0; i < ticks.length; i += 1) {
+      ticks[i].el.classList.toggle("is-done", i <= act);
+      ticks[i].el.classList.toggle("is-active", i === act);
+    }
+  };
+
+  let raf = 0;
+  const onScroll = () => {
+    if (raf) return;
+    raf = window.requestAnimationFrame(() => { raf = 0; update(); });
+  };
+  const onResize = () => { layout(); update(); };
+
+  window.requestAnimationFrame(() => { layout(); update(); });
+  scroller.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", onResize, { passive: true });
+
+  state.contextVault._spineCleanup = () => {
+    scroller.removeEventListener("scroll", onScroll);
+    window.removeEventListener("resize", onResize);
+    if (raf) window.cancelAnimationFrame(raf);
+  };
 }
 
 // ─── topic atlas ────────────────────────────────────────────────────

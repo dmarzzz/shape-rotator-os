@@ -166,11 +166,7 @@ export function wireRendererWarmupHints() {
 }
 
 export function schedulePostBootWarmups() {
-  afterFirstPaint(() => {
-    scheduleIdleWork("alchemy-current-warmup", warmCurrentAlchemySurface, 650);
-    setTimeout(() => scheduleIdleWork("alchemy-first-ring-warmup", warmAlchemyFirstRing, 1200), 500);
-    setTimeout(() => scheduleIdleWork("atlas-warmup", () => warmAppModule("atlas"), 1400), 1100);
-    setTimeout(() => scheduleIdleWork("matrix-warmup", warmChatModule, 1600), 1700);
-    setTimeout(() => scheduleIdleWork("easel-warmup", () => warmAppModule("easel"), 1800), 2400);
-  });
+  // Keep boot memory flat. Pointer/focus hints above still warm the module the
+  // user is aiming at, but we no longer import every heavyweight surface after
+  // first paint.
 }

@@ -108,7 +108,11 @@ function openRouterWindow() {
   routerWin.on('closed', () => { routerWin = null; });
   return routerWin;
 }
-ipcMain.handle('daybook:open-window', () => { openRouterWindow(); return { ok: true }; });
+if (!global.__SROS_DAYBOOK_OPEN_WINDOW_REGISTERED) {
+  ipcMain.handle('daybook:open-window', () => { openRouterWindow(); return { ok: true }; });
+}
+
+module.exports = { openRouterWindow };
 
 // Push the live token count to the router window's "thinking" view (the source
 // renderer listens on the un-namespaced 'gen-stream'; send to THAT window only,

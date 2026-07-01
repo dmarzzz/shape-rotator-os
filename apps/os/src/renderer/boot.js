@@ -551,7 +551,7 @@ async function boot() {
   // instead. First launch (or LS evicted) still gets the full splash.
   let _onboarded = false, _hasSnapshot = false;
   try { _onboarded = localStorage.getItem("srwk:onboarded") === "1"; } catch {}
-  try { _hasSnapshot = !!localStorage.getItem("srfg:cohort_surface_v1"); } catch {}
+  try { _hasSnapshot = !!localStorage.getItem("srfg:cohort_surface_v5"); } catch {}
   const warmBoot = _onboarded && _hasSnapshot;
   const launch = mountLaunchOverlay({ progressive: true, instant: warmBoot });
   launch.setStatus("warming the cache", 0.08);
@@ -725,8 +725,8 @@ async function boot() {
   wireSwarmPanelLauncher();
   wireRendererWarmupHints();
   // Unread badge on the matrix nav entry — fed by the main-process Matrix sync
-  // (runs from app start, so the count is live even if the chat tab is never
-  // opened). Mirrors the OS rail's what's-new badges.
+  // when a saved session exists. Signed-out boots stay cheap and do not load
+  // the Matrix module just to paint an empty badge.
   initMatrixUnread();
   initNavHistory();
   setupShareLinks();
@@ -1392,6 +1392,7 @@ let _lastTickTsMs = 0;
 let _lastNodeLogActivityMs = 0;                 // wall-clock of latest non-tick event
 let _syncLogUnavailable = false;                // /sync/log fallback path 404'd too
 let _syncLogTimer = null;
+let _syncLogVisibilityBound = false;
 // /node/log lives in swf-node v0.12.0+. When the endpoint 404s we fall back
 // to /sync/log and tag every event as category="sync"; the SEARCH / HEALTH /
 // MDNS / INGEST chips simply stay empty in that mode.
@@ -1408,7 +1409,16 @@ function startSyncLogPoll() {
   // Fire one immediate poll so the panel has data on first open without
   // a 3s gap; then keep the interval going.
   pollNodeLog();
-  _syncLogTimer = setInterval(pollNodeLog, 3000);
+  _syncLogTimer = setInterval(() => {
+    if (document.hidden) return;
+    pollNodeLog();
+  }, 3000);
+  if (!_syncLogVisibilityBound) {
+    _syncLogVisibilityBound = true;
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden && _syncLogTimer) pollNodeLog();
+    });
+  }
 }
 
 // Unified poller: tries /node/log first (v0.12.0+), falls back to

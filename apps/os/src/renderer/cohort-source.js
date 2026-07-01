@@ -86,6 +86,9 @@ let _baselineFetchedAt = 0;
 // tick (which would deepen the very rate-limit hole the gap is meant to avoid).
 let _baselineLastAttemptAt = 0;
 let _refreshTimer = null;
+let _refreshVisibilityBound = false;
+let _refreshVisibilityTarget = null;
+let _refreshVisibilityHandler = null;
 let _bgRefreshInFlight = null; // promise of any active background refresh
 const _subscribers = new Set();
 // Separate channel for sync lifecycle. Subscribers receive
@@ -1324,6 +1327,29 @@ function refreshIntervalMs() {
   return _cache?._syncAvailable ? SYNC_REFRESH_MS : REFRESH_MS;
 }
 
+function isDocumentHidden() {
+  return typeof document !== "undefined" && document.hidden;
+}
+
+function runRefreshTickIfVisible() {
+  if (isDocumentHidden()) return;
+  refreshTick().catch((err) => {
+    console.warn("[cohort-source] refresh tick failed:", err?.message || err);
+  });
+}
+
+function bindRefreshVisibilityWake() {
+  if (_refreshVisibilityBound) return;
+  if (typeof document === "undefined" || !document.addEventListener) return;
+  _refreshVisibilityTarget = document;
+  _refreshVisibilityHandler = () => {
+    if (!_refreshTimer || isDocumentHidden()) return;
+    runRefreshTickIfVisible();
+  };
+  _refreshVisibilityBound = true;
+  _refreshVisibilityTarget.addEventListener("visibilitychange", _refreshVisibilityHandler);
+}
+
 function rescheduleRefreshTimerIfNeeded(prevSyncAvailable) {
   const nextSyncAvailable = !!_cache?._syncAvailable;
   if (prevSyncAvailable === nextSyncAvailable) return;
@@ -1337,7 +1363,8 @@ function scheduleRefresh() {
   // shows up within one sync tick instead of waiting on the github poll.
   // The fallback is still gh-only when swf-node is unreachable.
   const interval = refreshIntervalMs();
-  _refreshTimer = setInterval(refreshTick, interval);
+  _refreshTimer = setInterval(runRefreshTickIfVisible, interval);
+  bindRefreshVisibilityWake();
 }
 
 async function refreshTick() {
@@ -1371,5 +1398,11 @@ export function _resetCohortSource() {
   _bgRefreshInFlight = null;
   _subscribers.clear();
   if (_refreshTimer) { clearInterval(_refreshTimer); _refreshTimer = null; }
+  if (_refreshVisibilityTarget && _refreshVisibilityHandler) {
+    try { _refreshVisibilityTarget.removeEventListener("visibilitychange", _refreshVisibilityHandler); } catch {}
+  }
+  _refreshVisibilityTarget = null;
+  _refreshVisibilityHandler = null;
+  _refreshVisibilityBound = false;
   try { localStorage.removeItem(SURFACE_LS_KEY); } catch {}
 }
