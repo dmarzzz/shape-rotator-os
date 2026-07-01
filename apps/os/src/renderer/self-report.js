@@ -35,6 +35,13 @@ import {
   getAutoUpdateChoices,
   rememberAutoUpdateChoices,
 } from "./self-report-autoupdate.mjs";
+import {
+  MANUAL_SELF_REPORT_QUESTIONS,
+  buildManualAgentPrompt,
+  buildManualSelfReportDelta,
+  buildManualUsefulness,
+  parseManualAgentDraft,
+} from "./self-report-manual.mjs";
 
 // Expose the entry on a global so the cohort-chat bot's opt-in flow can route into
 // it: window.__srwkOpenSelfReport?.({ person, githubDigest }) — a graceful no-op
@@ -433,7 +440,7 @@ export function closeSelfReport() {
 // instead of a full-screen body overlay — no backdrop, no global Escape (the
 // panel owns close). All step renderers just set host.innerHTML, so they work
 // unchanged either way.
-export async function openSelfReport({ person, githubDigest = "", autoRunPrevious = false, sourceChoices = null, mount = null } = {}) {
+export async function openSelfReport({ person, githubDigest = "", autoRunPrevious = false, sourceChoices = null, mount = null, mode = "" } = {}) {
   if (!person || !person.record_id) return;
   await ensureStylesheet();
   closeSelfReport();
@@ -450,6 +457,10 @@ export async function openSelfReport({ person, githubDigest = "", autoRunPreviou
     document.addEventListener("keydown", onKey);
     // Click the backdrop (not the card) to dismiss.
     host.addEventListener("mousedown", (e) => { if (e.target === host) closeSelfReport(); });
+  }
+  if (mode === "manual") {
+    await renderManualDraft(person);
+    return;
   }
   const previous = coerceAutoUpdateChoices(sourceChoices) || getAutoUpdateChoices(person.record_id);
   if (autoRunPrevious && previous) {
@@ -504,6 +515,13 @@ function renderConsent(person, githubFallback) {
         <small>The chat dial's Updates quadrant may rerun only the sources checked above. Uncheck this to clear the shortcut.</small>
       </span>
     </label>
+    <button type="button" class="selfrep-consent selfrep-manual-choice" data-sr-manual>
+      <span class="selfrep-manual-mark" aria-hidden="true"></span>
+      <span>
+        <b>I'll type my own update</b>
+        <small>No scan. Answer a few questions, preview the changed fields, then send only what you approve to Supabase.</small>
+      </span>
+    </button>
     <div class="selfrep-actions">
       <button type="button" class="selfrep-btn selfrep-ghost" data-sr-close>cancel</button>
       <button type="button" class="selfrep-btn selfrep-primary" data-sr-run disabled>scan &amp; draft</button>
@@ -519,6 +537,8 @@ function renderConsent(person, githubFallback) {
   if (github) github.addEventListener("change", refresh);
   refresh();
   for (const b of host.querySelectorAll("[data-sr-close]")) b.addEventListener("click", closeSelfReport);
+  const manual = host.querySelector("[data-sr-manual]");
+  if (manual) manual.addEventListener("click", () => { void renderManualDraft(person, githubFallback); });
   run.addEventListener("click", () => {
     const choices = {
       useSessions: sessions.checked,
@@ -531,6 +551,141 @@ function renderConsent(person, githubFallback) {
       githubFallback,
     });
   });
+}
+
+// ── Step 1b — no-scan manual draft ───────────────────────────────────────────
+async function renderManualDraft(person, githubFallback = "") {
+  let surface = null;
+  try { surface = await getCohortSurface(); } catch {}
+  const currentPerson = resolveSurfacePerson(person, surface) || person;
+  const agentPrompt = buildManualAgentPrompt({ person: currentPerson });
+  const rows = MANUAL_SELF_REPORT_QUESTIONS.map((q) => `
+    <label class="selfrep-manual-field">
+      <span>
+        <b>${esc(q.label)}</b>
+        <small>${esc(q.hint)}</small>
+      </span>
+      <textarea data-sr-manual-field="${esc(q.field)}" rows="${q.type === "list" ? "3" : "2"}" placeholder="${esc(q.placeholder || "")}" spellcheck="true"></textarea>
+    </label>`).join("");
+  host.innerHTML = card(`
+    <header class="selfrep-head">
+      <span class="selfrep-eyebrow">type your own update</span>
+      <button type="button" class="selfrep-x" data-sr-close aria-label="close">âœ•</button>
+    </header>
+    <p class="selfrep-lede">No scan runs here. Answer only what you want the cohort profile to know; empty answers are ignored.</p>
+    <section class="selfrep-agent-prompt">
+      <div class="selfrep-agent-copy">
+        <b>Have your agent draft it</b>
+        <small>Copy this prompt to your own agent, then paste its JSON here to fill the answers.</small>
+      </div>
+      <button type="button" class="selfrep-btn selfrep-ghost selfrep-copy-prompt" data-sr-agent-copy>copy agent prompt</button>
+      <details class="selfrep-agent-paste">
+        <summary>paste agent JSON</summary>
+        <textarea data-sr-agent-json rows="5" placeholder='{"person":{"now":"...","seeking":["..."]}}' spellcheck="false"></textarea>
+        <div class="selfrep-agent-fill-row">
+          <button type="button" class="selfrep-btn selfrep-ghost" data-sr-agent-fill>fill answers</button>
+          <span data-sr-agent-status></span>
+        </div>
+      </details>
+    </section>
+    <div class="selfrep-manual-grid">${rows}</div>
+    <div class="selfrep-actions">
+      <button type="button" class="selfrep-btn selfrep-ghost" data-sr-manual-back>back</button>
+      <button type="button" class="selfrep-btn selfrep-primary" data-sr-manual-preview disabled>preview update</button>
+    </div>
+    <p class="selfrep-foot" data-sr-manual-status>Person fields update your public profile after you approve the preview.</p>
+  `);
+  for (const b of host.querySelectorAll("[data-sr-close]")) b.addEventListener("click", closeSelfReport);
+  const fields = Array.from(host.querySelectorAll("[data-sr-manual-field]"));
+  const preview = host.querySelector("[data-sr-manual-preview]");
+  const status = host.querySelector("[data-sr-manual-status]");
+  const agentStatus = host.querySelector("[data-sr-agent-status]");
+  const setManualStatus = (kind, text) => {
+    if (!status) return;
+    status.textContent = text || "";
+    status.className = "selfrep-foot" + (kind === "error" ? " is-error" : "");
+  };
+  const setAgentStatus = (kind, text) => {
+    if (!agentStatus) return;
+    agentStatus.textContent = text || "";
+    agentStatus.className = kind === "error" ? "is-error" : kind === "ok" ? "is-ok" : "";
+  };
+  const readAnswers = () => {
+    const answers = {};
+    for (const el of fields) answers[el.getAttribute("data-sr-manual-field")] = el.value || "";
+    return answers;
+  };
+  const syncManualState = () => {
+    if (preview) preview.disabled = !fields.some((el) => String(el.value || "").trim());
+    setManualStatus("", "Person fields update your public profile after you approve the preview.");
+  };
+  for (const el of fields) el.addEventListener("input", syncManualState);
+  const copyAgent = host.querySelector("[data-sr-agent-copy]");
+  if (copyAgent) copyAgent.addEventListener("click", async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(agentPrompt);
+      else {
+        const tmp = document.createElement("textarea");
+        tmp.value = agentPrompt;
+        tmp.setAttribute("readonly", "");
+        tmp.style.position = "fixed";
+        tmp.style.left = "-9999px";
+        document.body.appendChild(tmp);
+        tmp.select();
+        document.execCommand("copy");
+        tmp.remove();
+      }
+      setAgentStatus("ok", "copied");
+    } catch {
+      setAgentStatus("error", "copy failed");
+    }
+  });
+  const fillAgent = host.querySelector("[data-sr-agent-fill]");
+  if (fillAgent) fillAgent.addEventListener("click", () => {
+    const raw = ((host.querySelector("[data-sr-agent-json]") || {}).value || "").trim();
+    const parsed = parseManualAgentDraft(raw);
+    if (!parsed.ok) {
+      setAgentStatus("error", parsed.error === "empty_delta" ? "no allowed fields found" : "paste the JSON your agent returned");
+      return;
+    }
+    for (const el of fields) {
+      const key = el.getAttribute("data-sr-manual-field");
+      if (key in parsed.answers) el.value = parsed.answers[key];
+    }
+    syncManualState();
+    setAgentStatus("ok", "filled");
+  });
+  const back = host.querySelector("[data-sr-manual-back]");
+  if (back) back.addEventListener("click", () => renderConsent(currentPerson, githubFallback));
+  if (preview) preview.addEventListener("click", () => {
+    const cleanDelta = buildManualSelfReportDelta(readAnswers());
+    if (!Object.keys(cleanDelta).length) {
+      setManualStatus("error", "Nothing to preview yet. Add one answer first.");
+      return;
+    }
+    const { merged, changed } = mergeDelta(currentPerson, cleanDelta);
+    if (!changed.length) {
+      setManualStatus("error", "Those answers already match the current profile.");
+      return;
+    }
+    const changedDelta = {};
+    for (const key of changed) changedDelta[key] = merged[key];
+    renderReview(currentPerson, {
+      merged,
+      changed,
+      team: null,
+      teamMerged: {},
+      teamChanged: [],
+      usefulness: buildManualUsefulness(changedDelta),
+      question: "",
+      digests: {
+        sourceNotes: ["Manual: you typed this update. No scans ran."],
+        sourceKinds: ["manual_self_report"],
+      },
+    });
+  });
+  syncManualState();
+  setTimeout(() => { try { fields[0] && fields[0].focus(); } catch {} }, 30);
 }
 
 // ── Step 2 — scan + synthesize ────────────────────────────────────────────────
@@ -756,11 +911,13 @@ function renderReview(person, state) {
     const statusEl = host.querySelector("[data-sr-send-status]");
     if (applyBtn) applyBtn.disabled = true;
     if (statusEl) statusEl.textContent = "sending to Supabase...";
-    const directSourceKinds = [
-      digests.appContextDigest ? "app_context" : "",
-      digests.sessionDigest ? "sessions" : "",
-      digests.githubDigest ? (digests.githubSourceKind || "github") : "",
-    ].filter(Boolean);
+    const directSourceKinds = Array.isArray(digests && digests.sourceKinds) && digests.sourceKinds.length
+      ? digests.sourceKinds.slice(0, 8).map(String)
+      : [
+        digests.appContextDigest ? "app_context" : "",
+        digests.sessionDigest ? "sessions" : "",
+        digests.githubDigest ? (digests.githubSourceKind || "github") : "",
+      ].filter(Boolean);
     let ctx = {};
     try { ctx = await getAppContext(); } catch {}
     const claimHash = getClaimTokenHash();

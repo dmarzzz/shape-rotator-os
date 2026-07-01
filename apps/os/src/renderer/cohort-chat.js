@@ -96,6 +96,12 @@ function stripAnsi(s) {
     .replace(/\r/g, "");
 }
 
+function parseManualUpdateCommand(text) {
+  const s = String(text == null ? "" : text).trim();
+  return /^\/(?:manual|update-info|profile-update)\b/i.test(s)
+    || /\b(?:manual update|update by hand|type my own update|submit my own(?: profile)? update|own data update|answer questions instead)\b/i.test(s);
+}
+
 export function warmCohortChat() {
   if (!stylesheetPromise) stylesheetPromise = loadStylesheetOnce("renderer/cohort-chat.css");
   return stylesheetPromise;
@@ -279,9 +285,11 @@ function createController() {
           Reopen the chat and it auto-detects it — or set a custom command in&nbsp;⚙.</div>
         <div class="cc-card-actions">
           <button type="button" class="btn ds-ghost" data-cc-onboard-settings>Settings&nbsp;⚙</button>
+          <button type="button" class="btn ds-ghost" data-cc-onboard-manual>Type profile update</button>
           <button type="button" class="btn ds-primary" data-cc-onboard-recheck>I installed it — re-check</button>
         </div>`;
       card.querySelector("[data-cc-onboard-settings]").addEventListener("click", openSettings);
+      card.querySelector("[data-cc-onboard-manual]").addEventListener("click", () => { void openSelfReportForMe({ mode: "manual" }); });
       card.querySelector("[data-cc-onboard-recheck]").addEventListener("click", async () => { card.remove(); refreshReadiness(); await maybeOnboard(); syncWelcome(); });
     } else {
       card.innerHTML = `
@@ -1025,6 +1033,16 @@ function createController() {
       return;
     }
 
+    if (parseManualUpdateCommand(q)) {
+      input.value = ""; autosize();
+      appendBubble("user", q);
+      const opened = await openSelfReportForMe({ mode: "manual" });
+      appendBubble("assistant", opened
+        ? "Opening a no-scan update draft. Answer only what you want saved."
+        : "Claim your profile first, then I can open your update draft.");
+      return;
+    }
+
     appendBubble("user", q);
     history.push({ role: "user", content: q });
     input.value = "";
@@ -1386,7 +1404,7 @@ function getController() {
   return controller;
 }
 
-async function openSelfReportForMe({ autoRunPrevious = false } = {}) {
+async function openSelfReportForMe({ autoRunPrevious = false, mode = "" } = {}) {
   let surface = null;
   try { surface = await getCohortSurface(); } catch {}
   const me = resolveMyPerson(surface);
@@ -1396,7 +1414,7 @@ async function openSelfReportForMe({ autoRunPrevious = false } = {}) {
     return false;
   }
   const selfReport = await import("./self-report.js");
-  await selfReport.openSelfReport({ person: me, autoRunPrevious });
+  await selfReport.openSelfReport({ person: me, autoRunPrevious, mode });
   return true;
 }
 
@@ -1415,11 +1433,8 @@ export async function openCohortChatSettings() {
   c.openSettings();
 }
 
-// Hard gate: every AI-backed action requires a connected local AI first. When
-// none is connected we funnel to the chat panel, which shows ONLY the "set up
-// your own AI" prompt (composer hidden) — so the user must connect before they
-// can do anything else here. (Global search + the settings/connect path stay
-// open; settings is HOW you connect.)
+// AI-backed actions require a connected local AI first. The manual profile-update
+// lane is the exception: it asks typed questions and can submit without scans.
 async function cohortAiReady() {
   try { const cfg = await window.api.getCohortChatConfig(); return !!(cfg && cfg.ready); }
   catch { return false; }
@@ -1427,8 +1442,8 @@ async function cohortAiReady() {
 
 export async function openCohortUpdates() {
   await warmCohortChat();
-  if (!(await cohortAiReady())) return openCohortChat();   // not connected → prompt to connect first
-  await openSelfReportForMe({ autoRunPrevious: true });
+  const ready = await cohortAiReady();
+  await openSelfReportForMe({ autoRunPrevious: ready });
 }
 
 export async function openCohortTranscriptUpload() {
