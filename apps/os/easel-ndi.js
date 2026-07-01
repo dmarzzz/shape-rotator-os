@@ -27,7 +27,7 @@ function load() {
     return grandiose;
   } catch (e) {
     loadError = e;
-    console.error("[easel-ndi] failed to load @stagetimerio/grandiose:", e.message);
+    console.warn("[easel-ndi] NDI unavailable; optional @stagetimerio/grandiose binding is not installed.");
     throw e;
   }
 }

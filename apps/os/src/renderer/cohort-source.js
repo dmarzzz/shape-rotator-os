@@ -1118,6 +1118,9 @@ function signatureOf(grouped) {
 // Use this to preview a cohort-data PR locally before it merges. Clear with
 // `localStorage.removeItem("srfg:cohort_source")` + reload to return to main.
 function devPreferLocal() {
+  try {
+    if (new URLSearchParams(location.search).get("navAudit") === "1") return true;
+  } catch {}
   try { return localStorage.getItem("srfg:cohort_source") === "local"; } catch { return false; }
 }
 

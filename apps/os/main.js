@@ -1315,7 +1315,10 @@ function createWindow() {
   hideNativeMenuBar(win);
   if (ws.fullscreen) win.setFullScreen(true);
   if (process.env.SRWK_ALWAYS_ON_TOP === "1") win.setAlwaysOnTop(true);
-  win.loadFile(path.join(__dirname, "src", "index.html"));
+  win.loadFile(
+    path.join(__dirname, "src", "index.html"),
+    NAV_VISUAL_AUDIT ? { query: { navAudit: "1" } } : undefined
+  );
   if (process.env.SRWK_DEVTOOLS) win.webContents.openDevTools({ mode: "detach" });
 
   // Cohort-chat dock growth (see the "cohort-chat:set-docked" handler): the chat

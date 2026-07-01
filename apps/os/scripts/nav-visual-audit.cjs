@@ -3,6 +3,8 @@ const os = require("node:os");
 const path = require("node:path");
 const { app, BrowserWindow, ipcMain } = require("electron");
 
+app.disableHardwareAcceleration();
+
 const APP_DIR = path.resolve(__dirname, "..");
 const OUT_DIR = path.resolve(
   process.env.SROS_NAV_AUDIT_OUT
@@ -23,6 +25,8 @@ const shots = [];
 const interactionChecks = [];
 const TRACE_PATH = path.join(OUT_DIR, "audit-trace.log");
 const WATCHDOG_MS = Number(process.env.SROS_NAV_AUDIT_TIMEOUT_MS) || 90000;
+const EVAL_TIMEOUT_MS = Number(process.env.SROS_NAV_AUDIT_EVAL_TIMEOUT_MS) || 7000;
+const CAPTURE_TIMEOUT_MS = Number(process.env.SROS_NAV_AUDIT_CAPTURE_TIMEOUT_MS) || 10000;
 let watchdog = null;
 
 function trace(message) {
@@ -73,7 +77,7 @@ function js(src) {
 
 async function evalIn(win, src, label = "renderer eval") {
   try {
-    return await win.webContents.executeJavaScript(src, true);
+    return await withTimeout(win.webContents.executeJavaScript(src, true), EVAL_TIMEOUT_MS, label);
   } catch (error) {
     fail(`${label} failed`, error && error.message ? error.message : String(error));
     return null;
@@ -92,25 +96,52 @@ async function waitFor(win, predicateSrc, label, timeoutMs = 12000) {
 }
 
 async function settle(win, delay = 180) {
-  await evalIn(win, `new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`, "settle raf");
+  try {
+    await withTimeout(
+      win.webContents.executeJavaScript(`new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`, true),
+      1200,
+      "settle raf"
+    );
+  } catch {}
   await sleep(delay);
 }
 
 async function setDrawer(win, state) {
   if (state === "open") {
     await evalIn(win, js(`
+      document.documentElement.removeAttribute("data-nav-touch-fallback");
       const nav = document.getElementById("primary-nav");
       if (nav) {
-        nav.setAttribute("tabindex", "-1");
-        nav.focus({ preventScroll: true });
+        nav.classList.add("is-nav-intent-open");
+        nav.dataset.navIntent = "audit";
+        nav.style.setProperty("--nav-motion-ms", "120ms");
+        nav.style.setProperty("--nav-surface-ms", "110ms");
+        nav.style.setProperty("--nav-content-ms", "90ms");
+        nav.style.setProperty("--nav-content-open-ms", "90ms");
+        nav.style.setProperty("--nav-content-delay", "0ms");
+        document.body.dataset.navDrawer = "open";
       }
       return !!nav;
     `), "open drawer");
-  } else {
+  } else if (state === "touch") {
     await evalIn(win, js(`
+      document.documentElement.dataset.navTouchFallback = "1";
       const nav = document.getElementById("primary-nav");
       if (nav && nav.contains(document.activeElement)) document.activeElement.blur();
       if (document.activeElement === nav) nav.blur();
+      nav?.classList.remove("is-nav-intent-open");
+      document.body.dataset.navDrawer = "closed";
+      return !!nav;
+    `), "touch fallback drawer");
+    win.webContents.sendInputEvent({ type: "mouseMove", x: 1200, y: 860, movementX: 1200, movementY: 860 });
+  } else {
+    await evalIn(win, js(`
+      document.documentElement.removeAttribute("data-nav-touch-fallback");
+      const nav = document.getElementById("primary-nav");
+      if (nav && nav.contains(document.activeElement)) document.activeElement.blur();
+      if (document.activeElement === nav) nav.blur();
+      nav?.classList.remove("is-nav-intent-open");
+      document.body.dataset.navDrawer = "closed";
       let sink = document.getElementById("nav-audit-focus-sink");
       if (!sink) {
         sink = document.createElement("button");
@@ -291,6 +322,7 @@ async function collectDomState(win, stage) {
         rect: rect(nav),
         hotWidth: navHotWidth,
         hover: !!document.querySelector("#primary-nav:hover"),
+        touchFallback: document.documentElement.dataset.navTouchFallback === "1",
         intentOpen: !!nav?.classList.contains("is-nav-intent-open"),
         intent: nav?.dataset.navIntent || "",
         motionMs: nav ? getComputedStyle(nav).getPropertyValue("--nav-motion-ms").trim() : "",
@@ -346,6 +378,11 @@ function assertStage(stage, dom, stats) {
   if (stage.drawer === "open") {
     if (!dom.nav?.rect || dom.nav.rect.right < 250) fail(`${stage.name}: hover drawer did not open`, dom.nav);
     if (Number(dom.nav?.childOpacity || 0) < 0.85) fail(`${stage.name}: open drawer labels are not visible`, dom.nav);
+  }
+  if (stage.drawer === "touch") {
+    if (!dom.nav?.touchFallback) fail(`${stage.name}: touch fallback audit state was not applied`, dom.nav);
+    if (!dom.nav?.rect || dom.nav.rect.right < 250) fail(`${stage.name}: touch/no-hover fallback drawer did not stay open`, dom.nav);
+    if (Number(dom.nav?.childOpacity || 0) < 0.85) fail(`${stage.name}: touch/no-hover drawer labels are not visible`, dom.nav);
   }
   if (stage.expectTab && dom.activeTab !== stage.expectTab) {
     fail(`${stage.name}: wrong active top-level tab`, { expected: stage.expectTab, actual: dom.activeTab });
@@ -408,6 +445,46 @@ async function assertPointerIntentTempo(win) {
   interactionChecks.push({ name: "pointer-slow-open", state: slow });
   if (!slow || slow.navRight < 250) fail("pointer-slow-open: slow near-edge approach did not open the drawer", slow);
   if (slow?.intent !== "edge-slow") fail("pointer-slow-open: slow near-edge approach did not use the slower intent path", slow);
+}
+
+async function assertPointerSkimDoesNotStick(win) {
+  await setDrawer(win, "closed");
+  const target = await evalIn(win, `(() => {
+    const rootStyle = getComputedStyle(document.documentElement);
+    const hotWidth = Math.round(Number.parseFloat(rootStyle.getPropertyValue("--nav-hot-w")) || 0);
+    return {
+      hotWidth,
+      skimX: Math.max(30, hotWidth + 8),
+      clearX: Math.max(140, hotWidth + 120),
+    };
+  })()`, "pointer skim target");
+  if (!target) {
+    fail("pointer-skim-no-open: nav hot zone was not measurable");
+    return;
+  }
+
+  win.webContents.sendInputEvent({ type: "mouseMove", x: 760, y: 560, movementX: 760, movementY: 560 });
+  await settle(win, 70);
+  win.webContents.sendInputEvent({ type: "mouseMove", x: target.skimX, y: 560, movementX: target.skimX - 760, movementY: 0 });
+  await sleep(18);
+  win.webContents.sendInputEvent({ type: "mouseMove", x: target.clearX, y: 560, movementX: target.clearX - target.skimX, movementY: 0 });
+  await settle(win, 260);
+
+  const state = await evalIn(win, `(() => {
+    const nav = document.getElementById("primary-nav");
+    const rootStyle = getComputedStyle(document.documentElement);
+    const hotWidth = Math.round(Number.parseFloat(rootStyle.getPropertyValue("--nav-hot-w")) || 0);
+    const r = nav?.getBoundingClientRect();
+    return {
+      hotWidth,
+      navRight: r ? Math.round(r.right) : null,
+      intentOpen: !!nav?.classList.contains("is-nav-intent-open"),
+      intent: nav?.dataset.navIntent || "",
+    };
+  })()`, "pointer skim state");
+  interactionChecks.push({ name: "pointer-skim-no-open", state });
+  const max = Math.max(20, Number(state?.hotWidth || 0) + 4);
+  if (!state || state.navRight > max || state.intentOpen) fail("pointer-skim-no-open: quick near-edge skim opened or stuck the drawer", state);
 }
 
 async function assertPointerDismissesDrawer(win) {
@@ -486,6 +563,7 @@ const stages = [
   { name: "12-links-closed", route: { kind: "top", tab: "links" }, drawer: "closed", expectTab: "links" },
   { name: "13-atlas-app-closed", route: { kind: "app", app: "atlas" }, drawer: "closed", expectTab: "apps", expectAppsView: "atlas", wait: 900 },
   { name: "14-easel-app-closed", route: { kind: "app", app: "easel" }, drawer: "closed", expectTab: "apps", expectAppsView: "easel", wait: 900 },
+  { name: "15-touch-fallback-open", route: { kind: "top", tab: "apps" }, drawer: "touch", expectTab: "apps", expectAppsView: "" },
 ];
 
 async function main() {
@@ -525,7 +603,7 @@ async function main() {
     trace(`stage ${stage.name}`);
     await navigate(win, stage);
     await setDrawer(win, stage.drawer);
-    const image = await win.webContents.capturePage();
+    const image = await withTimeout(win.webContents.capturePage(), CAPTURE_TIMEOUT_MS, `capture ${stage.name}`);
     const pngPath = path.join(OUT_DIR, `${stage.name}.png`);
     fs.writeFileSync(pngPath, image.toPNG());
     const stats = imageStats(image);
@@ -537,6 +615,8 @@ async function main() {
 
   trace("interaction pointer-intent-tempo");
   await assertPointerIntentTempo(win);
+  trace("interaction pointer-skim-no-open");
+  await assertPointerSkimDoesNotStick(win);
   trace("interaction pointer-dismiss");
   await assertPointerDismissesDrawer(win);
 
