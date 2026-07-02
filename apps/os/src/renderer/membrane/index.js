@@ -938,6 +938,32 @@ function setupFeedbackBox(container) {
   };
 }
 
+// ── first-launch whisper ────────────────────────────────────────────────────
+// A one-time greeting in the die's negative space — shown once EVER
+// (localStorage), the hook layer of the landing surface. It fades in after the
+// arrival choreography settles, holds long enough to read, then dissolves and
+// drops its node. Deliberately says nothing about the die's interactions —
+// the easter egg stays undiscovered until it's earned. Self-contained like
+// setupFeedbackBox: returns a dispose() for teardown.
+function setupFirstWhisper(container) {
+  const el = container.querySelector('[data-membrane-whisper]');
+  if (!el) return { dispose() {} };
+  const KEY = 'srwk:membrane:whisper_v1';
+  let seen = null;
+  try { seen = localStorage.getItem(KEY); } catch {}
+  if (seen) { el.remove(); return { dispose() {} }; }
+  try { localStorage.setItem(KEY, '1'); } catch {}
+  el.textContent = 'the field is yours';
+  const timers = [
+    // Enter once the rails have settled (arrival ends ~1.2s in); under
+    // reduced motion there's no arrival to wait behind, so show sooner.
+    setTimeout(() => el.classList.add('is-showing'), prefersReducedMotion() ? 400 : 1600),
+    setTimeout(() => el.classList.remove('is-showing'), 9200),
+    setTimeout(() => { try { el.remove(); } catch {} }, 10200),
+  ];
+  return { dispose() { timers.forEach(clearTimeout); } };
+}
+
 export function mountMembrane(container, opts = {}) {
   cp('membrane:mount-start');
   container.classList.add('membrane-host');
@@ -948,6 +974,18 @@ export function mountMembrane(container, opts = {}) {
   // The panel is retired — start folded so it never flashes in before the
   // fold state below settles (see the "fold state" note further down).
   container.classList.add('membrane-folded');
+  // First-arrival choreography — the rails/feedback/glow unfold once per app
+  // session (see .is-arriving in membrane.css). Session-scoped so revisiting
+  // the membrane mid-session stays instant (arrival is a first-load moment,
+  // not a page-switch tax); skipped entirely under reduced motion. The stray
+  // class removal after teardown is a harmless no-op.
+  try {
+    if (!prefersReducedMotion() && !sessionStorage.getItem('srwk:membrane:arrived')) {
+      sessionStorage.setItem('srwk:membrane:arrived', '1');
+      container.classList.add('is-arriving');
+      setTimeout(() => { try { container.classList.remove('is-arriving'); } catch {} }, 1400);
+    }
+  } catch {}
 
   container.innerHTML = `
     <div class="membrane-stage">
@@ -986,6 +1024,7 @@ export function mountMembrane(container, opts = {}) {
         <span class="msn-name" data-shape-name></span>
         <span class="msn-meta" data-shape-meta></span>
       </div>
+      <div class="membrane-whisper" aria-hidden="true" data-membrane-whisper></div>
       <aside class="membrane-panel" data-active-blob="self">
         <div class="membrane-panel-content"></div>
         <footer class="membrane-panel-foot">
@@ -1091,11 +1130,20 @@ export function mountMembrane(container, opts = {}) {
     const topPct = (m) => Math.max(0, Math.min(100, ((m - lo) / span) * 100));
 
     let ticks = '';
+    const nowPct = topPct(nowMin);
     for (let h = Math.ceil(lo / 60); h <= Math.floor(hi / 60); h++) {
-      ticks += `<div class="magenda-tick" style="top:${topPct(h * 60).toFixed(2)}%"><span class="magenda-tick-label">${pad2(h)}:00</span></div>`;
+      const tickPct = topPct(h * 60);
+      // Both labels pin to the right edge, so an hour label too close to now
+      // sits under the (brighter) now-label — keep the rule, drop just the
+      // text. Proximity is measured in track PERCENT, not minutes: a sparse
+      // day compresses many minutes into a label-height, a dense window few
+      // (~3.4% ≈ one 14px label on a typical ~400px track).
+      const label = Math.abs(tickPct - nowPct) < 3.4 ? '' : `<span class="magenda-tick-label">${pad2(h)}:00</span>`;
+      ticks += `<div class="magenda-tick" style="top:${tickPct.toFixed(2)}%">${label}</div>`;
     }
+    // title recovers ellipsis-truncated names AND names the click destination.
     const rows = timed.map(({ e, start }) =>
-      `<button type="button" class="magenda-event" data-cat="${agendaCat(e.title)}" style="top:${topPct(start).toFixed(2)}%">
+      `<button type="button" class="magenda-event" data-cat="${agendaCat(e.title)}" style="top:${topPct(start).toFixed(2)}%" title="${escHtml(`${e.title || 'untitled'} — open calendar`)}">
         <span class="magenda-event-time">${escHtml(e.time)}</span>
         <span class="magenda-event-title">${escHtml(e.title || 'untitled')}</span>
       </button>`).join('');
@@ -1137,6 +1185,7 @@ export function mountMembrane(container, opts = {}) {
         <button type="button" class="magenda-add" data-cal-url="${calUrl}" aria-label="add ${escHtml(title || 'event')} to calendar" title="add to calendar">${CAL_PLUS}</button>
         <button type="button" class="magenda-up-event" data-up-key="${ek}">
           <span class="magenda-event-title">${escHtml(title || 'untitled')}</span>${sub ? `<span class="magenda-event-time">${escHtml(sub)}</span>` : ''}
+          <span class="magenda-cta" aria-hidden="true"><span class="magenda-cta-inner"><span class="magenda-cta-go">open calendar →</span></span></span>
         </button>
         <button type="button" class="magenda-dismiss" data-dismiss-key="${ek}" aria-label="dismiss ${escHtml(title || 'event')}" title="dismiss">${DISMISS_X}</button>
       </div>`;
@@ -1689,6 +1738,7 @@ export function mountMembrane(container, opts = {}) {
   });
 
   const feedback = setupFeedbackBox(container);
+  const whisper = setupFirstWhisper(container);
 
   return {
     setActiveBlob(id) {
@@ -1709,6 +1759,7 @@ export function mountMembrane(container, opts = {}) {
     destroy() {
       clearInterval(agendaTimer);
       feedback.dispose();
+      whisper.dispose();
       if (rubiks) rubiks.dispose();
       scene.destroy();
       sound.destroy();
