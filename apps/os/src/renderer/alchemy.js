@@ -15074,16 +15074,17 @@ function renderContextVaultDetail(selected) {
               <button class="alch-cv-restyle-opt is-all" type="button" data-cv-restyle-all>Rewrite all articles</button>
             </div>
           </div>
-          <button class="alch-cv-md-action" type="button" data-cv-copy-article="${escAttr(selected.id)}" title="copy ${escAttr(selectedMdFile)}">
-            <span class="alch-cv-md-action-label">copy .md</span>
-            <span class="alch-cv-md-action-file">${escHtml(selectedMdFile)}</span>
-          </button>
-          <button class="alch-cv-md-action" type="button" data-cv-promote="ask" data-cv-source-id="${escAttr(selected.id)}" title="open an ask PR for this article">
-            <span class="alch-cv-md-action-label">ask PR</span>
-          </button>
-          <button class="alch-cv-md-action" type="button" data-cv-promote="program" data-cv-source-id="${escAttr(selected.id)}" title="open a program PR for this article">
-            <span class="alch-cv-md-action-label">program PR</span>
-          </button>
+          <div class="alch-cv-restyle-wrap">
+            <button class="alch-cv-md-action" type="button" data-cv-more-toggle aria-expanded="false" title="more actions">
+              <span class="alch-cv-md-action-label">more</span>
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="alch-cv-restyle-menu" data-cv-more-menu>
+              <button class="alch-cv-restyle-opt" type="button" data-cv-copy-article="${escAttr(selected.id)}" title="copy ${escAttr(selectedMdFile)}">Copy markdown</button>
+              <button class="alch-cv-restyle-opt" type="button" data-cv-promote="ask" data-cv-source-id="${escAttr(selected.id)}">Open an ask PR</button>
+              <button class="alch-cv-restyle-opt" type="button" data-cv-promote="program" data-cv-source-id="${escAttr(selected.id)}">Open a program PR</button>
+            </div>
+          </div>
         </div>
       </header>
       ${renderContextReaderHtml(selected)}
@@ -16382,6 +16383,44 @@ function wireContextVaultResize() {
 function wireContextVaultDetailActions(root = state.canvas) {
   if (!root) return;
   setupContextReadingSpine(root);
+  // Header dropdowns (rewrite-with-your-AI + the "more" overflow). These menus
+  // shipped with NO handlers — the rewrite feature was unreachable from the
+  // header (2026-07-02: "it's not clear where that comes up"). One toggle per
+  // wrap; a single document-level dismiss closes any open menu.
+  const closeCvMenus = () => {
+    for (const m of document.querySelectorAll(".alch-cv-restyle-menu.is-open")) m.classList.remove("is-open");
+    for (const t of document.querySelectorAll('[data-cv-restyle-toggle][aria-expanded="true"], [data-cv-more-toggle][aria-expanded="true"]')) {
+      t.setAttribute("aria-expanded", "false");
+    }
+  };
+  for (const wrap of root.querySelectorAll(".alch-cv-restyle-wrap")) {
+    const toggle = wrap.querySelector("[data-cv-restyle-toggle], [data-cv-more-toggle]");
+    const menu = wrap.querySelector(".alch-cv-restyle-menu");
+    if (!toggle || !menu || toggle.dataset.cvMenuWired === "1") continue;
+    toggle.dataset.cvMenuWired = "1";
+    toggle.addEventListener("click", () => {
+      const open = !menu.classList.contains("is-open");
+      closeCvMenus();
+      menu.classList.toggle("is-open", open);
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+  }
+  if (!state.contextVault._cvMenuDismissBound) {
+    state.contextVault._cvMenuDismissBound = true;
+    document.addEventListener("mousedown", (e) => {
+      if (e.target instanceof Element && e.target.closest(".alch-cv-restyle-wrap")) return;
+      closeCvMenus();
+    });
+  }
+  for (const opt of root.querySelectorAll("[data-cv-restyle]")) {
+    opt.addEventListener("click", () => { closeCvMenus(); void restyleOneArticle(opt.dataset.cvRestyle); });
+  }
+  for (const opt of root.querySelectorAll("[data-cv-restyle-all]")) {
+    opt.addEventListener("click", () => { closeCvMenus(); void rewriteAllArticles(state.contextVault.lastStyle || "plainer"); });
+  }
+  for (const btn of root.querySelectorAll("[data-cv-revert]")) {
+    btn.addEventListener("click", clearContextPreview);
+  }
   for (const btn of root.querySelectorAll("[data-cv-reveal-corpus]")) {
     btn.addEventListener("click", async () => {
       if (window.api?.revealContextVaultCorpus) await window.api.revealContextVaultCorpus();
