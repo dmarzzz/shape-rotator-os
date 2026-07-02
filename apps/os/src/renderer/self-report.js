@@ -850,8 +850,22 @@ function diffRows(base, draft, changed, pickAttr) {
       <div class="selfrep-diff-k">${esc(fieldLabel(k))}</div>
       <div class="selfrep-diff-was">${esc(asText(base && base[k]) || "—")}</div>
       <div class="selfrep-diff-arrow" aria-hidden="true">→</div>
-      <div class="selfrep-diff-new">${esc(asText(draft && draft[k]))}</div>
+      <div class="selfrep-diff-new">
+        <button type="button" class="selfrep-diff-edit" data-sr-edit title="edit this value before sending (lists are comma-separated)">✎</button>
+        <span class="selfrep-diff-new-text">${esc(asText(draft && draft[k]))}</span>
+      </div>
     </div>`).join("");
+}
+
+// Parse an inline edit back into the field's shape: lists split on commas/
+// newlines, objects (journey) round-trip as JSON, strings pass through.
+// Empty or unparseable input keeps the AI's proposed value.
+function parseEditedValue(raw, original) {
+  const t = String(raw || "").trim();
+  if (!t) return original;
+  if (Array.isArray(original)) return t.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
+  if (original && typeof original === "object") { try { return JSON.parse(t); } catch { return original; } }
+  return t;
 }
 
 function renderReview(person, state) {
@@ -926,6 +940,23 @@ function renderReview(person, state) {
     <p class="selfrep-foot" data-sr-send-status></p>
   `);
   for (const b of host.querySelectorAll("[data-sr-close]")) b.addEventListener("click", closeSelfReport);
+  // Per-card edit (✎): swap the proposed value for an editable box. The edited
+  // text is read back at send time (see pickDelta) — one card at a time, never
+  // a full regenerate.
+  for (const btn of host.querySelectorAll("[data-sr-edit]")) {
+    btn.addEventListener("click", () => {
+      const cell = btn.closest(".selfrep-diff-new");
+      const span = cell && cell.querySelector(".selfrep-diff-new-text");
+      if (!span) return;
+      const ta = document.createElement("textarea");
+      ta.className = "selfrep-diff-editbox";
+      ta.rows = 2;
+      ta.value = span.textContent;
+      span.replaceWith(ta);
+      btn.remove();
+      ta.focus();
+    });
+  }
   let applied = false;
   host.querySelector("[data-sr-apply]").addEventListener("click", async () => {
     if (applied) return; // guard a double-click → duplicate inbox rows + double editor open
@@ -943,7 +974,15 @@ function renderReview(person, state) {
     applied = true;
     if (applyBtn) applyBtn.disabled = true;
     if (statusEl) statusEl.textContent = "sending to Supabase...";
-    const pickDelta = (src, keys) => { const d = {}; for (const k of keys) d[k] = src[k]; return d; };
+    // Per-row inline edits (✎) override the AI's proposed value for that field.
+    const pickDelta = (src, keys, attr) => {
+      const d = {};
+      for (const k of keys) {
+        const box = host.querySelector(`[${attr}="${k}"]`)?.closest(".selfrep-diff")?.querySelector(".selfrep-diff-editbox");
+        d[k] = box ? parseEditedValue(box.value, src[k]) : src[k];
+      }
+      return d;
+    };
     const directSourceKinds = Array.isArray(digests && digests.sourceKinds) && digests.sourceKinds.length
       ? digests.sourceKinds.slice(0, 8).map(String)
       : [
@@ -955,7 +994,7 @@ function renderReview(person, state) {
     try { ctx = await getAppContext(); } catch {}
     const claimHash = getClaimTokenHash();
     if (selChanged.length) {
-      const direct = await saveSelfReportUpdate(person.record_id, pickDelta(merged, selChanged), {
+      const direct = await saveSelfReportUpdate(person.record_id, pickDelta(merged, selChanged, "data-sr-pick"), {
         question: question || "",
         sourceKinds: directSourceKinds,
         appVersion: ctx.appVersion,
@@ -972,7 +1011,7 @@ function renderReview(person, state) {
       }
     }
     if (selTeam.length && team && team.record_id) {
-      const teamRes = await saveProfileProposal(team.record_id, pickDelta(teamMerged, selTeam), {
+      const teamRes = await saveProfileProposal(team.record_id, pickDelta(teamMerged, selTeam, "data-sr-pick-team"), {
         proposerRecordId: person.record_id,
         proposerClaimHash: claimHash,
         rationale: question ? `Self-report project evidence proposal. Follow-up question: ${question}` : "Self-report project evidence proposal.",

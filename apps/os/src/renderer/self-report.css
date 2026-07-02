@@ -300,6 +300,27 @@ button.selfrep-consent {
 }
 /* Per-field send toggle — unticked rows are kept as-is, visually receded. */
 .selfrep-diff-pick { margin: 0; align-self: center; accent-color: var(--ds-accent); cursor: pointer; }
+/* Per-card inline edit: the pencil swaps the proposed value for a textarea. */
+.selfrep-diff-edit {
+  float: right;
+  margin: 0 0 2px 8px;
+  padding: 0 5px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ds-ink-4);
+  font-size: var(--ds-text-xs);
+  line-height: 1.5;
+  cursor: pointer;
+}
+.selfrep-diff-edit:hover { color: var(--ds-ink-1); border-color: var(--ds-border); }
+.selfrep-diff-editbox {
+  width: 100%; min-height: 36px; resize: vertical; font: inherit;
+  font-size: var(--ds-text-xs); color: var(--ds-ink-1);
+  background: var(--ds-surface-2);
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 40%, var(--ds-border));
+  border-radius: 6px; padding: 5px 7px;
+}
 .selfrep-diff:has(.selfrep-diff-pick:not(:checked)) { opacity: 0.45; }
 .selfrep-pick-hint {
   margin: 10px 0 0;
