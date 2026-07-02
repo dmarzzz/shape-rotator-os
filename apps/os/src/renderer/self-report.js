@@ -522,6 +522,10 @@ function renderConsent(person, githubFallback) {
         <small>No scan. Answer a few questions, preview the changed fields, then send only what you approve to Supabase.</small>
       </span>
     </button>
+    <label class="selfrep-guide">
+      <span><b>Guide it before it runs</b> <small>(optional)</small></span>
+      <textarea data-sr-guidance rows="2" placeholder="anything it should know up front — e.g. “we pivoted from NDI to transcripts”, “ignore my side project”…" spellcheck="true"></textarea>
+    </label>
     <div class="selfrep-actions">
       <button type="button" class="selfrep-btn selfrep-ghost" data-sr-close>cancel</button>
       <button type="button" class="selfrep-btn selfrep-primary" data-sr-run disabled>scan &amp; draft</button>
@@ -549,6 +553,7 @@ function renderConsent(person, githubFallback) {
     runSelfReport(person, {
       ...choices,
       githubFallback,
+      guidance: ((host.querySelector("[data-sr-guidance]") || {}).value || "").trim().slice(0, 1200),
     });
   });
 }
@@ -760,6 +765,7 @@ async function synthesize(person, digests, answer = "") {
     sessionDigest: digests.sessionDigest,
     githubDigest: digests.githubDigest,
     appContextDigest: digests.appContextDigest,
+    guidance: digests.guidance || "",
     answer,
   });
   const synth = await safeCall(() => window.api?.selfReportSynthesize?.({ prompt }));
@@ -794,7 +800,7 @@ async function synthesize(person, digests, answer = "") {
   };
 }
 
-async function runSelfReport(person, { useSessions, useGithub, githubFallback }) {
+async function runSelfReport(person, { useSessions, useGithub, githubFallback, guidance = "" }) {
   renderBusy("reading your recent work…");
   let surface = null;
   try { surface = await getCohortSurface(); } catch {}
@@ -823,7 +829,9 @@ async function runSelfReport(person, { useSessions, useGithub, githubFallback })
   if (!sessionDigest && !githubDigest) {
     return renderError("No recent activity found to read. Try again after some work, or update your profile by hand.");
   }
-  const digests = { sessionDigest, githubDigest, githubSourceKind, appContextDigest, sourceNotes, team: currentTeam };
+  if (guidance) sourceNotes.push("You: pre-run guidance was folded into the draft.");
+  // guidance rides in digests so refine passes keep honoring it too.
+  const digests = { sessionDigest, githubDigest, githubSourceKind, appContextDigest, sourceNotes, team: currentTeam, guidance };
   const res = await synthesize(currentPerson, digests, "");
   if (!res.ok) return renderError(res.error);
   if (!res.changed.length && !(res.teamChanged && res.teamChanged.length)) {
@@ -833,9 +841,12 @@ async function runSelfReport(person, { useSessions, useGithub, githubFallback })
 }
 
 // ── Step 3 — review → optional interview refine → send/apply ──────────
-function diffRows(base, draft, changed) {
+// Every diff row carries a tick box (default on): only ticked fields are sent,
+// so an update is never all-or-nothing ("does it wipe everything?" feedback).
+function diffRows(base, draft, changed, pickAttr) {
   return (Array.isArray(changed) ? changed : []).map((k) => `
     <div class="selfrep-diff">
+      <input type="checkbox" class="selfrep-diff-pick" ${pickAttr}="${esc(k)}" checked aria-label="include ${esc(fieldLabel(k))} in the update" title="untick to leave this field as-is">
       <div class="selfrep-diff-k">${esc(fieldLabel(k))}</div>
       <div class="selfrep-diff-was">${esc(asText(base && base[k]) || "—")}</div>
       <div class="selfrep-diff-arrow" aria-hidden="true">→</div>
@@ -847,16 +858,10 @@ function renderReview(person, state) {
   clearBusyTimer();
   if (!host) return; // an async pass finished after the modal was closed
   const { merged, changed, team, teamMerged = {}, teamChanged = [], usefulness = {}, question, digests, refined = false } = state;
-  const rows = changed.map((k) => `
-    <div class="selfrep-diff">
-      <div class="selfrep-diff-k">${esc(fieldLabel(k))}</div>
-      <div class="selfrep-diff-was">${esc(asText(person[k]) || "—")}</div>
-      <div class="selfrep-diff-arrow" aria-hidden="true">→</div>
-      <div class="selfrep-diff-new">${esc(asText(merged[k]))}</div>
-    </div>`).join("");
+  const rows = diffRows(person, merged, changed, "data-sr-pick");
   const coverage = assessSelfReportCoverage(person, changed);
   const missing = coverage.missingEmptyFields.map(fieldLabel).join(", ");
-  const teamRows = diffRows(team || {}, teamMerged, teamChanged);
+  const teamRows = diffRows(team || {}, teamMerged, teamChanged, "data-sr-pick-team");
   const totalChanged = changed.length + teamChanged.length;
   const profileCoverageHtml = changed.length ? (coverage.status === "broad" ? "" : `
     <div class="selfrep-coverage is-${coverage.status}">
@@ -913,6 +918,7 @@ function renderReview(person, state) {
     ${projectCoverageHtml}
     ${personSection}
     ${teamSection}
+    ${totalChanged ? `<p class="selfrep-pick-hint">Only ticked fields are sent — untick anything you'd rather leave as-is.</p>` : ""}
     <div class="selfrep-actions">
       <button type="button" class="selfrep-btn selfrep-ghost" data-sr-close>discard</button>
       <button type="button" class="selfrep-btn selfrep-primary" data-sr-apply>send update</button>
@@ -923,11 +929,21 @@ function renderReview(person, state) {
   let applied = false;
   host.querySelector("[data-sr-apply]").addEventListener("click", async () => {
     if (applied) return; // guard a double-click → duplicate inbox rows + double editor open
-    applied = true;
     const applyBtn = host.querySelector("[data-sr-apply]");
     const statusEl = host.querySelector("[data-sr-send-status]");
+    // Only ticked rows are sent; untouched fields keep their current value.
+    const picked = (attr) => new Set(Array.from(host.querySelectorAll(`[${attr}]`))
+      .filter((el) => el.checked).map((el) => el.getAttribute(attr)));
+    const selChanged = changed.filter((k) => picked("data-sr-pick").has(k));
+    const selTeam = teamChanged.filter((k) => picked("data-sr-pick-team").has(k));
+    if (!selChanged.length && !selTeam.length) {
+      if (statusEl) statusEl.textContent = "nothing ticked — tick at least one field to send.";
+      return;
+    }
+    applied = true;
     if (applyBtn) applyBtn.disabled = true;
     if (statusEl) statusEl.textContent = "sending to Supabase...";
+    const pickDelta = (src, keys) => { const d = {}; for (const k of keys) d[k] = src[k]; return d; };
     const directSourceKinds = Array.isArray(digests && digests.sourceKinds) && digests.sourceKinds.length
       ? digests.sourceKinds.slice(0, 8).map(String)
       : [
@@ -938,8 +954,8 @@ function renderReview(person, state) {
     let ctx = {};
     try { ctx = await getAppContext(); } catch {}
     const claimHash = getClaimTokenHash();
-    if (changed.length) {
-      const direct = await saveSelfReportUpdate(person.record_id, merged, {
+    if (selChanged.length) {
+      const direct = await saveSelfReportUpdate(person.record_id, pickDelta(merged, selChanged), {
         question: question || "",
         sourceKinds: directSourceKinds,
         appVersion: ctx.appVersion,
@@ -955,8 +971,8 @@ function renderReview(person, state) {
         return;
       }
     }
-    if (teamChanged.length && team && team.record_id) {
-      const teamRes = await saveProfileProposal(team.record_id, teamMerged, {
+    if (selTeam.length && team && team.record_id) {
+      const teamRes = await saveProfileProposal(team.record_id, pickDelta(teamMerged, selTeam), {
         proposerRecordId: person.record_id,
         proposerClaimHash: claimHash,
         rationale: question ? `Self-report project evidence proposal. Follow-up question: ${question}` : "Self-report project evidence proposal.",
@@ -974,19 +990,19 @@ function renderReview(person, state) {
         return;
       }
     }
-    emitSelfReport(person.record_id, Object.keys(merged || {}), {
-      coverageStatus: changed.length ? coverage.status : projectStatus,
+    emitSelfReport(person.record_id, selChanged, {
+      coverageStatus: selChanged.length ? coverage.status : projectStatus,
       sourceKinds: directSourceKinds,
       usedAppContext: !!digests.appContextDigest,
-      teamRecordId: team && teamChanged.length ? team.record_id : "",
-      teamFields: teamChanged,
-      teamProposalStatus: teamChanged.length ? "pending_review" : "",
+      teamRecordId: team && selTeam.length ? team.record_id : "",
+      teamFields: selTeam,
+      teamProposalStatus: selTeam.length ? "pending_review" : "",
       usefulness: usefulnessReport,
     });
     if (statusEl) statusEl.textContent = "sent - refreshing the cohort record...";
     try { await refreshCohortFromGithub(); } catch {}
     setTimeout(() => { refreshCohortFromGithub().catch(() => {}); }, 1500);
-    renderSuccess(Object.keys(merged || {}), teamChanged);
+    renderSuccess(selChanged, selTeam);
   });
   const refineBtn = host.querySelector("[data-sr-refine]");
   if (refineBtn) {

@@ -295,8 +295,16 @@ button.selfrep-consent {
 
 .selfrep-diffs { display: flex; flex-direction: column; gap: 9px; margin: 4px 0 2px; }
 .selfrep-diff {
-  display: grid; grid-template-columns: 96px minmax(0, 1fr) auto minmax(0, 1fr); gap: 10px; align-items: baseline;
+  display: grid; grid-template-columns: auto 96px minmax(0, 1fr) auto minmax(0, 1fr); gap: 10px; align-items: baseline;
   padding: 9px 11px; border: 1px solid var(--ds-border); border-radius: 9px; background: var(--ds-surface-3);
+}
+/* Per-field send toggle — unticked rows are kept as-is, visually receded. */
+.selfrep-diff-pick { margin: 0; align-self: center; accent-color: var(--ds-accent); cursor: pointer; }
+.selfrep-diff:has(.selfrep-diff-pick:not(:checked)) { opacity: 0.45; }
+.selfrep-pick-hint {
+  margin: 10px 0 0;
+  font-size: var(--ds-text-2xs); line-height: var(--ds-lh-2xs);
+  color: var(--ds-ink-3);
 }
 .selfrep-diff-k { font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ds-ink-3); }
 .selfrep-diff-was { font-size: var(--ds-text-xs); color: var(--ds-ink-4); text-decoration: line-through; overflow-wrap: anywhere; min-width: 0; }
@@ -316,8 +324,21 @@ button.selfrep-consent {
 }
 .selfrep-refine-btn { margin-top: 8px; height: auto; padding: 6px 12px; }
 
+/* Pre-run guidance box on the consent step ("guide it before it sinks"). */
+.selfrep-guide { display: block; margin: 10px 0 2px; }
+.selfrep-guide > span {
+  display: block; margin-bottom: 5px;
+  font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); color: var(--ds-ink-2);
+}
+.selfrep-guide > span b { color: var(--ds-ink-1); }
+.selfrep-guide textarea {
+  width: 100%; min-height: 40px; resize: vertical; font: inherit; font-size: var(--ds-text-sm);
+  color: var(--ds-ink-1); background: var(--ds-surface-2);
+  border: 1px solid var(--ds-border); border-radius: 8px; padding: 7px 9px;
+}
+
 @media (max-width: 560px) {
-  .selfrep-diff { grid-template-columns: 1fr; gap: 3px; }
+  .selfrep-diff { grid-template-columns: auto 1fr; gap: 3px 10px; }
   .selfrep-diff-arrow { display: none; }
   .selfrep-diff-was { text-decoration: none; opacity: 0.6; }
 }
