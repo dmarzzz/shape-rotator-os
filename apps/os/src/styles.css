@@ -20181,6 +20181,23 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   line-height: 1.72;
 }
 
+/* Explicit heading hierarchy — unstyled, headings sat at browser defaults and
+   read as merged with the body ("headings are clear" feedback, 2026-07-02). */
+.alch-cv-article-md .alch-prog-h1,
+.alch-cv-article-md .alch-prog-h2,
+.alch-cv-article-md .alch-prog-h3,
+.alch-cv-article-md .alch-prog-h4 {
+  font-family: var(--ds-font-ui, system-ui, sans-serif);
+  color: var(--ds-ink-1, rgba(241, 236, 231, 0.94));
+  font-weight: var(--ds-weight-semi, 600);
+  line-height: 1.25;
+  margin: 26px 0 10px;
+}
+.alch-cv-article-md .alch-prog-h1 { font-size: var(--ds-text-2xl, 24px); }
+.alch-cv-article-md .alch-prog-h2 { font-size: var(--ds-text-xl, 20px); }
+.alch-cv-article-md .alch-prog-h3,
+.alch-cv-article-md .alch-prog-h4 { font-size: var(--ds-text-lg, 16px); }
+
 .alch-cv-article-md .alch-prog-p {
   margin: 0 0 15px;
 }

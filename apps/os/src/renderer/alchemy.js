@@ -15051,12 +15051,12 @@ function renderContextVaultDetail(selected) {
     <article class="alch-cv-detail">
       <header class="alch-cv-detail-head">
         <div>
-          <span class="alch-cv-eyebrow">reader draft · markdown</span>
+          <span class="alch-cv-eyebrow" title="an in-app reading copy of this article — it isn't published anywhere until someone opens an ask/program PR">draft — in-app copy, not published</span>
         </div>
         <div class="alch-cv-detail-actions">
           <div class="alch-cv-restyle-wrap">
-            <button class="alch-cv-md-action" type="button" data-cv-restyle-toggle aria-expanded="false" title="ask the corner bot to restyle this — preview only, not saved">
-              <span class="alch-cv-md-action-label">restyle</span>
+            <button class="alch-cv-md-action" type="button" data-cv-restyle-toggle aria-expanded="false" title="your own local AI rewrites this article for you — preview only, not saved">
+              <span class="alch-cv-md-action-label">rewrite with your AI</span>
               <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
             </button>
             <div class="alch-cv-restyle-menu" data-cv-restyle-menu>
