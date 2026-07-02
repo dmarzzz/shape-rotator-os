@@ -266,10 +266,11 @@ function createController() {
     setChatView(lastView);  // return to the view you collapsed from (lastView starts "ask").
                             // Re-asserting the SAME view skips setChatView's leaving-sync
                             // teardown, so a self-report still running in the background survives.
-    // Snapshot the page the member opened the chat FROM — it scopes ambiguous
-    // questions and drives the preset chips above the composer.
-    activePage = currentPageContext();
-    renderPagePresets();
+    // Resolve the page the member opened the chat FROM — it scopes ambiguous
+    // questions and drives the preset chips above the composer. NOT a one-shot:
+    // syncActivePage() keeps it live while the panel stays open (see the
+    // MutationObserver below) and send() re-resolves before every prompt.
+    syncActivePage(true);
     // Restore the full-page preference (don't rewrite it — just reflect it).
     let wantFull = false; try { wantFull = localStorage.getItem("srwk:chat_expanded_v1") === "1"; } catch {}
     setChatFull(wantFull, { remember: false });
@@ -280,6 +281,22 @@ function createController() {
     refreshReadiness();
     void onboardThenOffer();
   }
+
+  // Keep activePage tracking the page the member is ACTUALLY on. Called on
+  // open, before every send, and from a MutationObserver when the app's mode
+  // attributes change while the panel is open — a stale snapshot had the bot
+  // offering membrane presets on the collab board (2026-07-02 follow-up).
+  function syncActivePage(force = false) {
+    const next = currentPageContext();
+    if (!force && (next && next.key) === (activePage && activePage.key)) return;
+    activePage = next;
+    renderPagePresets();
+  }
+  const pageObserver = new MutationObserver(() => {
+    if (panel.hidden) return;
+    syncActivePage();
+  });
+  pageObserver.observe(document.body, { attributes: true, attributeFilter: ["data-alch-mode", "data-active-tab"] });
 
   // Page-specific preset prompts ("oh, I can just ask the bot about this page").
   // One tap fills + sends. Hidden once a preset is used or when the page has none.
@@ -1170,6 +1187,7 @@ function createController() {
       return;
     }
     activeFocus = activeFocusResolution.focus;
+    syncActivePage(); // the prompt must carry the page the member is on NOW
     const distillations = await getDistillationsForPrompt();
     runTurn(buildChatPrompt({
       surface,
