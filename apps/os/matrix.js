@@ -884,6 +884,9 @@ function getStatus() {
   return {
     state,
     userId: session?.userId || null,
+    // Surfaced in the chat UI so a member can find THIS session in Element's
+    // session list and verify it (the path to decrypting E2EE rooms here).
+    deviceId: session?.deviceId || null,
     homeserver: session?.homeserver || DEFAULT_HS,
     error: lastError || "",
     cryptoReady: mxcrypto.isReady(),

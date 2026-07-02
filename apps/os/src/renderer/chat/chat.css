@@ -492,6 +492,26 @@
   padding: 2px 0; text-align: center;
 }
 
+/* the way out: verify THIS session from Element (named so it's findable) */
+.chat-verify-hint {
+  margin: 8px auto 0; max-width: 340px;
+  font-family: var(--font-ui, inherit); font-size: 12px; line-height: 1.5;
+  letter-spacing: 0; text-align: center;
+  color: rgba(var(--ink-rgb), 0.55);
+}
+.chat-verify-hint code {
+  font-family: var(--font-mono); font-size: 11px;
+  padding: 1px 4px; border: 1px solid rgba(var(--ink-rgb), 0.18); border-radius: 4px;
+}
+
+/* divider between readable channels and still-locked encrypted ones */
+.chat-room-sep {
+  padding: 10px 14px 4px;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: rgba(var(--ink-rgb), 0.35);
+  list-style: none;
+}
+
 /* composer */
 .chat-composer {
   display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px;

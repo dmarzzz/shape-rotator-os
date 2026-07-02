@@ -501,7 +501,9 @@ export function mountChat(host) {
       ul.innerHTML = `<li class="chat-room-empty">${status.state === "syncing" ? "no channels yet." : "connecting…"}</li>`;
       return;
     }
-    ul.innerHTML = rooms.map((r) => `
+    // Readable channels lead; encrypted rooms this session can't decrypt yet sit
+    // under a labelled divider instead of interleaving with the live ones.
+    const roomLi = (r) => `
       <li>
         <button class="chat-room-btn${r.roomId === activeRoomId ? " is-active" : ""}" type="button" data-room="${esc(r.roomId)}">
           <span class="chat-room-row">
@@ -510,7 +512,11 @@ export function mountChat(host) {
           </span>
           ${r.lastPreview ? `<span class="chat-room-preview"><span class="chat-room-preview-who">${esc(r.lastMine ? "you" : senderName(r.lastSender))}</span><span class="chat-room-preview-msg">${esc(r.lastPreview)}</span></span>` : ""}
         </button>
-      </li>`).join("");
+      </li>`;
+    const readable = rooms.filter((r) => !r.encrypted || status.cryptoReady);
+    const locked = rooms.filter((r) => !readable.includes(r));
+    ul.innerHTML = readable.map(roomLi).join("")
+      + (locked.length ? `<li class="chat-room-sep" aria-hidden="true">🔒 encrypted — verify this session to read</li>${locked.map(roomLi).join("")}` : "");
     ul.querySelectorAll("[data-room]").forEach((btn) => {
       btn.addEventListener("click", () => selectRoom(btn.dataset.room));
     });
@@ -566,7 +572,7 @@ export function mountChat(host) {
     const tl = host.querySelector(".chat-timeline");
     if (!tl) return;
     if (encrypted && !cryptoReady) {
-      tl.innerHTML = `<div class="chat-locked"><div class="chat-locked-glyph">🔒</div><div class="chat-locked-title">end-to-end encrypted</div><div class="chat-locked-sub">Encryption couldn't start on this device yet. Try reopening the app, or open this room in Element.</div></div>`;
+      tl.innerHTML = `<div class="chat-locked"><div class="chat-locked-glyph">🔒</div><div class="chat-locked-title">end-to-end encrypted</div><div class="chat-locked-sub">Encryption couldn't start on this device yet. Try reopening the app, or open this room in Element.</div>${verifyHintHtml()}</div>`;
       return;
     }
     const msgs = messagesByRoom.get(roomId) || [];
@@ -579,15 +585,25 @@ export function mountChat(host) {
     tl.scrollTop = tl.scrollHeight;
   }
 
+  // The concrete way out of "I can't decrypt anything": verify THIS session
+  // from another Matrix client. Names the exact session so it's findable in
+  // Element's list instead of leaving the member with no path at all.
+  function verifyHintHtml() {
+    if (!status.deviceId) return "";
+    return `<div class="chat-verify-hint">To read encrypted history here, verify this session from a device that has the keys: in Element, open <b>Settings → Sessions</b>, find session <code>${esc(status.deviceId)}</code>, and verify it.</div>`;
+  }
+
   // Render messages. Undecryptable ones (the pre-login backlog we have no key
   // for) collapse into a single explanatory line — they're still readable in
   // Element on a device that holds the keys.
   function renderTimelineMsgs(msgs) {
     const out = [];
     let hadUtd = false;
+    let hintShown = false;
     const flush = () => {
       if (!hadUtd) return;
-      out.push(`<div class="chat-utd">🔒 Messages sent before this device signed in can't be decrypted</div>`);
+      out.push(`<div class="chat-utd">🔒 Messages sent before this device signed in can't be decrypted${hintShown ? "" : verifyHintHtml()}</div>`);
+      hintShown = true;
       hadUtd = false;
     };
     for (const m of msgs) {
