@@ -15737,6 +15737,7 @@ function renderContextEvidence(tier, t3cards, t2cards, insights) {
 
 // Human labels for the engine's routing basis codes (why a transcript reached you).
 const ROUTING_BASIS_LABEL = {
+  llm_curated: "picked for you",
   named_participant: "you were named",
   own_team_discussed: "your team",
   github_team_edge: "github edge",
@@ -15758,31 +15759,40 @@ function myRoutingRows() {
   return { me, rows };
 }
 
-// "For you" view — the sidebar lists your relevant transcripts (score + basis),
-// the detail pane shows the reason. Mirrors the context two-pane layout.
+// "For you" view — two lanes: "picked for you" (the engine's LLM-curated content
+// judgment, basis=llm_curated) above "mentions you or your team" (factual presence
+// signals). Split so team-mention rows can never crowd out the curated picks.
+// The detail pane shows the reason. Mirrors the context two-pane layout.
 function renderContextRouting() {
   const cv = state.contextVault;
   const { me, rows } = myRoutingRows();
   if (!me) {
     return `<div class="alch-cv-layout"><main class="alch-cv-detail"><p class="alch-cv-muted">Claim your cohort identity to see the transcripts routed to you.</p></main></div>`;
   }
-  const selected = rows.find((r) => r.session_title === cv.selectedRoutingTitle) || rows[0] || null;
+  const picked = rows.filter((r) => r.basis === "llm_curated");
+  const mentions = rows.filter((r) => r.basis !== "llm_curated");
+  const ordered = [...picked, ...mentions];
+  const selected = ordered.find((r) => r.session_title === cv.selectedRoutingTitle) || ordered[0] || null;
   if (selected && !cv.selectedRoutingTitle) cv.selectedRoutingTitle = selected.session_title;
-  const sourceRows = rows.map((r) => {
+  const rowHtml = (r) => {
     const cls = selected && selected.session_title === r.session_title ? " is-selected" : "";
     const pct = Number.isFinite(Number(r.score)) ? `${Math.round(Number(r.score) * 100)}%` : "";
-    const label = ROUTING_BASIS_LABEL[r.basis] || r.basis || "";
+    const label = r.basis === "llm_curated" ? "" : (ROUTING_BASIS_LABEL[r.basis] || r.basis || "");
     return `
       <button class="alch-cv-source${cls}" type="button" data-cv-routing-source="${escAttr(r.session_title)}">
         <strong>${escHtml(r.session_title)}</strong>
         <span class="alch-cv-source-meta">${escHtml(r.session_type || "session")}${label ? ` · ${escHtml(label)}` : ""}${pct ? ` · ${pct}` : ""}</span>
       </button>
     `;
-  }).join("");
+  };
+  const lane = (title, list) => list.length
+    ? `<p class="alch-cv-muted">${escHtml(title)}</p>${list.map(rowHtml).join("")}`
+    : "";
+  const sourceRows = lane("picked for you", picked) + lane("mentions you or your team", mentions);
   const detail = selected
     ? `<main class="alch-cv-detail">
         <h2>${escHtml(selected.session_title)}</h2>
-        <p class="alch-cv-source-meta">${escHtml(selected.session_type || "session")}${Number.isFinite(Number(selected.score)) ? ` · relevance ${Math.round(Number(selected.score) * 100)}%` : ""}</p>
+        <p class="alch-cv-source-meta">${escHtml(selected.session_type || "session")} · ${escHtml(ROUTING_BASIS_LABEL[selected.basis] || selected.basis || "")}${Number.isFinite(Number(selected.score)) ? ` · relevance ${Math.round(Number(selected.score) * 100)}%` : ""}</p>
         <p>${escHtml(selected.reason || "")}</p>
       </main>`
     : `<main class="alch-cv-detail"><p class="alch-cv-muted">Select a transcript to see why it's routed to you.</p></main>`;
