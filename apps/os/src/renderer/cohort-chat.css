@@ -783,6 +783,12 @@ body.cc-resizing .cc-resize::before { background: var(--ds-accent); }
 }
 .cc-upload-range:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 4px; }
 .cc-upload-range:disabled { opacity: 0.5; cursor: default; }
+.cc-upload-privacy {
+  margin: 0 0 10px;
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-lh-xs);
+  color: var(--ds-ink-3);
+}
 .cc-upload-route {
   min-height: 56px;
   border: 1px solid var(--ds-border);
@@ -802,6 +808,13 @@ body.cc-resizing .cc-resize::before { background: var(--ds-accent); }
 }
 .cc-upload-route-line {
   color: var(--ds-ink-1);
+  margin-bottom: 6px;
+}
+.cc-upload-route-explain {
+  font-family: var(--ds-font-ui);
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-lh-xs);
+  color: var(--ds-ink-2);
   margin-bottom: 6px;
 }
 .cc-upload-route-badges {

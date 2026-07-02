@@ -759,6 +759,7 @@ function createController() {
     card.className = "cc-card is-transcript-intake";
     card.innerHTML = `
       <div class="cc-card-eyebrow">add transcript</div>
+      <p class="cc-upload-privacy">Uploads go to the program's private store and queue for processing — nothing publishes automatically, and the raw file is never shown to the cohort. Pick a type below to see exactly where this one routes.</p>
       <button type="button" class="cc-upload-dropzone" data-cc-transcript-dropzone aria-label="choose a transcript file"></button>
       <div class="cc-upload-grid">
         <label class="cc-upload-field">
@@ -845,6 +846,14 @@ function createController() {
     function selectedType() {
       return types.find((type) => type.key === select.value) || null;
     }
+    // Plain-words answer to "am I just yoloing this?": what the chosen type does
+    // to the file once it's queued, ahead of the machine route/tier badges.
+    const COHORT_MODE_EXPLAINER = {
+      aggregate_only: "used only for aggregate cohort signals — the transcript itself is never surfaced",
+      distilled_readout: "a paraphrased, distilled readout is produced for the cohort; the raw file stays private",
+      team_call_required: "surfaced only if the team on the call approves it",
+      never: "stays in the do-not-publish store — read by nothing downstream",
+    };
     function routeBadges(type) {
       if (!type) return "";
       const badges = [
@@ -852,8 +861,10 @@ function createController() {
         type.cohortMode ? `<span>${esc(String(type.cohortMode).replace(/_/g, " "))}</span>` : "",
         `<span>Drive queued</span>`,
       ].filter(Boolean).join("");
+      const explain = COHORT_MODE_EXPLAINER[type.cohortMode] || "";
       return `
         <div class="cc-upload-route-line"><strong>${esc(type.routePath || "needs_calendar_match")}</strong></div>
+        ${explain ? `<div class="cc-upload-route-explain">After processing: ${esc(explain)}.${type.publicAllowed ? " Public excerpts are possible for this type, only after review." : " Never leaves the cohort."}</div>` : ""}
         <div class="cc-upload-route-badges">${badges}</div>
         ${type.accessNote ? `<div class="cc-upload-route-note">${esc(type.accessNote)}</div>` : ""}`;
     }
