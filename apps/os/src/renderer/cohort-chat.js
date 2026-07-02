@@ -270,6 +270,9 @@ function createController() {
     // questions and drives the preset chips above the composer.
     activePage = currentPageContext();
     renderPagePresets();
+    // Restore the full-page preference (don't rewrite it — just reflect it).
+    let wantFull = false; try { wantFull = localStorage.getItem("srwk:chat_expanded_v1") === "1"; } catch {}
+    setChatFull(wantFull, { remember: false });
     syncDial(true);  // dial state only
     setDocked(true);  // grows the window + opens the dock (owns html.cohort-chat-open)
     window.addEventListener("keydown", onKey, true);
@@ -391,6 +394,7 @@ function createController() {
   function close() {
     panel.hidden = true;
     panel.setAttribute("aria-hidden", "true");
+    _html.classList.remove("cohort-chat-full");  // drop full-page; the preference survives for next open
     syncDial(false);  // dial state only
     setDocked(false);  // shrinks the window back + closes the dock
     window.removeEventListener("keydown", onKey, true);
@@ -1451,6 +1455,23 @@ function createController() {
 
   form.addEventListener("submit", send);
   stopBtn.addEventListener("click", stop);
+  // Full-page expansion (2026-07-02 feedback): the card grows from the 400px
+  // side dock to cover the window. Pure CSS class flip — the window/dock IPC
+  // stays at side-panel size, the card just overlays the content. Preference
+  // persists; close() drops the class but keeps the preference for next open.
+  const CHAT_FULL_KEY = "srwk:chat_expanded_v1";
+  const expandBtn = $("cohort-chat-expand");
+  function setChatFull(on, { remember = true } = {}) {
+    _html.classList.toggle("cohort-chat-full", on);
+    if (expandBtn) {
+      expandBtn.setAttribute("aria-pressed", on ? "true" : "false");
+      expandBtn.title = on ? "back to side panel" : "expand to full page";
+    }
+    if (remember) { try { localStorage.setItem(CHAT_FULL_KEY, on ? "1" : "0"); } catch {} }
+  }
+  if (expandBtn) expandBtn.addEventListener("click", () => {
+    setChatFull(!_html.classList.contains("cohort-chat-full"));
+  });
   // The cogwheel toggles the settings dropdown; clicking outside it (anywhere
   // but the menu or the cogwheel) dismisses it, like any dropdown.
   settingsBtn.addEventListener("click", () => { settingsEl.hidden ? openSettings() : closeSettings(); });
