@@ -22,7 +22,7 @@ UX improvement · **P3** = nice-to-have / bigger design question.
   the conversation. Assume the current page first, don't over-stuff context.
 - [x] **P2 — Full-page expansion. (`96a0efad`)** Users want to expand the bot to the whole page,
   not just the small add-on panel.
-- [ ] **P2 — Clipping bug.** The bot panel clips/overlaps other UI when it interacts
+- [x] **P2 — Clipping bug. (`d9924334`)** The bot panel clips/overlaps other UI when it interacts
   with the page (calendar area especially).
 - [x] **P2 — Surface the rewrite feature. (`543a2bf8`)** "Rewrite this article/context with your
   own LLM" exists but is undiscoverable — make the entry point clear on the item.
@@ -57,23 +57,23 @@ UX improvement · **P3** = nice-to-have / bigger design question.
   iteration count.
 - [x] **P2 — Edit button & settings discoverability. (`a6ac4809`)** Users couldn't find where to
   edit before sending; make the edit affordance obvious.
-- [ ] **P3 — Multi-project session noise.** Sessions from unrelated projects are read;
+- [x] **P3 — Multi-project session noise. (`fc38cdae`)** Sessions from unrelated projects are read;
   it's directed to focus on what's relevant — verify and reassure in the UI.
 
 ## Membrane (landing) & calendar
 
 - [x] **P1 — Notification timeframe bug. (`7d3ee9cd`)** Showed "Final Demo Day today" for a July 22
   event. Fix the date labeling.
-- [ ] **P2 — Calendar clipping.** Right-side calendar clips (time-wise) with other
+- [x] **P2 — Calendar clipping. (`d9924334`)** Right-side calendar clips (time-wise) with other
   elements / the bot panel.
-- [ ] **P2 — "What's next" focus.** Right side should prioritize the immediate next
+- [x] **P2 — "What's next" focus. (`d9924334`)** Right side should prioritize the immediate next
   events and anything big upcoming, not a full snapshot.
 - [ ] **P3 — Simplify membrane overall.** Users don't get what the page is for;
   consolidate for low cognitive load.
 
 ## Context page
 
-- [ ] **P2 — Consolidate the button clutter.** Per-item buttons are "everywhere, not
+- [x] **P2 — Consolidate the button clutter. (`2ae6e377`)** Per-item buttons are "everywhere, not
   in separate rows" — group into fewer controls / one overflow menu.
 - [x] **P2 — Bold, clear headings. (`543a2bf8`)** Headings merge with body text in overview; fix
   hierarchy and the body-text formatting of articles/transcripts.
@@ -115,7 +115,7 @@ UX improvement · **P3** = nice-to-have / bigger design question.
 
 ## Asks / Activity
 
-- [ ] **P2 — Post-it-board simplification.** Keep asks dead simple — anything, official
+- [x] **P2 — Post-it-board simplification. (`fc38cdae`)** Keep asks dead simple — anything, official
   or unofficial; lead with asks. Consider merging activity into membrane.
 
 ## Profile / claim page
