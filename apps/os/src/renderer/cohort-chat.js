@@ -24,6 +24,7 @@ import { loadCalendarIngressConfig } from "./calendar-ingress.mjs";
 import { emitConnection, emitContest, emitSelfReport } from "./cohort-emit.mjs";
 import { submitContest } from "./supabase-contest.mjs";
 import { scanGithubActivity, resolvePersonHandle, summarizeEvents, digestFromEvents } from "./gh-self-report.mjs";
+import { renderChatMarkdown } from "./chat-markdown.mjs";
 
 let stylesheetPromise = null;
 let controller = null;
@@ -370,7 +371,10 @@ function createController() {
     row.className = `cc-msg is-${role}`;
     const body = document.createElement("div");
     body.className = "cc-msg-body";
-    body.textContent = text || "";
+    // Assistant prose renders as markdown (escape-first — see chat-markdown.mjs);
+    // user text stays literal.
+    if (role === "assistant" && text) body.innerHTML = renderChatMarkdown(text);
+    else body.textContent = text || "";
     row.appendChild(body);
     log.appendChild(row);
     log.scrollTop = log.scrollHeight;
@@ -996,7 +1000,9 @@ function createController() {
           if (said) display = said.question || said.text || "";
         }
         activeBubbleBody.hidden = false;
-        activeBubbleBody.textContent = display || finalText;
+        // The stream typed out plain text; the finished answer swaps to rendered
+        // markdown so **bold**/# headings stop showing as raw asterisks.
+        activeBubbleBody.innerHTML = renderChatMarkdown(display || finalText);
         ephemeralText = display || finalText;
         // Ephemeral one-shots (article restyle) never join the conversation.
         if (!pendingEphemeral) history.push({ role: "assistant", content: display || finalText });

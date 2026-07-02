@@ -377,6 +377,45 @@ body.cc-resizing .cc-resize::before { background: var(--ds-accent); }
   color: var(--ds-accent);
   animation: cc-pulse 1s steps(2) infinite;
 }
+/* Rendered-markdown elements inside assistant bubbles (chat-markdown.mjs).
+   The renderer emits no stray newlines, so the bubble's pre-wrap only ever
+   bites inside <pre> — where we want it. */
+.cc-msg-body p { margin: 0 0 8px; }
+.cc-msg-body p:last-child, .cc-msg-body ul:last-child, .cc-msg-body ol:last-child { margin-bottom: 0; }
+.cc-msg-body h1, .cc-msg-body h2, .cc-msg-body h3, .cc-msg-body h4 {
+  margin: 10px 0 6px;
+  font-size: var(--ds-text-lg);
+  line-height: var(--ds-lh-lg);
+  font-weight: 600;
+}
+.cc-msg-body h1:first-child, .cc-msg-body h2:first-child,
+.cc-msg-body h3:first-child, .cc-msg-body h4:first-child { margin-top: 0; }
+.cc-msg-body ul, .cc-msg-body ol { margin: 0 0 8px; padding-left: 18px; }
+.cc-msg-body li { margin: 2px 0; }
+.cc-msg-body code {
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-sm);
+  background: var(--ds-surface-4);
+  border: 1px solid var(--ds-border);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+.cc-msg-body pre {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  background: var(--ds-surface-4);
+  border: 1px solid var(--ds-border);
+  border-radius: 8px;
+  overflow-x: auto;
+}
+.cc-msg-body pre code { background: none; border: none; padding: 0; }
+.cc-msg-body blockquote {
+  margin: 0 0 8px;
+  padding-left: 10px;
+  border-left: 2px solid var(--ds-border-strong);
+  color: var(--ds-ink-2);
+}
+.cc-msg-body a { color: var(--ds-accent); }
 
 .cohort-chat-form {
   border-top: 1px solid var(--ds-border);
