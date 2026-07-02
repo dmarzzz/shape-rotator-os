@@ -1264,7 +1264,14 @@ export function mountMembrane(container, opts = {}) {
     const then = Date.parse(date);
     if (!Number.isFinite(then)) return '';
     const days = Math.floor((Date.now() - then) / 86400000);
-    if (days <= 0) return 'today';
+    if (days < 0) {
+      // Future-dated items (program events land in the feed ahead of time)
+      // must read forward — "today" here made a July 22 demo day look live.
+      const ahead = -days;
+      if (ahead < 7) return `in ${ahead}d`;
+      return `in ${Math.floor(ahead / 7)}w`;
+    }
+    if (days === 0) return 'today';
     if (days === 1) return '1d';
     if (days < 7) return `${days}d`;
     return `${Math.floor(days / 7)}w`;
