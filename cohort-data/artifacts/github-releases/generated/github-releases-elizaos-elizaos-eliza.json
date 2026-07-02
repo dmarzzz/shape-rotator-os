@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "artifact_id": "github-releases:elizaos:elizaos-eliza",
+  "artifact_kind": "github_release_list",
+  "record_type": "team",
+  "record_id": "elizaos",
+  "date": "2026-06-28",
+  "title": "elizaOS/eliza: 3 releases",
+  "summary": "Latest: v2.0.3-beta.7, v2.0.3-beta.6, v2.0.3-beta.5",
+  "source_kind": "github_releases_api",
+  "source_url": "https://github.com/elizaOS/eliza/releases",
+  "source_repo": "elizaOS/eliza",
+  "source_transform": "gh-release-list",
+  "review_status": "generated",
+  "surface_recommendation": "promote_candidate",
+  "verbatim": true,
+  "release_count": 3,
+  "releases": [
+    {
+      "tag_name": "v2.0.3-beta.7",
+      "name": "v2.0.3-beta.7",
+      "published_at": "2026-06-28T08:13:14Z",
+      "prerelease": true,
+      "latest": false,
+      "html_url": "https://github.com/elizaOS/eliza/releases/tag/v2.0.3-beta.7"
+    },
+    {
+      "tag_name": "v2.0.3-beta.6",
+      "name": "v2.0.3-beta.6",
+      "published_at": "2026-06-26T22:28:30Z",
+      "prerelease": true,
+      "latest": false,
+      "html_url": "https://github.com/elizaOS/eliza/releases/tag/v2.0.3-beta.6"
+    },
+    {
+      "tag_name": "v2.0.3-beta.5",
+      "name": "v2.0.3-beta.5",
+      "published_at": "2026-06-26T18:19:35Z",
+      "prerelease": true,
+      "latest": false,
+      "html_url": "https://github.com/elizaOS/eliza/releases/tag/v2.0.3-beta.5"
+    }
+  ]
+}

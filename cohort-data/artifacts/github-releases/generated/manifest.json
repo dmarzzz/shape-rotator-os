@@ -1,7 +1,17 @@
 {
   "schema_version": 1,
-  "artifact_count": 3,
+  "artifact_count": 4,
   "artifacts": [
+    {
+      "artifact_id": "github-releases:elizaos:elizaos-eliza",
+      "artifact_kind": "github_release_list",
+      "record_id": "elizaos",
+      "date": "2026-06-28",
+      "file": "github-releases-elizaos-elizaos-eliza.json",
+      "release_count": 3,
+      "review_status": "generated",
+      "surface_recommendation": "promote_candidate"
+    },
     {
       "artifact_id": "github-releases:searxng-wth-frnds:dmarzzz-searxng-wth-frnds",
       "artifact_kind": "github_release_list",
@@ -16,9 +26,9 @@
       "artifact_id": "github-releases:shape-rotator-os:dmarzzz-shape-rotator-os",
       "artifact_kind": "github_release_list",
       "record_id": "shape-rotator-os",
-      "date": "2026-06-23",
+      "date": "2026-06-30",
       "file": "github-releases-shape-rotator-os-dmarzzz-shape-rotator-os.json",
-      "release_count": 83,
+      "release_count": 85,
       "review_status": "generated",
       "surface_recommendation": "promote_candidate"
     },
