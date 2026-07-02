@@ -24,14 +24,14 @@ UX improvement · **P3** = nice-to-have / bigger design question.
   not just the small add-on panel.
 - [ ] **P2 — Clipping bug.** The bot panel clips/overlaps other UI when it interacts
   with the page (calendar area especially).
-- [ ] **P2 — Surface the rewrite feature.** "Rewrite this article/context with your
+- [x] **P2 — Surface the rewrite feature. (`543a2bf8`)** "Rewrite this article/context with your
   own LLM" exists but is undiscoverable — make the entry point clear on the item.
 - [ ] **P3 — "Send it to me" digest.** One-click "email me this transcript/digest"
   from a meeting; admin approve/disapprove flow; watch prompt-injection risk.
 
 ## Transcripts & upload
 
-- [ ] **P1 — Explain the route on upload.** When adding a transcript, say what happens:
+- [x] **P1 — Explain the route on upload. (`b6032c10`)** When adding a transcript, say what happens:
   where it goes (Supabase), that nothing is auto-published, what processing follows.
   ("Am I just yoloing this or is this going to be processed?" — needs a privacy note.)
 - [ ] **P2 — Grouping by type + confidence.** Transcript page should group by type and
@@ -39,14 +39,14 @@ UX improvement · **P3** = nice-to-have / bigger design question.
 
 ## Sync / Mirror
 
-- [ ] **P1 — Make send/consent obvious.** State clearly that nothing is sent until you
+- [x] **P1 — Make send/consent obvious. (`21d10fb0`)** State clearly that nothing is sent until you
   hit Send, and that the result is only visible inside the cohort-gated app (not
   posted anywhere public).
-- [ ] **P1 — Progress indicators.** While syncing, show what it's doing ("going through
+- [x] **P1 — Progress indicators. (`21d10fb0`)** While syncing, show what it's doing ("going through
   this, going through that") instead of a silent wait.
-- [ ] **P1 — "Refine with my answer" feels dead.** No loading state, no confirmation
+- [x] **P1 — "Refine with my answer" feels dead. (`21d10fb0`)** No loading state, no confirmation
   that the refinement was accepted/applied. Add loading + success feedback.
-- [ ] **P2 — Question at the top.** Results should lead with the open statement about
+- [x] **P2 — Question at the top. (`21d10fb0`)** Results should lead with the open statement about
   how it understands you + the refine question, then the detail below.
 - [ ] **P2 — Per-field update checkboxes.** Let users tick which data fields get
   updated on sync instead of all-or-nothing ("does it wipe everything?").
@@ -75,9 +75,9 @@ UX improvement · **P3** = nice-to-have / bigger design question.
 
 - [ ] **P2 — Consolidate the button clutter.** Per-item buttons are "everywhere, not
   in separate rows" — group into fewer controls / one overflow menu.
-- [ ] **P2 — Bold, clear headings.** Headings merge with body text in overview; fix
+- [x] **P2 — Bold, clear headings. (`543a2bf8`)** Headings merge with body text in overview; fix
   hierarchy and the body-text formatting of articles/transcripts.
-- [ ] **P2 — Clarify "Draft".** Nobody (including the operator) knew what the Draft
+- [x] **P2 — Clarify "Draft". (`543a2bf8`)** Nobody (including the operator) knew what the Draft
   label means. Define it or remove it.
 - [ ] **P3 — One team-context document.** A single canonical doc per team (about,
   positioning, connected to member context), instead of a mess of event/signal
@@ -97,10 +97,11 @@ UX improvement · **P3** = nice-to-have / bigger design question.
 
 ## Matrix chat
 
-- [ ] **P1 — Verification flow.** After login most messages are undecryptable until the
+- [x] **P1 — Verification flow. (`7836ccaf`)** After login most messages are undecryptable until the
   session is verified, and the app offers no working path. Surface a verification
-  link/flow usable from Element.
-- [ ] **P2 — Channel list filtering.** List is unorganized and shows undecryptable/
+  link/flow usable from Element. Landed: locked states name the exact
+  Element path + session id; in-app interactive SAS verification still open.
+- [x] **P2 — Channel list filtering. (`7836ccaf`)** List is unorganized and shows undecryptable/
   private rooms; default to channels you can actually read, add a filter.
 - [ ] **P3 — Apps expand-button direction.** Chevron direction is wrong/confusing for
   the expand/close state.
