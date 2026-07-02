@@ -17,10 +17,10 @@ UX improvement · **P3** = nice-to-have / bigger design question.
   search the distilled/processed versions.
 - [x] **P1 — Purpose outline. (`6dcd14d1`)** First-open state should say what the bot is for and
   what it can do ("I click this button, what does it mean? What does it do?").
-- [ ] **P2 — Page-context presets.** When opened on a page (e.g. collabboard with a
+- [x] **P2 — Page-context presets. (`6be35f29`)** When opened on a page (e.g. collabboard with a
   project selected), offer preset prompts about that page and pass page context into
   the conversation. Assume the current page first, don't over-stuff context.
-- [ ] **P2 — Full-page expansion.** Users want to expand the bot to the whole page,
+- [x] **P2 — Full-page expansion. (`96a0efad`)** Users want to expand the bot to the whole page,
   not just the small add-on panel.
 - [ ] **P2 — Clipping bug.** The bot panel clips/overlaps other UI when it interacts
   with the page (calendar area especially).
@@ -34,7 +34,7 @@ UX improvement · **P3** = nice-to-have / bigger design question.
 - [x] **P1 — Explain the route on upload. (`b6032c10`)** When adding a transcript, say what happens:
   where it goes (Supabase), that nothing is auto-published, what processing follows.
   ("Am I just yoloing this or is this going to be processed?" — needs a privacy note.)
-- [ ] **P2 — Grouping by type + confidence.** Transcript page should group by type and
+- [x] **P2 — Grouping by type + confidence. (`97ba9234`)** Transcript page should group by type and
   confidence ("I'm confident / I'm not sure"), and best-guess items need reviewers.
 
 ## Sync / Mirror
@@ -48,14 +48,14 @@ UX improvement · **P3** = nice-to-have / bigger design question.
   that the refinement was accepted/applied. Add loading + success feedback.
 - [x] **P2 — Question at the top. (`21d10fb0`)** Results should lead with the open statement about
   how it understands you + the refine question, then the detail below.
-- [ ] **P2 — Per-field update checkboxes.** Let users tick which data fields get
+- [x] **P2 — Per-field update checkboxes. (`e8274215`)** Let users tick which data fields get
   updated on sync instead of all-or-nothing ("does it wipe everything?").
-- [ ] **P2 — Per-card editing.** Allow editing/asking to change a specific card rather
+- [x] **P2 — Per-card editing. (`a6ac4809`)** Allow editing/asking to change a specific card rather
   than regenerating everything.
-- [ ] **P2 — Show/adjust the prompt before sync.** A box where the user can guide the
+- [x] **P2 — Show/adjust the prompt before sync. (`e8274215`)** A box where the user can guide the
   model before it runs (e.g. "we pivoted from NDI to transcriptions") to cut
   iteration count.
-- [ ] **P2 — Edit button & settings discoverability.** Users couldn't find where to
+- [x] **P2 — Edit button & settings discoverability. (`a6ac4809`)** Users couldn't find where to
   edit before sending; make the edit affordance obvious.
 - [ ] **P3 — Multi-project session noise.** Sessions from unrelated projects are read;
   it's directed to focus on what's relevant — verify and reassure in the UI.
@@ -90,7 +90,7 @@ UX improvement · **P3** = nice-to-have / bigger design question.
   useless. Remove it, even if it's linked in the back."
 - [ ] **P2 — Empty-team handling.** Teams with little data (e.g. a member who just
   joined) open to nothing — show a useful empty state.
-- [ ] **P2 — View-switch bugs.** Timeline flash when switching views; switching
+- [x] **P2 — View-switch bugs. (`97ba9234`)** Timeline flash when switching views; switching
   between teams sometimes makes everything unclickable.
 - [ ] **P3 — Overlap representation.** Circle map doesn't show partial overlaps;
   consider a Venn-ish view as an alternative.
@@ -108,9 +108,9 @@ UX improvement · **P3** = nice-to-have / bigger design question.
 
 ## Navigation
 
-- [ ] **P2 — Pin the left menu open.** A lock/pin so the menu stays expanded, like
+- [x] **P2 — Pin the left menu open. (`c77fe88c`)** A lock/pin so the menu stays expanded, like
   browser sidebars.
-- [ ] **P2 — Color-line overlap bug.** The accent lines on the far left overlap the
+- [x] **P2 — Color-line overlap bug. (`c77fe88c`)** The accent lines on the far left overlap the
   actual app content when the menu is closed.
 
 ## Asks / Activity
