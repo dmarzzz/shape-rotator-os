@@ -608,8 +608,7 @@ html.cohort-chat-open .magenda-track { min-height: 80px; }   /* let today's trac
   padding: 54px 14px 52px 24px;
   z-index: 2;
   font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
   gap: 7px;
@@ -618,6 +617,11 @@ html.cohort-chat-open .magenda-track { min-height: 80px; }   /* let today's trac
           mask-image: linear-gradient(to bottom, transparent 0, #000 44px, #000 calc(100% - 40px), transparent 100%);
 }
 .membrane-feed::-webkit-scrollbar { width: 0; height: 0; }
+.membrane-feed:has(.mfeed-category-row:hover),
+.membrane-feed:has(.mfeed-category-row:focus-within) {
+  -webkit-mask-image: none;
+          mask-image: none;
+}
 
 /* Each feed item lives in a positioned row so the dismiss control can pin to
    the card's inner-top corner. The row also owns the tail-taper opacity (so a
@@ -644,7 +648,8 @@ html.cohort-chat-open .magenda-track { min-height: 80px; }   /* let today's trac
    edge, signature easing cubic-bezier(0.65,0,0.05,1)) with a blur-dissolve;
    the height then folds (delayed ~130ms) so siblings close AFTER the card has
    gone, not while it's mid-fold. Negative top-margin eats the 7px flex gap. */
-.mfeed-row.is-dismissing {
+.mfeed-row.is-dismissing,
+.mfeed-category-row.is-dismissing {
   overflow: hidden;
   pointer-events: none;
   opacity: 0;
@@ -731,7 +736,9 @@ html.cohort-chat-open .magenda-track { min-height: 80px; }   /* let today's trac
               background 150ms ease, color 150ms ease, border-color 150ms ease;
 }
 .mfeed-row:hover .mfeed-dismiss,
-.mfeed-row:focus-within .mfeed-dismiss {
+.mfeed-row:focus-within .mfeed-dismiss,
+.mfeed-category-row:hover .mfeed-dismiss,
+.mfeed-category-row:focus-within .mfeed-dismiss {
   opacity: 1;
   transform: scale(1);
   pointer-events: auto;
@@ -747,7 +754,9 @@ html.cohort-chat-open .magenda-track { min-height: 80px; }   /* let today's trac
 }
 /* press — scoped under the revealed state so it out-specifies scale(1). */
 .mfeed-row:hover .mfeed-dismiss:active,
-.mfeed-row:focus-within .mfeed-dismiss:active { transform: scale(0.84); }
+.mfeed-row:focus-within .mfeed-dismiss:active,
+.mfeed-category-row:hover .mfeed-dismiss:active,
+.mfeed-category-row:focus-within .mfeed-dismiss:active { transform: scale(0.84); }
 .mfeed-dismiss:focus-visible {
   outline: 1px solid color-mix(in srgb, var(--membrane-ember) 45%, transparent);
   outline-offset: 2px;
@@ -867,6 +876,166 @@ html.cohort-chat-open .magenda-track { min-height: 80px; }   /* let today's trac
   color: rgba(var(--mem-ink-rgb), 0.5);
   background: rgba(var(--mem-ink-rgb), 0.08);
   border: 1px solid rgba(var(--mem-ink-rgb), 0.1);
+}
+
+.mfeed-category-row {
+  position: relative;
+  flex: 0 0 auto;
+  width: 100%;
+  max-height: 520px;
+  z-index: 1;
+  transition: opacity 200ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+.mfeed-category-row:nth-last-child(3) { opacity: 0.78; }
+.mfeed-category-row:nth-last-child(2) { opacity: 0.78; }
+.mfeed-category-row:nth-last-child(1) { opacity: 0.78; }
+.mfeed-category-row:hover,
+.mfeed-category-row:focus-within,
+.mfeed-category-row.is-expanded { opacity: 1; z-index: 22; }
+.mfeed-category-row.is-entering { animation: mfeed-enter 280ms cubic-bezier(0.19, 1, 0.22, 1); }
+
+.mfeed-category,
+.mfeed-detail-row,
+.mfeed-sprawl-row {
+  display: flex;
+  align-items: stretch;
+  gap: 9px;
+  width: 100%;
+  border: 1px solid rgba(var(--mem-ink-rgb), 0.06);
+  border-radius: 9px;
+  background: rgba(var(--mem-ink-rgb), 0.08);
+  font: inherit;
+  text-align: left;
+}
+.mfeed-category,
+.mfeed-detail-row {
+  cursor: pointer;
+  color: inherit;
+}
+.mfeed-category {
+  min-height: 46px;
+  padding: 8px 10px 8px 11px;
+  transition: background 200ms cubic-bezier(0.19, 1, 0.22, 1),
+              transform 200ms cubic-bezier(0.19, 1, 0.22, 1),
+              border-color 200ms cubic-bezier(0.19, 1, 0.22, 1),
+              box-shadow 200ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+.mfeed-category:hover,
+.mfeed-category:focus-visible,
+.mfeed-category-row.is-expanded .mfeed-category {
+  background: var(--mfeed-lift-bg);
+  border-color: color-mix(in srgb, var(--mfeed-color, rgba(var(--mem-ink-rgb), 0.4)) 40%, transparent);
+  box-shadow: 0 12px 30px -18px color-mix(in srgb, var(--mfeed-color, #000) 70%, transparent),
+              0 2px 8px -6px rgba(0, 0, 0, 0.45);
+}
+.mfeed-category:hover { transform: translateX(2px); }
+.mfeed-category:active,
+.mfeed-detail-row:active { transform: scale(0.985); }
+.mfeed-category:focus-visible,
+.mfeed-detail-row:focus-visible,
+.mfeed-detail-open:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--membrane-ember) 38%, transparent);
+}
+.mfeed-inline-count {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  min-width: 20px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 9px;
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(var(--mem-ink-rgb), 0.64);
+  background: rgba(var(--mem-ink-rgb), 0.08);
+  border: 1px solid rgba(var(--mem-ink-rgb), 0.1);
+}
+.mfeed-sprawl {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 0;
+  width: 248px;
+  display: grid;
+  gap: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-8px) scale(0.98);
+  transform-origin: left top;
+  transition: opacity 180ms ease,
+              transform 240ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+.mfeed-category-row:hover .mfeed-sprawl,
+.mfeed-category-row:focus-within .mfeed-sprawl {
+  opacity: 1;
+  transform: translateX(0) scale(1);
+}
+.mfeed-sprawl-row {
+  min-height: 38px;
+  padding: 7px 9px;
+  background: var(--mfeed-lift-bg);
+  backdrop-filter: blur(12px) saturate(1.08);
+  -webkit-backdrop-filter: blur(12px) saturate(1.08);
+  box-shadow: 0 10px 24px -18px color-mix(in srgb, var(--mfeed-color, #000) 60%, transparent),
+              0 0 0 1px rgba(var(--mem-ink-rgb), 0.04);
+}
+.mfeed-category-detail {
+  margin-top: 7px;
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(var(--mem-ink-rgb), 0.07);
+  border-radius: 9px;
+  background: rgba(var(--mem-ink-rgb), 0.055);
+  box-shadow: 0 12px 28px -24px rgba(0, 0, 0, 0.5);
+  animation: mfeed-detail-in 220ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+@keyframes mfeed-detail-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.mfeed-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px 2px;
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  color: rgba(var(--mem-ink-rgb), 0.42);
+}
+.mfeed-detail-open {
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid rgba(var(--mem-ink-rgb), 0.1);
+  border-radius: 7px;
+  background: rgba(var(--mem-ink-rgb), 0.08);
+  color: rgba(var(--mem-ink-rgb), 0.7);
+  font: inherit;
+  font-size: 9px;
+  cursor: pointer;
+  transition: background 150ms ease,
+              color 150ms ease,
+              transform 150ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+.mfeed-detail-open:hover {
+  background: rgba(var(--mem-ink-rgb), 0.14);
+  color: rgba(var(--mem-ink-rgb), 0.9);
+}
+.mfeed-detail-open:active { transform: scale(0.96); }
+.mfeed-detail-row {
+  min-height: 40px;
+  padding: 7px 9px;
+  background: rgba(var(--mem-ink-rgb), 0.065);
+  transition: background 150ms ease,
+              border-color 150ms ease,
+              transform 150ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+.mfeed-detail-row:hover {
+  background: rgba(var(--mem-ink-rgb), 0.11);
+  border-color: color-mix(in srgb, var(--mfeed-color, rgba(var(--mem-ink-rgb), 0.4)) 34%, transparent);
 }
 
 /* ── hover layer ─────────────────────────────────────────────────────────
