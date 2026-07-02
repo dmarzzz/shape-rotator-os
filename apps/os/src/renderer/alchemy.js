@@ -2489,6 +2489,31 @@ function buildWhatsNewFeed(c) {
   return out.slice(0, 200); // high backstop — full program log, mirrors FEED_MAX
 }
 
+function buildContextTranscriptFeed(manifest) {
+  const scripts = Array.isArray(manifest?.raw_scripts) ? manifest.raw_scripts : [];
+  return scripts
+    .map((source) => {
+      const id = String(source?.id || '').trim();
+      const label = contextRawScriptTitle(source);
+      const date = String(source?.date || source?.mtime || source?.scanned_at || source?.updated_at || '').slice(0, 10);
+      const bits = [];
+      if (source?.review_status) bits.push(String(source.review_status).replace(/[-_]+/g, ' '));
+      if (source?.submit_recommendation) bits.push(String(source.submit_recommendation).replace(/[-_]+/g, ' '));
+      if (source?.line_count) bits.push(`${source.line_count} lines`);
+      return {
+        date,
+        kind: 'transcript',
+        label,
+        meta: bits.join(' · ') || 'transcript',
+        nav: { mode: 'context', contextView: 'raw' },
+        rawId: id || null,
+      };
+    })
+    .filter((it) => it.label && it.date)
+    .sort((x, y) => String(y.date).localeCompare(String(x.date)))
+    .slice(0, 80);
+}
+
 // stat dictionaries that the panels can render. Re-runs on every cohort
 // refresh via subscribeToCohortChanges → render() chain.
 function computeMembraneData() {
@@ -2531,6 +2556,8 @@ function computeMembraneData() {
   const askIdentity = { identity, profileUser: editorUser, people };
   const myAsks = asks.filter((a) => askIsCurrent(a) && isAskMine(a, askIdentity)).length;
   const openAsks = asks.filter(askIsOpen).length;
+  const feed = (Array.isArray(c.whats_new) && c.whats_new.length) ? c.whats_new : buildWhatsNewFeed(c);
+  const contextTranscriptFeed = buildContextTranscriptFeed(state.contextVault?.manifest);
 
   const now = Date.now();
   const DAY_MS = 24 * 60 * 60 * 1000;
@@ -2772,7 +2799,7 @@ function computeMembraneData() {
     people,
     // Prefer the build-time feed bundled in the surface (full, stable);
     // fall back to the live builder if it's somehow absent.
-    feed: (Array.isArray(c.whats_new) && c.whats_new.length) ? c.whats_new : buildWhatsNewFeed(c),
+    feed: contextTranscriptFeed.length ? [...contextTranscriptFeed, ...feed] : feed,
   };
 }
 

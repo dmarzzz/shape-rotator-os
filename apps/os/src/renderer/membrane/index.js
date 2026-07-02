@@ -1205,6 +1205,7 @@ export function mountMembrane(container, opts = {}) {
   const feedEl = container.querySelector('[data-feed]');
   const feedDismissed = makeDismissStore('srwk:membrane:dismissed:feed');
   let feedPrevKeys = null;
+  let feedPinnedCategory = null;
   // Incoming-watch cards are also remembered locally so a 60s re-render between
   // cohort refreshes can't resurrect a just-dismissed card; dismissing one ALSO
   // acknowledges it in the watch ledger (acknowledgeIncoming) so a fresh compute
@@ -1233,36 +1234,173 @@ export function mountMembrane(container, opts = {}) {
       nowMs: Date.now(),
     }).cards.filter((c) => !incomingDismissed.has(c.seenKey));
   }
-  function incomingRowsHtml(cards) {
-    if (!cards.length) return '';
-    // No section header — incoming notices flow into the same stream as the
-    // rest of the feed (forward-looking items just sort to the top). One feed.
-    return cards.map((c, i) => `
-      <div class="mfeed-row" data-row-key="${escHtml('inc:' + c.seenKey)}">
-        <button type="button" class="mfeed-item mfeed-${escHtml(c.kind)}" data-incoming-i="${i}" aria-label="${escHtml([c.title || '', c.detail || '', c.recordId ? 'open profile' : feedCta(c.kind)].filter(Boolean).join('. '))}">
-          ${feedIcon(c.icon)}
-          <span class="mfeed-body">
-            <span class="mfeed-label">${escHtml(c.title || '')}</span>
-            <span class="mfeed-meta">${escHtml(c.detail || '')}</span>
-            <span class="mfeed-cta" aria-hidden="true"><span class="mfeed-cta-inner"><span class="mfeed-cta-go">${escHtml(c.recordId ? 'open profile' : feedCta(c.kind))} →</span></span></span>
-          </span>
-        </button>
-        <button type="button" class="mfeed-dismiss" data-incoming-key="${escHtml(c.seenKey)}" aria-label="dismiss ${escHtml(c.title || 'notification')}" title="dismiss">${DISMISS_X}</button>
+  function categoryCountLabel(cat) {
+    const n = cat.members.length;
+    const unit = n === 1 ? cat.unit : (cat.plural || `${cat.unit}s`);
+    return `${n} ${unit}`;
+  }
+  function categoryItemAge(member) {
+    if (member.type === 'incoming') return member.card?.detail || '';
+    return feedAge(member.it?.date);
+  }
+  function categoryItemMeta(member) {
+    if (member.type === 'incoming') return member.card?.detail || '';
+    return member.it?.meta || '';
+  }
+  function categoryItemLabel(member) {
+    if (member.type === 'incoming') return member.card?.title || '';
+    return member.it?.label || '';
+  }
+  function feedCategoryItem(cat, member, index) {
+    const label = categoryItemLabel(member);
+    const meta = categoryItemMeta(member);
+    const age = categoryItemAge(member);
+    return `
+      <button type="button" class="mfeed-detail-row mfeed-${escHtml(member.kind || cat.kind)}"
+              data-feed-category-item="${escHtml(cat.id)}" data-feed-category-index="${index}"
+              aria-label="${escHtml([label, meta, age, member.recordId ? 'open profile' : feedCta(member.kind || cat.kind)].filter(Boolean).join('. '))}">
+        ${feedIcon(member.icon || member.kind || cat.kind)}
+        <span class="mfeed-body">
+          <span class="mfeed-label">${escHtml(label)}</span>
+          <span class="mfeed-meta">${escHtml(meta)}</span>
+        </span>
+        <span class="mfeed-age">${escHtml(age)}</span>
+      </button>`;
+  }
+  function feedCategoryHtml(cat) {
+    const top = cat.members[0];
+    const isOpen = feedPinnedCategory === cat.id;
+    const preview = cat.members.slice(0, 4).map((member) => `
+      <div class="mfeed-sprawl-row mfeed-${escHtml(member.kind || cat.kind)}">
+        ${feedIcon(member.icon || member.kind || cat.kind)}
+        <span class="mfeed-body">
+          <span class="mfeed-label">${escHtml(categoryItemLabel(member))}</span>
+          <span class="mfeed-meta">${escHtml(categoryItemMeta(member))}</span>
+        </span>
+        <span class="mfeed-age">${escHtml(categoryItemAge(member))}</span>
       </div>`).join('');
+    const details = isOpen ? `
+      <div class="mfeed-category-detail">
+        <div class="mfeed-detail-head">
+          <span>${escHtml(categoryCountLabel(cat))}</span>
+          <button type="button" class="mfeed-detail-open" data-open-feed-category="${escHtml(cat.id)}">${escHtml(cat.cta || 'open')}</button>
+        </div>
+        ${cat.members.slice(0, 8).map((member, index) => feedCategoryItem(cat, member, index)).join('')}
+      </div>` : '';
+    return `
+      <div class="mfeed-category-row${isOpen ? ' is-expanded' : ''}" data-row-key="${escHtml(cat.rowKey)}" data-feed-category="${escHtml(cat.id)}">
+        <button type="button" class="mfeed-category mfeed-${escHtml(cat.kind)}" data-feed-category-toggle="${escHtml(cat.id)}"
+                aria-expanded="${isOpen ? 'true' : 'false'}"
+                aria-label="${escHtml([cat.title, categoryCountLabel(cat), isOpen ? 'collapse' : 'expand'].join('. '))}">
+          ${feedIcon(cat.kind)}
+          <span class="mfeed-body">
+            <span class="mfeed-label">${escHtml(cat.title)}</span>
+            <span class="mfeed-meta">${escHtml(categoryItemMeta(top) || cat.meta || '')}</span>
+          </span>
+          <span class="mfeed-inline-count">${escHtml(String(cat.members.length))}</span>
+          <span class="mfeed-age">${escHtml(categoryItemAge(top))}</span>
+        </button>
+        <div class="mfeed-sprawl" aria-hidden="true">${preview}</div>
+        <button type="button" class="mfeed-dismiss" data-category-dismiss="${escHtml(cat.id)}" aria-label="dismiss ${escHtml(cat.title)}" title="dismiss">${DISMISS_X}</button>
+        ${details}
+      </div>`;
+  }
+  function openFeedCategoryItem(member) {
+    if (!member) return;
+    if (member.type === 'incoming') {
+      const c = member.card;
+      if (c?.recordId && typeof window.__srwkAlchemyShowRecord === 'function') {
+        window.__srwkAlchemyShowRecord(c.recordId, 'shapes');
+      } else if (c?.nav && typeof window.__srwkOpenInNewTab === 'function') {
+        window.__srwkOpenInNewTab({ tab: 'alchemy', ...c.nav });
+      }
+      return;
+    }
+    if (member.it?.nav && typeof window.__srwkOpenInNewTab === 'function') {
+      window.__srwkOpenInNewTab({ tab: 'alchemy', ...member.it.nav });
+    }
+  }
+  function openFeedCategory(cat) {
+    if (!cat) return;
+    if (cat.defaultNav && typeof window.__srwkOpenInNewTab === 'function') {
+      window.__srwkOpenInNewTab({ tab: 'alchemy', ...cat.defaultNav });
+      return;
+    }
+    openFeedCategoryItem(cat.members[0]);
+  }
+  function buildFeedCategories(incoming, keyedFeed) {
+    const incomingMembers = incoming.map((card) => ({
+      type: 'incoming',
+      key: `inc:${card.seenKey}`,
+      dismissKey: card.seenKey,
+      card,
+      kind: card.kind,
+      icon: card.icon || card.kind,
+      recordId: card.recordId || null,
+    }));
+    const feedMembers = keyedFeed.map(({ it, key }) => ({
+      type: 'feed',
+      key: `feed:${key}`,
+      dismissKey: key,
+      it,
+      kind: it.kind,
+      icon: it.kind,
+    }));
+    const byKind = (k) => feedMembers.filter((m) => m.kind === k);
+    const categories = [
+      {
+        id: 'transcripts',
+        title: 'transcripts',
+        kind: 'transcript',
+        unit: 'readout',
+        plural: 'readouts',
+        cta: 'open raw',
+        defaultNav: { mode: 'context', contextView: 'raw' },
+        members: byKind('transcript'),
+      },
+      {
+        id: 'calendar',
+        title: 'calendar',
+        kind: 'event',
+        unit: 'notice',
+        plural: 'notices',
+        cta: 'open calendar',
+        defaultNav: { mode: 'calendar' },
+        members: [...incomingMembers, ...byKind('event')],
+      },
+      {
+        id: 'shipping',
+        title: 'shipping',
+        kind: 'release',
+        unit: 'update',
+        plural: 'updates',
+        cta: 'open activity',
+        defaultNav: { mode: 'shapes' },
+        members: [...byKind('release'), ...byKind('commit')],
+      },
+      {
+        id: 'asks',
+        title: 'asks',
+        kind: 'ask',
+        unit: 'ask',
+        plural: 'asks',
+        cta: 'open asks',
+        defaultNav: { mode: 'activity' },
+        members: byKind('ask'),
+      },
+    ].filter((cat) => cat.members.length);
+    for (const cat of categories) {
+      cat.rowKey = `cat:${cat.id}|${cat.members.length}|${cat.members.slice(0, 3).map((m) => m.key).join('/')}`;
+    }
+    return categories;
   }
   function renderFeed() {
     if (!feedEl) return;
     // Don't rebuild while a card is mid-recede (see renderAgenda).
     if (feedEl.querySelector('.is-dismissing')) return;
     const incoming = incomingCards();
-    const incHtml = incomingRowsHtml(incoming);
-    // Transcript chips are hidden for now: they dead-end on the generic
-    // context "raw" view (the session readouts aren't wired to a per-item
-    // surface yet). Every other kind (release / ask / event) still shows.
-    // Remove this filter once the readout → context deep-link lands.
     const keyN = new Map();
-    const items = (Array.isArray(dataStore.feed) ? dataStore.feed : [])
-      .filter((it) => it.kind !== 'transcript')
+    const keyedFeed = (Array.isArray(dataStore.feed) ? dataStore.feed : [])
       // Attach a collision-proof dismiss key (occurrence ordinal for any
       // identical kind|date|label|meta), then drop the already-dismissed.
       .map((it) => {
@@ -1271,97 +1409,54 @@ export function mountMembrane(container, opts = {}) {
         return { it, key: n ? `${base}#${n}` : base };
       })
       .filter(({ key }) => !feedDismissed.has(key));
+    const categories = buildFeedCategories(incoming, keyedFeed);
+    if (feedPinnedCategory && !categories.some((cat) => cat.id === feedPinnedCategory)) {
+      feedPinnedCategory = null;
+    }
     // Leave feedPrevKeys untouched here: if data hasn't loaded yet (first
     // render is empty), prevKeys stays null so the first real population is
     // instant (no stagger-storm) rather than treating every card as "new".
-    if (!incoming.length && !items.length) { feedEl.innerHTML = ''; return; }
-    // Each item is wrapped in a positioned row so a quiet dismiss control can
-    // sit on the card's inner corner (hidden at rest, revealed on hover/focus
-    // — the "subtle hidden feature" — see .mfeed-dismiss in membrane.css).
-    // Collapse SAME-DAY same-source repo activity (releases / commit digests)
-    // into ONE stacked card showing that day's most recent item, instead of a
-    // vertical run of near-identical rows. Different days stay separate; asks /
-    // events stay individual. Items are newest-first, so the first per group key
-    // is that day's latest.
-    const GROUPED_KINDS = new Set(['release', 'commit']);
-    const groups = [];
-    const groupByKey = new Map();
-    for (const { it, key } of items) {
-      const gk = GROUPED_KINDS.has(it.kind) ? `${it.kind}|${it.meta || ''}|${it.date || ''}` : null;
-      if (gk && groupByKey.has(gk)) {
-        const g = groupByKey.get(gk);
-        g.count += 1;
-        g.keys.push(key);
-        continue;
-      }
-      const g = { rep: it, key, count: 1, keys: [key] };
-      groups.push(g);
-      if (gk) groupByKey.set(gk, g);
-    }
-    const reps = groups.map((g) => g.rep);
-    const feedHtml = groups.map((g, i) => {
-      const it = g.rep;
-      const key = g.key;
-      const stacked = g.count > 1;
-      // Hover layer reveals the EXACT date/time (the resting card shows only the
-      // relative age) plus the click destination — new info, never a restatement.
-      const whenFull = Number.isFinite(Date.parse(it.date)) ? fmtFullDate(it.date) : '';
-      return `
-      <div class="mfeed-row" data-row-key="${escHtml('feed:' + key)}">
-        <button type="button" class="mfeed-item mfeed-${escHtml(it.kind)}${stacked ? ' mfeed-stacked' : ''}" data-feed-i="${i}" aria-label="${escHtml([it.label || '', it.meta || '', stacked ? `${g.count} updates` : '', whenFull || feedAge(it.date), feedCta(it.kind)].filter(Boolean).join('. '))}">
-          ${feedIcon(it.kind)}
-          <span class="mfeed-body">
-            <span class="mfeed-label">${escHtml(it.label || '')}</span>
-            <span class="mfeed-meta">${escHtml(it.meta || '')}</span>
-            <span class="mfeed-cta" aria-hidden="true"><span class="mfeed-cta-inner">${whenFull ? `<span class="mfeed-cta-when">${escHtml(whenFull)}</span>` : ''}<span class="mfeed-cta-go">${escHtml(feedCta(it.kind))} →</span></span></span>
-          </span>
-          <span class="mfeed-age">${escHtml(feedAge(it.date))}</span>
-          ${stacked ? `<span class="mfeed-count" title="${g.count} updates">${g.count}</span>` : ''}
-        </button>
-        <button type="button" class="mfeed-dismiss" data-group-i="${i}" aria-label="dismiss ${escHtml(it.label || 'notification')}" title="dismiss">${DISMISS_X}</button>
-      </div>`;
-    }).join('');
-    // One stream: incoming (forward-looking) flows straight into the activity
-    // feed — no section labels, the rows just sort by relevance.
-    feedEl.innerHTML = incHtml + feedHtml;
-    feedPrevKeys = markEnteringRows(feedEl, feedPrevKeys, '.mfeed-row');
-    // Incoming card → open the arriving person's profile, else the calendar.
-    feedEl.querySelectorAll('[data-incoming-i]').forEach((btn) => {
+    if (!categories.length) { feedEl.innerHTML = ''; return; }
+
+    feedEl.innerHTML = categories.map(feedCategoryHtml).join('');
+    feedPrevKeys = markEnteringRows(feedEl, feedPrevKeys, '.mfeed-category-row');
+
+    feedEl.querySelectorAll('[data-feed-category-toggle]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const c = incoming[+btn.dataset.incomingI];
-        if (!c) return;
-        if (c.recordId && typeof window.__srwkAlchemyShowRecord === 'function') {
-          window.__srwkAlchemyShowRecord(c.recordId, 'shapes');
-        } else if (c.nav && typeof window.__srwkOpenInNewTab === 'function') {
-          window.__srwkOpenInNewTab({ tab: 'alchemy', ...c.nav });
-        }
+        const id = btn.dataset.feedCategoryToggle;
+        feedPinnedCategory = feedPinnedCategory === id ? null : id;
+        renderFeed();
       });
     });
-    feedEl.querySelectorAll('[data-feed-i]').forEach((btn) => {
+    feedEl.querySelectorAll('[data-open-feed-category]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const it = reps[+btn.dataset.feedI];
-        if (!it || !it.nav) return;
-        if (typeof window.__srwkOpenInNewTab === 'function') {
-          window.__srwkOpenInNewTab({ tab: 'alchemy', ...it.nav });
-        }
+        const cat = categories.find((c) => c.id === btn.dataset.openFeedCategory);
+        openFeedCategory(cat);
       });
     });
-    // Dismiss — incoming cards acknowledge + local-hide; feed cards use the
-    // session ledger. The quiet control is shared markup (.mfeed-dismiss).
+    feedEl.querySelectorAll('[data-feed-category-item]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const cat = categories.find((c) => c.id === btn.dataset.feedCategoryItem);
+        const member = cat?.members?.[+btn.dataset.feedCategoryIndex];
+        openFeedCategoryItem(member);
+      });
+    });
     feedEl.querySelectorAll('.mfeed-dismiss').forEach((btn) => {
       btn.addEventListener('click', (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
-        // Record synchronously (by stable key, not list position) so a
-        // re-render mid-animation can never resurrect the card.
-        const incKey = btn.dataset.incomingKey;
-        if (incKey) { incomingDismissed.add(incKey); acknowledgeIncoming(incKey); }
-        else {
-          // Dismiss the whole stack (all collapsed members), not just the rep.
-          const g = groups[+btn.dataset.groupI];
-          if (g) g.keys.forEach((k) => feedDismissed.add(k));
+        const cat = categories.find((c) => c.id === btn.dataset.categoryDismiss);
+        if (!cat) return;
+        for (const member of cat.members) {
+          if (member.type === 'incoming') {
+            incomingDismissed.add(member.dismissKey);
+            acknowledgeIncoming(member.dismissKey);
+          } else {
+            feedDismissed.add(member.dismissKey);
+          }
         }
-        dismissCard(btn.closest('.mfeed-row'), () => renderFeed());
+        if (feedPinnedCategory === cat.id) feedPinnedCategory = null;
+        dismissCard(btn.closest('.mfeed-category-row'), () => renderFeed());
       });
     });
   }
