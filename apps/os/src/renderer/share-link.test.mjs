@@ -29,15 +29,20 @@ function hash5(str) {
   return (n % CODE_SPACE).toString(RADIX).padStart(CODE_LEN, "0");
 }
 
-test("asks links canonicalize to the merged activity page", () => {
+test("asks links canonicalize to the Context activity subview", () => {
   buildLinkIndex([]);
 
   const activityLink = serializeLocation({ tab: "alchemy", alchMode: "activity" });
+  assert.equal(serializeLocation({ tab: "alchemy", alchMode: "context", ctxView: "activity" }), activityLink);
   assert.equal(serializeLocation({ tab: "alchemy", alchMode: "asks" }), activityLink);
   assert.deepEqual(parseLocation(activityLink), { tab: "alchemy", alchMode: "activity" });
 
+  const legacyActivityLink = WEB_BASE + hash5("v:alchemy/activity");
   const legacyAskLink = WEB_BASE + hash5("v:alchemy/asks");
+  const legacyContextAskLink = WEB_BASE + hash5("v:alchemy/context/asks");
+  assert.deepEqual(parseLocation(legacyActivityLink), { tab: "alchemy", alchMode: "activity" });
   assert.deepEqual(parseLocation(legacyAskLink), { tab: "alchemy", alchMode: "activity" });
+  assert.deepEqual(parseLocation(legacyContextAskLink), { tab: "alchemy", alchMode: "activity" });
 });
 
 test("onboarding links canonicalize to the Program Info onboarding view", () => {
@@ -110,4 +115,16 @@ test("context transcript aliases resolve to raw transcripts", () => {
   const legacyTranscriptsLink = WEB_BASE + hash5("v:alchemy/context/transcripts");
   assert.deepEqual(parseLocation(legacyTranscriptLink), { tab: "alchemy", alchMode: "context", ctxView: "raw" });
   assert.deepEqual(parseLocation(legacyTranscriptsLink), { tab: "alchemy", alchMode: "context", ctxView: "raw" });
+});
+
+test("routeable app launcher cards serialize as first-class destinations", () => {
+  buildLinkIndex([]);
+
+  const atlasLink = serializeLocation({ tab: "apps", appsView: "atlas" });
+  const easelLink = serializeLocation({ tab: "apps", appsView: "easel" });
+  const networkLink = serializeLocation({ tab: "network", netSub: "network" });
+
+  assert.deepEqual(parseLocation(atlasLink), { tab: "apps", appsView: "atlas" });
+  assert.deepEqual(parseLocation(easelLink), { tab: "apps", appsView: "easel" });
+  assert.deepEqual(parseLocation(networkLink), { tab: "network", netSub: "network" });
 });

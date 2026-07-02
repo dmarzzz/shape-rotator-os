@@ -28,22 +28,26 @@ const os = require("node:os");
 //      apps/os/package.json), fetched from dmarzzz/research-swarm's release
 //      assets at build time by scripts/fetch-research-swarm.sh. THIS is the
 //      end-user path; everything below is dev fallback.
-//   3. ~/research-swarm/.venv/bin/research-agent (dev clone)
-//   4. ~/shape-rotator-field-kit/research-swarm/.venv/bin/research-agent
-function resolveAgentBinary() {
+//   3. ~/research-swarm/.venv/bin/research-agent (dev clone only)
+//   4. ~/shape-rotator-field-kit/research-swarm/.venv/bin/research-agent (dev only)
+function resolveAgentBinary(opts = {}) {
+  const isPackaged = !!opts.isPackaged;
   const override = process.env.RESEARCH_AGENT_BIN;
-  if (override && fs.existsSync(override)) return override;
+  if (override && fs.existsSync(override)) return { path: override, source: "env" };
   const binName = process.platform === "win32" ? "research-agent.exe" : "research-agent";
-  const candidates = [];
   if (process.resourcesPath) {
-    candidates.push(path.join(process.resourcesPath, "research-swarm", binName));
+    const bundled = path.join(process.resourcesPath, "research-swarm", binName);
+    if (fs.existsSync(bundled)) return { path: bundled, source: "bundled" };
   }
-  candidates.push(
+  if (isPackaged) return null;
+  const candidates = [
     `${os.homedir()}/research-swarm/.venv/bin/research-agent`,
     `${os.homedir()}/shape-rotator-field-kit/research-swarm/.venv/bin/research-agent`,
-  );
+  ];
+  // Developer convenience only. Packaged builds must not silently depend on a
+  // contributor's home-directory checkout.
   for (const c of candidates) {
-    if (fs.existsSync(c)) return c;
+    if (fs.existsSync(c)) return { path: c, source: "dev-home" };
   }
   return null;
 }
@@ -70,14 +74,16 @@ function isRunning() {
   return _current != null && _current.child && !_current.child.killed && _current.child.exitCode === null;
 }
 
-function start({ requestId, query, lmModel, lmApiKey, lmApiBase, parallel, workers, swfNodeUrl, swfNodeToken }) {
+function start({ requestId, query, lmModel, lmApiKey, lmApiBase, parallel, workers, swfNodeUrl, swfNodeToken, isPackaged }) {
   if (isRunning()) {
     return { ok: false, reason: "swarm_already_running" };
   }
-  const bin = resolveAgentBinary();
+  const bin = resolveAgentBinary({ isPackaged: !!isPackaged });
   if (!bin) {
     return { ok: false, reason: "research_agent_not_found",
-             detail: "Set RESEARCH_AGENT_BIN env var or install research-swarm at ~/research-swarm" };
+             detail: isPackaged
+               ? "This build does not include the research-agent sidecar."
+               : "Set RESEARCH_AGENT_BIN or install a development research-swarm checkout." };
   }
   if (!query || !String(query).trim()) {
     return { ok: false, reason: "empty_query" };
@@ -87,7 +93,7 @@ function start({ requestId, query, lmModel, lmApiKey, lmApiBase, parallel, worke
   // reads .env from its CWD too, so we set CWD to the agent's repo root
   // when possible — it picks up SearXNG URL, GitHub tokens, etc. from
   // there if the user has configured them.
-  const agentRepo = path.dirname(path.dirname(path.dirname(bin)));  // .../research-swarm
+  const agentRepo = path.dirname(path.dirname(path.dirname(bin.path)));  // .../research-swarm
   const env = {
     PATH: process.env.PATH,
     HOME: process.env.HOME,
@@ -117,11 +123,11 @@ function start({ requestId, query, lmModel, lmApiKey, lmApiBase, parallel, worke
   if (typeof workers === "number" && workers > 0) args.push("--workers", String(workers));
   args.push(String(query));
 
-  process.stderr.write(`[swarm] spawning ${bin} ${args.join(" ")} (model=${lmModel || "default"})\n`);
+  process.stderr.write(`[swarm] spawning ${bin.path} ${args.join(" ")} (model=${lmModel || "default"})\n`);
 
   let child;
   try {
-    child = spawn(bin, args, {
+    child = spawn(bin.path, args, {
       cwd: agentRepo,
       env,
       stdio: ["ignore", "pipe", "pipe"],
@@ -188,15 +194,14 @@ function getStatus() {
   };
 }
 
-function getAgentInfo() {
-  const bin = resolveAgentBinary();
+function getAgentInfo(opts = {}) {
+  const bin = resolveAgentBinary({ isPackaged: !!opts.isPackaged });
   return {
     binFound: bin != null,
-    binPath: bin,
-    // TODO (v0.2.14): bundle a Python venv + research-agent so non-dev
-    // installs can run swarm mode out of the box. For now production
-    // builds will show "swarm not installed" in the panel until the
-    // user clones research-swarm locally.
+    binPath: bin ? bin.path : null,
+    source: bin ? bin.source : null,
+    isPackaged: !!opts.isPackaged,
+    devFallbacksEnabled: !opts.isPackaged,
   };
 }
 

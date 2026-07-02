@@ -96,6 +96,12 @@ function stripAnsi(s) {
     .replace(/\r/g, "");
 }
 
+function parseManualUpdateCommand(text) {
+  const s = String(text == null ? "" : text).trim();
+  return /^\/(?:manual|update-info|profile-update)\b/i.test(s)
+    || /\b(?:manual update|update by hand|type my own update|submit my own(?: profile)? update|own data update|answer questions instead)\b/i.test(s);
+}
+
 export function warmCohortChat() {
   if (!stylesheetPromise) stylesheetPromise = loadStylesheetOnce("renderer/cohort-chat.css");
   return stylesheetPromise;
@@ -239,18 +245,18 @@ function createController() {
     let cfg = null;
     try { cfg = await window.api.getCohortChatConfig(); } catch {}
     const ready = !!(cfg && cfg.ready);
-    // No local AI connected → show ONLY the setup card: hide the composer so the
-    // panel isn't a row of inputs/prompts that silently do nothing. Restored the
-    // moment a re-check finds a working CLI.
+    // No local AI connected → hide the composer (it drives the chat and would
+    // silently do nothing) and show the setup card in the ask view. The TABS stay
+    // visible: transcript upload and search need no AI, and the sync tab's manual
+    // "type your own update" lane works without one — gating them behind an AI
+    // install was the audit's "can't even see the upload card" blocker. The setup
+    // card lives in the ask log (other views hide it via CSS), so ask remains the
+    // connect surface without yanking the user off a no-AI view. Composer is
+    // restored the moment a re-check finds a working CLI.
     if (form) form.hidden = !ready;
-    if (tabsEl) tabsEl.hidden = !ready;   // gate the tabs too: not connected → only the connect prompt
+    if (tabsEl) tabsEl.hidden = false;
     log.querySelectorAll(".cc-card.is-onboard").forEach((el) => el.remove()); // no dupes across re-opens
     if (!ready) {
-      // The connect card mounts into the chat log, which the search/sync/transcript
-      // views hide via CSS — and we've just hidden the tabs, so the user couldn't
-      // switch back. Force the ask view so the only way to connect the AI stays
-      // visible when reopening from a non-ask tab.
-      setChatView("ask");
       renderOnboarding({ ready: false });
       return true;
     }
@@ -279,9 +285,11 @@ function createController() {
           Reopen the chat and it auto-detects it — or set a custom command in&nbsp;⚙.</div>
         <div class="cc-card-actions">
           <button type="button" class="btn ds-ghost" data-cc-onboard-settings>Settings&nbsp;⚙</button>
+          <button type="button" class="btn ds-ghost" data-cc-onboard-manual>Type profile update</button>
           <button type="button" class="btn ds-primary" data-cc-onboard-recheck>I installed it — re-check</button>
         </div>`;
       card.querySelector("[data-cc-onboard-settings]").addEventListener("click", openSettings);
+      card.querySelector("[data-cc-onboard-manual]").addEventListener("click", () => { void openSelfReportForMe({ mode: "manual" }); });
       card.querySelector("[data-cc-onboard-recheck]").addEventListener("click", async () => { card.remove(); refreshReadiness(); await maybeOnboard(); syncWelcome(); });
     } else {
       card.innerHTML = `
@@ -692,7 +700,11 @@ function createController() {
       supabaseUrl: ingress.supabaseUrl || base.url,
       supabaseAnonKey: ingress.supabaseAnonKey || base.anonKey,
       accessToken: ingress.accessToken || "",
-      orgId: ingress.orgId || "",
+      // Default the org id like the anon key is defaulted: "srfg" is the engine's
+      // org (the live context_submissions policy pins org_id='srfg'), so a fresh
+      // member no longer has to discover it — the access token is the only field
+      // left to provision (until the Google-auth JWT path lands in Phase 2).
+      orgId: ingress.orgId || "srfg",
       ingestArtifactsUrl: ingress.ingestArtifactsUrl || "",
     };
   }
@@ -960,12 +972,17 @@ function createController() {
     settingsEl.setAttribute("aria-hidden", "true");
   }
 
+  // Set while a headless one-shot (runEphemeral) is in flight — see finishRun,
+  // which resolves it with the reply text and skips the history push.
+  let pendingEphemeral = null;
+
   function finishRun(label, failMsg) {
     clearInterval(elapsedTimer); elapsedTimer = null;
     setStatus(failMsg ? "error" : "idle", label || "idle");
     sendBtn.hidden = false;
     stopBtn.hidden = true;
     let parsed = null;
+    let ephemeralText = "";
     if (activeBubbleBody) {
       const finalText = activeStream ? activeStream.finalText() : "";
       if (finalText) {
@@ -980,13 +997,19 @@ function createController() {
         }
         activeBubbleBody.hidden = false;
         activeBubbleBody.textContent = display || finalText;
-        history.push({ role: "assistant", content: display || finalText });
+        ephemeralText = display || finalText;
+        // Ephemeral one-shots (article restyle) never join the conversation.
+        if (!pendingEphemeral) history.push({ role: "assistant", content: display || finalText });
       } else {
         // No answer — show the diagnostic (the CLI's own stderr if we have it).
         activeBubbleBody.hidden = false;
         activeBubbleBody.textContent = failMsg || diagnoseFailure();
         activeBubbleBody.classList.add("is-error");
       }
+    }
+    if (pendingEphemeral) {
+      const resolveEphemeral = pendingEphemeral; pendingEphemeral = null;
+      try { resolveEphemeral({ ok: !failMsg && !!ephemeralText, text: ephemeralText, error: failMsg || "" }); } catch {}
     }
     clearRunCard({ error: !!failMsg || !!(activeBubbleBody && activeBubbleBody.classList.contains("is-error")) });
     if (failMsg) setPreMsg(failMsg, "error");
@@ -1022,6 +1045,16 @@ function createController() {
       const me = resolveMyPerson(surf);
       if (me && handToSelfReport(me)) appendBubble("assistant", "Opening your mirror — pick what I may read.");
       else appendBubble("assistant", me ? "The mirror isn’t available right now." : "Claim your profile first, then say /mirror.");
+      return;
+    }
+
+    if (parseManualUpdateCommand(q)) {
+      input.value = ""; autosize();
+      appendBubble("user", q);
+      const opened = await openSelfReportForMe({ mode: "manual" });
+      appendBubble("assistant", opened
+        ? "Opening a no-scan update draft. Answer only what you want saved."
+        : "Claim your profile first, then I can open your update draft.");
       return;
     }
 
@@ -1364,10 +1397,29 @@ function createController() {
     }
   });
 
+  // Headless one-shot: run a prebuilt prompt (no cohort context, no action
+  // contract) and resolve with the reply text. Streams into the (possibly
+  // hidden) panel so opening the bot later shows a trace, but never joins the
+  // conversation history and never opens/grows the window. Rejects if a turn is
+  // already live. Used by other surfaces — e.g. the Context reader's restyle.
+  function runEphemeral(prompt, { userLabel = "" } = {}) {
+    if (activeStream) return Promise.resolve({ ok: false, text: "", error: "busy" });
+    if (userLabel) { try { appendBubble("user", userLabel); } catch {} }
+    return new Promise((resolve) => {
+      pendingEphemeral = resolve;
+      try { runTurn(String(prompt || ""), { ephemeral: true }); }
+      catch (e) {
+        pendingEphemeral = null;
+        resolve({ ok: false, text: "", error: (e && e.message) || "run failed" });
+      }
+    });
+  }
+
   return {
     open,
     close,
     openSettings,
+    runEphemeral,
     isOpen: () => !panel.hidden,
     notice(text) {
       open();
@@ -1386,7 +1438,7 @@ function getController() {
   return controller;
 }
 
-async function openSelfReportForMe({ autoRunPrevious = false } = {}) {
+async function openSelfReportForMe({ autoRunPrevious = false, mode = "" } = {}) {
   let surface = null;
   try { surface = await getCohortSurface(); } catch {}
   const me = resolveMyPerson(surface);
@@ -1396,7 +1448,7 @@ async function openSelfReportForMe({ autoRunPrevious = false } = {}) {
     return false;
   }
   const selfReport = await import("./self-report.js");
-  await selfReport.openSelfReport({ person: me, autoRunPrevious });
+  await selfReport.openSelfReport({ person: me, autoRunPrevious, mode });
   return true;
 }
 
@@ -1415,11 +1467,8 @@ export async function openCohortChatSettings() {
   c.openSettings();
 }
 
-// Hard gate: every AI-backed action requires a connected local AI first. When
-// none is connected we funnel to the chat panel, which shows ONLY the "set up
-// your own AI" prompt (composer hidden) — so the user must connect before they
-// can do anything else here. (Global search + the settings/connect path stay
-// open; settings is HOW you connect.)
+// AI-backed actions require a connected local AI first. The manual profile-update
+// lane is the exception: it asks typed questions and can submit without scans.
 async function cohortAiReady() {
   try { const cfg = await window.api.getCohortChatConfig(); return !!(cfg && cfg.ready); }
   catch { return false; }
@@ -1427,13 +1476,14 @@ async function cohortAiReady() {
 
 export async function openCohortUpdates() {
   await warmCohortChat();
-  if (!(await cohortAiReady())) return openCohortChat();   // not connected → prompt to connect first
-  await openSelfReportForMe({ autoRunPrevious: true });
+  const ready = await cohortAiReady();
+  await openSelfReportForMe({ autoRunPrevious: ready });
 }
 
 export async function openCohortTranscriptUpload() {
   await warmCohortChat();
-  if (!(await cohortAiReady())) return openCohortChat();   // not connected → prompt to connect first
+  // No AI gate here on purpose: the upload is a file + metadata form that never
+  // touches the local CLI, so it must work before (or without) an AI install.
   const c = getController();
   if (!c) { console.warn("[cohort-chat] panel markup missing"); return; }
   c.showTranscriptUpload();
@@ -1445,4 +1495,15 @@ export async function toggleCohortChat() {
   const c = getController();
   if (!c) { console.warn("[cohort-chat] panel markup missing"); return; }
   c.isOpen() ? c.close() : c.open();
+}
+
+// Headless programmatic rewrite for other surfaces (e.g. the Context reader's
+// "restyle for me"). Resolves { ok, text, error }. Nothing is persisted — the
+// reply is not written to disk, Supabase, or the article; the caller renders it
+// as an ephemeral preview only.
+export async function runCohortEphemeralPrompt(prompt, opts = {}) {
+  await warmCohortChat();
+  const c = getController();
+  if (!c || typeof c.runEphemeral !== "function") return { ok: false, text: "", error: "chat unavailable" };
+  return c.runEphemeral(prompt, opts);
 }

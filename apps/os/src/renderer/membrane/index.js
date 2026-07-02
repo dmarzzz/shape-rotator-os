@@ -938,6 +938,32 @@ function setupFeedbackBox(container) {
   };
 }
 
+// ── first-launch whisper ────────────────────────────────────────────────────
+// A one-time greeting in the die's negative space — shown once EVER
+// (localStorage), the hook layer of the landing surface. It fades in after the
+// arrival choreography settles, holds long enough to read, then dissolves and
+// drops its node. Deliberately says nothing about the die's interactions —
+// the easter egg stays undiscovered until it's earned. Self-contained like
+// setupFeedbackBox: returns a dispose() for teardown.
+function setupFirstWhisper(container) {
+  const el = container.querySelector('[data-membrane-whisper]');
+  if (!el) return { dispose() {} };
+  const KEY = 'srwk:membrane:whisper_v1';
+  let seen = null;
+  try { seen = localStorage.getItem(KEY); } catch {}
+  if (seen) { el.remove(); return { dispose() {} }; }
+  try { localStorage.setItem(KEY, '1'); } catch {}
+  el.textContent = 'the field is yours';
+  const timers = [
+    // Enter once the rails have settled (arrival ends ~1.2s in); under
+    // reduced motion there's no arrival to wait behind, so show sooner.
+    setTimeout(() => el.classList.add('is-showing'), prefersReducedMotion() ? 400 : 1600),
+    setTimeout(() => el.classList.remove('is-showing'), 9200),
+    setTimeout(() => { try { el.remove(); } catch {} }, 10200),
+  ];
+  return { dispose() { timers.forEach(clearTimeout); } };
+}
+
 export function mountMembrane(container, opts = {}) {
   cp('membrane:mount-start');
   container.classList.add('membrane-host');
@@ -948,6 +974,18 @@ export function mountMembrane(container, opts = {}) {
   // The panel is retired — start folded so it never flashes in before the
   // fold state below settles (see the "fold state" note further down).
   container.classList.add('membrane-folded');
+  // First-arrival choreography — the rails/feedback/glow unfold once per app
+  // session (see .is-arriving in membrane.css). Session-scoped so revisiting
+  // the membrane mid-session stays instant (arrival is a first-load moment,
+  // not a page-switch tax); skipped entirely under reduced motion. The stray
+  // class removal after teardown is a harmless no-op.
+  try {
+    if (!prefersReducedMotion() && !sessionStorage.getItem('srwk:membrane:arrived')) {
+      sessionStorage.setItem('srwk:membrane:arrived', '1');
+      container.classList.add('is-arriving');
+      setTimeout(() => { try { container.classList.remove('is-arriving'); } catch {} }, 1400);
+    }
+  } catch {}
 
   container.innerHTML = `
     <div class="membrane-stage">
@@ -986,6 +1024,7 @@ export function mountMembrane(container, opts = {}) {
         <span class="msn-name" data-shape-name></span>
         <span class="msn-meta" data-shape-meta></span>
       </div>
+      <div class="membrane-whisper" aria-hidden="true" data-membrane-whisper></div>
       <aside class="membrane-panel" data-active-blob="self">
         <div class="membrane-panel-content"></div>
         <footer class="membrane-panel-foot">
@@ -1091,11 +1130,20 @@ export function mountMembrane(container, opts = {}) {
     const topPct = (m) => Math.max(0, Math.min(100, ((m - lo) / span) * 100));
 
     let ticks = '';
+    const nowPct = topPct(nowMin);
     for (let h = Math.ceil(lo / 60); h <= Math.floor(hi / 60); h++) {
-      ticks += `<div class="magenda-tick" style="top:${topPct(h * 60).toFixed(2)}%"><span class="magenda-tick-label">${pad2(h)}:00</span></div>`;
+      const tickPct = topPct(h * 60);
+      // Both labels pin to the right edge, so an hour label too close to now
+      // sits under the (brighter) now-label — keep the rule, drop just the
+      // text. Proximity is measured in track PERCENT, not minutes: a sparse
+      // day compresses many minutes into a label-height, a dense window few
+      // (~3.4% ≈ one 14px label on a typical ~400px track).
+      const label = Math.abs(tickPct - nowPct) < 3.4 ? '' : `<span class="magenda-tick-label">${pad2(h)}:00</span>`;
+      ticks += `<div class="magenda-tick" style="top:${tickPct.toFixed(2)}%">${label}</div>`;
     }
+    // title recovers ellipsis-truncated names AND names the click destination.
     const rows = timed.map(({ e, start }) =>
-      `<button type="button" class="magenda-event" data-cat="${agendaCat(e.title)}" style="top:${topPct(start).toFixed(2)}%">
+      `<button type="button" class="magenda-event" data-cat="${agendaCat(e.title)}" style="top:${topPct(start).toFixed(2)}%" title="${escHtml(`${e.title || 'untitled'} — open calendar`)}">
         <span class="magenda-event-time">${escHtml(e.time)}</span>
         <span class="magenda-event-title">${escHtml(e.title || 'untitled')}</span>
       </button>`).join('');
@@ -1137,6 +1185,7 @@ export function mountMembrane(container, opts = {}) {
         <button type="button" class="magenda-add" data-cal-url="${calUrl}" aria-label="add ${escHtml(title || 'event')} to calendar" title="add to calendar">${CAL_PLUS}</button>
         <button type="button" class="magenda-up-event" data-up-key="${ek}">
           <span class="magenda-event-title">${escHtml(title || 'untitled')}</span>${sub ? `<span class="magenda-event-time">${escHtml(sub)}</span>` : ''}
+          <span class="magenda-cta" aria-hidden="true"><span class="magenda-cta-inner"><span class="magenda-cta-go">open calendar →</span></span></span>
         </button>
         <button type="button" class="magenda-dismiss" data-dismiss-key="${ek}" aria-label="dismiss ${escHtml(title || 'event')}" title="dismiss">${DISMISS_X}</button>
       </div>`;
@@ -1205,6 +1254,7 @@ export function mountMembrane(container, opts = {}) {
   const feedEl = container.querySelector('[data-feed]');
   const feedDismissed = makeDismissStore('srwk:membrane:dismissed:feed');
   let feedPrevKeys = null;
+  let feedPinnedCategory = null;
   // Incoming-watch cards are also remembered locally so a 60s re-render between
   // cohort refreshes can't resurrect a just-dismissed card; dismissing one ALSO
   // acknowledges it in the watch ledger (acknowledgeIncoming) so a fresh compute
@@ -1220,6 +1270,11 @@ export function mountMembrane(container, opts = {}) {
     return `${Math.floor(days / 7)}w`;
   }
   const feedKey = (it) => `${it.kind || ''}|${it.date || ''}|${it.label || ''}|${it.meta || ''}`;
+  function openContextTranscripts() {
+    if (typeof window.__srwkOpenInNewTab === 'function') {
+      window.__srwkOpenInNewTab({ tab: 'alchemy', mode: 'context', contextView: 'raw' });
+    }
+  }
   // Forward-looking "incoming" band atop the same left rail as "what's new".
   // Derives tea-time / arrival / new-event / time-change cards from the agenda
   // the membrane already holds (see calendar-watch.js) — recomputed on every
@@ -1250,19 +1305,140 @@ export function mountMembrane(container, opts = {}) {
         <button type="button" class="mfeed-dismiss" data-incoming-key="${escHtml(c.seenKey)}" aria-label="dismiss ${escHtml(c.title || 'notification')}" title="dismiss">${DISMISS_X}</button>
       </div>`).join('');
   }
+  function categoryCountLabel(cat) {
+    const n = cat.items.length;
+    const noun = n === 1 ? cat.singular : (cat.plural || `${cat.singular}s`);
+    return `${n} ${noun}`;
+  }
+  function categoryItemAge(item) {
+    return item.age || feedAge(item.date);
+  }
+  function feedCategoryHtml(cat) {
+    if (!cat.items.length) return '';
+    const latest = cat.items[0] || {};
+    const count = cat.items.length;
+    const pinned = feedPinnedCategory === cat.id;
+    const recent = cat.items.slice(0, 4);
+    const previewHtml = recent.slice(0, 3).map((item) => `
+      <span class="mfeed-sprawl-row">
+        <span>${escHtml(item.label || cat.fallbackLabel)}</span>
+        <span>${escHtml(categoryItemAge(item))}</span>
+      </span>`).join('');
+    const detailHtml = pinned ? `
+      <div class="mfeed-category-detail mfeed-${escHtml(cat.kind)}" data-row-key="${escHtml(`category-detail:${cat.id}`)}">
+        <div class="mfeed-detail-head">
+          <span>${escHtml(cat.detailTitle)}</span>
+          <button type="button" class="mfeed-detail-open" data-open-feed-category="${escHtml(cat.id)}">open</button>
+        </div>
+        ${recent.map((item, i) => `
+          <button type="button" class="mfeed-detail-row" data-feed-category-item="${escHtml(`${cat.id}:${i}`)}">
+            <span>${escHtml(item.label || cat.fallbackLabel)}</span>
+            <span>${escHtml(item.meta || categoryItemAge(item) || feedCta(item.kind))}</span>
+          </button>`).join('')}
+      </div>` : '';
+    return `
+      <div class="mfeed-row mfeed-category-row${pinned ? ' is-expanded' : ''}" data-row-key="${escHtml(`category:${cat.id}`)}">
+        <button type="button" class="mfeed-item mfeed-${escHtml(cat.kind)} mfeed-category" data-feed-category="${escHtml(cat.id)}" aria-expanded="${pinned ? 'true' : 'false'}" aria-label="${escHtml(`${cat.label}. ${categoryCountLabel(cat)}. ${latest.label || cat.fallbackLabel}. ${pinned ? 'collapse' : 'expand'}`)}">
+          ${feedIcon(cat.icon || cat.kind)}
+          <span class="mfeed-body">
+            <span class="mfeed-label">${escHtml(cat.label)} <span class="mfeed-inline-count">${count}</span></span>
+            <span class="mfeed-meta">${escHtml(latest.label || cat.fallbackLabel)}</span>
+            <span class="mfeed-cta" aria-hidden="true"><span class="mfeed-cta-inner"><span class="mfeed-cta-go">${pinned ? 'collapse' : 'expand'} category</span></span></span>
+          </span>
+          <span class="mfeed-age">${escHtml(categoryItemAge(latest))}</span>
+          <span class="mfeed-sprawl" aria-hidden="true">
+            <span class="mfeed-sprawl-title">${escHtml(categoryCountLabel(cat))}</span>
+            ${previewHtml}
+            <span class="mfeed-sprawl-foot">click to ${pinned ? 'collapse' : 'expand'}</span>
+          </span>
+        </button>
+        <button type="button" class="mfeed-dismiss" data-category-dismiss="${escHtml(cat.id)}" aria-label="dismiss ${escHtml(cat.label)}" title="dismiss">${DISMISS_X}</button>
+      </div>
+      ${detailHtml}`;
+  }
+  function openFeedCategoryItem(item) {
+    if (!item) return;
+    if (item.recordId && typeof window.__srwkAlchemyShowRecord === 'function') {
+      window.__srwkAlchemyShowRecord(item.recordId, 'shapes');
+      return;
+    }
+    if (item.nav && typeof window.__srwkOpenInNewTab === 'function') {
+      window.__srwkOpenInNewTab({ tab: 'alchemy', ...item.nav });
+    }
+  }
+  function openFeedCategory(cat) {
+    if (!cat) return;
+    if (cat.defaultNav && typeof window.__srwkOpenInNewTab === 'function') {
+      window.__srwkOpenInNewTab({ tab: 'alchemy', ...cat.defaultNav });
+      return;
+    }
+    openFeedCategoryItem(cat.items[0]);
+  }
+  function feedCategoryItem({ it, key }) {
+    return {
+      source: 'feed',
+      feedKey: key,
+      kind: it.kind,
+      label: it.label || '',
+      meta: it.meta || '',
+      date: it.date || '',
+      nav: it.nav || null,
+    };
+  }
+  function incomingCategoryItem(c) {
+    return {
+      source: 'incoming',
+      incomingKey: c.seenKey,
+      kind: c.kind,
+      label: c.title || '',
+      meta: c.detail || '',
+      age: c.kind === 'event-soon' ? 'soon' : '',
+      nav: c.nav || null,
+      recordId: c.recordId || null,
+    };
+  }
+  function buildFeedCategories(incoming, keyedFeed) {
+    const feedItems = keyedFeed.map(feedCategoryItem);
+    const byKind = (kinds) => feedItems.filter((item) => kinds.includes(item.kind));
+    const categories = [
+      {
+        id: 'transcripts', label: 'transcripts', kind: 'transcript', icon: 'transcript',
+        singular: 'transcript', plural: 'transcripts', detailTitle: 'recent transcripts',
+        fallbackLabel: 'transcript readout', defaultNav: { mode: 'context', contextView: 'raw' },
+        items: byKind(['transcript']),
+      },
+      {
+        id: 'calendar', label: 'calendar', kind: 'event', icon: 'event',
+        singular: 'item', plural: 'items', detailTitle: 'calendar notices',
+        fallbackLabel: 'calendar notice', defaultNav: { mode: 'calendar' },
+        items: [...incoming.map(incomingCategoryItem), ...byKind(['event'])],
+      },
+      {
+        id: 'shipping', label: 'shipping', kind: 'release', icon: 'release',
+        singular: 'update', plural: 'updates', detailTitle: 'recent shipping',
+        fallbackLabel: 'shipping update',
+        items: byKind(['release', 'commit']),
+      },
+      {
+        id: 'asks', label: 'asks', kind: 'ask', icon: 'ask',
+        singular: 'ask', plural: 'asks', detailTitle: 'open asks',
+        fallbackLabel: 'ask', defaultNav: { mode: 'activity' },
+        items: byKind(['ask']),
+      },
+    ];
+    return categories.filter((cat) => cat.items.length);
+  }
   function renderFeed() {
     if (!feedEl) return;
     // Don't rebuild while a card is mid-recede (see renderAgenda).
     if (feedEl.querySelector('.is-dismissing')) return;
     const incoming = incomingCards();
     const incHtml = incomingRowsHtml(incoming);
-    // Transcript chips are hidden for now: they dead-end on the generic
-    // context "raw" view (the session readouts aren't wired to a per-item
-    // surface yet). Every other kind (release / ask / event) still shows.
-    // Remove this filter once the readout → context deep-link lands.
+    // Transcripts collapse into one category card: low noise at rest, useful
+    // previews on hover, and a click-to-expand lane for recent readouts.
+    const rawFeed = Array.isArray(dataStore.feed) ? dataStore.feed : [];
     const keyN = new Map();
-    const items = (Array.isArray(dataStore.feed) ? dataStore.feed : [])
-      .filter((it) => it.kind !== 'transcript')
+    const keyedFeed = rawFeed
       // Attach a collision-proof dismiss key (occurrence ordinal for any
       // identical kind|date|label|meta), then drop the already-dismissed.
       .map((it) => {
@@ -1271,10 +1447,59 @@ export function mountMembrane(container, opts = {}) {
         return { it, key: n ? `${base}#${n}` : base };
       })
       .filter(({ key }) => !feedDismissed.has(key));
+    const categories = buildFeedCategories(incoming, keyedFeed);
+    const categoryById = new Map(categories.map((cat) => [cat.id, cat]));
+    if (!categories.length) { feedEl.innerHTML = ''; return; }
+    feedEl.innerHTML = categories.map(feedCategoryHtml).join('');
+    feedPrevKeys = markEnteringRows(feedEl, feedPrevKeys, '.mfeed-row');
+    feedEl.querySelectorAll('[data-feed-category]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const cat = btn.dataset.feedCategory;
+        feedPinnedCategory = feedPinnedCategory === cat ? null : cat;
+        renderFeed();
+      });
+    });
+    feedEl.querySelectorAll('[data-open-feed-category]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        openFeedCategory(categoryById.get(btn.dataset.openFeedCategory));
+      });
+    });
+    feedEl.querySelectorAll('[data-feed-category-item]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const [catId, rawIndex] = String(btn.dataset.feedCategoryItem || '').split(':');
+        const item = categoryById.get(catId)?.items[Number(rawIndex)];
+        openFeedCategoryItem(item);
+      });
+    });
+    feedEl.querySelectorAll('.mfeed-dismiss').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const cat = categoryById.get(btn.dataset.categoryDismiss);
+        if (cat) {
+          for (const item of cat.items) {
+            if (item.incomingKey) { incomingDismissed.add(item.incomingKey); acknowledgeIncoming(item.incomingKey); }
+            if (item.feedKey) feedDismissed.add(item.feedKey);
+          }
+          if (feedPinnedCategory === cat.id) feedPinnedCategory = null;
+        }
+        dismissCard(btn.closest('.mfeed-row'), () => renderFeed());
+      });
+    });
+    return;
+    const transcriptItems = keyedFeed.filter(({ it }) => it.kind === 'transcript');
+    const transcriptHtml = transcriptCategoryHtml(transcriptItems);
+    const items = keyedFeed.filter(({ it }) => it.kind !== 'transcript');
     // Leave feedPrevKeys untouched here: if data hasn't loaded yet (first
     // render is empty), prevKeys stays null so the first real population is
     // instant (no stagger-storm) rather than treating every card as "new".
-    if (!incoming.length && !items.length) { feedEl.innerHTML = ''; return; }
+    if (!incoming.length && !items.length && !transcriptItems.length) { feedEl.innerHTML = ''; return; }
     // Each item is wrapped in a positioned row so a quiet dismiss control can
     // sit on the card's inner corner (hidden at rest, revealed on hover/focus
     // — the "subtle hidden feature" — see .mfeed-dismiss in membrane.css).
@@ -1323,8 +1548,24 @@ export function mountMembrane(container, opts = {}) {
     }).join('');
     // One stream: incoming (forward-looking) flows straight into the activity
     // feed — no section labels, the rows just sort by relevance.
-    feedEl.innerHTML = incHtml + feedHtml;
+    feedEl.innerHTML = transcriptHtml + incHtml + feedHtml;
     feedPrevKeys = markEnteringRows(feedEl, feedPrevKeys, '.mfeed-row');
+    feedEl.querySelectorAll('[data-feed-category]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const cat = btn.dataset.feedCategory;
+        feedPinnedCategory = feedPinnedCategory === cat ? null : cat;
+        renderFeed();
+      });
+    });
+    feedEl.querySelectorAll('[data-open-transcripts]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        openContextTranscripts();
+      });
+    });
     // Incoming card → open the arriving person's profile, else the calendar.
     feedEl.querySelectorAll('[data-incoming-i]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -1356,6 +1597,10 @@ export function mountMembrane(container, opts = {}) {
         // re-render mid-animation can never resurrect the card.
         const incKey = btn.dataset.incomingKey;
         if (incKey) { incomingDismissed.add(incKey); acknowledgeIncoming(incKey); }
+        else if (btn.dataset.categoryDismiss === 'transcripts') {
+          transcriptItems.forEach(({ key }) => feedDismissed.add(key));
+          if (feedPinnedCategory === 'transcripts') feedPinnedCategory = null;
+        }
         else {
           // Dismiss the whole stack (all collapsed members), not just the rep.
           const g = groups[+btn.dataset.groupI];
@@ -1594,6 +1839,7 @@ export function mountMembrane(container, opts = {}) {
   });
 
   const feedback = setupFeedbackBox(container);
+  const whisper = setupFirstWhisper(container);
 
   return {
     setActiveBlob(id) {
@@ -1614,6 +1860,7 @@ export function mountMembrane(container, opts = {}) {
     destroy() {
       clearInterval(agendaTimer);
       feedback.dispose();
+      whisper.dispose();
       if (rubiks) rubiks.dispose();
       scene.destroy();
       sound.destroy();

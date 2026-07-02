@@ -1,14 +1,14 @@
 // supabase-distillations.mjs — the READ side for distilled transcript readouts.
 //
 // Reads the cohort's per-session DISTILLED readouts LIVE from Supabase so the
-// "transcripts" tab can show the cleaned, paraphrased distillations alongside the
-// user's local raw vault — without a repo rebuild or a committed bundle.
+// "transcripts" tab can show cleaned, paraphrased distillations without a repo
+// rebuild, committed bundle, or local raw files.
 //
 // ENABLED — like the cohort evidence reader, this is gated by
 // COHORT_APP_READER_ENABLED (supabase-evidence.mjs), now on: its backing
 // cohort_app_transcript_distillations view is deployed. With a cohort key the
 // transcripts tab shows the live distilled readouts; with no key the read no-ops and
-// the tab serves local raw only. Privacy posture: the readouts live in
+// the tab keeps its public empty state. Privacy posture: the readouts live in
 // public.derived_artifacts, exposed to the distributed app via the GATED
 // cohort_app_transcript_distillations view read with the same role=cohort_app JWT
 // that reads T2 evidence cards. That view keeps the distillation safety filters
@@ -95,8 +95,8 @@ export function normalizeDistillation(row) {
 }
 
 // Fetch the GATED cohort distilled readouts with the cohort key. No-ops (returns
-// source:"unconfigured") when no cohort key is set — the public web bundle and
-// un-provisioned builds, which then show only the local raw vault. Always resolves
+// source:"unconfigured") when no cohort key is set; public web and
+// un-provisioned builds keep the public evidence/empty-state path. Always resolves
 // (never throws) so a Supabase outage degrades to "no distilled transcripts".
 export async function fetchCohortDistillations(opts = {}) {
   const doFetch = opts.fetchImpl || globalThis.fetch;

@@ -110,6 +110,7 @@ function buildCatalog() {
     { title: "context articles", sub: "context · article drafts", hay: "context articles drafts reader vault", jump: ["context", { contextView: "articles" }] },
     { title: "context transcripts", sub: "context · transcripts", hay: "context transcripts raw vault distilled readouts", jump: ["context", { contextView: "raw" }] },
     { title: "context evidence", sub: "context · evidence cards", hay: "context evidence cards reviewed published transcript evidence signals data intel", jump: ["context", { contextView: "evidence" }] },
+    { title: "context asks & activity", sub: "context · asks · cohort updates", hay: "context asks activity cohort updates feed requests come join", jump: ["activity"] },
   ];
   for (const v of FOLDED_VIEWS) {
     items.push({
@@ -118,7 +119,7 @@ function buildCatalog() {
       nav: () => { window.__srwkGoTab?.("alchemy"); window.__srwkAlchemyJump?.(v.jump[0], v.jump[1]); },
     });
   }
-  // Top-level sections (operating system / apps / network / links).
+  // Top-level sections (operating system / apps / links, plus Matrix in the rail).
   document.querySelectorAll(".nav-cat[data-tab]").forEach((btn) => {
     const tab = btn.dataset.tab;
     const label = btn.querySelector(".nav-cat-label")?.textContent?.trim() || tab;
@@ -126,6 +127,16 @@ function buildCatalog() {
       type: "section", title: label, sub: "",
       hay: `${label} ${tab}`.toLowerCase(),
       nav: () => window.__srwkGoTab?.(tab),
+    });
+  });
+  document.querySelectorAll(".app-card[data-app-key]").forEach((btn) => {
+    const key = btn.dataset.appKey;
+    const label = btn.querySelector(".app-card-label")?.textContent?.trim() || key;
+    const kind = btn.querySelector(".app-card-kind")?.textContent?.trim() || "app";
+    items.push({
+      type: "app", title: label, sub: `apps · ${kind}`,
+      hay: `${label} ${key} ${kind} apps tool launcher`.toLowerCase(),
+      nav: () => window.__srwkOpenApp?.(key),
     });
   });
   // Links — demoted from the nav rail to a footer chip (2026-06), but still

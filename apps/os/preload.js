@@ -83,6 +83,10 @@ contextBridge.exposeInMainWorld("api", {
   },
   // calendar export — PNG (recommended for messaging) or PDF.
   exportCalendar:        (opts)   => ipcRenderer.invoke("fg:export-calendar", opts),
+  // capture a region of the focused window as a PNG data URL (getBoundingClientRect
+  // rect in CSS px, or omit for the whole page). Used by the Context reader snapshot,
+  // which hands the data URL to exportCalendar for the native save dialog.
+  captureRect:           (rect)   => ipcRenderer.invoke("fg:capture-rect", rect || null),
   // bundled swf-node supervisor — see apps/os/swf-node.js. The renderer
   // can poll getSwfNodeStatus() for a one-shot read, or subscribe via
   // onSwfNodeStatus(cb) to a stream of state changes (idle | starting |
@@ -211,6 +215,22 @@ contextBridge.exposeInMainWorld("api", {
   // — the apps card / command palette / onboarding step call this.
   daybook: {
     openWindow: () => ipcRenderer.invoke("daybook:open-window"),
+  },
+
+  // ─── auth (Google sign-in gate) ──────────────────────────────────────
+  // Drives the main-process Supabase OAuth flow (main.js "auth:*"). signIn opens
+  // the system browser to Google consent; the session arrives asynchronously via
+  // onSession after the sros://auth-callback deep link is handled in main.
+  auth: {
+    signIn:     () => ipcRenderer.invoke("auth:sign-in"),
+    signOut:    () => ipcRenderer.invoke("auth:sign-out"),
+    getSession: () => ipcRenderer.invoke("auth:get-session"),
+    refresh:    () => ipcRenderer.invoke("auth:refresh"),
+    onSession: (cb) => {
+      const h = (_e, s) => { try { cb(s); } catch {} };
+      ipcRenderer.on("auth:session", h);
+      return () => ipcRenderer.removeListener("auth:session", h);
+    },
   },
 
   // ─── matrix (cohort chat) ────────────────────────────────────────────

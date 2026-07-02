@@ -93,6 +93,18 @@ function isCovered(rel) {
 }
 
 const missing = [...requiredFiles].filter((rel) => !isCovered(rel));
+const requiredReleaseScripts = [
+  "scripts/before-pack-stage-binaries.cjs",
+  "scripts/fetch-github-release-binary.sh",
+  "scripts/fetch-swf-node.sh",
+  "scripts/fetch-research-swarm.sh",
+  "scripts/fetch-whisper.sh",
+];
+for (const rel of requiredReleaseScripts) {
+  if (!fs.existsSync(path.join(appRoot, rel))) {
+    missing.push(rel);
+  }
+}
 
 function walkFiles(rootDir, extensions) {
   const files = [];

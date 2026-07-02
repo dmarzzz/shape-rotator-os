@@ -162,17 +162,6 @@ exports.default = async function afterPack(context) {
     if (!entries.has(f)) problems.push(`required runtime file missing from asar: ${f}`);
   }
 
-  // Extra resources live next to app.asar, not inside it. The committed
-  // article bodies are required at runtime in packaged builds.
-  const articlesDir = path.join(resourcesDir, "cohort-data", "articles");
-  let articleCount = 0;
-  try {
-    articleCount = fs.readdirSync(articlesDir).filter((name) => name.endsWith(".md")).length;
-  } catch {}
-  if (!articleCount) {
-    problems.push(`committed context article markdown missing from extraResources: ${articlesDir}`);
-  }
-
   if (problems.length) {
     throw new Error(
       "\n══════════════════════════════════════════════════════════════\n" +

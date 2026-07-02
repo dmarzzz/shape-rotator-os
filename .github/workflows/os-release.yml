@@ -166,7 +166,7 @@ jobs:
           set -euo pipefail
           for arch in ${{ matrix.arches }}; do
             echo "::group::fetch swf-node ($arch)"
-            SWF_NODE_ARCH="$arch" bash scripts/fetch-swf-node.sh
+            SWF_NODE_ARCH="$arch" bash apps/os/scripts/fetch-swf-node.sh
             echo "::endgroup::"
           done
 
@@ -188,7 +188,7 @@ jobs:
           set -euo pipefail
           for arch in ${{ matrix.arches }}; do
             echo "::group::fetch research-agent ($arch)"
-            RESEARCH_SWARM_ARCH="$arch" bash scripts/fetch-research-swarm.sh
+            RESEARCH_SWARM_ARCH="$arch" bash apps/os/scripts/fetch-research-swarm.sh
             echo "::endgroup::"
           done
 
@@ -204,7 +204,7 @@ jobs:
           set -uo pipefail
           for arch in ${{ matrix.arches }}; do
             echo "::group::fetch whisper ($arch)"
-            WHISPER_ARCH="$arch" bash scripts/fetch-whisper.sh || echo "[ci] whisper staging for $arch degraded (voice falls back) — non-fatal"
+            WHISPER_ARCH="$arch" bash apps/os/scripts/fetch-whisper.sh || echo "[ci] whisper staging for $arch degraded (voice falls back) — non-fatal"
             echo "::endgroup::"
           done
 
