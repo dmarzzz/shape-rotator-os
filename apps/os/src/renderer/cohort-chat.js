@@ -25,9 +25,21 @@ import { emitConnection, emitContest, emitSelfReport } from "./cohort-emit.mjs";
 import { submitContest } from "./supabase-contest.mjs";
 import { scanGithubActivity, resolvePersonHandle, summarizeEvents, digestFromEvents } from "./gh-self-report.mjs";
 import { renderChatMarkdown } from "./chat-markdown.mjs";
+import { fetchCohortDistillations } from "./supabase-distillations.mjs";
 
 let stylesheetPromise = null;
 let controller = null;
+
+// Distilled-readout catalog for the prompt, cached for a few minutes so every
+// chat turn doesn't re-hit Supabase. fetchCohortDistillations never throws
+// (unconfigured/outage → empty list), so this is always safe to await.
+let distillCache = { at: 0, artifacts: [] };
+async function getDistillationsForPrompt() {
+  if (Date.now() - distillCache.at < 5 * 60 * 1000) return distillCache.artifacts;
+  const { artifacts } = await fetchCohortDistillations();
+  distillCache = { at: Date.now(), artifacts: artifacts || [] };
+  return distillCache.artifacts;
+}
 
 const FALLBACK_TRANSCRIPT_TYPES = [
   { key: "weekly_standup", label: "Weekly standup", routePath: "raw_transcripts/weekly_standup", maxTier: "T2", cohortMode: "aggregate_only", publicAllowed: false },
@@ -1092,6 +1104,7 @@ function createController() {
       return;
     }
     activeFocus = activeFocusResolution.focus;
+    const distillations = await getDistillationsForPrompt();
     runTurn(buildChatPrompt({
       surface,
       history: history.slice(0, -1),
@@ -1100,6 +1113,7 @@ function createController() {
       focus: activeFocus,
       focusResolution: activeFocusResolution,
       route,
+      distillations,
     }), { focus: activeFocus, focusResolution: activeFocusResolution, route });
   }
 
@@ -1241,6 +1255,7 @@ function createController() {
     pendingActionCtx = buildActionCtx(surface);
     runTurn(buildChatPrompt({
       surface, history: history.slice(-6), question: lastQuestion, agent: true, focus: activeFocus, focusResolution: activeFocusResolution,
+      distillations: await getDistillationsForPrompt(),
       toolResults: `GITHUB ACTIVITY${scopeNote} (${priv ? "incl. private — scrubbed digest" : "public"}):\n${digest}`,
     }), { focus: activeFocus, focusResolution: activeFocusResolution, route: classifyChatIntent(lastQuestion) });
   }

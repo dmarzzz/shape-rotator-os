@@ -256,3 +256,26 @@ test("resolveCommand honours an explicit COHORT_CHAT_CMD override", () => {
   const argv = resolveCommand("my-llm --print");
   assert.deepEqual(argv, ["my-llm", "--print"]);
 });
+
+test("distilled transcripts catalog enters the context and ranks relevant readouts first", () => {
+  const distillations = [
+    { id: "d1", title: "Conclave pivot session", session_type: "weekly_standup", date: "2026-06-20", teams: ["conclave"], themes: ["speaker diarization"] },
+    { id: "d2", title: "Salon on TEEs", session_type: "salon", date: "2026-06-28", teams: ["abra"], themes: ["tee"] },
+  ];
+  const ctx = buildCohortContext(surface, { question: "what transcripts are relevant for conclave?", distillations });
+  assert.match(ctx, /## Distilled transcripts on file \(2 total/);
+  const conclaveAt = ctx.indexOf("Conclave pivot session");
+  const salonAt = ctx.indexOf("Salon on TEEs");
+  assert.ok(conclaveAt > -1 && salonAt > -1);
+  assert.ok(conclaveAt < salonAt, "query-matching readout should rank first");
+  // and buildChatPrompt threads it through
+  const prompt = buildChatPrompt({ surface, question: "which transcripts mention conclave?", distillations });
+  assert.match(prompt, /Distilled transcripts on file/);
+});
+
+test("no distillations → no catalog section (and no crash)", () => {
+  const ctx = buildCohortContext(surface, { question: "anything", distillations: [] });
+  assert.doesNotMatch(ctx, /Distilled transcripts on file/);
+  const ctx2 = buildCohortContext(surface, { question: "anything" });
+  assert.doesNotMatch(ctx2, /Distilled transcripts on file/);
+});
