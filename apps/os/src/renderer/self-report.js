@@ -498,7 +498,7 @@ function renderConsent(person, githubFallback) {
       <input type="checkbox" data-sr-sessions ${rememberedSessions ? "checked" : ""}>
       <span>
         <b>My local AI sessions this week</b>
-        <small>Reads your Claude Code / Codex logs <em>on this machine</em>, scrubbed into a short summary. Raw content never leaves your computer.</small>
+        <small>Reads your Claude Code / Codex logs <em>on this machine</em>, scrubbed into a short summary. Raw content never leaves your computer, and the draft is directed to keep only what's relevant to your cohort work — you review every field before anything sends.</small>
       </span>
     </label>
     <label class="selfrep-consent${hasGithub ? "" : " is-disabled"}">

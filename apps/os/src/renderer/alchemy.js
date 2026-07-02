@@ -1637,16 +1637,22 @@ function renderActivityMode() {
       <span class="alch-activity-label">${escHtml(feedItemLabel(ev, nameOf))}</span>
       <time class="alch-activity-time">${escHtml(activityRelTime(ev.created_at))}</time>
     </li>`;
-  const feedItem = (it) => it && it._feedKind === "ask"
-    ? `<li class="alch-activity-ask${it._isNew ? " is-new" : ""}">${renderAskCard(it._ask, ctx)}</li>`
-    : eventRow(it);
+  // Post-it board first (2026-07-02 feedback: "keep it very just asks —
+  // anything, official or unofficial"): open asks lead the page as a board;
+  // the event feed demotes to a "cohort activity" section below. Both keep
+  // the blended ranking within their own group.
+  const askItems = view.items.filter((it) => it && it._feedKind === "ask");
+  const eventItems = view.items.filter((it) => !(it && it._feedKind === "ask"));
   const newBadge = view.newCount ? ` · <strong>${view.newCount} new</strong>` : "";
-  const feedBody = view.items.length
+  const boardBody = askItems.length
+    ? `<div class="alch-asks-list">${askItems.map((it) => `<div class="alch-activity-ask${it._isNew ? " is-new" : ""}">${renderAskCard(it._ask, ctx)}</div>`).join("")}</div>`
+    : `<div class="alch-activity-empty">No open asks. Post one — anything goes, official or not: an intro, a teammate, a running buddy, a couch.</div>`;
+  const feedBody = eventItems.length
     ? `<ul class="alch-activity-list">
-        ${view.items.map(feedItem).join("")}
+        ${eventItems.map(eventRow).join("")}
         ${view.quietCount ? `<li class="alch-activity-quiet">+ ${view.quietCount} quiet profile ${view.quietCount === 1 ? "tidy" : "tidies"}</li>` : ""}
       </ul>`
-    : `<div class="alch-activity-empty">Nothing here yet. Post an ask, edit your profile, or share a transcript — it shows up here for the whole cohort.</div>`;
+    : "";
   const closedBody = view.closed.length
     ? `<details class="alch-asks-section alch-activity-closed">
         <summary class="alch-asks-section-head">
@@ -1667,8 +1673,8 @@ function renderActivityMode() {
     <section class="alch-activity alch-asks-activity" data-activity>
       <header class="alch-activity-head">
         <div>
-          <h2 class="alch-activity-title">asks &amp; activity</h2>
-          <p class="alch-activity-sub">open asks and cohort updates${newBadge}</p>
+          <h2 class="alch-activity-title">asks</h2>
+          <p class="alch-activity-sub">the cohort's post-it board — ask for anything, official or unofficial${newBadge}</p>
         </div>
         <div class="alch-activity-modes" role="group" aria-label="feed mode">
           <button type="button" class="alch-activity-mode${view.mode === "for_you" ? " is-on" : ""}" data-activity-mode="for_you">for you</button>
@@ -1676,10 +1682,14 @@ function renderActivityMode() {
         </div>
       </header>
       ${renderAskComposer()}
-      <div class="alch-activity-feed">
-        ${feedBody}
+      <div class="alch-activity-board">
+        ${boardBody}
       </div>
       ${closedBody}
+      ${feedBody ? `<div class="alch-activity-feed">
+        <h3 class="alch-activity-yours-title">cohort activity</h3>
+        ${feedBody}
+      </div>` : ""}
       ${mineBody}
     </section>`;
   markSeen(Date.now());
