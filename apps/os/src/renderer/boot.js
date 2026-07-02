@@ -4520,7 +4520,7 @@ function wirePrimaryNavIntent(primaryNav) {
       return;
     }
     scheduleClose(motion, "page");
-  }, { passive: true });
+  }, { capture: true, passive: true });
 
   // First-session pin activation: a destination click means "discovered" — the
   // hover rules take over from the next interaction on. Capture-phase so it fires

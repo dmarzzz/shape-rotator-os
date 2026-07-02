@@ -75,6 +75,30 @@ let routerWin = null;
 let session = {};  // last digest generation's inputs, reused for in-place revision
 let introCtx = {}; // onboarding context (history/projects/feed), reused across intro steps
 
+function quietWindowChromeOptions({ overlayColor = '#0e0b1a', overlaySymbolColor = '#f4f1e8', overlayHeight = 35 } = {}) {
+  const isMac = process.platform === 'darwin';
+  const isWin = process.platform === 'win32';
+  return {
+    autoHideMenuBar: !isMac,
+    titleBarStyle: isMac ? 'customButtonsOnHover' : (isWin ? 'hidden' : 'hiddenInset'),
+    ...(isWin ? {
+      titleBarOverlay: {
+        color: overlayColor,
+        symbolColor: overlaySymbolColor,
+        height: overlayHeight,
+      },
+    } : {}),
+  };
+}
+
+function hideNativeMenuBar(win) {
+  if (process.platform === 'darwin' || !win || win.isDestroyed?.()) return;
+  try {
+    win.setAutoHideMenuBar(true);
+    win.setMenuBarVisibility(false);
+  } catch {}
+}
+
 // ── pop-out window ─────────────────────────────────────────────────────────
 // Router opens as its own focused window running the verbatim source renderer
 // behind the shim preload. Single-instance: re-invoking just focuses it.
@@ -83,7 +107,7 @@ function openRouterWindow() {
   routerWin = new BrowserWindow({
     width: 760, height: 880, minWidth: 560, minHeight: 640,
     title: 'Teleport Router',
-    titleBarStyle: 'hiddenInset',
+    ...quietWindowChromeOptions(),
     backgroundColor: '#0e0b1a',
     webPreferences: {
       preload: path.join(__dirname, 'src', 'router', 'preload.js'), // the shim (window.daybook)
@@ -96,6 +120,7 @@ function openRouterWindow() {
       nodeIntegration: false,
     },
   });
+  hideNativeMenuBar(routerWin);
   // Voice answers use getUserMedia({audio}) in the renderer to drive the shader +
   // recording. Grant ONLY 'media' on this window's session; deny everything else.
   routerWin.webContents.session.setPermissionRequestHandler((_wc, permission, cb) => {

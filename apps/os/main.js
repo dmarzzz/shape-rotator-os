@@ -1250,23 +1250,30 @@ function sourceFromManifest(sourceId) {
 }
 
 function quietWindowChromeOptions(options = {}) {
-  const useWindowsTitleOverlay = process.platform === "win32";
+  const {
+    overlayColor = "#0c0a09",
+    overlaySymbolColor = "#f4f1e8",
+    overlayHeight = 35,
+    ...rest
+  } = options;
+  const isMac = process.platform === "darwin";
+  const isWin = process.platform === "win32";
   return {
-    autoHideMenuBar: process.platform !== "darwin",
-    titleBarStyle: useWindowsTitleOverlay ? "hidden" : "hiddenInset",
-    ...(useWindowsTitleOverlay ? {
+    autoHideMenuBar: !isMac,
+    titleBarStyle: isMac ? "customButtonsOnHover" : (isWin ? "hidden" : "hiddenInset"),
+    ...(isWin ? {
       titleBarOverlay: {
-        color: "#0c0a09",
-        symbolColor: "#f4f1e8",
-        height: 35,
+        color: overlayColor,
+        symbolColor: overlaySymbolColor,
+        height: overlayHeight,
       },
     } : {}),
-    ...options,
+    ...rest,
   };
 }
 
 function hideNativeMenuBar(win) {
-  if (!win || process.platform === "darwin") return;
+  if (process.platform === "darwin" || !win || win.isDestroyed?.()) return;
   try {
     win.setAutoHideMenuBar(true);
     win.setMenuBarVisibility(false);
@@ -1377,6 +1384,7 @@ function createHermesWindow() {
   }
   hermesWin = new BrowserWindow(quietWindowChromeOptions({
     width: 760, height: 680, minWidth: 560, minHeight: 480,
+    overlayColor: "#03020c",
     backgroundColor: "#03020c",
     title: "ask cohort · hermes",
     webPreferences: {
@@ -1525,9 +1533,7 @@ function buildAppMenu() {
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
   if (!isMac) {
-    for (const win of BrowserWindow.getAllWindows()) {
-      hideNativeMenuBar(win);
-    }
+    for (const win of BrowserWindow.getAllWindows()) hideNativeMenuBar(win);
   }
 }
 

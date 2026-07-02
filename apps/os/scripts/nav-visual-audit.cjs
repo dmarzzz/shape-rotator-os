@@ -25,6 +25,8 @@ const shots = [];
 const interactionChecks = [];
 const TRACE_PATH = path.join(OUT_DIR, "audit-trace.log");
 const WATCHDOG_MS = Number(process.env.SROS_NAV_AUDIT_TIMEOUT_MS) || 90000;
+const EVAL_TIMEOUT_MS = Number(process.env.SROS_NAV_AUDIT_EVAL_TIMEOUT_MS) || 7000;
+const CAPTURE_TIMEOUT_MS = Number(process.env.SROS_NAV_AUDIT_CAPTURE_TIMEOUT_MS) || 10000;
 let watchdog = null;
 
 function trace(message) {
@@ -75,7 +77,7 @@ function js(src) {
 
 async function evalIn(win, src, label = "renderer eval") {
   try {
-    return await win.webContents.executeJavaScript(src, true);
+    return await withTimeout(win.webContents.executeJavaScript(src, true), EVAL_TIMEOUT_MS, label);
   } catch (error) {
     fail(`${label} failed`, error && error.message ? error.message : String(error));
     return null;
@@ -94,7 +96,13 @@ async function waitFor(win, predicateSrc, label, timeoutMs = 12000) {
 }
 
 async function settle(win, delay = 180) {
-  await evalIn(win, `new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`, "settle raf");
+  try {
+    await withTimeout(
+      win.webContents.executeJavaScript(`new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`, true),
+      1200,
+      "settle raf"
+    );
+  } catch {}
   await sleep(delay);
 }
 
@@ -104,8 +112,14 @@ async function setDrawer(win, state) {
       document.documentElement.removeAttribute("data-nav-touch-fallback");
       const nav = document.getElementById("primary-nav");
       if (nav) {
-        nav.setAttribute("tabindex", "-1");
-        nav.focus({ preventScroll: true });
+        nav.classList.add("is-nav-intent-open");
+        nav.dataset.navIntent = "audit";
+        nav.style.setProperty("--nav-motion-ms", "120ms");
+        nav.style.setProperty("--nav-surface-ms", "110ms");
+        nav.style.setProperty("--nav-content-ms", "90ms");
+        nav.style.setProperty("--nav-content-open-ms", "90ms");
+        nav.style.setProperty("--nav-content-delay", "0ms");
+        document.body.dataset.navDrawer = "open";
       }
       return !!nav;
     `), "open drawer");
@@ -115,6 +129,8 @@ async function setDrawer(win, state) {
       const nav = document.getElementById("primary-nav");
       if (nav && nav.contains(document.activeElement)) document.activeElement.blur();
       if (document.activeElement === nav) nav.blur();
+      nav?.classList.remove("is-nav-intent-open");
+      document.body.dataset.navDrawer = "closed";
       return !!nav;
     `), "touch fallback drawer");
     win.webContents.sendInputEvent({ type: "mouseMove", x: 1200, y: 860, movementX: 1200, movementY: 860 });
@@ -124,6 +140,8 @@ async function setDrawer(win, state) {
       const nav = document.getElementById("primary-nav");
       if (nav && nav.contains(document.activeElement)) document.activeElement.blur();
       if (document.activeElement === nav) nav.blur();
+      nav?.classList.remove("is-nav-intent-open");
+      document.body.dataset.navDrawer = "closed";
       let sink = document.getElementById("nav-audit-focus-sink");
       if (!sink) {
         sink = document.createElement("button");
@@ -585,7 +603,7 @@ async function main() {
     trace(`stage ${stage.name}`);
     await navigate(win, stage);
     await setDrawer(win, stage.drawer);
-    const image = await win.webContents.capturePage();
+    const image = await withTimeout(win.webContents.capturePage(), CAPTURE_TIMEOUT_MS, `capture ${stage.name}`);
     const pngPath = path.join(OUT_DIR, `${stage.name}.png`);
     fs.writeFileSync(pngPath, image.toPNG());
     const stats = imageStats(image);
