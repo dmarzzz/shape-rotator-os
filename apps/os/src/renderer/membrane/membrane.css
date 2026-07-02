@@ -342,17 +342,12 @@ html[data-theme="light"] .membrane-whisper { text-shadow: none; }
               bottom 240ms cubic-bezier(0.19, 1, 0.22, 1);
 }
 
-/* When the cohort-chat popup is open (fixed, bottom-right, ~400×560), lift the
-   agenda rail's foot above the popup and narrow it so today's timeline stays
-   visible and the bottom 'upcoming' cards don't collide with the chat. The
-   class is toggled on <html> by cohort-chat.js syncDial(). */
-html.cohort-chat-open .membrane-agenda {
-  width: 176px;
-  bottom: 620px;          /* clears the popup: its top edge sits ~650px up */
-  padding-bottom: 10px;
-}
-html.cohort-chat-open .magenda-upcoming { display: none; }  /* future days: hide while chatting */
-html.cohort-chat-open .magenda-track { min-height: 80px; }   /* let today's track compress, not clip */
+/* Chat-open compensation REMOVED (2026-07-02 feedback: "the bot clips the
+   calendar"). It dated from the old bottom-right ~400×560 popup and crushed
+   the agenda into the top strip (bottom: 620px) + hid the upcoming cards.
+   The chat is a side DOCK now: body padding-right reserves its width and the
+   agenda (absolute inside the content flow) reflows with it — no overlap to
+   dodge, so the agenda keeps its full height and look-ahead while chatting. */
 .membrane-agenda .magenda-head {
   text-align: right;
   font-size: 10px;
@@ -535,6 +530,50 @@ html[data-reduce-motion="1"] .magenda-now::after { animation: none; opacity: 0.4
    category tint for more contrast against the dark stage. Each card is
    wrapped in .magenda-up (the dismiss anchor + collapse host); the wrapper
    owns --c2-acc so a [data-cat] on it tints the inheriting card. */
+/* "Next up" lead card — the one most-imminent thing, emphasized above the
+   snapshot (2026-07-02 feedback). Same card grammar as .magenda-up-event but
+   bolder: stronger tint + a live countdown line. */
+.membrane-agenda .magenda-next {
+  --c2-acc: #8f817a;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  width: 100%;
+  padding: 9px 11px;
+  background: color-mix(in srgb, var(--c2-acc) 30%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c2-acc) 55%, transparent);
+  border-radius: 9px;
+  box-shadow: inset -3px 0 0 0 color-mix(in srgb, var(--c2-acc) 90%, transparent);
+  text-align: right;
+  cursor: pointer;
+  pointer-events: auto;
+  font: inherit;
+}
+.membrane-agenda .magenda-next:hover {
+  background: color-mix(in srgb, var(--c2-acc) 42%, transparent);
+}
+.magenda-next-eyebrow {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(var(--mem-ink-rgb), 0.45);
+}
+.magenda-next .magenda-event-title {
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  color: rgba(var(--mem-ink-rgb), 0.9);
+}
+html[data-theme="light"] .membrane-agenda .magenda-next {
+  background: color-mix(in srgb, var(--c2-acc) 34%, #ffffff);
+  border-color: color-mix(in srgb, var(--c2-acc) 62%, transparent);
+}
+
 .membrane-agenda .magenda-up {
   --c2-acc: #8f817a;          /* default tier; [data-cat] overrides on wrapper */
   position: relative;
