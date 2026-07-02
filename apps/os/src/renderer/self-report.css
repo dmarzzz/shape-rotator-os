@@ -277,6 +277,21 @@ button.selfrep-consent {
 }
 @keyframes selfrep-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .selfrep-spinner { animation: none; } }
+/* Finished steps stack above the live one — the run reads as progress. */
+.selfrep-busy-steps {
+  margin: 6px 0 0; padding: 0 4px; list-style: none;
+  font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); color: var(--ds-ink-3);
+}
+.selfrep-busy-steps li { margin: 2px 0; }
+/* Post-refine confirmation — the answer visibly landed. */
+.selfrep-refined-ok {
+  margin: 0 0 12px; padding: 8px 11px;
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 45%, var(--ds-border));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--ds-accent) 10%, var(--ds-surface-3));
+  color: var(--ds-ink-1);
+  font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs);
+}
 
 .selfrep-diffs { display: flex; flex-direction: column; gap: 9px; margin: 4px 0 2px; }
 .selfrep-diff {

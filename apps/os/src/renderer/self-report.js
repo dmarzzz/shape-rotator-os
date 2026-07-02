@@ -693,6 +693,7 @@ function renderBusy(message) {
   clearBusyTimer();
   host.innerHTML = card(`
     <header class="selfrep-head"><span class="selfrep-eyebrow">working…</span></header>
+    <ul class="selfrep-busy-steps" data-sr-steps hidden></ul>
     <div class="selfrep-busy"><span class="selfrep-spinner" aria-hidden="true"></span><span data-sr-status>${esc(message)}</span></div>
     <p class="selfrep-foot" data-sr-elapsed>your own local AI is working — local runs can take 10–60s.</p>
   `);
@@ -704,9 +705,20 @@ function renderBusy(message) {
     el.textContent = `your own local AI is working — ${Math.round((Date.now() - start) / 1000)}s (local runs can take 10–60s).`;
   }, 1000);
 }
+// Advance the busy card to the next step, keeping the finished ones visible as a
+// checked list ("going through this, going through that") so a long run reads as
+// progress, not a frozen spinner.
 function setBusy(message) {
   const el = host && host.querySelector("[data-sr-status]");
-  if (el) el.textContent = message;
+  if (!el) return;
+  const steps = host.querySelector("[data-sr-steps]");
+  if (steps && el.textContent && el.textContent !== message) {
+    const li = document.createElement("li");
+    li.textContent = `✓ ${el.textContent}`;
+    steps.appendChild(li);
+    steps.hidden = false;
+  }
+  el.textContent = message;
 }
 function renderError(message) {
   clearBusyTimer();
@@ -793,6 +805,7 @@ async function runSelfReport(person, { useSessions, useGithub, githubFallback })
   const sourceNotes = [];
   if (appContextDigest) sourceNotes.push("App: used current profile, team focus, and recent timeline as correction context.");
   if (useSessions) {
+    setBusy("reading your recent local sessions…");
     const scan = await safeCall(() => window.api?.selfReportScan?.({ days: SELF_REPORT_LOOKBACK_DAYS }));
     if (!scan || !scan.ok) return renderError("Scanning your local sessions isn’t available on this build yet.");
     sessionDigest = scan.digest || "";
@@ -833,7 +846,7 @@ function diffRows(base, draft, changed) {
 function renderReview(person, state) {
   clearBusyTimer();
   if (!host) return; // an async pass finished after the modal was closed
-  const { merged, changed, team, teamMerged = {}, teamChanged = [], usefulness = {}, question, digests } = state;
+  const { merged, changed, team, teamMerged = {}, teamChanged = [], usefulness = {}, question, digests, refined = false } = state;
   const rows = changed.map((k) => `
     <div class="selfrep-diff">
       <div class="selfrep-diff-k">${esc(fieldLabel(k))}</div>
@@ -878,24 +891,28 @@ function renderReview(person, state) {
   const sourceHtml = sourceNotes.length ? `
     <div class="selfrep-sources">${sourceNotes.map((note) => `<span>${esc(note)}</span>`).join("")}</div>` : "";
   // Router-style: the member's AI asks ONE question to sharpen; answering it runs a
-  // refine pass. Optional — they can send the reviewed delta as-is.
+  // refine pass. Optional — they can send the reviewed delta as-is. The question
+  // LEADS the card (per user feedback: statement + question first, detail after).
   const refine = question ? `
     <div class="selfrep-refine">
       <p class="selfrep-q">${esc(question)}</p>
       <textarea data-sr-answer placeholder="answer to sharpen it (optional)…"></textarea>
       <button type="button" class="selfrep-btn selfrep-ghost selfrep-refine-btn" data-sr-refine>refine with my answer ↻</button>
     </div>` : "";
+  const refinedNote = refined ? `
+    <div class="selfrep-refined-ok" role="status">✓ refined with your answer — this is the updated draft (${totalChanged} field${totalChanged === 1 ? "" : "s"}).</div>` : "";
   host.innerHTML = card(`
     <header class="selfrep-head"><span class="selfrep-eyebrow">proposed update · ${totalChanged} field${totalChanged === 1 ? "" : "s"}</span>
       <button type="button" class="selfrep-x" data-sr-close aria-label="close">✕</button></header>
-    <p class="selfrep-lede">Drafted from this week's work by your own AI. Person fields update your public profile; project evidence goes to review before it changes the team record.</p>
-    ${sourceHtml}
+    <p class="selfrep-lede">Drafted from this week's work by your own AI. <b>Nothing is saved or sent until you hit “send update.”</b> Person fields update your profile inside this cohort-gated app (not posted anywhere public); project evidence goes to review before it changes the team record.</p>
+    ${refinedNote}
     ${usefulnessHtml}
+    ${refine}
+    ${sourceHtml}
     ${profileCoverageHtml}
     ${projectCoverageHtml}
     ${personSection}
     ${teamSection}
-    ${refine}
     <div class="selfrep-actions">
       <button type="button" class="selfrep-btn selfrep-ghost" data-sr-close>discard</button>
       <button type="button" class="selfrep-btn selfrep-primary" data-sr-apply>send update</button>
@@ -981,12 +998,16 @@ function renderReview(person, state) {
       refining = true;
       refineBtn.disabled = true;
       const gen = runGen;
+      // Swap to the busy card (spinner + live elapsed) — leaving the review card up
+      // made the click look dead for the whole 10–60s local run. setBusy() inside
+      // synthesize() only updates the busy card's status line.
+      renderBusy("sharpening with your answer…");
       const res = await synthesize(person, digests, answer);
       if (gen !== runGen) return; // modal closed/reopened mid-run → drop the stale result
       refining = false;
       if (!res.ok) return renderError(res.error);
       if (!res.changed.length && !(res.teamChanged && res.teamChanged.length)) return renderError("Looks good — nothing more to change. 🎉");
-      renderReview(person, { ...res, digests });
+      renderReview(person, { ...res, digests, refined: true });
     });
   }
 }
