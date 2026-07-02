@@ -328,6 +328,31 @@ body.cc-resizing .cc-resize::before { background: var(--ds-accent); }
   margin-bottom: 14px;
 }
 .cohort-chat-empty-lede b { color: var(--ds-accent); font-weight: 600; }
+/* Purpose outline — one line per tab so first-open answers "what does this do?" */
+.cc-purpose {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: min(100%, 340px);
+  margin: 0 auto 14px;
+  text-align: left;
+}
+.cc-purpose-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: var(--ds-text-sm);
+  line-height: var(--ds-lh-sm);
+  color: var(--ds-ink-2);
+}
+.cc-purpose-row b {
+  flex: 0 0 64px;
+  color: var(--ds-ink-1);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-xs);
+  font-weight: 600;
+  text-transform: lowercase;
+}
 .cohort-chat-egs { display: flex; flex-direction: column; gap: 7px; align-items: stretch; }
 .cc-eg {
   font-family: var(--ds-font-ui);
