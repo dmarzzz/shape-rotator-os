@@ -1574,6 +1574,11 @@ function render(opts = {}) {
   // ~16. Leaving them alive across renders would silently exhaust the
   // budget after a few mode switches.
   destroyAllShapes();
+  // Close any open sentence-bar dropdown before the canvas rewrite — a menu
+  // opened from the outgoing view (z-index 80, absolutely positioned) could
+  // otherwise survive the switch and sit over the new view eating clicks
+  // (2026-07-02 feedback: "switching between teams… stops clicking").
+  closeConstSentenceMenus();
   // Tear down the membrane scene when leaving membrane mode — same WebGL
   // budget concern, plus the RAF loop should stop.
   if (state.mode !== "membrane" && state.membraneController) {
@@ -16113,15 +16118,32 @@ function renderContextVault() {
     }).join("");
     detail = renderContextVaultDetail(selected);
   } else if (tsource === "distilled") {
-    sourceRows = distilled.map(s => {
-      const selectedCls = selectedDistilled && selectedDistilled.id === s.id ? " is-selected" : "";
-      return `
+    // Grouped by session type with a per-readout confidence badge (2026-07-02
+    // feedback: "there needs to be grouping for the transcript page — type,
+    // confidence"). Groups keep the list's recency order internally.
+    const groups = new Map();
+    for (const s of distilled) {
+      const label = String(s.session_type || s.kind || "session").replace(/_/g, " ");
+      if (!groups.has(label)) groups.set(label, []);
+      groups.get(label).push(s);
+    }
+    const confBadge = (s) => {
+      if (!Number.isFinite(s.confidence)) return "";
+      const tier = s.confidence >= 0.8 ? "sure" : s.confidence >= 0.5 ? "best guess" : "needs review";
+      return `<span class="alch-cv-conf is-${tier.replace(/\s+/g, "-")}" title="type confidence ${Math.round(s.confidence * 100)}%">${escHtml(tier)}</span>`;
+    };
+    sourceRows = [...groups.entries()].map(([label, items]) => `
+      <div class="alch-cv-group-head">${escHtml(label)}<span>${items.length}</span></div>
+      ${items.map(s => {
+        const selectedCls = selectedDistilled && selectedDistilled.id === s.id ? " is-selected" : "";
+        return `
         <button class="alch-cv-source alch-cv-transcript-source${selectedCls}" type="button" data-cv-distilled-source="${escAttr(s.id)}" data-cv-tags="${escAttr((Array.isArray(s.themes) ? s.themes : []).join(" "))}">
+          ${confBadge(s)}
           <strong>${escHtml(distilledTranscriptTitle(s))}</strong>
           <span class="alch-cv-source-meta">${escHtml(distilledTranscriptMeta(s))}</span>
-        </button>
-      `;
-    }).join("");
+        </button>`;
+      }).join("")}
+    `).join("");
     detail = renderDistilledTranscriptDetail(selectedDistilled);
   } else {
     sourceRows = rawScripts.map(s => {

@@ -20100,6 +20100,33 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   text-transform: uppercase;
 }
 
+/* Distilled-transcript list grouping (by session type) + confidence badges. */
+.alch-cv-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 12px 2px 4px;
+  font: var(--ds-weight-med, 500) var(--ds-text-2xs, 10px)/1.3 var(--ds-font-mono, monospace);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ds-ink-3, rgba(241, 236, 231, 0.5));
+}
+.alch-cv-group-head:first-child { margin-top: 2px; }
+.alch-cv-group-head span { color: var(--ds-ink-4, rgba(241, 236, 231, 0.32)); }
+.alch-cv-conf {
+  float: right;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--ds-border, rgba(241, 236, 231, 0.14));
+  font: var(--ds-weight-med, 500) var(--ds-text-2xs, 10px)/1.4 var(--ds-font-mono, monospace);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ds-ink-3, rgba(241, 236, 231, 0.5));
+}
+.alch-cv-conf.is-sure { border-color: color-mix(in srgb, var(--ds-accent) 45%, transparent); color: var(--ds-accent); }
+.alch-cv-conf.is-needs-review { border-color: color-mix(in srgb, var(--ds-danger, #e5484d) 45%, transparent); color: var(--ds-danger, #e5484d); }
+
 
 
 
