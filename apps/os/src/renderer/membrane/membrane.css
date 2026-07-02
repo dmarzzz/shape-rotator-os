@@ -144,6 +144,24 @@ html[data-theme="light"] .membrane-agenda .magenda-dismiss:hover {
   border-color: rgba(26, 26, 26, 0.24);
   color: rgba(26, 26, 26, 0.86);
 }
+/* Now-line + label on paper: the dark-mode pale-orange ink and dark text-
+   shadow smudge on white — swing to the established light ember and drop the
+   shadow. The breath glow (::after) darkens + quiets to match. */
+html[data-theme="light"] .magenda-now {
+  border-top-color: rgba(194, 86, 42, 0.85);
+  box-shadow: 0 0 6px rgba(194, 86, 42, 0.22);
+}
+html[data-theme="light"] .magenda-now-label {
+  color: #c2562a;
+  text-shadow: none;
+}
+html[data-theme="light"] .magenda-now::after {
+  background: linear-gradient(90deg, rgba(194, 86, 42, 0) 0%, rgba(194, 86, 42, 0.3) 100%);
+}
+/* Feedback tab: 0.3 rest-opacity reads as quiet on the void but washes out
+   entirely on paper — lift the resting floor (hover/open still snap to 1). */
+html[data-theme="light"] .membrane-host { --mfb-rest-opacity: 0.55; }
+
 html[data-theme="light"] .membrane-agenda [data-cat="oh"]      { --c2-acc: #c4763f; }
 html[data-theme="light"] .membrane-agenda [data-cat="salon"]   { --c2-acc: #a87fc0; }
 html[data-theme="light"] .membrane-agenda [data-cat="weekly"]  { --c2-acc: #79a06a; }
@@ -206,6 +224,45 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
   mix-blend-mode: screen;
 }
 
+/* ── First-arrival choreography ─────────────────────────────────────────────
+   Once per app session (gated in mountMembrane via sessionStorage +
+   reduced-motion check), the landing surface unfolds instead of popping in
+   fully formed: each rail slides in from its own screen edge, the feedback
+   tab rises last, and the throne glow blooms under the die. Re-entering the
+   membrane later in the session stays instant — arrival is a first-load
+   moment, not a page-switch tax. Opacity/transform only; `both` fill keeps
+   the delayed elements hidden until their turn. */
+.membrane-host.is-arriving .membrane-feed {
+  animation: membrane-arrive-left 640ms cubic-bezier(0.19, 1, 0.22, 1) 120ms both;
+}
+.membrane-host.is-arriving .membrane-agenda {
+  animation: membrane-arrive-right 640ms cubic-bezier(0.19, 1, 0.22, 1) 240ms both;
+}
+.membrane-host.is-arriving .membrane-feedback {
+  animation: membrane-arrive-up 520ms cubic-bezier(0.22, 1, 0.36, 1) 480ms both;
+}
+.membrane-host.is-arriving .ma-throne-presence {
+  animation: membrane-arrive-glow 1100ms ease-out both;
+}
+@keyframes membrane-arrive-left {
+  from { opacity: 0; transform: translateX(-14px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes membrane-arrive-right {
+  from { opacity: 0; transform: translateX(14px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+/* .membrane-feedback positions itself with translateX(-50%) — carry it. */
+@keyframes membrane-arrive-up {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+/* .ma-throne-presence centers with translate(-50%,-50%) — carry it. */
+@keyframes membrane-arrive-glow {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
 .membrane-host * {
   box-sizing: border-box;
 }
@@ -233,6 +290,33 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a0
   text-transform: uppercase;
   color: rgba(var(--mem-ink-rgb), 0.5);
 }
+
+/* ── first-launch whisper ───────────────────────────────────────────────────
+   One-time greeting in the die's negative space (shown once ever — see
+   setupFirstWhisper in index.js). Enters slow (1.4s), exits quicker (700ms)
+   per the asymmetric-timing law; opacity only. Quiet mono. */
+.membrane-whisper {
+  position: absolute;
+  left: 50%;
+  top: 74%;
+  transform: translateX(-50%);
+  z-index: 2;
+  pointer-events: none;
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: lowercase;
+  white-space: nowrap;
+  color: rgba(var(--mem-ink-rgb), 0.55);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8);
+  opacity: 0;
+  transition: opacity 700ms ease;   /* resting transition = the EXIT timing */
+}
+.membrane-whisper.is-showing {
+  opacity: 1;
+  transition: opacity 1400ms ease;  /* enter slower than exit */
+}
+html[data-theme="light"] .membrane-whisper { text-shadow: none; }
 
 /* Today's agenda — an ambient day-timeline pinned to the right edge, sitting
    BEHIND the canvas (z-index 0) so the cube + stars render over it. Just
@@ -319,7 +403,14 @@ html.cohort-chat-open .magenda-track { min-height: 80px; }   /* let today's trac
   gap: 6px;
   max-width: 164px;
   padding: 3px 8px 3px 9px;
-  background: color-mix(in srgb, var(--c2-acc) 22%, transparent);
+  /* Tint over an OPAQUE void base — the card sits ON the time ruler, so the
+     hour label beneath must be occluded, not bleed through the glass (the
+     "14:00" + title double-text mush). --membrane-void-warm is theme-aware
+     (near-black in dark, paper in light), so both themes occlude correctly. */
+  background:
+    linear-gradient(color-mix(in srgb, var(--c2-acc) 22%, transparent),
+                    color-mix(in srgb, var(--c2-acc) 22%, transparent)),
+    var(--membrane-void-warm);
   border: 1px solid color-mix(in srgb, var(--c2-acc) 40%, transparent);
   border-radius: 7px;
   /* category accent — a crisp inner edge-tick, echoing the calendar's
@@ -336,13 +427,29 @@ html.cohort-chat-open .magenda-track { min-height: 80px; }   /* let today's trac
               transform 120ms cubic-bezier(0.19, 1, 0.22, 1);
 }
 .membrane-agenda .magenda-event:hover {
-  background: color-mix(in srgb, var(--c2-acc) 34%, transparent);
+  background:
+    linear-gradient(color-mix(in srgb, var(--c2-acc) 34%, transparent),
+                    color-mix(in srgb, var(--c2-acc) 34%, transparent)),
+    var(--membrane-void-warm);
   border-color: color-mix(in srgb, var(--c2-acc) 58%, transparent);
   box-shadow: inset 3px 0 0 0 var(--c2-acc),
               0 4px 14px -7px color-mix(in srgb, var(--c2-acc) 65%, transparent);
   z-index: 5;
 }
 .membrane-agenda .magenda-event:active { transform: translateY(-50%) scale(0.97); }
+/* Keyboard focus — the primary cards were the one interactive tier on this
+   surface WITHOUT a visible ring (dismiss/add already have theirs). Same
+   ember outline grammar as .mfeed-dismiss:focus-visible. */
+.membrane-agenda .magenda-event:focus-visible,
+.membrane-agenda .magenda-up-event:focus-visible,
+.mfeed-item:focus-visible,
+.mfeed-detail-open:focus-visible,
+.mfeed-detail-row:focus-visible,
+.membrane-feedback-pill:focus-visible,
+.membrane-feedback-send:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--membrane-ember) 45%, transparent);
+  outline-offset: 2px;
+}
 .magenda-event-time {
   flex: 0 0 auto;
   font-size: 9px;
@@ -366,6 +473,27 @@ html.cohort-chat-open .magenda-track { min-height: 80px; }   /* let today's trac
   border-top: 1px solid rgba(255, 150, 90, 0.8);
   box-shadow: 0 0 6px rgba(255, 140, 80, 0.45);
 }
+/* Ambient liveness — the now-line is the one genuinely live element on the
+   landing surface, so it breathes: a soft glow layer pulsing on a calm 2.8s
+   cycle (opacity only — compositor-cheap; the line + label stay steady).
+   Killed under reduced motion (media query + in-app toggle) below. */
+.magenda-now::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -3px;
+  height: 5px;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(255, 140, 80, 0) 0%, rgba(255, 140, 80, 0.5) 100%);
+  filter: blur(3px);
+  animation: magenda-now-breathe 2.8s ease-in-out infinite;
+}
+@keyframes magenda-now-breathe {
+  0%, 100% { opacity: 0.2; }
+  50%      { opacity: 0.8; }
+}
+html[data-reduce-motion="1"] .magenda-now::after { animation: none; opacity: 0.4; }
 .magenda-now-label {
   position: absolute;
   right: 0;
@@ -572,6 +700,36 @@ html.cohort-chat-open .magenda-track { min-height: 80px; }   /* let today's trac
   opacity: 1;
 }
 .membrane-agenda .magenda-add svg { width: 13px; height: 13px; display: block; }
+
+/* Hover-reveal CTA — mirror of the left feed's .mfeed-cta grammar (grid
+   0fr→1fr accordion; fast collapse at rest, slower reveal on hover — the
+   house asymmetric-timing law) so the two rails share one hover vocabulary.
+   Right-aligned by the card's own flex-end column; tinted by its category. */
+.magenda-cta {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 170ms cubic-bezier(0.65, 0, 0.05, 1),
+              opacity 120ms ease;
+}
+.magenda-cta-inner {
+  min-height: 0;
+  overflow: hidden;
+  padding-top: 3px;   /* clipped to 0 while collapsed; breathes once open */
+}
+.magenda-cta-go {
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  color: var(--c2-acc);
+}
+.membrane-agenda .magenda-up:hover .magenda-cta,
+.membrane-agenda .magenda-up:focus-within .magenda-cta {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition: grid-template-rows 260ms cubic-bezier(0.19, 1, 0.22, 1),
+              opacity 200ms ease 60ms;
+}
 
 .magenda-up-event .magenda-event-title {
   max-width: 100%;
@@ -2499,6 +2657,7 @@ html.cohort-chat-open .magenda-track { min-height: 80px; }   /* let today's trac
      (dismiss control visible on hover/focus; cards present) but drop the
      transforms, blur, and easing so nothing animates. */
   .mfeed-row, .mfeed-item, .mfeed-dismiss, .mfeed-cta,
+  .magenda-cta,
   .membrane-agenda .magenda-up,
   .membrane-agenda .magenda-up-event,
   .membrane-agenda .magenda-event,
@@ -2509,7 +2668,9 @@ html.cohort-chat-open .magenda-track { min-height: 80px; }   /* let today's trac
   /* The hover layer still REVEALS (un-truncate + CTA visible) — just without
      the grid-row accordion. Force the revealed track open instantly. */
   .mfeed-row:hover .mfeed-cta,
-  .mfeed-row:focus-within .mfeed-cta { grid-template-rows: 1fr; }
+  .mfeed-row:focus-within .mfeed-cta,
+  .membrane-agenda .magenda-up:hover .magenda-cta,
+  .membrane-agenda .magenda-up:focus-within .magenda-cta { grid-template-rows: 1fr; }
   /* Keep the add control centred; drop only its scale punctuation. */
   .membrane-agenda .magenda-add,
   .membrane-agenda .magenda-up:hover .magenda-add,
@@ -2533,6 +2694,16 @@ html.cohort-chat-open .magenda-track { min-height: 80px; }   /* let today's trac
      class under reduced-motion; this is the belt-and-suspenders CSS guard). */
   .mfeed-row.is-entering,
   .membrane-agenda .magenda-up.is-entering { animation: none !important; }
+  /* First-arrival choreography + the now-line breath: the JS gate skips the
+     is-arriving class under reduced motion; these are the CSS guards. */
+  .membrane-host.is-arriving .membrane-feed,
+  .membrane-host.is-arriving .membrane-agenda,
+  .membrane-host.is-arriving .membrane-feedback,
+  .membrane-host.is-arriving .ma-throne-presence { animation: none !important; }
+  .magenda-now::after { animation: none; opacity: 0.4; }
+  /* Whisper still appears/disappears (it's a one-time hint), just without
+     the slow crossfade. */
+  .membrane-whisper { transition: none !important; }
 }
 
 /* Small floating mode pill — lets the user toggle back to legacy view
@@ -2917,7 +3088,9 @@ html[data-theme="light"] .membrane-ask-verb .alch-asks-verb-svg { color: #fff; }
   overflow: hidden;
   width: fit-content;              /* collapsed → hug the pill label, not the full width */
   max-width: 78vw;
-  opacity: 0.3;                    /* quiet at rest; full on hover or when open */
+  /* quiet at rest; full on hover or when open. Light mode lifts the floor
+     via the variable (0.3 washes out on paper). */
+  opacity: var(--mfb-rest-opacity, 0.3);
   border: 1px solid var(--membrane-ember-soft);
   border-bottom: none;
   border-radius: 12px 12px 0 0;

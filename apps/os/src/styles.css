@@ -3185,6 +3185,13 @@ button:focus:not(:focus-visible) { outline: none; }
   opacity: 0;
   transform: translateY(4px);
 }
+/* Light mode: the near-black chip over a paper page leaves its (now dark)
+   ink unreadable — flip to a white glass chip; the violet spinner carries. */
+html[data-theme="light"] .srfg-sync-chip {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(94, 76, 210, 0.26);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
 .srfg-sync-spinner {
   width: 11px; height: 11px;
   border: 1.4px solid rgba(126, 108, 255, 0.22);
