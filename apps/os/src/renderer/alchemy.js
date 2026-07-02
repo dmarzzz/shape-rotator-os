@@ -2514,34 +2514,6 @@ function buildContextTranscriptFeed(manifest) {
     .slice(0, 80);
 }
 
-// stat dictionaries that the panels can render. Re-runs on every cohort
-// refresh via subscribeToCohortChanges → render() chain.
-function buildContextTranscriptFeed(manifest) {
-  const rawScripts = Array.isArray(manifest?.raw_scripts) ? manifest.raw_scripts : [];
-  return rawScripts
-    .map((source) => {
-      const fileLabel = String(source?.title || source?.path || '')
-        .split(/[\\/]/)
-        .filter(Boolean)
-        .pop()
-        ?.replace(/\.[a-z0-9]+$/i, '');
-      const date = String(source?.date || source?.mtime || manifest?.scanned_at || '').slice(0, 10);
-      const meta = source?.review_status
-        || source?.submit_recommendation
-        || (source?.line_count ? `${source.line_count} lines` : 'transcript');
-      if (!date && !fileLabel) return null;
-      return {
-        date,
-        kind: 'transcript',
-        label: fileLabel || 'transcript readout',
-        meta,
-        nav: { mode: 'context', contextView: 'raw' },
-      };
-    })
-    .filter(Boolean)
-    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
-}
-
 function computeMembraneData() {
   const c = state.cohort || {};
   const cohortIndex = buildCohortIndex(c);
@@ -2786,9 +2758,6 @@ function computeMembraneData() {
     bio: '',
     avatarUrl: null,
   } : editorUser);
-
-  const feed = (Array.isArray(c.whats_new) && c.whats_new.length) ? c.whats_new : buildWhatsNewFeed(c);
-  const contextTranscriptFeed = buildContextTranscriptFeed(state.contextVault?.manifest);
 
   return {
     self: {

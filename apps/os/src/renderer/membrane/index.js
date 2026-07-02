@@ -1513,6 +1513,7 @@ export function mountMembrane(container, opts = {}) {
         dismissCard(btn.closest('.mfeed-category-row'), () => renderFeed());
       });
     });
+  }
 
   let dataStore = {};
 
