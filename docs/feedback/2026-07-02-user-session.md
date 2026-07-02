@@ -9,13 +9,13 @@ UX improvement · **P3** = nice-to-have / bigger design question.
 
 ## Bot / assistant ("the ball")
 
-- [ ] **P1 — Render bot responses as markdown.** Responses currently show raw `*stars*`
+- [x] **P1 — Render bot responses as markdown. (`ad72344c`)** Responses currently show raw `*stars*`
   and `#` instead of bold/headings. ("process the readme in a Markdown manner…
   the stars instead of bold, or hero text")
-- [ ] **P1 — Transcript lookup uses source data, not distilled.** Asking the bot "what
+- [x] **P1 — Transcript lookup uses source data, not distilled. (`127a6e75`)** Asking the bot "what
   transcripts are relevant for Conclave" returns "none are available" — it should
   search the distilled/processed versions.
-- [ ] **P1 — Purpose outline.** First-open state should say what the bot is for and
+- [x] **P1 — Purpose outline. (`6dcd14d1`)** First-open state should say what the bot is for and
   what it can do ("I click this button, what does it mean? What does it do?").
 - [ ] **P2 — Page-context presets.** When opened on a page (e.g. collabboard with a
   project selected), offer preset prompts about that page and pass page context into
@@ -62,7 +62,7 @@ UX improvement · **P3** = nice-to-have / bigger design question.
 
 ## Membrane (landing) & calendar
 
-- [ ] **P1 — Notification timeframe bug.** Showed "Final Demo Day today" for a July 22
+- [x] **P1 — Notification timeframe bug. (`7d3ee9cd`)** Showed "Final Demo Day today" for a July 22
   event. Fix the date labeling.
 - [ ] **P2 — Calendar clipping.** Right-side calendar clips (time-wise) with other
   elements / the bot panel.
@@ -86,7 +86,7 @@ UX improvement · **P3** = nice-to-have / bigger design question.
 
 ## Collabboard
 
-- [ ] **P1 — Remove the extra info beneath the board.** "All that extra information is
+- [x] **P1 — Remove the extra info beneath the board. (`4503eb8f`)** "All that extra information is
   useless. Remove it, even if it's linked in the back."
 - [ ] **P2 — Empty-team handling.** Teams with little data (e.g. a member who just
   joined) open to nothing — show a useful empty state.
