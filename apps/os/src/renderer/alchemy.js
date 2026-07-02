@@ -13649,58 +13649,11 @@ function renderCollab() {
       <div class="cb-scroll">${matrixBody}</div>
       ${matrixNote}
     </section>`;
-  const latentSection = collabLatentOverlapSectionHtml();
-
-  // underused offers — declared help with the lowest routed demand
-  const underused = (m.underusedOffers || []).slice(0, 12);
-  const underusedCards = underused.map(item => {
-    const chips = item.skills.slice(0, 5).map(c => `<span class="cb-chip">${escHtml(c)}</span>`).join("");
-    const matchLabel = item.matchCount === 1 ? "1 matched ask" : `${item.matchCount} matched asks`;
-    const teamMeta = [domainLabel(item.team?.domain), item.team?.geo].filter(Boolean).join(" · ");
-    return `<article class="cb-intro cb-underused-offer" data-collab-cohort-open="${escAttr(item.rid)}" role="link" tabindex="0" title="${escAttr(`show ${item.teamName} in directory`)}">
-      <div class="cb-intro-flow cb-underused-flow">
-        <div class="cb-intro-side">
-          <span class="cb-intro-role">available offer</span>
-          <span class="cb-intro-team">${escHtml(item.teamName)}</span>
-          ${teamMeta ? `<span class="cb-intro-meta">${escHtml(teamMeta)}</span>` : ""}
-          ${item.offering ? `<span class="cb-intro-text">${escHtml(item.offering)}</span>` : ""}
-        </div>
-        <span class="cb-underused-count">${escHtml(matchLabel)}</span>
-      </div>${chips ? `<div class="cb-intro-chips">${chips}</div>` : ""}
-    </article>`;
-  }).join("");
-  const underusedSection = `
-    <section class="alch-cb-section" data-cb-section="offers">
-      <div class="alch-cb-sechead"><h3>Unmatched offers</h3><span class="cb-sub">no team matched yet</span></div>
-      <div class="cb-intro-grid">${underusedCards || '<p class="cb-empty">no underused offers found.</p>'}</div>
-    </section>`;
-
-  // convergence — skill areas shared by 3+ teams
-  const maxConv = m.convergence.reduce((mx, c) => Math.max(mx, c.count), 1);
-  // Resolve shared-focus team NAMES → record_ids so each chip can open that team
-  // in the directory (m.convergence carries names; m.ordered has the rid map).
-  // Non-resolving names fall back to a plain, non-clickable span.
-  const convRidByName = new Map(m.ordered.map(o => [o.team?.name, o.rid]));
-  const convRows = m.convergence.map(c => {
-    const pct = Math.round((c.count / maxConv) * 100);
-    const weight = c.count >= 8 ? " heavy" : c.count >= 5 ? " mid" : "";
-    const teamChips = c.teams.map(t => {
-      const rid = convRidByName.get(t);
-      return rid
-        ? `<button type="button" class="cb-cv-team" data-collab-cohort-open="${escAttr(rid)}" title="${escAttr("open " + t + " in the directory")}">${escHtml(t)}</button>`
-        : `<span class="cb-cv-team">${escHtml(t)}</span>`;
-    }).join("");
-    return `<article class="cb-cv${weight}">
-      <div class="cb-cv-head"><span class="cb-cv-skill">${escHtml(c.skill)}</span><span class="cb-cv-count">${c.count} teams</span></div>
-      <div class="cb-cv-bar"><i style="width:${pct}%"></i></div>
-      <div class="cb-cv-teams">${teamChips}</div>
-    </article>`;
-  }).join("");
-  const convSection = `
-    <section class="alch-cb-section" data-cb-section="convergence">
-      <div class="alch-cb-sechead"><h3>Shared focus areas</h3><span class="cb-sub">shared by 3+ teams</span></div>
-      <div class="cb-cv-list">${convRows || '<p class="cb-empty">no shared areas.</p>'}</div>
-    </section>`;
+  // The under-board extras (latent overlaps, unmatched offers, shared focus
+  // areas) were removed on direct user feedback (2026-07-02 session): "beneath
+  // the actual board, all that extra information is useless. Remove it." The
+  // model still computes underusedOffers/convergence — the chat context and
+  // rail nudges read them — only the page sections are gone.
 
   // The header stays calm: title + a static lead line. The team picker + intake
   // moved into the filter row (cb-maphead-left); the *adaptive* "what to do next"
@@ -13723,14 +13676,7 @@ function renderCollab() {
           ${collabRouteSheetHtml(m, focusRid)}
         </aside>
       </div>
-      <div class="cb-cohort-extras">
-        ${latentSection}
-        <div class="cb-cohort-shape">
-          ${convSection}
-          ${underusedSection}
-        </div>
-        <p class="alch-callout">Matches, intros, and offers are self-declared by teams. Latent overlaps are public prompts to verify before routing; no private scoring is shown.</p>
-      </div>
+      <p class="alch-callout">Matches, intros, and offers are self-declared by teams.</p>
     </div>
     </div>`;
 }
