@@ -66,7 +66,7 @@ html, body {
   --nav-w: 280px;
   --nav-hot-w: 28px;
   --nav-radius: 28px;
-  --nav-handle-w: 9px;
+  --nav-handle-w: 4px;
   --nav-closed-x: calc(var(--nav-hot-w) - var(--nav-w));
   --content-top-h: 35px;
   --window-controls-left-w: max(var(--nav-hot-w), env(titlebar-area-x, 0px));
@@ -17034,20 +17034,21 @@ textarea.alch-cv-compose-body-input { min-height: 150px; line-height: 1.6; }
 }
 .primary-nav::-webkit-scrollbar { display: none; }
 .primary-nav::before {
+  /* Closed-state affordance. Was a 9px glowing bar mid-strip (x 11–20px) with an
+     18–24px shadow bleeding onto content — users read it as the menu overlapping
+     the app (2026-07-02 feedback). Now a slim 4px line hugging the window edge
+     (x 3–7px when closed), no glow. */
   content: "";
   position: absolute;
   top: calc(var(--content-top-h) + 14px);
-  right: 8px;
+  right: 21px;
   bottom: 22px;
   width: var(--nav-handle-w);
   border-radius: 999px;
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--page-accent) 62%, transparent), color-mix(in srgb, var(--page-accent) 24%, transparent) 46%, color-mix(in srgb, var(--page-accent) 50%, transparent));
-  box-shadow:
-    inset 0 0 0 1px rgba(var(--ink-rgb), 0.11),
-    0 0 18px color-mix(in srgb, var(--page-accent) 18%, transparent),
-    0 4px 24px rgba(0, 0, 0, 0.30);
-  opacity: 0.82;
+  box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb), 0.11);
+  opacity: 0.72;
   transform: scaleY(1);
   z-index: 2;
   pointer-events: none;
@@ -17288,6 +17289,31 @@ body[data-blank] .blank-tab { display: flex; }
   color: rgba(var(--ink-rgb), 0.50);
 }
 .primary-nav .nav-cat--eyebrow:hover { color: rgba(var(--ink-rgb), 0.66); }
+/* Pin toggle — keep the drawer open permanently (2026-07-02 feedback). Sits at
+ * the eyebrow row's right edge, clear of the macOS traffic-light zone. */
+.primary-nav .nav-cat--eyebrow { display: flex; align-items: center; justify-content: space-between; }
+.nav-pin {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: rgba(var(--ink-rgb), 0.45);
+  cursor: pointer;
+}
+.nav-pin svg { width: 14px; height: 14px; }
+.nav-pin:hover { color: rgba(var(--ink-rgb), 0.85); border-color: rgba(var(--ink-rgb), 0.14); }
+.nav-pin:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 1px; }
+.primary-nav.is-user-pinned .nav-pin {
+  color: var(--page-accent, var(--ds-accent));
+  border-color: color-mix(in srgb, var(--page-accent, var(--ds-accent)) 45%, transparent);
+  background: color-mix(in srgb, var(--page-accent, var(--ds-accent)) 12%, transparent);
+}
 /* "operating system" glyphs hidden — the eyebrow sits in the top-left where
  * macOS draws the traffic-light window buttons, and the text overlapped them.
  * visibility:hidden (not display:none) keeps the button's reserved height so
