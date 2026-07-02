@@ -245,18 +245,18 @@ function createController() {
     let cfg = null;
     try { cfg = await window.api.getCohortChatConfig(); } catch {}
     const ready = !!(cfg && cfg.ready);
-    // No local AI connected → show ONLY the setup card: hide the composer so the
-    // panel isn't a row of inputs/prompts that silently do nothing. Restored the
-    // moment a re-check finds a working CLI.
+    // No local AI connected → hide the composer (it drives the chat and would
+    // silently do nothing) and show the setup card in the ask view. The TABS stay
+    // visible: transcript upload and search need no AI, and the sync tab's manual
+    // "type your own update" lane works without one — gating them behind an AI
+    // install was the audit's "can't even see the upload card" blocker. The setup
+    // card lives in the ask log (other views hide it via CSS), so ask remains the
+    // connect surface without yanking the user off a no-AI view. Composer is
+    // restored the moment a re-check finds a working CLI.
     if (form) form.hidden = !ready;
-    if (tabsEl) tabsEl.hidden = !ready;   // gate the tabs too: not connected → only the connect prompt
+    if (tabsEl) tabsEl.hidden = false;
     log.querySelectorAll(".cc-card.is-onboard").forEach((el) => el.remove()); // no dupes across re-opens
     if (!ready) {
-      // The connect card mounts into the chat log, which the search/sync/transcript
-      // views hide via CSS — and we've just hidden the tabs, so the user couldn't
-      // switch back. Force the ask view so the only way to connect the AI stays
-      // visible when reopening from a non-ask tab.
-      setChatView("ask");
       renderOnboarding({ ready: false });
       return true;
     }
@@ -700,7 +700,11 @@ function createController() {
       supabaseUrl: ingress.supabaseUrl || base.url,
       supabaseAnonKey: ingress.supabaseAnonKey || base.anonKey,
       accessToken: ingress.accessToken || "",
-      orgId: ingress.orgId || "",
+      // Default the org id like the anon key is defaulted: "srfg" is the engine's
+      // org (the live context_submissions policy pins org_id='srfg'), so a fresh
+      // member no longer has to discover it — the access token is the only field
+      // left to provision (until the Google-auth JWT path lands in Phase 2).
+      orgId: ingress.orgId || "srfg",
       ingestArtifactsUrl: ingress.ingestArtifactsUrl || "",
     };
   }
@@ -1478,7 +1482,8 @@ export async function openCohortUpdates() {
 
 export async function openCohortTranscriptUpload() {
   await warmCohortChat();
-  if (!(await cohortAiReady())) return openCohortChat();   // not connected → prompt to connect first
+  // No AI gate here on purpose: the upload is a file + metadata form that never
+  // touches the local CLI, so it must work before (or without) an AI install.
   const c = getController();
   if (!c) { console.warn("[cohort-chat] panel markup missing"); return; }
   c.showTranscriptUpload();

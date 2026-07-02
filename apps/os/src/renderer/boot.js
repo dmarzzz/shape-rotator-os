@@ -539,6 +539,20 @@ async function boot() {
   cp("boot:after-env");
   if (env?.serverUrl) srwk.serverUrl = env.serverUrl;
 
+  // Auth gate (flag-gated via srwk:auth_gate_enabled, OFF by default). When on,
+  // mounts a full-screen Google sign-in / request-access overlay above everything;
+  // a no-op otherwise. Non-blocking on purpose — boot proceeds behind the overlay
+  // so a gate issue can never brick the app (clear the flag to escape). See
+  // auth-gate.js + docs/design/google-auth-gate.md.
+  try {
+    const auth = await import("./supabase-auth.mjs");
+    // Always keep Supabase writes signed as the current user (no-op when signed
+    // out); this is what makes JWT-authenticated writes work once the gate is on.
+    auth.installAuthBearerSync();
+    const { mountAuthGateIfEnabled } = await import("./auth-gate.js");
+    mountAuthGateIfEnabled();
+  } catch (e) { console.warn("[boot] auth gate failed to load:", e?.message || e); }
+
   // Signature first-launch animation — the rotor glyph assembles from
   // four scattered dots and the SHAPE ROTATOR wordmark resolves. Lives
   // in signature.js. Skippable on Esc / Enter / pointerdown / Space.
@@ -4369,6 +4383,21 @@ function wirePrimaryNavIntent(primaryNav) {
   let pointerHeldNavFocus = false;
   let lastPointer = null;
 
+  // First-session discoverability pin (new-user audit: the entire primary nav is
+  // invisible at rest — a 28px hover strip nothing points to). Until the user has
+  // USED the drawer once — clicked a destination or dismissed it with Escape —
+  // it boots open and hover-away closes are suppressed, so the first thing a new
+  // user sees includes the app's map. One-time: srwk:nav_discovered_v1 flips and
+  // the drawer behaves as designed (hover intent) forever after.
+  const NAV_DISCOVERED_KEY = "srwk:nav_discovered_v1";
+  let navPinned = false;
+  try { navPinned = localStorage.getItem(NAV_DISCOVERED_KEY) !== "1"; } catch {}
+  const dismissNavPin = () => {
+    if (!navPinned) return;
+    navPinned = false;
+    try { localStorage.setItem(NAV_DISCOVERED_KEY, "1"); } catch {}
+  };
+
   const numberVar = (name, fallback) => {
     const raw = getComputedStyle(document.documentElement).getPropertyValue(name);
     const n = Number.parseFloat(raw);
@@ -4450,6 +4479,7 @@ function wirePrimaryNavIntent(primaryNav) {
   };
   const scheduleClose = (motion, reason = "page") => {
     clearOpen();
+    if (navPinned) return;   // first-session pin: stay open until the drawer is used once
     if (!isOpen || closeTimer) return;
     const fastExit = motion.speed >= 0.64;
     const delay = fastExit ? 58 : 118;
@@ -4492,9 +4522,18 @@ function wirePrimaryNavIntent(primaryNav) {
     scheduleClose(motion, "page");
   }, { capture: true, passive: true });
 
+  // First-session pin activation: a destination click means "discovered" — the
+  // hover rules take over from the next interaction on. Capture-phase so it fires
+  // regardless of what the rail buttons themselves do with the event.
+  primaryNav.addEventListener("click", (event) => {
+    if (event.target instanceof Element && event.target.closest("button, a")) dismissNavPin();
+  }, { capture: true, passive: true });
+  if (navPinned) setOpen(true, "first-run", 0);
+
   primaryNav.addEventListener("focusin", () => setOpen(true, "focus", 160));
   primaryNav.addEventListener("focusout", () => {
     setTimeout(() => {
+      if (navPinned) return;
       const active = document.activeElement;
       if (active instanceof HTMLElement && primaryNav.contains(active)) return;
       if (!primaryNav.matches(":hover")) setOpen(false, "focusout", 140);
@@ -4505,7 +4544,10 @@ function wirePrimaryNavIntent(primaryNav) {
   }, { capture: true, passive: true });
   primaryNav.addEventListener("keydown", (event) => {
     pointerHeldNavFocus = false;
-    if (event.key === "Escape") setOpen(false, "escape", 120);
+    if (event.key === "Escape") {
+      dismissNavPin();   // an explicit dismissal counts as "discovered" too
+      setOpen(false, "escape", 120);
+    }
   }, true);
   primaryNav.addEventListener("pointerleave", () => {
     if (!pointerHeldNavFocus) return;

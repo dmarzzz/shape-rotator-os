@@ -536,6 +536,9 @@ async function renderResealCard(host, { variant, cohortHint, close, repaint, sea
         <button class="im-btn im-create" data-create="team"    type="button">+ new team</button>
         <button class="im-btn im-create" data-create="project" type="button">+ new project</button>
       </div>
+      <p class="im-sub" style="margin:12px 0 0 0">stuck, or don't see yourself?
+        <a href="mailto:mike@zondr.io?subject=shape%20rotator%20os%20%E2%80%94%20access" data-im-help-mail>email an organizer</a>
+        — they'll add you or fix your record.</p>
     </section>
 
     <footer class="im-foot">
@@ -657,6 +660,16 @@ async function renderResealCard(host, { variant, cohortHint, close, repaint, sea
   host.querySelector("[data-im-skip]")?.addEventListener("click", () => {
     if (!claimed) setIdentityOnboardingSkipped(true);
     if (typeof close === "function") close();
+  });
+
+  // "email an organizer" — the human fallback for anyone the roster/PR path
+  // fails (new-user audit: there was NO in-app way to reach a person). Opens the
+  // system mail client; preventDefault so the anchor never navigates the renderer.
+  host.querySelector("[data-im-help-mail]")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    const url = e.currentTarget.getAttribute("href");
+    if (!url) return;
+    try { window.api?.openExternal?.(url); } catch {}
   });
 
   // Manual github resync. Background refresh is throttled to once per

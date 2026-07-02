@@ -1270,6 +1270,11 @@ export function mountMembrane(container, opts = {}) {
     return `${Math.floor(days / 7)}w`;
   }
   const feedKey = (it) => `${it.kind || ''}|${it.date || ''}|${it.label || ''}|${it.meta || ''}`;
+  function openContextTranscripts() {
+    if (typeof window.__srwkOpenInNewTab === 'function') {
+      window.__srwkOpenInNewTab({ tab: 'alchemy', mode: 'context', contextView: 'raw' });
+    }
+  }
   // Forward-looking "incoming" band atop the same left rail as "what's new".
   // Derives tea-time / arrival / new-event / time-change cards from the agenda
   // the membrane already holds (see calendar-watch.js) — recomputed on every

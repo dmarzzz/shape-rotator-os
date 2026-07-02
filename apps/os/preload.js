@@ -217,6 +217,22 @@ contextBridge.exposeInMainWorld("api", {
     openWindow: () => ipcRenderer.invoke("daybook:open-window"),
   },
 
+  // ─── auth (Google sign-in gate) ──────────────────────────────────────
+  // Drives the main-process Supabase OAuth flow (main.js "auth:*"). signIn opens
+  // the system browser to Google consent; the session arrives asynchronously via
+  // onSession after the sros://auth-callback deep link is handled in main.
+  auth: {
+    signIn:     () => ipcRenderer.invoke("auth:sign-in"),
+    signOut:    () => ipcRenderer.invoke("auth:sign-out"),
+    getSession: () => ipcRenderer.invoke("auth:get-session"),
+    refresh:    () => ipcRenderer.invoke("auth:refresh"),
+    onSession: (cb) => {
+      const h = (_e, s) => { try { cb(s); } catch {} };
+      ipcRenderer.on("auth:session", h);
+      return () => ipcRenderer.removeListener("auth:session", h);
+    },
+  },
+
   // ─── matrix (cohort chat) ────────────────────────────────────────────
   // The "chat" top-level tab (src/renderer/chat/) drives the main-process
   // Matrix client. Invoke methods are request/response; on* subscribe to the

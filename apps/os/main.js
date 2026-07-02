@@ -2122,6 +2122,11 @@ ipcMain.handle("fg:transcript-intake:submit", async (e, opts = {}) => {
       confidence: opts.confidence,
       sessionId: opts.sessionId,
       supabase: opts.supabase,
+      // Stage under userData (writable in the packaged app). The module's default
+      // REPO_ROOT path resolves INSIDE the read-only install dir once packed →
+      // EPERM on Windows / a signed-bundle write on macOS, throwing the whole
+      // submit before it starts. See the new-user-flow audit (staging-path crash).
+      intakeRoot: path.join(app.getPath("userData"), "transcript-intake"),
     };
     // File already chosen in the renderer → submit it directly. Fall back to
     // the picker only if no path was passed (legacy callers).
@@ -2680,6 +2685,170 @@ ipcMain.handle("fg:capture-rect", async (_e, rect = null) => {
   }
 });
 
+// ─── Supabase Auth: Google sign-in gate ──────────────────────────────────────
+// Front half of the "required Google gate + approval" model (see
+// src/renderer/supabase-auth.mjs + docs/design/google-auth-gate.md). The OAuth
+// dance runs HERE because it needs the system browser + the sros:// deep-link
+// callback; the renderer drives it over window.api.auth. The session (a Supabase
+// token bundle) persists encrypted via safeStorage, same as the swarm api key.
+//
+// Flow is PKCE (code in the redirect QUERY string, which survives the custom-
+// scheme handoff more reliably than the implicit-flow URL fragment). We keep an
+// implicit-token fallback in the callback parser just in case a deployment is
+// configured that way. NOTE: sign-in only completes once the Supabase project's
+// Auth → URL Configuration allows the redirect `sros://auth-callback`.
+const SUPABASE_AUTH_URL = (process.env.SRFG_SUPABASE_URL || "https://txjntzwksiluvqcpccpc.supabase.co").replace(/\/+$/, "");
+const SUPABASE_ANON_KEY = process.env.SRFG_SUPABASE_ANON_KEY ||
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4am50endrc2lsdXZxY3BjY3BjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNzA1NzEsImV4cCI6MjA5Njk0NjU3MX0.XjXEUnw3jq1E7PwIOvhr7a3OpO2lyZv6S_Hn3JqogBA";
+const AUTH_REDIRECT      = `${DEEPLINK_SCHEME}://auth-callback`;
+const AUTH_SESSION_FILE  = path.join(app.getPath("userData"), "auth-session.enc");
+const AUTH_PKCE_FILE     = path.join(app.getPath("userData"), "auth-pkce.tmp");
+let pendingPkceVerifier  = null;
+
+function authBase64Url(buf) {
+  return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function makePkcePair() {
+  const nodeCrypto = require("node:crypto");
+  const verifier = authBase64Url(nodeCrypto.randomBytes(48));
+  const challenge = authBase64Url(nodeCrypto.createHash("sha256").update(verifier).digest());
+  return { verifier, challenge };
+}
+function decodeJwtClaims(jwt) {
+  try {
+    const seg = String(jwt).split(".")[1];
+    return JSON.parse(Buffer.from(seg.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")) || {};
+  } catch { return {}; }
+}
+function sessionFromTokenResponse(j) {
+  if (!j || !j.access_token) return null;
+  const claims = decodeJwtClaims(j.access_token);
+  return {
+    access_token: j.access_token,
+    refresh_token: j.refresh_token || null,
+    expires_at: Number(j.expires_at) || (Math.floor(Date.now() / 1000) + (Number(j.expires_in) || 3600)),
+    token_type: j.token_type || "bearer",
+    user: {
+      id: (j.user && j.user.id) || claims.sub || null,
+      email: (j.user && j.user.email) || claims.email || null,
+      user_metadata: (j.user && j.user.user_metadata) || claims.user_metadata || {},
+    },
+  };
+}
+function readAuthSession() {
+  try {
+    if (!fs.existsSync(AUTH_SESSION_FILE)) return null;
+    const raw = safeStorage.isEncryptionAvailable()
+      ? safeStorage.decryptString(fs.readFileSync(AUTH_SESSION_FILE))
+      : fs.readFileSync(AUTH_SESSION_FILE, "utf8");
+    const s = JSON.parse(raw);
+    return s && s.access_token ? s : null;
+  } catch (e) { process.stderr.write(`[auth] session read failed: ${e.message}\n`); return null; }
+}
+function writeAuthSession(session) {
+  try {
+    if (!session) { try { fs.unlinkSync(AUTH_SESSION_FILE); } catch {} return true; }
+    const json = JSON.stringify(session);
+    if (safeStorage.isEncryptionAvailable()) fs.writeFileSync(AUTH_SESSION_FILE, safeStorage.encryptString(json), { mode: 0o600 });
+    else fs.writeFileSync(AUTH_SESSION_FILE, json, { mode: 0o600 });
+    return true;
+  } catch (e) { process.stderr.write(`[auth] session write failed: ${e.message}\n`); return false; }
+}
+function broadcastAuthSession(session) {
+  const win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed());
+  try { win && win.webContents.send("auth:session", session); } catch {}
+}
+async function exchangePkceCode(code, verifier) {
+  if (!verifier) { process.stderr.write("[auth] pkce exchange: no verifier\n"); return null; }
+  try {
+    const res = await fetch(`${SUPABASE_AUTH_URL}/auth/v1/token?grant_type=pkce`, {
+      method: "POST",
+      headers: { apikey: SUPABASE_ANON_KEY, "content-type": "application/json" },
+      body: JSON.stringify({ auth_code: code, code_verifier: verifier }),
+    });
+    if (!res.ok) { process.stderr.write(`[auth] pkce exchange HTTP ${res.status}\n`); return null; }
+    return sessionFromTokenResponse(await res.json());
+  } catch (e) { process.stderr.write(`[auth] pkce exchange failed: ${e.message}\n`); return null; }
+  finally { pendingPkceVerifier = null; try { fs.unlinkSync(AUTH_PKCE_FILE); } catch {} }
+}
+function finishAuth(session) {
+  if (!session) { broadcastAuthSession(null); return; }
+  writeAuthSession(session);
+  const win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed());
+  if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
+  broadcastAuthSession(session);
+}
+// Parse sros://auth-callback?code=… (PKCE) or #access_token=… (implicit fallback).
+async function handleAuthCallback(url) {
+  const qIdx = url.indexOf("?");
+  const hIdx = url.indexOf("#");
+  const query = qIdx >= 0 ? url.slice(qIdx + 1, hIdx >= 0 ? hIdx : undefined) : "";
+  const frag  = hIdx >= 0 ? url.slice(hIdx + 1) : "";
+  const qp = new URLSearchParams(query);
+  const fp = new URLSearchParams(frag);
+  if (qp.get("error") || fp.get("error")) {
+    process.stderr.write(`[auth] callback error: ${qp.get("error_description") || qp.get("error") || fp.get("error")}\n`);
+    broadcastAuthSession(null);
+    return;
+  }
+  const code = qp.get("code");
+  if (code) {
+    const verifier = pendingPkceVerifier
+      || (() => { try { return fs.readFileSync(AUTH_PKCE_FILE, "utf8"); } catch { return null; } })();
+    finishAuth(await exchangePkceCode(code, verifier));
+    return;
+  }
+  // Implicit-flow fallback: tokens in the fragment.
+  finishAuth(sessionFromTokenResponse({
+    access_token: fp.get("access_token"),
+    refresh_token: fp.get("refresh_token"),
+    expires_at: Number(fp.get("expires_at")) || undefined,
+    expires_in: Number(fp.get("expires_in")) || undefined,
+    token_type: fp.get("token_type") || undefined,
+  }));
+}
+async function refreshAuthSession() {
+  const cur = readAuthSession();
+  if (!cur || !cur.refresh_token) return null;
+  try {
+    const res = await fetch(`${SUPABASE_AUTH_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: "POST",
+      headers: { apikey: SUPABASE_ANON_KEY, "content-type": "application/json" },
+      body: JSON.stringify({ refresh_token: cur.refresh_token }),
+    });
+    if (!res.ok) {
+      if (res.status === 400 || res.status === 401) { writeAuthSession(null); broadcastAuthSession(null); }
+      return null;
+    }
+    const session = sessionFromTokenResponse(await res.json());
+    if (session) { if (!session.refresh_token) session.refresh_token = cur.refresh_token; writeAuthSession(session); }
+    return session;
+  } catch (e) { process.stderr.write(`[auth] refresh failed: ${e.message}\n`); return null; }
+}
+
+ipcMain.handle("auth:sign-in", async () => {
+  const { verifier, challenge } = makePkcePair();
+  pendingPkceVerifier = verifier;
+  try { fs.writeFileSync(AUTH_PKCE_FILE, verifier, { mode: 0o600 }); } catch {}
+  const authorize = `${SUPABASE_AUTH_URL}/auth/v1/authorize?provider=google`
+    + `&code_challenge=${encodeURIComponent(challenge)}&code_challenge_method=s256`
+    + `&redirect_to=${encodeURIComponent(AUTH_REDIRECT)}`;
+  try { await shell.openExternal(authorize); return { ok: true }; }
+  catch (e) { return { ok: false, error: String(e && e.message ? e.message : e) }; }
+});
+ipcMain.handle("auth:get-session", async () => {
+  let s = readAuthSession();
+  if (!s) return null;
+  if (Number(s.expires_at) <= Math.floor(Date.now() / 1000) + 120) {
+    const r = await refreshAuthSession();
+    if (r) s = r;
+    else if (Number(s.expires_at) <= Math.floor(Date.now() / 1000)) return null;
+  }
+  return s;
+});
+ipcMain.handle("auth:refresh", async () => refreshAuthSession());
+ipcMain.handle("auth:sign-out", async () => { writeAuthSession(null); broadcastAuthSession(null); return { ok: true }; });
+
 // ─── deep links: sros://xxxxx ───────────────────────────────────────────────
 // Register the custom scheme so the OS hands `sros://` links to us, then route
 // them to the renderer (boot.js applyDeepLink). Arrival paths:
@@ -2704,6 +2873,9 @@ if (!app.isDefaultProtocolClient(DEEPLINK_SCHEME)) {
 
 function deliverDeepLink(url) {
   if (typeof url !== "string" || !url.startsWith(DEEPLINK_SCHEME + "://")) return;
+  // OAuth callback (sros://auth-callback?code=…): parse + persist the Supabase
+  // session in-process. Never forward raw tokens to the generic deep-link channel.
+  if (url.startsWith(AUTH_REDIRECT)) { handleAuthCallback(url); return; }
   const win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed());
   if (win && rendererReady) {
     if (win.isMinimized()) win.restore();

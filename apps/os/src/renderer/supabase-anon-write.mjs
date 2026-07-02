@@ -16,6 +16,17 @@
 
 import { readSupabaseConfig } from "./supabase-config.mjs";
 
+// Ambient authenticated bearer. When the user is signed in (auth gate), the auth
+// runtime pushes their JWT here so EVERY write below rides it — the anon key stays
+// the `apikey` (PostgREST's project resolver) while the JWT in Authorization makes
+// PostgREST run the insert as the `authenticated` role, which the Phase-2 RLS
+// policies bind to the caller's server-side record. Null ⇒ the original anon-key
+// behavior, unchanged. One ambient value beats threading a session through the
+// dozen write call sites (cohort-emit, self-report, contest, asks, context…).
+let _ambientBearer = null;
+export function setAmbientBearer(token) { _ambientBearer = token ? String(token) : null; }
+export function getAmbientBearer() { return _ambientBearer; }
+
 // Trim + bound a small field; null (not "") when empty so the column stays NULL
 // rather than storing an empty string. The single definition every box shares.
 export function clampField(value, max = 64) {
@@ -30,7 +41,12 @@ export function clampField(value, max = 64) {
 // optimistic chip and let the member retry. `Prefer: return=minimal` keeps the
 // response body empty so PostgREST does NOT need a SELECT policy to satisfy the
 // request (anon is write-only on these tables).
-export async function postAnonRow(table, body, { storage, fetchImpl, config } = {}) {
+//
+// `bearer` overrides the Authorization token (the gated/authenticated writers —
+// e.g. an access request under the signed-in user's JWT — pass their access
+// token; `apikey` stays the anon key, which is how PostgREST resolves the project).
+// Default is the anon key, i.e. the existing write-only behavior, unchanged.
+export async function postAnonRow(table, body, { storage, fetchImpl, config, bearer } = {}) {
   const doFetch = fetchImpl || globalThis.fetch;
   const { url, anonKey } = config || readSupabaseConfig(storage);
   if (!url || !anonKey || typeof doFetch !== "function" || !table) {
@@ -42,7 +58,7 @@ export async function postAnonRow(table, body, { storage, fetchImpl, config } = 
       method: "POST",
       headers: {
         apikey: anonKey,
-        authorization: `Bearer ${anonKey}`,
+        authorization: `Bearer ${bearer || _ambientBearer || anonKey}`,
         "content-type": "application/json",
         prefer: "return=minimal",
       },

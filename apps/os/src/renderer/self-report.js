@@ -570,7 +570,7 @@ async function renderManualDraft(person, githubFallback = "") {
   host.innerHTML = card(`
     <header class="selfrep-head">
       <span class="selfrep-eyebrow">type your own update</span>
-      <button type="button" class="selfrep-x" data-sr-close aria-label="close">âœ•</button>
+      <button type="button" class="selfrep-x" data-sr-close aria-label="close">✕</button>
     </header>
     <p class="selfrep-lede">No scan runs here. Answer only what you want the cohort profile to know; empty answers are ignored.</p>
     <section class="selfrep-agent-prompt">
@@ -824,8 +824,8 @@ function diffRows(base, draft, changed) {
   return (Array.isArray(changed) ? changed : []).map((k) => `
     <div class="selfrep-diff">
       <div class="selfrep-diff-k">${esc(fieldLabel(k))}</div>
-      <div class="selfrep-diff-was">${esc(asText(base && base[k]) || "â€”")}</div>
-      <div class="selfrep-diff-arrow" aria-hidden="true">â†’</div>
+      <div class="selfrep-diff-was">${esc(asText(base && base[k]) || "—")}</div>
+      <div class="selfrep-diff-arrow" aria-hidden="true">→</div>
       <div class="selfrep-diff-new">${esc(asText(draft && draft[k]))}</div>
     </div>`).join("");
 }

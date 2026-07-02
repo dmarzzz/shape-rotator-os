@@ -2514,8 +2514,6 @@ function buildContextTranscriptFeed(manifest) {
     .slice(0, 80);
 }
 
-// stat dictionaries that the panels can render. Re-runs on every cohort
-// refresh via subscribeToCohortChanges → render() chain.
 function computeMembraneData() {
   const c = state.cohort || {};
   const cohortIndex = buildCohortIndex(c);
