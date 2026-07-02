@@ -442,6 +442,35 @@ body.cc-resizing .cc-resize::before { background: var(--ds-accent); }
 }
 .cc-msg-body a { color: var(--ds-accent); }
 
+/* Page-context preset chips — one tap asks about the page you came from. */
+.cc-page-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 0 0 8px;
+}
+.cc-page-presets-label {
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  letter-spacing: 0.06em;
+  color: var(--ds-ink-4);
+}
+.cc-page-preset {
+  font-family: var(--ds-font-ui);
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-lh-xs);
+  color: var(--ds-ink-2);
+  background: var(--ds-surface-3);
+  border: 1px solid var(--ds-border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease;
+}
+.cc-page-preset:hover { border-color: var(--ds-accent); color: var(--ds-ink-1); }
+.cc-page-preset:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 1px; }
+
 .cohort-chat-form {
   border-top: 1px solid var(--ds-border);
   background: var(--ds-surface-2);

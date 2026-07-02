@@ -61,6 +61,33 @@ const FALLBACK_TRANSCRIPT_CONFIDENCE = [
 
 function $(id) { return document.getElementById(id); }
 
+// What page is the member looking at? Read from the DOM the app already stamps
+// (body.dataset.activeTab + body.dataset.alchMode) — the bot assumes ambiguous
+// questions refer to it, and the panel offers page-specific preset prompts.
+const PAGE_MAP = {
+  membrane: { label: "membrane (landing)", detail: "calendar agenda, incoming notices, what's-new feed", presets: ["what is this page showing me?", "what's happening this week?"] },
+  collab: { label: "collabboard", detail: "needs×offers matrix — who can help whom", presets: ["how does this board work?", "who should my team talk to?"] },
+  calendar: { label: "calendar", detail: "the cohort's shared program calendar", presets: ["what's next on the calendar?", "anything big coming up?"] },
+  context: { label: "context vault", detail: "transcripts, distilled readouts, and articles", presets: ["which transcripts are relevant to my team?", "what's new in context?"] },
+  shapes: { label: "teams directory", detail: "the cohort's teams and their profiles", presets: ["where is everyone at, quickly?", "which team is closest to ours?"] },
+  constellation: { label: "cohort constellation", detail: "the people/teams map", presets: ["where is everyone at, quickly?", "what does this view mean?"] },
+  mirror: { label: "mirror", detail: "your profile as the app understands you", presets: ["what does sync actually send?", "what's stale on my profile?"] },
+  activity: { label: "asks & activity", detail: "open asks and the activity feed", presets: ["what are people asking for right now?", "any asks my team could claim?"] },
+  asks: { label: "asks board", detail: "open asks from the cohort", presets: ["what are people asking for right now?", "any asks my team could claim?"] },
+  profile: { label: "a profile page", detail: "one member's or team's profile", presets: ["what is this profile telling me?"] },
+  program: { label: "program handbook", detail: "the program's pages and schedule", presets: ["what should I be doing this week?"] },
+};
+function currentPageContext() {
+  try {
+    const tab = document.body.dataset.activeTab || "";
+    if (tab === "chat") return { key: "chat", label: "matrix chat", detail: "the cohort's chat channels", presets: [] };
+    if (tab === "network") return { key: "network", label: "network glance", detail: "", presets: [] };
+    const mode = document.body.dataset.alchMode || "";
+    const hit = PAGE_MAP[mode];
+    return hit ? { key: mode, ...hit } : null;
+  } catch { return null; }
+}
+
 // Resolve the member's own person record from their claimed identity + the surface
 // (mirrors gh-fork.js::getCurrentGithubHandle). Used to hand off into the mirror.
 function resolveMyPerson(surface) {
@@ -169,6 +196,7 @@ function createController() {
   let activeFocusResolution = null;
   let selectedTeamId = "";      //   what's scanned + the team a write targets; the
                                 //   member's explicit pick (UI), else named-in-chat/primary
+  let activePage = null;        // the page the member opened the chat FROM (currentPageContext)
 
   // Auto-scroll should follow the stream, but never YANK a user who has scrolled
   // up to read earlier output. Check before each chunk grows the log.
@@ -238,12 +266,35 @@ function createController() {
     setChatView(lastView);  // return to the view you collapsed from (lastView starts "ask").
                             // Re-asserting the SAME view skips setChatView's leaving-sync
                             // teardown, so a self-report still running in the background survives.
+    // Snapshot the page the member opened the chat FROM — it scopes ambiguous
+    // questions and drives the preset chips above the composer.
+    activePage = currentPageContext();
+    renderPagePresets();
     syncDial(true);  // dial state only
     setDocked(true);  // grows the window + opens the dock (owns html.cohort-chat-open)
     window.addEventListener("keydown", onKey, true);
     setTimeout(() => input.focus(), 60);
     refreshReadiness();
     void onboardThenOffer();
+  }
+
+  // Page-specific preset prompts ("oh, I can just ask the bot about this page").
+  // One tap fills + sends. Hidden once a preset is used or when the page has none.
+  function renderPagePresets() {
+    const hostEl = $("cohort-chat-presets");
+    if (!hostEl) return;
+    const presets = (activePage && Array.isArray(activePage.presets)) ? activePage.presets : [];
+    if (!presets.length) { hostEl.hidden = true; hostEl.innerHTML = ""; return; }
+    hostEl.hidden = false;
+    hostEl.innerHTML = `<span class="cc-page-presets-label">on ${esc(activePage.label)}:</span>`
+      + presets.map((p) => `<button type="button" class="cc-page-preset" data-cc-preset="${esc(p)}">${esc(p)}</button>`).join("");
+    for (const btn of hostEl.querySelectorAll("[data-cc-preset]")) {
+      btn.addEventListener("click", () => {
+        input.value = btn.getAttribute("data-cc-preset") || "";
+        hostEl.hidden = true;
+        void send();
+      });
+    }
   }
 
   // First: if there's no local AI yet, show the setup guide (Claude Code / Codex);
@@ -1125,6 +1176,7 @@ function createController() {
       focusResolution: activeFocusResolution,
       route,
       distillations,
+      page: activePage,
     }), { focus: activeFocus, focusResolution: activeFocusResolution, route });
   }
 
@@ -1267,6 +1319,7 @@ function createController() {
     runTurn(buildChatPrompt({
       surface, history: history.slice(-6), question: lastQuestion, agent: true, focus: activeFocus, focusResolution: activeFocusResolution,
       distillations: await getDistillationsForPrompt(),
+      page: activePage,
       toolResults: `GITHUB ACTIVITY${scopeNote} (${priv ? "incl. private — scrubbed digest" : "public"}):\n${digest}`,
     }), { focus: activeFocus, focusResolution: activeFocusResolution, route: classifyChatIntent(lastQuestion) });
   }

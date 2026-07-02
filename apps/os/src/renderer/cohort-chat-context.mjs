@@ -685,8 +685,12 @@ export function needsProjectConfirmation(route, focusResolution) {
     && focusResolution.candidates.length > 1;
 }
 
-function routingBlock({ route, focus, focusResolution } = {}) {
+function routingBlock({ route, focus, focusResolution, page } = {}) {
   const lines = [`intent: ${route || "answer"}`];
+  if (page && page.label) {
+    lines.push(`current_page: ${page.label}${page.detail ? ` — ${page.detail}` : ""}`);
+    lines.push("instruction: The member is looking at this page right now. Assume an ambiguous question ('what is this?', 'how does this work?') refers to it, and ground the answer in that page's purpose before anything else. Don't dump everything about the page unprompted — answer the question, briefly.");
+  }
   if (focusResolution) {
     lines.push(`focus_reason: ${focusResolution.reason || "unknown"}`);
     if (Array.isArray(focusResolution.candidates) && focusResolution.candidates.length) {
@@ -752,7 +756,7 @@ export const ACTION_CONTRACT = [
 // `agent:true` appends the ACTION_CONTRACT so the model may propose structured
 // changes; `toolResults` injects the output of a prior tool step (e.g. a scan
 // digest) for the next loop iteration.
-export function buildChatPrompt({ surface, history = [], question, maxChars = 22000, agent = false, toolResults = "", focus = null, focusResolution = null, route = null, distillations = null } = {}) {
+export function buildChatPrompt({ surface, history = [], question, maxChars = 22000, agent = false, toolResults = "", focus = null, focusResolution = null, route = null, distillations = null, page = null } = {}) {
   const activeRoute = route || classifyChatIntent(question);
   const context = buildCohortContext(surface, { question, maxChars, focus, distillations });
   const convo = (Array.isArray(history) ? history : [])
@@ -769,7 +773,7 @@ export function buildChatPrompt({ surface, history = [], question, maxChars = 22
   return [
     SYSTEM,
     agent ? ACTION_CONTRACT : "",
-    routingBlock({ route: activeRoute, focus, focusResolution }),
+    routingBlock({ route: activeRoute, focus, focusResolution, page }),
     focusBlock,
     "\n===== COHORT CONTEXT =====",
     context,

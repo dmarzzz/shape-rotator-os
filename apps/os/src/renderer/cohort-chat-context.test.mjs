@@ -279,3 +279,15 @@ test("no distillations → no catalog section (and no crash)", () => {
   const ctx2 = buildCohortContext(surface, { question: "anything" });
   assert.doesNotMatch(ctx2, /Distilled transcripts on file/);
 });
+
+test("page context enters the routing block and scopes ambiguous questions", () => {
+  const prompt = buildChatPrompt({
+    surface,
+    question: "what is this page?",
+    page: { key: "collab", label: "collabboard", detail: "needs×offers matrix", presets: [] },
+  });
+  assert.match(prompt, /current_page: collabboard — needs×offers matrix/);
+  assert.match(prompt, /looking at this page right now/);
+  const bare = buildChatPrompt({ surface, question: "what is this page?" });
+  assert.doesNotMatch(bare, /current_page/);
+});
