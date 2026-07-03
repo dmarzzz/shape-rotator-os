@@ -102,6 +102,10 @@ ipcMain.handle("daybook:open-window", () => {
 // can't see and which dev mode (runs from source) can't reproduce.
 const SMOKE_TEST = process.argv.includes("--smoke-test") || process.env.SROS_SMOKE_TEST === "1";
 const NAV_VISUAL_AUDIT = process.env.SROS_NAV_AUDIT === "1";
+const TRANSCRIPT_RECEIVE_SELFTEST = process.argv.includes("--transcript-receive-selftest")
+  || process.env.SROS_TRANSCRIPT_RECEIVE_SELFTEST === "1";
+const TRANSCRIPT_AUTH_PROOF = process.argv.includes("--transcript-auth-proof")
+  || process.env.SROS_TRANSCRIPT_AUTH_PROOF === "1";
 
 function configureSmokeUserData() {
   if (!SMOKE_TEST) return;
@@ -203,6 +207,61 @@ function runSmokeTest() {
   // ?smoke=1 lets boot.js emit [smoke-cp] checkpoint markers (surfaced above via
   // console-message) so a headless-CI boot hang reports HOW FAR boot() got.
   win.loadFile(path.join(__dirname, "src", "index.html"), { query: { smoke: "1" } });
+}
+
+function runTranscriptReceiveSelfTest() {
+  const TIMEOUT_MS = Number(process.env.SROS_TRANSCRIPT_RECEIVE_SELFTEST_TIMEOUT_MS || process.env.SROS_SMOKE_TIMEOUT_MS) || 45000;
+  const requireGoogleSession = process.argv.includes("--require-google-session")
+    || process.env.SROS_TRANSCRIPT_RECEIVE_REQUIRE_GOOGLE_SESSION !== "0";
+  const log = (m) => process.stdout.write(`[transcript-selftest] ${m}\n`);
+  let settled = false;
+  const finish = (code, why) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    log(code === 0 ? `PASS: ${why}` : `FAIL: ${why}`);
+    app.exit(code);
+  };
+  const timer = setTimeout(
+    () => finish(1, `renderer did not signal ready within ${TIMEOUT_MS}ms`),
+    TIMEOUT_MS,
+  );
+  log(`booting renderer hidden (timeout ${TIMEOUT_MS}ms; requireGoogleSession=${requireGoogleSession ? "yes" : "no"})`);
+  const win = new BrowserWindow({
+    width: 1280, height: 800, show: false,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true, sandbox: false, nodeIntegration: false,
+    },
+  });
+  win.webContents.on("console-message", (_e, a, b) => {
+    let lvl, msg;
+    if (a && typeof a === "object") { lvl = a.level; msg = a.message; }
+    else { lvl = a; msg = b; }
+    if (lvl >= 2) log(`renderer: ${msg}`);
+  });
+  win.webContents.on("did-fail-load", (_e, ec, desc, url) =>
+    finish(1, `did-fail-load ${ec} ${desc} ${url}`));
+  win.webContents.on("render-process-gone", (_e, d) =>
+    finish(1, `render-process-gone: ${d && d.reason}`));
+  win.webContents.on("preload-error", (_e, p, err) =>
+    finish(1, `preload-error ${p}: ${err && err.message}`));
+  ipcMain.on("smoke:trace", (_e, label) => log(`cp:${label}`));
+  ipcMain.once("smoke:ready", async () => {
+    try {
+      const result = await win.webContents.executeJavaScript(`(async () => {
+        const mod = await import("./renderer/transcript-receive-selftest.mjs");
+        return await mod.runTranscriptReceiveSelfTest({ requireGoogleSession: ${requireGoogleSession ? "true" : "false"} });
+      })()`);
+      log(JSON.stringify(result, null, 2));
+      finish(result && result.ok ? 0 : 1, result && result.ok
+        ? "Shape OS transcript receive self-test passed"
+        : "Shape OS transcript receive self-test failed");
+    } catch (error) {
+      finish(1, `self-test execution failed: ${error?.message || String(error)}`);
+    }
+  });
+  win.loadFile(path.join(__dirname, "src", "index.html"), { query: { smoke: "1", transcriptSelftest: "1" } });
 }
 
 // One-time userData migration. Electron resolves `app.getPath("userData")`
@@ -1330,9 +1389,12 @@ function createWindow() {
     if (/^(https?:\/\/|mailto:)/i.test(url)) shell.openExternal(url);
     return { action: "deny" };
   });
+  const query = {};
+  if (NAV_VISUAL_AUDIT) query.navAudit = "1";
+  if (TRANSCRIPT_AUTH_PROOF) query.authProof = "1";
   win.loadFile(
     path.join(__dirname, "src", "index.html"),
-    NAV_VISUAL_AUDIT ? { query: { navAudit: "1" } } : undefined
+    Object.keys(query).length ? { query } : undefined
   );
   if (process.env.SRWK_DEVTOOLS) win.webContents.openDevTools({ mode: "detach" });
 
@@ -2927,7 +2989,7 @@ app.on("open-url", (event, url) => { event.preventDefault(); deliverDeepLink(url
 // Windows/Linux: a second `sros://` launch spawns a new process. Take the
 // single-instance lock so it forwards into THIS instance instead of opening a
 // duplicate. Scoped to non-darwin so macOS multi-instance behaviour is unchanged.
-if (process.platform !== "darwin" && !NAV_VISUAL_AUDIT) {
+if (process.platform !== "darwin" && !NAV_VISUAL_AUDIT && !TRANSCRIPT_RECEIVE_SELFTEST) {
   if (!app.requestSingleInstanceLock()) {
     app.quit();
   } else {
@@ -2945,6 +3007,7 @@ app.whenReady().then(() => {
   // the dock icon, menu, swf-node spawn, and auto-updater — none of that
   // matters for "does the renderer load without throwing".
   if (SMOKE_TEST) { runSmokeTest(); return; }
+  if (TRANSCRIPT_RECEIVE_SELFTEST) { runTranscriptReceiveSelfTest(); return; }
 
   if (process.platform === "win32") {
     try { app.setAppUserModelId("com.shape-rotator.os"); } catch {}

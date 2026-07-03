@@ -3,9 +3,10 @@
 // The app's identity was a local, unverified localStorage claim (identity.js):
 // anyone could pick anyone, and writes rode the public anon key. This module is
 // the front half of the "required Google gate + approval" model
-// (docs/design/google-auth-gate.md): sign in with Google (Supabase Auth), check
-// the VERIFIED email against the app_members roster, and either admit the user
-// (bound to their cohort record) or route them to request access.
+// (docs/design/google-auth-gate.md): sign in with Google through the Supabase
+// Auth broker, check the VERIFIED email against the app_members roster, and
+// either admit the user (bound to their cohort record) or route them to request
+// access. There is no second user-facing Supabase sign-in.
 //
 // The OAuth dance itself runs in the MAIN process (main.js) over the existing
 // sros:// deep-link + safeStorage plumbing, exposed here as window.api.auth. The
