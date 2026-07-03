@@ -15009,28 +15009,22 @@ function renderContextVaultDetail(selected) {
           <span class="alch-cv-eyebrow" title="an in-app reading copy of this article — it isn't published anywhere until someone opens an ask/program PR">draft — in-app copy, not published</span>
         </div>
         <div class="alch-cv-detail-actions">
+          <button class="alch-cv-md-action" type="button" data-cv-copy-article="${escAttr(selected.id)}" title="copy ${escAttr(selectedMdFile)}">
+            <span class="alch-cv-md-action-label">copy .md</span>
+          </button>
           <div class="alch-cv-restyle-wrap">
-            <button class="alch-cv-md-action" type="button" data-cv-restyle-toggle aria-expanded="false" title="your own local AI rewrites this article for you — preview only, not saved">
-              <span class="alch-cv-md-action-label">rewrite with your AI</span>
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-            </button>
-            <div class="alch-cv-restyle-menu" data-cv-restyle-menu>
-              <p class="alch-cv-restyle-head">The corner bot rewrites this into a preview. Nothing's saved.</p>
-              <button class="alch-cv-restyle-opt" type="button" data-cv-restyle="plainer">Plainer</button>
-              <button class="alch-cv-restyle-opt" type="button" data-cv-restyle="shorter">Shorter</button>
-              <button class="alch-cv-restyle-opt" type="button" data-cv-restyle="technical">More technical</button>
-              <button class="alch-cv-restyle-opt" type="button" data-cv-restyle="eli5">ELI5</button>
-              <div class="alch-cv-restyle-sep"></div>
-              <button class="alch-cv-restyle-opt is-all" type="button" data-cv-restyle-all>Rewrite all articles</button>
-            </div>
-          </div>
-          <div class="alch-cv-restyle-wrap">
-            <button class="alch-cv-md-action" type="button" data-cv-more-toggle aria-expanded="false" title="more actions">
+            <button class="alch-cv-md-action" type="button" data-cv-more-toggle aria-expanded="false" title="more actions — rewrite previews and PR promotions">
               <span class="alch-cv-md-action-label">more</span>
               <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
             </button>
             <div class="alch-cv-restyle-menu" data-cv-more-menu>
-              <button class="alch-cv-restyle-opt" type="button" data-cv-copy-article="${escAttr(selected.id)}" title="copy ${escAttr(selectedMdFile)}">Copy markdown</button>
+              <p class="alch-cv-restyle-head">Your local AI rewrites this into a preview. Nothing's saved.</p>
+              <button class="alch-cv-restyle-opt" type="button" data-cv-restyle="plainer">Rewrite — plainer</button>
+              <button class="alch-cv-restyle-opt" type="button" data-cv-restyle="shorter">Rewrite — shorter</button>
+              <button class="alch-cv-restyle-opt" type="button" data-cv-restyle="technical">Rewrite — more technical</button>
+              <button class="alch-cv-restyle-opt" type="button" data-cv-restyle="eli5">Rewrite — ELI5</button>
+              <button class="alch-cv-restyle-opt is-all" type="button" data-cv-restyle-all>Rewrite all articles</button>
+              <div class="alch-cv-restyle-sep"></div>
               <button class="alch-cv-restyle-opt" type="button" data-cv-promote="ask" data-cv-source-id="${escAttr(selected.id)}">Open an ask PR</button>
               <button class="alch-cv-restyle-opt" type="button" data-cv-promote="program" data-cv-source-id="${escAttr(selected.id)}">Open a program PR</button>
             </div>
@@ -15253,15 +15247,19 @@ function renderContextVaultRawDetail(selected) {
           <span class="alch-cv-eyebrow">transcript · txt</span>
         </div>
         <div class="alch-cv-detail-actions">
-          <button class="alch-cv-md-action" type="button" data-cv-distill-raw="${escAttr(selected.id)}" title="your own local AI writes a distilled readout of this raw transcript — preview only, nothing saved or published">
-            <span class="alch-cv-md-action-label">distill with your AI</span>
-          </button>
-          <button class="alch-cv-md-action" type="button" data-cv-copy-raw-bundle title="copy all transcripts">
-            <span class="alch-cv-md-action-label">copy all</span>
-          </button>
           <button class="alch-cv-md-action" type="button" data-cv-copy-raw="${escAttr(selected.id)}" title="copy ${escAttr(title)}">
             <span class="alch-cv-md-action-label">copy .txt</span>
           </button>
+          <div class="alch-cv-restyle-wrap">
+            <button class="alch-cv-md-action" type="button" data-cv-more-toggle aria-expanded="false" title="more actions">
+              <span class="alch-cv-md-action-label">more</span>
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="alch-cv-restyle-menu" data-cv-more-menu>
+              <button class="alch-cv-restyle-opt" type="button" data-cv-distill-raw="${escAttr(selected.id)}" title="your own local AI writes a distilled readout — preview only, nothing saved or published">Distill with your AI</button>
+              <button class="alch-cv-restyle-opt" type="button" data-cv-copy-raw-bundle title="copy all transcripts">Copy all transcripts</button>
+            </div>
+          </div>
         </div>
       </header>
       <article class="alch-cv-reader alch-cv-raw-reader">
@@ -15618,9 +15616,15 @@ function renderDistilledTranscriptDetail(selected) {
           <button class="alch-cv-md-action" type="button" data-cv-copy-distilled="${escAttr(selected.id)}" title="copy this readout">
             <span class="alch-cv-md-action-label">copy .md</span>
           </button>
-          <button class="alch-cv-md-action" type="button" data-cv-email-distilled="${escAttr(selected.id)}" title="open a prefilled email draft in your own mail client — nothing sends until you hit send there">
-            <span class="alch-cv-md-action-label">email me</span>
-          </button>
+          <div class="alch-cv-restyle-wrap">
+            <button class="alch-cv-md-action" type="button" data-cv-more-toggle aria-expanded="false" title="more actions">
+              <span class="alch-cv-md-action-label">more</span>
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="alch-cv-restyle-menu" data-cv-more-menu>
+              <button class="alch-cv-restyle-opt" type="button" data-cv-email-distilled="${escAttr(selected.id)}" title="opens a prefilled draft in your own mail client — nothing sends until you hit send there">Email me a copy</button>
+            </div>
+          </div>
         </div>
       </header>
       <article class="alch-cv-reader">
@@ -16235,6 +16239,7 @@ function wireContextDetailRegion(root = state.canvas) {
   // summary + the head of the readout with a paste note.
   for (const btn of root.querySelectorAll("[data-cv-email-distilled]")) {
     btn.addEventListener("click", async () => {
+      closeContextReaderMenus();
       const d = contextDistilledById(btn.dataset.cvEmailDistilled);
       if (!d || !window.api?.openExternal) return;
       const md = String(d.body_md || "");
@@ -16390,6 +16395,14 @@ function wireContextVaultResize() {
   handle.addEventListener("dblclick", () => { setW(264); saveContextPref(CV_PREFS_LS.w, "264"); });
 }
 
+// Close any open reader-header menu (the per-reader `more` dropdowns).
+function closeContextReaderMenus() {
+  for (const m of document.querySelectorAll(".alch-cv-restyle-menu.is-open")) m.classList.remove("is-open");
+  for (const t of document.querySelectorAll('[data-cv-restyle-toggle][aria-expanded="true"], [data-cv-more-toggle][aria-expanded="true"]')) {
+    t.setAttribute("aria-expanded", "false");
+  }
+}
+
 function wireContextVaultDetailActions(root = state.canvas) {
   if (!root) return;
   setupContextReadingSpine(root);
@@ -16397,12 +16410,7 @@ function wireContextVaultDetailActions(root = state.canvas) {
   // shipped with NO handlers — the rewrite feature was unreachable from the
   // header (2026-07-02: "it's not clear where that comes up"). One toggle per
   // wrap; a single document-level dismiss closes any open menu.
-  const closeCvMenus = () => {
-    for (const m of document.querySelectorAll(".alch-cv-restyle-menu.is-open")) m.classList.remove("is-open");
-    for (const t of document.querySelectorAll('[data-cv-restyle-toggle][aria-expanded="true"], [data-cv-more-toggle][aria-expanded="true"]')) {
-      t.setAttribute("aria-expanded", "false");
-    }
-  };
+  const closeCvMenus = closeContextReaderMenus;
   for (const wrap of root.querySelectorAll(".alch-cv-restyle-wrap")) {
     const toggle = wrap.querySelector("[data-cv-restyle-toggle], [data-cv-more-toggle]");
     const menu = wrap.querySelector(".alch-cv-restyle-menu");
@@ -16437,6 +16445,7 @@ function wireContextVaultDetailActions(root = state.canvas) {
   // never published; same machinery as the article restyle.
   for (const btn of root.querySelectorAll("[data-cv-distill-raw]")) {
     btn.addEventListener("click", async () => {
+      closeCvMenus();
       const sourceId = btn.dataset.cvDistillRaw;
       const result = root.querySelector("[data-cv-result]");
       const say = (html) => { if (result) { result.hidden = false; result.innerHTML = html; } };
@@ -16514,6 +16523,7 @@ function wireContextVaultDetailActions(root = state.canvas) {
   }
   for (const btn of root.querySelectorAll("[data-cv-copy-raw-bundle]")) {
     btn.addEventListener("click", async () => {
+      closeCvMenus();
       let text = "";
       if (window.api?.readContextVaultRawBundle) {
         const res = await window.api.readContextVaultRawBundle();
@@ -16524,6 +16534,7 @@ function wireContextVaultDetailActions(root = state.canvas) {
   }
   for (const btn of root.querySelectorAll("[data-cv-promote]")) {
     btn.addEventListener("click", async () => {
+      closeCvMenus();
       const source = contextSourceById(btn.dataset.cvSourceId);
       if (!source) return;
       const result = root.querySelector("[data-cv-result]");
