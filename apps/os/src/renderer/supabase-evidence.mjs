@@ -7,9 +7,9 @@
 //
 //   - PUBLIC, person-anonymized T3 cards are exposed to `anon` via the
 //     public_transcript_evidence_cards view (the only thing this module reads).
-//   - Named / cohort-internal cards stay gated behind app_transcript_evidence_cards
-//     (authenticated org members only) — a member-auth roadmap item. When app
-//     login lands, an authed reader drops in alongside this one (same shape).
+//   - Named / cohort-internal T2 cards stay gated behind the cohort_app views.
+//     They load only with a cohort-app JWT or the Supabase app session issued
+//     from Google sign-in; there is no second user-facing Supabase login.
 //
 // The view already enforces every T3 gate (published + approved + anonymous +
 // generalized_no_named_insights) and the boundary trigger guarantees no raw
@@ -41,8 +41,8 @@ import { fetchAnon } from "./supabase-anon-write.mjs";
 // ENABLED — the gated T2 cohort reader is live. Its backing migration is deployed
 // and the view (cohort_app_transcript_evidence_cards) exists (verified against the
 // cohort DB 2026-06-20: an unauthenticated read returns 401, not 404 — the view is
-// present, gated by the cohort_app/authenticated roles). With a cohort key or
-// Google sign-in app session, the app reads named / cohort-internal T2 cards live.
+// present, gated by the authenticated/cohort_app roles). With a Google sign-in
+// app session or cohort key, the app reads named / cohort-internal T2 cards live.
 // With neither bearer (public web / signed-out un-provisioned build) it falls back to the
 // anon T3 read + committed bundle. Every failure path is graceful (try/catch, returns
 // source:"error"/"unconfigured"), so enabling this can only ADD the named tier when a
@@ -70,16 +70,16 @@ export function cohortEvidenceCardsUrl(baseUrl) {
   return `${String(baseUrl || "").replace(/\/+$/, "")}/rest/v1/${COHORT_EVIDENCE_PATH}`;
 }
 
-// Fetch the GATED T2 cohort evidence using a cohort key or the Google sign-in app
-// session token. No-ops (returns source:"unconfigured") when neither bearer is
+// Fetch the GATED T2 cohort evidence using the Google sign-in app session token
+// or cohort key backup. No-ops (returns source:"unconfigured") when neither bearer is
 // available, so public web / signed-out builds fall back to the anon T3 read.
 // Kong validates apikey=anon before PostgREST; the gated role rides in the Bearer
 // token (fetchAnon's bearer override).
 export async function fetchCohortEvidenceCards(opts = {}) {
   const doFetch = opts.fetchImpl || globalThis.fetch;
   const cfg = opts.config || readSupabaseConfig(opts.storage);
-  // cohort key when provisioned, else the signed-in session token — the view
-  // grants SELECT to both roles (see resolveGatedBearer).
+  // Google sign-in app session first, then cohort key backup - the view grants
+  // SELECT to both roles (see resolveGatedBearer).
   const bearer = await resolveGatedBearer(cfg, opts);
   if (!cfg.url || !cfg.anonKey || !bearer || typeof doFetch !== "function") {
     return { cards: [], source: "unconfigured" };
@@ -105,7 +105,7 @@ export function cohortInsightCardsUrl(baseUrl) {
 }
 
 // Fetch GATED cohort-tier insight cards (collaboration_contribution, project_narrative)
-// with a cohort key or Google sign-in app session - the runtime source for the
+// with a Google sign-in app session or cohort key - the runtime source for the
 // engine-produced collaboration edges (the engine generates + reviews these and
 // publishes them to Supabase; the OS only renders). No-ops without a gated bearer.
 // Always resolves; a Supabase outage degrades to "no collaboration edges".

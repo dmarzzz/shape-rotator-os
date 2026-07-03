@@ -16,13 +16,14 @@ it proves who the user is **and** captures a verified email.
 
 ## The model in one paragraph
 
-A user signs in with Google (Supabase Auth — already enabled on project
-`txjntzwksiluvqcpccpc`, the ops site uses it). Their verified email is checked against
-`app_members`. If **approved**, the app binds their Google identity to a cohort
-`record_id` and all writes are authenticated (JWT), with RLS enforcing that a write's
-`record_id` matches the caller's bound record. If **not approved**, they land on a
-"request access" screen that files an `app_access_requests` row an admin can approve —
-the missing "reach a human to be approved" path.
+A user signs in with Google. Supabase Auth is only the broker that turns that
+verified Google identity into the app JWT that Postgres/RLS can trust; it is not
+a second user-facing login. The verified email is checked against `app_members`.
+If **approved**, the app binds their Google identity to a cohort `record_id` and
+all writes are authenticated (JWT), with RLS enforcing that a write's `record_id`
+matches the caller's bound record. If **not approved**, they land on a "request
+access" screen that files an `app_access_requests` row an admin can approve — the
+missing "reach a human to be approved" path.
 
 ## Data model (Engine repo owns migrations)
 

@@ -1,15 +1,16 @@
-# Baking the cohort key into a release (T2 evidence for all app users)
+# Baking the cohort key into a release (T2 fallback for app users)
 
 The app reads two tiers of transcript evidence live from Supabase:
 
 - **T3 (public)** — person-anonymized cards, read with the baked **anon** key. These
   already show for everyone, in the app and on the public web.
-- **T2 (cohort)** — the gated `cohort_app_transcript_evidence_cards` view, read with a
-  **`role=cohort_app` JWT**. This is deliberately *not* in source, because the repo is
-  public — a committed key would put T2 on the open web.
+- **T2 (cohort)** — the gated `cohort_app_transcript_evidence_cards` view, read with the
+  Google-backed app session first, or a **`role=cohort_app` JWT** fallback. The fallback
+  key is deliberately *not* in source, because the repo is public — a committed key would
+  put T2 on the open web.
 
-This doc is how that cohort key reaches a build so **every install reads T2 with no
-per-user setup** — the "bake into the build" path.
+This doc is how that cohort key reaches a build when we need **a no-login fallback** —
+the normal user-facing path is still Google sign-in.
 
 ## How it flows
 

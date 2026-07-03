@@ -487,7 +487,7 @@ function renderDeployPlan({
   lines.push("");
   lines.push(`- SUPABASE_URL: ${valueStatus(env, "SUPABASE_URL")}`);
   lines.push(`- SUPABASE_ANON_KEY: ${valueStatus(env, "SUPABASE_ANON_KEY")}`);
-  lines.push("- signed-in access token: from Supabase Auth at runtime");
+  lines.push("- signed-in access token: Supabase-issued app JWT from Google sign-in at runtime");
   lines.push(`- ORG_ID: ${valueStatus(env, "ORG_ID")}`);
   lines.push(`- CALENDAR_CONNECTION_ID: ${valueStatus(env, "CALENDAR_CONNECTION_ID")}`);
   lines.push("");

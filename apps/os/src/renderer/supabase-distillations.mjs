@@ -6,8 +6,8 @@
 //
 // ENABLED — like the cohort evidence reader, this is gated by
 // COHORT_APP_READER_ENABLED (supabase-evidence.mjs), now on: its backing
-// cohort_app_transcript_distillations view is deployed. With a cohort key or
-// Google sign-in app session, the transcripts tab shows the live distilled readouts;
+// cohort_app_transcript_distillations view is deployed. With a Google sign-in
+// app session or cohort key, the transcripts tab shows the live distilled readouts;
 // with neither bearer the read no-ops and the tab keeps its public empty state.
 // Privacy posture: the readouts live in
 // public.derived_artifacts, exposed to the distributed app via the GATED
@@ -95,15 +95,15 @@ export function normalizeDistillation(row) {
   };
 }
 
-// Fetch the GATED cohort distilled readouts with a cohort key or Google sign-in
-// app session. No-ops (returns source:"unconfigured") when neither bearer is available;
+// Fetch the GATED cohort distilled readouts with a Google sign-in app session
+// or cohort key backup. No-ops (returns source:"unconfigured") when neither bearer is available;
 // public web and signed-out builds keep the public evidence/empty-state path.
 // Always resolves (never throws) so a Supabase outage degrades to "no distilled transcripts".
 export async function fetchCohortDistillations(opts = {}) {
   const doFetch = opts.fetchImpl || globalThis.fetch;
   const cfg = opts.config || readSupabaseConfig(opts.storage);
-  // Cohort key when provisioned, else the Google sign-in app session token.
-  // the gated view grants SELECT to both cohort_app and authenticated.
+  // Google sign-in app session first, then cohort key backup; the gated view
+  // grants SELECT to both authenticated and cohort_app.
   const bearer = await resolveGatedBearer(cfg, opts);
   if (!cfg.url || !cfg.anonKey || !bearer || typeof doFetch !== "function") {
     return { artifacts: [], source: "unconfigured" };

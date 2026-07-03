@@ -122,8 +122,8 @@ This is where *actual transcript content* becomes insight, at runtime, in the ap
 gated Supabase views and indexes them:
 
 - `fetchPublicEvidenceCards()` -> `public_transcript_evidence_cards` (T3, anonymized) - **live today**
-- `fetchCohortEvidenceCards()` -> `cohort_app_transcript_evidence_cards` (T2, named) - **live when a cohort key or Google sign-in app session is available**
-- `fetchCohortDistillations()` -> `cohort_app_transcript_distillations` (T2, paraphrased) - **live when a cohort key or Google sign-in app session is available**
+- `fetchCohortEvidenceCards()` -> `cohort_app_transcript_evidence_cards` (T2, named) - **live when a Google sign-in app session or cohort key backup is available**
+- `fetchCohortDistillations()` -> `cohort_app_transcript_distillations` (T2, paraphrased) - **live when a Google sign-in app session or cohort key backup is available**
 
 The current receive contract is summarized in `docs/TRANSCRIPT_ENGINE_CONSUMER.md`.
 

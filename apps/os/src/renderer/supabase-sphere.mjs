@@ -13,8 +13,9 @@
 //
 // Reuses the same anon key + config resolver as the other Supabase modules; the
 // security boundary is the os_spheres RLS/grants (see the migration), not key
-// secrecy. SECURITY NOTE: with no member auth, the anon key can technically
-// write any record_id — the editor only ever saves the user's own claimed id.
+// secrecy. SECURITY NOTE: legacy signed-out builds using only the anon key can
+// technically write any record_id; the Google gate moves this to the verified
+// app session path, and the editor only ever saves the user's own claimed id.
 // See supabase/migrations/20260618010000_os_spheres.sql.
 
 import { readSupabaseConfig } from "./supabase-evidence.mjs";

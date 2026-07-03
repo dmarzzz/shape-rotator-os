@@ -319,7 +319,7 @@ function usage() {
     "  node scripts/check-transcript-receive-route.mjs --env-file .env.calendar.local [--json]",
     "",
     "Read-only Shape OS receive-route verifier.",
-    "Checks the public T3 reader, gated T2 readers via cohort key or Google sign-in app session, packaged cohort key status, and optional privacy audit when a service-role key is available.",
+    "Checks the public T3 reader, gated T2 readers via Google sign-in app session or cohort key backup, packaged cohort key status, and optional privacy audit when a service-role key is available.",
     "",
     "Options:",
     "  --require-gated       Fail if the cohort_app key is missing or gated views do not read.",
@@ -374,11 +374,11 @@ export async function checkTranscriptReceiveRoute({
     source: googleSigninAppSessionSource,
     now,
   });
-  const gatedCredentialAvailable = runtimeKey.ready || Boolean(authBridge);
-  const gatedCredentialSource = runtimeKey.ready
-    ? `cohort_key:${cohortKeySource}`
-    : authBridge
-      ? `google_signin_app_session:${googleSigninAppSessionSource}`
+  const gatedCredentialAvailable = Boolean(authBridge) || runtimeKey.ready;
+  const gatedCredentialSource = authBridge
+    ? `google_signin_app_session:${googleSigninAppSessionSource}`
+    : runtimeKey.ready
+      ? `cohort_key:${cohortKeySource}`
       : "none";
   const contract = inspectReaderContracts(config);
   const errors = [];
@@ -477,7 +477,7 @@ export async function checkTranscriptReceiveRoute({
         ? (runtimeKey.ready
             ? "T2 named evidence and distillations via cohort_app key plus public T3 evidence"
             : "T2 named evidence and distillations via Google sign-in app session plus public T3 evidence")
-        : "public T3 generalized evidence only; named T2/distillations wait for a cohort_app key or Google sign-in app session",
+        : "public T3 generalized evidence only; named T2/distillations wait for a Google sign-in app session or cohort_app key backup",
     },
     audit,
     errors,
@@ -500,7 +500,7 @@ function printSummary(result) {
   console.log(result.release_ready
     ? "PASS: Shape OS can receive public and gated transcript outputs."
     : result.ok
-      ? "PASS: Shape OS can receive public T3 transcript evidence; gated T2/distillations are waiting for a cohort key or Google sign-in app session."
+      ? "PASS: Shape OS can receive public T3 transcript evidence; gated T2/distillations are waiting for a Google sign-in app session or cohort key backup."
       : "FAIL: Shape OS transcript receive route is not ready.");
 }
 
