@@ -151,6 +151,7 @@ contextBridge.exposeInMainWorld("api", {
   // renderer scrubs + scopes (nothing leaves the box but a scrubbed digest).
   scanPrivateGithub:   (o) => ipcRenderer.invoke("fg:gh:scan-private", o || {}),
   getTranscriptIntakeOptions: () => ipcRenderer.invoke("fg:transcript-intake:options"),
+  getTranscriptIntakeHistory: () => ipcRenderer.invoke("fg:transcript-intake:history"),
   pickTranscriptFile: () => ipcRenderer.invoke("fg:transcript-intake:pick"),
   inspectTranscriptFile: (p) => ipcRenderer.invoke("fg:transcript-intake:inspect", String(p || "")),
   submitTranscriptIntake: (o) => ipcRenderer.invoke("fg:transcript-intake:submit", o || {}),

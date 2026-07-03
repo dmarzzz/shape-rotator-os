@@ -911,6 +911,39 @@ html[data-ds] .cc-composer .cc-send[hidden] { display: none !important; }
   line-height: var(--ds-lh-xs);
   color: var(--ds-ink-3);
 }
+/* recent-uploads history under the intake card */
+.cc-upload-history { margin-top: 10px; border-top: 1px solid var(--ds-border); padding-top: 8px; }
+.cc-upload-history-head {
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ds-ink-4);
+  margin-bottom: 5px;
+}
+.cc-upload-history-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-lh-xs);
+}
+.cc-upload-history-label { color: var(--ds-ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.cc-upload-history-meta { color: var(--ds-ink-4); font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); flex: 0 0 auto; }
+.cc-upload-history-state {
+  margin-left: auto; flex: 0 0 auto;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid var(--ds-border);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  color: var(--ds-ink-3);
+}
+.cc-upload-history-state.is-done { border-color: color-mix(in srgb, #5fcf8f 55%, transparent); color: #5fcf8f; }
+.cc-upload-history-state.is-queued { border-color: color-mix(in srgb, var(--ds-accent) 45%, transparent); color: var(--ds-accent); }
+.cc-upload-history-state.is-staged { border-color: color-mix(in srgb, var(--ds-danger, #e5484d) 45%, transparent); color: var(--ds-danger, #e5484d); }
+
 .cc-upload-dup {
   margin-top: 6px;
   padding: 7px 10px;

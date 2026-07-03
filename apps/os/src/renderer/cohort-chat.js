@@ -341,7 +341,57 @@ function createController() {
   // once, when ready, a one-line intro. Only offer the mirror when the AI is ready.
   async function onboardThenOffer() {
     const shownSetup = await maybeOnboard();
-    if (!shownSetup) void offerMirrorOnce();
+    if (!shownSetup) {
+      void offerMirrorOnce();
+      maybeNudgeStaleSync();
+    }
+  }
+
+  // Gentle staleness nudge ("people need to keep syncing, which kind of needs
+  // to be enforced time to time", 2026-07-02): if this device's last successful
+  // sync (stamped by self-report.js) is over two weeks old, offer a one-tap way
+  // in when the chat opens. "later" snoozes it for a week; never shown alongside
+  // the first-run mirror offer, never for unclaimed users.
+  function maybeNudgeStaleSync() {
+    try {
+      const identity = getIdentity();
+      if (!identity || identity.kind !== "person") return;
+      if (log.querySelector(".cc-card.is-offer, .cc-card.is-sync-nudge")) return;
+      const now = Date.now();
+      if (Number(localStorage.getItem("srwk:sync_nudge_snooze") || 0) > now) return;
+      const last = Number(localStorage.getItem("srwk:last_sync_at") || 0);
+      const STALE_MS = 14 * 86400000;
+      if (last && now - last < STALE_MS) return;
+      // Never-synced devices only nudge once the claim itself is a week old —
+      // day-one users are still exploring.
+      if (!last) {
+        const claimedAt = Date.parse(identity.claimed_at || "") || 0;
+        if (!claimedAt || now - claimedAt < 7 * 86400000) return;
+      }
+      const days = last ? Math.floor((now - last) / 86400000) : null;
+      const card = document.createElement("div");
+      card.className = "cc-card is-sync-nudge";
+      card.innerHTML = `
+        <div class="cc-card-eyebrow">profile freshness</div>
+        <div class="cc-card-body">${days == null
+          ? "This device hasn't run a sync yet — the cohort only sees what you've declared."
+          : `Your last sync from this device was <b>${days} days ago</b> — the cohort may be reading stale info about you.`}</div>
+        <div class="cc-card-actions">
+          <button type="button" class="btn ds-ghost" data-cc-nudge-later>later</button>
+          <button type="button" class="btn ds-primary" data-cc-nudge-sync>sync now</button>
+        </div>`;
+      card.querySelector("[data-cc-nudge-later]").addEventListener("click", () => {
+        try { localStorage.setItem("srwk:sync_nudge_snooze", String(now + 7 * 86400000)); } catch {}
+        card.remove();
+        syncWelcome();
+      });
+      card.querySelector("[data-cc-nudge-sync]").addEventListener("click", () => {
+        card.remove();
+        void openSelfReportForMe({});
+      });
+      log.appendChild(card);
+      syncWelcome();
+    } catch { /* nudging is best-effort */ }
   }
 
   // Returns true when the not-ready SETUP guide was shown (so we skip the mirror).
@@ -958,7 +1008,8 @@ function createController() {
         <button type="button" class="btn ds-ghost" data-cc-transcript-cancel>Cancel</button>
         <button type="button" class="btn ds-primary" data-cc-transcript-submit disabled>Add transcript</button>
       </div>
-      <div class="cc-card-status" data-cc-transcript-status hidden></div>`;
+      <div class="cc-card-status" data-cc-transcript-status hidden></div>
+      <div class="cc-upload-history" data-cc-upload-history hidden></div>`;
 
     const dropzone = card.querySelector("[data-cc-transcript-dropzone]");
     const select = card.querySelector("[data-cc-transcript-type]");
@@ -977,6 +1028,37 @@ function createController() {
     let confidence = confidenceOptions[0]?.key || "sure";
     let selectedFile = null;
     let busy = false;
+
+    // Recent uploads from THIS device with their fate — staged / sent / queued /
+    // processed — so "I wonder if it worked then" has an answer in place.
+    const historyEl = card.querySelector("[data-cc-upload-history]");
+    async function renderUploadHistory() {
+      if (!historyEl || !window.api?.getTranscriptIntakeHistory) return;
+      let res = null;
+      try { res = await window.api.getTranscriptIntakeHistory(); } catch {}
+      const items = res && res.ok && Array.isArray(res.items) ? res.items : [];
+      if (!items.length) { historyEl.hidden = true; historyEl.innerHTML = ""; return; }
+      let artifacts = [];
+      try { artifacts = await getDistillationsForPrompt(); } catch {}
+      const processed = (it) => artifacts.some((a) =>
+        a && a.session_type === it.session_type && it.declared_date
+        && String(a.date || a.created_at || "").slice(0, 10) === it.declared_date);
+      const rows = items.slice(0, 6).map((it) => {
+        const state = processed(it) ? ["is-done", "processed ✓"]
+          : it.submitted_at && it.processing_queued ? ["is-queued", "queued"]
+            : it.submitted_at ? ["is-queued", "sent"]
+              : ["is-staged", "staged only — didn't reach the server"];
+        const when = String(it.staged_at || "").slice(0, 10);
+        return `<div class="cc-upload-history-row">
+          <span class="cc-upload-history-label">${esc(it.label || it.session_type || "upload")}</span>
+          <span class="cc-upload-history-meta">${esc([String(it.session_type || "").replace(/_/g, " "), when].filter(Boolean).join(" · "))}</span>
+          <span class="cc-upload-history-state ${state[0]}">${esc(state[1])}</span>
+        </div>`;
+      }).join("");
+      historyEl.hidden = false;
+      historyEl.innerHTML = `<div class="cc-upload-history-head">recent uploads from this device</div>${rows}`;
+    }
+    void renderUploadHistory();
 
     // Say HOW the upload will authenticate up front. Google-signed-in users and
     // provisioned builds never need to think about tokens.
@@ -1141,6 +1223,7 @@ function createController() {
             ? `queued for processing: ${res.storageRef || type.routePath || "transcript"}`
             : `saved to Supabase: ${res.needsSessionMatch ? "needs session match" : "Drive mirror queued"}`);
           card.classList.add("is-done");
+          void renderUploadHistory();
           return;
         }
         const reason = res && (res.detail || res.reason);

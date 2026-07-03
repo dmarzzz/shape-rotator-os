@@ -1322,10 +1322,12 @@ function createWindow() {
   win.webContents.on("will-navigate", (e, url) => {
     if (String(url).startsWith("file://")) return;
     e.preventDefault();
-    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+    // mailto joins http(s): an unwired mailto anchor should still reach the
+    // system mail client instead of dead-ending on the cancelled navigation.
+    if (/^(https?:\/\/|mailto:)/i.test(url)) shell.openExternal(url);
   });
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+    if (/^(https?:\/\/|mailto:)/i.test(url)) shell.openExternal(url);
     return { action: "deny" };
   });
   win.loadFile(
@@ -2111,6 +2113,10 @@ ipcMain.handle("fg:cohort-chat:stop", async () => cohortChat.stop());
 ipcMain.handle("fg:gh:scan-private", async (_e, opts) => loadGhNode().scanPrivateGithub(opts || {}));
 
 ipcMain.handle("fg:transcript-intake:options", async () => loadTranscriptIntake().getTranscriptIntakeOptions());
+ipcMain.handle("fg:transcript-intake:history", async () => {
+  try { return { ok: true, items: loadTranscriptIntake().listTranscriptIntakeHistory({}) }; }
+  catch (e) { return { ok: false, error: String(e && e.message ? e.message : e), items: [] }; }
+});
 // Open the native file picker (file-first UI). Returns the validated file's
 // display info without staging/uploading; the renderer submits separately.
 ipcMain.handle("fg:transcript-intake:pick", async (e) => {
