@@ -120,7 +120,7 @@ UX improvement · **P3** = nice-to-have / bigger design question.
 
 ## Profile / claim page
 
-- [ ] **P2 — Simplify the claim-profile page.** "The claim page profile is terrible.
+- [x] **P2 — Simplify the claim-profile page (copy pass, `4fb87625`).** "The claim page profile is terrible.
   It could be simplified a lot."
 - [ ] **P3 — Windows org-ID entry.** A user had to enter the org ID manually on
   Windows GitHub setup — should be prefilled/automated.
