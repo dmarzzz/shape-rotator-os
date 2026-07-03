@@ -6427,20 +6427,21 @@ html[data-ds] .alch-zoom-ctl .azc-btn { height: 24px !important; min-height: 24p
   letter-spacing: -0.01em;
 }
 .ac-inspector-hero p,
-/* Sparse-record note — a bordered aside so "nothing here yet" reads as a
-   state, not a rendering failure. */
-.ac-inspector-sparse {
-  margin-top: 8px !important;
-  padding: 8px 10px;
-  border: 1px dashed rgba(var(--ink-rgb), 0.22);
-  border-radius: 8px;
-}
 .ac-inspector-note,
 .ac-inspector-empty {
   margin: 0;
   color: var(--alchemy-ink-mute);
   font-size: 11.5px;
   line-height: 1.48;
+}
+/* Sparse-record note — a bordered aside so "nothing here yet" reads as a
+   state, not a rendering failure. Placed AFTER the shared note rule so it
+   augments .ac-inspector-note instead of splitting its selector list. */
+.ac-inspector-sparse {
+  margin-top: 8px !important;
+  padding: 8px 10px;
+  border: 1px dashed rgba(var(--ink-rgb), 0.22);
+  border-radius: 8px;
 }
 .ac-inspector-hero code { color: var(--alchemy-paper-warm); font-family: var(--font-mono); font-size: 10px; }
 .ac-inspector-pills {
