@@ -16135,9 +16135,18 @@ function renderContextVault() {
     detail = sel ? contextStreamDetailHtml(sel.kind, sel.record) : renderDistilledTranscriptDetail(null);
   }
 
+  // Each lens leads with its question — the one it exists to answer. One
+  // inline row (question + quiet hint), not a stacked dek.
+  const lens = view === "library"
+    ? { q: "What are we saying about?", sub: "hints → claims → sessions, grouped by topic" }
+    : { q: "What happened?", sub: "newest first — scroll down for the past" };
   state.canvas.innerHTML = `
     <section class="alch-cv">
       ${pageHeadHtml({ side: contextToolbarHtml(view) })}
+      <div class="alch-cv-question">
+        <h2>${escHtml(lens.q)}</h2>
+        <span>${escHtml(lens.sub)}</span>
+      </div>
       ${view === "stream" && cv.composeOpen ? renderContextComposer() : ""}
       ${cv.message ? `<p class="alch-cv-message">${escHtml(cv.message)}</p>` : ""}
       ${cv.error ? `<p class="alch-cv-error">${escHtml(cv.error)}</p>` : ""}
