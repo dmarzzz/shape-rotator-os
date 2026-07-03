@@ -65,23 +65,25 @@ function $(id) { return document.getElementById(id); }
 // (body.dataset.activeTab + body.dataset.alchMode) — the bot assumes ambiguous
 // questions refer to it, and the panel offers page-specific preset prompts.
 const PAGE_MAP = {
-  membrane: { label: "membrane (landing)", detail: "calendar agenda, incoming notices, what's-new feed", presets: ["what is this page showing me?", "what's happening this week?"] },
-  collab: { label: "collabboard", detail: "needs×offers matrix — who can help whom", presets: ["how does this board work?", "who should my team talk to?"] },
-  calendar: { label: "calendar", detail: "the cohort's shared program calendar", presets: ["what's next on the calendar?", "anything big coming up?"] },
-  context: { label: "context vault", detail: "transcripts, distilled readouts, and articles", presets: ["which transcripts are relevant to my team?", "what's new in context?"] },
-  shapes: { label: "teams directory", detail: "the cohort's teams and their profiles", presets: ["where is everyone at, quickly?", "which team is closest to ours?"] },
-  constellation: { label: "cohort constellation", detail: "the people/teams map", presets: ["where is everyone at, quickly?", "what does this view mean?"] },
-  mirror: { label: "mirror", detail: "your profile as the app understands you", presets: ["what does sync actually send?", "what's stale on my profile?"] },
-  activity: { label: "asks & activity", detail: "open asks and the activity feed", presets: ["what are people asking for right now?", "any asks my team could claim?"] },
-  asks: { label: "asks board", detail: "open asks from the cohort", presets: ["what are people asking for right now?", "any asks my team could claim?"] },
-  profile: { label: "a profile page", detail: "one member's or team's profile", presets: ["what is this profile telling me?"] },
-  program: { label: "program handbook", detail: "the program's pages and schedule", presets: ["what should I be doing this week?"] },
+  membrane: { label: "membrane (landing)", detail: "calendar agenda, incoming notices, what's-new feed", presets: ["what is this page showing me?", "what's happening this week?", "what should I not miss?"] },
+  collab: { label: "collabboard", detail: "needs×offers matrix — who can help whom", presets: ["how does this board work?", "who should my team talk to?", "which needs could my team cover?"] },
+  calendar: { label: "calendar", detail: "the cohort's shared program calendar", presets: ["what's next on the calendar?", "anything big coming up?", "what should I prep this week?"] },
+  context: { label: "context vault", detail: "transcripts, distilled readouts, and articles", presets: ["which transcripts are relevant to my team?", "what's new in context?", "sum up the latest readout"] },
+  shapes: { label: "teams directory", detail: "the cohort's teams and their profiles", presets: ["where is everyone at, quickly?", "which team is closest to ours?", "who shipped something recently?"] },
+  constellation: { label: "cohort constellation", detail: "the people/teams map", presets: ["what does this view mean?", "where is everyone at, quickly?", "which teams overlap with ours?"] },
+  mirror: { label: "mirror", detail: "your profile as the app understands you", presets: ["what does sync actually send?", "what's stale on my profile?", "check my work and draft this week's update"] },
+  activity: { label: "asks & activity", detail: "open asks and the activity feed", presets: ["what are people asking for right now?", "any asks my team could claim?", "what changed this week?"] },
+  asks: { label: "asks board", detail: "open asks from the cohort", presets: ["what are people asking for right now?", "any asks my team could claim?", "what changed this week?"] },
+  profile: { label: "a profile page", detail: "one member's or team's profile", presets: ["what is this profile telling me?", "what's their strongest evidence?", "how could my team work with them?"] },
+  program: { label: "program handbook", detail: "the program's pages and schedule", presets: ["what should I be doing this week?", "how do the two awards work?", "what's coming up in the program?"] },
 };
 function currentPageContext() {
   try {
     const tab = document.body.dataset.activeTab || "";
-    if (tab === "chat") return { key: "chat", label: "matrix chat", detail: "the cohort's chat channels", presets: [] };
-    if (tab === "network") return { key: "network", label: "network glance", detail: "", presets: [] };
+    // Presets on the non-alchemy tabs stay grounded in what the bot can actually
+    // answer (the cohort surface) — never in matrix/network internals it can't see.
+    if (tab === "chat") return { key: "chat", label: "matrix chat", detail: "the cohort's chat channels", presets: ["who in the cohort should I meet?", "what's happening this week?"] };
+    if (tab === "network") return { key: "network", label: "network glance", detail: "", presets: ["what's happening in the cohort this week?"] };
     const mode = document.body.dataset.alchMode || "";
     const hit = PAGE_MAP[mode];
     return hit ? { key: mode, ...hit } : null;
@@ -203,6 +205,17 @@ function createController() {
   function isPinnedToBottom() {
     return log.scrollHeight - log.scrollTop - log.clientHeight < 48;
   }
+  // "↓ latest" chip — appears when the member has scrolled up (so a finishing
+  // answer isn't silently below the fold), floats over the log's bottom edge.
+  const jumpBtn = $("cohort-chat-jump");
+  function syncJump() { if (jumpBtn) jumpBtn.hidden = isPinnedToBottom(); }
+  log.addEventListener("scroll", syncJump, { passive: true });
+  if (jumpBtn) jumpBtn.addEventListener("click", () => {
+    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    log.scrollTo({ top: log.scrollHeight, behavior: reduce ? "auto" : "smooth" });
+    jumpBtn.hidden = true;
+    input.focus();
+  });
   // The diagnostic to show when the CLI produced no answer: prefer its own
   // stderr (e.g. ollama's `model "x" not found`) over a generic message.
   function diagnoseFailure() {
@@ -299,10 +312,16 @@ function createController() {
   pageObserver.observe(document.body, { attributes: true, attributeFilter: ["data-alch-mode", "data-active-tab"] });
 
   // Page-specific preset prompts ("oh, I can just ask the bot about this page").
-  // One tap fills + sends. Hidden once a preset is used or when the page has none.
+  // One tap fills + sends and spends only THAT chip — the page's other presets
+  // stay one tap away (hiding the whole row stranded the second question).
   function renderPagePresets() {
     const hostEl = $("cohort-chat-presets");
     if (!hostEl) return;
+    // The composer placeholder tracks the page too, so even preset-less pages
+    // say what an ambiguous question will be scoped to.
+    input.placeholder = activePage
+      ? `ask about ${activePage.label} — or anything cohort…`
+      : "ask the cohort — or ask me to do something…";
     const presets = (activePage && Array.isArray(activePage.presets)) ? activePage.presets : [];
     if (!presets.length) { hostEl.hidden = true; hostEl.innerHTML = ""; return; }
     hostEl.hidden = false;
@@ -311,7 +330,8 @@ function createController() {
     for (const btn of hostEl.querySelectorAll("[data-cc-preset]")) {
       btn.addEventListener("click", () => {
         input.value = btn.getAttribute("data-cc-preset") || "";
-        hostEl.hidden = true;
+        btn.remove();
+        if (!hostEl.querySelector("[data-cc-preset]")) { hostEl.hidden = true; hostEl.innerHTML = ""; }
         void send();
       });
     }
@@ -460,6 +480,29 @@ function createController() {
     if (href && /^https?:\/\//i.test(href)) window.api?.openExternal?.(href);
   });
 
+  const COPY_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>`;
+  const COPIED_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-9"/></svg>`;
+
+  // Hover "copy answer" beside each assistant bubble (mirrors the matrix chat's
+  // hover actions). Copies the RENDERED text, not raw markdown, so it pastes clean.
+  function buildCopyBtn(body) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "cc-copy-btn";
+    b.title = "copy answer";
+    b.setAttribute("aria-label", "copy answer");
+    b.innerHTML = COPY_SVG;
+    let resetTimer = null;
+    b.addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(body.innerText || ""); } catch { return; }
+      b.classList.add("is-copied");
+      b.innerHTML = COPIED_SVG;
+      clearTimeout(resetTimer);
+      resetTimer = setTimeout(() => { b.classList.remove("is-copied"); b.innerHTML = COPY_SVG; }, 1200);
+    });
+    return b;
+  }
+
   function appendBubble(role, text) {
     if (empty) empty.hidden = true;
     const row = document.createElement("div");
@@ -471,6 +514,7 @@ function createController() {
     if (role === "assistant" && text) body.innerHTML = renderChatMarkdown(text);
     else body.textContent = text || "";
     row.appendChild(body);
+    if (role === "assistant") row.appendChild(buildCopyBtn(body));
     log.appendChild(row);
     log.scrollTop = log.scrollHeight;
     return body;
@@ -795,7 +839,7 @@ function createController() {
   // The upload token resolves automatically — you're already in the app, so it
   // should carry your credentials (2026-07-03 feedback: "you need a supabase key
   // but that should automatically be the app"). Order: an explicit manual
-  // override → the signed-in member's Supabase session token. NO cohort-key
+  // override, then the Google sign-in app session token. NO cohort-key
   // fallback here: the ingest-artifacts function verifies its bearer against
   // /auth/v1/user (checked in the Engine repo), so only a real auth-user token
   // can upload — the read-only cohort_app key would 401.
@@ -934,7 +978,7 @@ function createController() {
     let selectedFile = null;
     let busy = false;
 
-    // Say HOW the upload will authenticate, up front — signed-in members and
+    // Say HOW the upload will authenticate up front. Google-signed-in users and
     // provisioned builds never need to think about tokens.
     const connSummary = card.querySelector(".cc-upload-connection summary");
     void (async () => {
@@ -1185,6 +1229,7 @@ function createController() {
     // Ready for the next prompt — re-focus the input so a follow-up is one keystroke
     // away (history carries, so it stays in context).
     setTimeout(() => { try { input.focus(); } catch {} }, 30);
+    syncJump(); // the reveal may land below the fold when scrolled up
     if (parsed && parsed.actions.length && !failMsg) {
       // Every proposed action becomes a review card the member must click — nothing
       // reads or writes on its own. A GitHub scan in particular uses the member's own
@@ -1262,7 +1307,16 @@ function createController() {
       route,
       distillations,
       page: activePage,
+      now: new Date().toISOString().slice(0, 10),
+      member: promptMember(surface),
     }), { focus: activeFocus, focusResolution: activeFocusResolution, route });
+  }
+
+  // The identity line for the prompt: name + id + team, nothing else — enough
+  // to ground "my/our" and personalize answers without widening the pack.
+  function promptMember(surface) {
+    const me = resolveMyPerson(surface);
+    return me ? { name: me.name, record_id: me.record_id, team: me.team } : null;
   }
 
   // Spawn ONE agent turn for a prebuilt prompt: stream stdout into a fresh bubble,
@@ -1307,6 +1361,7 @@ function createController() {
           setRunPhase("writing", secs);
         }
         if (isPinnedToBottom()) log.scrollTop = log.scrollHeight;
+        syncJump(); // growth without a scroll event → surface the ↓ latest chip
       }
     });
     statusDispose = window.api.onCohortChatStatus((s) => {
@@ -1405,6 +1460,8 @@ function createController() {
       surface, history: history.slice(-6), question: lastQuestion, agent: true, focus: activeFocus, focusResolution: activeFocusResolution,
       distillations: await getDistillationsForPrompt(),
       page: activePage,
+      now: new Date().toISOString().slice(0, 10),
+      member: promptMember(surface),
       toolResults: `GITHUB ACTIVITY${scopeNote} (${priv ? "incl. private — scrubbed digest" : "public"}):\n${digest}`,
     }), { focus: activeFocus, focusResolution: activeFocusResolution, route: classifyChatIntent(lastQuestion) });
   }
@@ -1414,6 +1471,9 @@ function createController() {
   function autosize() {
     input.style.height = "auto";
     input.style.height = Math.min(140, input.scrollHeight) + "px";
+    // The send affordance tracks emptiness. Every programmatic value change
+    // already routes through autosize(), so this is the single sync point.
+    sendBtn.disabled = !(input.value || "").trim();
   }
 
   panel.querySelectorAll("[data-cohort-chat-close]").forEach((el) => el.addEventListener("click", close));
@@ -1565,6 +1625,13 @@ function createController() {
   input.addEventListener("input", autosize);
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+    // ↑ in an empty composer recalls your last question (edit-and-resend).
+    else if (e.key === "ArrowUp" && !(input.value || "").trim() && lastQuestion) {
+      e.preventDefault();
+      input.value = lastQuestion;
+      autosize();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
   });
   saveBtn.addEventListener("click", async () => {
     try {

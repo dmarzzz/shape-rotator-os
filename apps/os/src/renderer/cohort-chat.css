@@ -389,7 +389,40 @@ body.cc-resizing .cc-resize::before { background: var(--ds-accent); }
 
 .cc-msg { display: flex; }
 .cc-msg.is-user { justify-content: flex-end; }
-.cc-msg.is-assistant { justify-content: flex-start; }
+.cc-msg.is-assistant { justify-content: flex-start; align-items: flex-end; gap: 6px; }
+/* New messages + cards settle in with a small rise (matrix-chat motion family). */
+@media (prefers-reduced-motion: no-preference) {
+  .cc-msg, .cc-card { animation: cc-msg-in 0.18s ease-out both; }
+}
+@keyframes cc-msg-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+/* Hover "copy answer" beside assistant bubbles — invisible at rest, revealed on
+   row hover or keyboard focus; flips to an accent check once copied. */
+.cc-copy-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px; height: 24px;
+  padding: 0;
+  border: 1px solid var(--ds-border);
+  border-radius: 7px;
+  background: var(--ds-surface-2);
+  color: var(--ds-ink-3);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.cc-msg:hover .cc-copy-btn, .cc-copy-btn:focus-visible { opacity: 1; }
+.cc-copy-btn:hover { color: var(--ds-ink-1); border-color: var(--ds-border-strong); }
+.cc-copy-btn:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 1px; }
+.cc-copy-btn.is-copied { opacity: 1; color: var(--ds-accent); border-color: color-mix(in srgb, var(--ds-accent) 50%, var(--ds-border)); }
+.cc-copy-btn svg { width: 13px; height: 13px; }
+/* While a streaming bubble is still hidden (run card showing), don't leave a
+   stray hover target floating in the log. */
+.cc-msg-body[hidden] + .cc-copy-btn { display: none; }
 .cc-msg-body {
   max-width: 82%;
   padding: 10px 13px;
@@ -402,7 +435,9 @@ body.cc-resizing .cc-resize::before { background: var(--ds-accent); }
 }
 .cc-msg.is-user .cc-msg-body {
   background: var(--ds-accent);
-  color: var(--ds-surface-1);
+  /* Ink-on-accent (mode-independent near-black) — --ds-surface-1 flips to
+     near-white in light mode, the same trap the send button fell into. */
+  color: var(--ds-on-accent);
   border-bottom-right-radius: 4px;
 }
 .cc-msg.is-assistant .cc-msg-body {
@@ -415,6 +450,12 @@ body.cc-resizing .cc-resize::before { background: var(--ds-accent); }
   content: "▍";
   color: var(--ds-accent);
   animation: cc-pulse 1s steps(2) infinite;
+}
+/* Failed turns read as errors, not as ordinary answers (finishRun sets it). */
+.cc-msg-body.is-error {
+  background: color-mix(in srgb, var(--ds-danger) 10%, var(--ds-surface-3));
+  border: 1px solid color-mix(in srgb, var(--ds-danger) 45%, var(--ds-border));
+  color: var(--ds-ink-1);
 }
 /* Rendered-markdown elements inside assistant bubbles (chat-markdown.mjs).
    The renderer emits no stray newlines, so the bubble's pre-wrap only ever
@@ -484,14 +525,46 @@ body.cc-resizing .cc-resize::before { background: var(--ds-accent); }
   cursor: pointer;
   transition: border-color 0.12s ease, color 0.12s ease;
 }
-.cc-page-preset:hover { border-color: var(--ds-accent); color: var(--ds-ink-1); }
+.cc-page-preset:hover {
+  border-color: var(--ds-accent);
+  color: var(--ds-ink-1);
+  background: color-mix(in srgb, var(--ds-accent) 10%, var(--ds-surface-3));
+}
 .cc-page-preset:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 1px; }
 
 .cohort-chat-form {
+  position: relative;                /* anchors the ↓ latest chip over the log edge */
   border-top: 1px solid var(--ds-border);
   background: var(--ds-surface-2);
   padding: 10px 12px;
 }
+/* "↓ latest" — floats just above the composer when you've scrolled up, so a
+   finishing answer is never silently below the fold (matrix-chat parity). */
+.cc-jump-latest {
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  border: 1px solid var(--ds-border-strong);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ds-surface-2) 92%, transparent);
+  color: var(--ds-ink-2);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  z-index: 3;
+}
+.cc-jump-latest[hidden] { display: none; }
+.cc-jump-latest:hover { color: var(--ds-ink-1); border-color: var(--ds-accent); }
+.cc-jump-latest:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 2px; }
+.cc-jump-latest svg { width: 12px; height: 12px; }
 .cohort-chat-pre-message {
   font-family: var(--ds-font-mono);
   font-size: var(--ds-text-2xs);
@@ -501,39 +574,43 @@ body.cc-resizing .cc-resize::before { background: var(--ds-accent); }
 }
 .cohort-chat-pre-message:empty { display: none; }
 .cohort-chat-pre-message.is-error { color: var(--ds-danger); }
-.cohort-chat-input-row { display: flex; align-items: flex-end; gap: 8px; }
-.cohort-chat-input {
+/* ── composer: ONE bordered card holds the textarea + the icon send/stop
+   (was a loose textarea beside a labelled pill). The card is the control —
+   it carries the border and the focus ring; the inner textarea goes naked.
+   The DS layer paints every textarea as its own control with !important, so
+   the strip-down needs the same html[data-ds] weight. Buttons are stock
+   .ds-icon-btn + intent modifiers — no bespoke button styling here. */
+.cc-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid var(--ds-border);
+  border-radius: 12px;
+  background: var(--ds-surface-1);
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+.cc-composer:focus-within {
+  border-color: var(--ds-accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ds-accent) 30%, transparent);
+}
+html[data-ds] .cc-composer .cohort-chat-input {
   flex: 1 1 auto;
   resize: none;
-  min-height: var(--ds-control-h);
+  min-height: 30px !important;
   max-height: 140px;
-  padding: 9px 12px;
-  border: 1px solid var(--ds-border);
-  border-radius: 10px;
-  background: var(--ds-surface-1);
-  color: var(--ds-ink-1);
-  font-family: var(--ds-font-ui);
-  font-size: var(--ds-text-base);
-  line-height: var(--ds-lh-base);
+  padding: 6px 8px !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  outline: none !important;
 }
-.cohort-chat-input:focus-visible { outline: none; border-color: var(--ds-accent); }
-.cohort-chat-send, .cohort-chat-stop {
-  height: var(--ds-control-h);
-  padding: 0 18px;
-  border: 0;
-  border-radius: 10px;
-  background: var(--ds-accent);
-  /* Ink-on-accent (mode-independent near-black) — not --ds-surface-1, which
-     flips to near-white in light mode and made the label white on the fill. */
-  color: var(--ds-on-accent);
-  font-family: var(--ds-font-ui);
-  font-size: var(--ds-text-sm);
-  font-weight: 600;
-  cursor: pointer;
-}
-.cohort-chat-send:hover { background: var(--ds-accent-hover); }
-.cohort-chat-stop { background: var(--ds-danger); }
-.cohort-chat-send:focus-visible, .cohort-chat-stop:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 1px; }
+html[data-ds] .cc-composer .cohort-chat-input::placeholder { color: var(--ds-ink-4); }
+.cc-send { flex: none; }
+.cc-send svg { width: 15px; height: 15px; }
+/* The DS icon-btn rule's display:inline-flex !important would beat [hidden] —
+   the send/stop swap toggles hidden, so restate it at equal weight. */
+html[data-ds] .cc-composer .cc-send[hidden] { display: none !important; }
 
 /* Settings dropdown — drops from the cogwheel in the header, spanning the full
    panel width (was a floating corner sub-modal). */
@@ -1214,6 +1291,13 @@ html[data-theme="light"] .cohort-chat-dial:hover { color: var(--ds-ink-1); }
 
 .cc-dial-glyph { position: relative; width: calc(var(--cc-win-corner) * 1.2); height: calc(var(--cc-win-corner) * 1.2); }
 
+/* Press feedback for the panel's small chip-buttons (the DS family covers the
+   real buttons; these are the custom micro-affordances). */
+@media (prefers-reduced-motion: no-preference) {
+  .cc-eg:active, .cc-page-preset:active, .cc-copy-btn:active { transform: scale(0.97); }
+  .cc-jump-latest:active { transform: translateX(-50%) scale(0.97); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cohort-chat-card { animation: none; }
   .cohort-chat-action-menu,
@@ -1239,6 +1323,7 @@ html[data-theme="light"] .cohort-chat-dial-wrap {
   --ds-border-strong: rgba(var(--ink-rgb), 0.22);
 }
 html[data-theme="light"] .cohort-chat-card { box-shadow: -16px 0 40px rgba(var(--ink-rgb), 0.13); }
+html[data-theme="light"] .cc-jump-latest { box-shadow: 0 6px 16px rgba(var(--ink-rgb), 0.15); }
 html[data-theme="light"] .cohort-chat-dial { box-shadow: 0 8px 20px rgba(var(--ink-rgb), 0.16); }
 html[data-theme="light"] .cohort-chat-dial:hover { box-shadow: 0 10px 24px rgba(var(--ink-rgb), 0.20); }
 html[data-theme="light"] .cohort-chat-action-menu { box-shadow: 0 16px 36px rgba(var(--ink-rgb), 0.16); }
