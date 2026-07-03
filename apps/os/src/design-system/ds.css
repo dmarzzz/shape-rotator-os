@@ -280,6 +280,38 @@ html[data-ds] :is(.fp-btn-skip, .alch-onb-secondary, .ds-ghost) {
   color: var(--ds-ink-3) !important;
 }
 
+/* press + disabled — the same feedback the segmented/nav families got in the
+   a11y pass, for the action + icon family above (it had hover/focus only:
+   clicks didn't register and a JS-disabled CTA still looked live). */
+@media (prefers-reduced-motion: no-preference) {
+  html[data-ds] :is(
+    .btn, .ao-btn, .chat-btn, .fp-btn, .d-btn, .alch-feed-btn, .alch-submit-pr-btn,
+    .alch-explore-btn, .cdn-btn, .hm-btn, .im-btn, .mpa-btn, .azc-btn,
+    .easel-back-btn, .easel-err-btn, .easel-q-btn, .intel-copy-btn, .cal-png-btn,
+    .peer-count-btn, .atlas-back-btn, .swarm-start-btn, .swarm-stop-btn,
+    .alch-seal-btn, .alch-onb-action,
+    .ao-btn-primary, .chat-btn-primary, .fp-btn-primary, .fp-btn-skip,
+    .alch-seal-btn-danger, .ao-btn-glyph, .swarm-icon-btn, .ux-icon-btn,
+    .alch-onb-secondary, .ds-primary, .ds-danger, .ds-icon-btn, .ds-ghost
+  ):active:not(:disabled) {
+    transform: translateY(0.5px) scale(0.99);
+    transition: transform 110ms var(--ds-ease);
+  }
+}
+html[data-ds] :is(
+  .btn, .ao-btn, .chat-btn, .fp-btn, .d-btn, .alch-feed-btn, .alch-submit-pr-btn,
+  .alch-explore-btn, .cdn-btn, .hm-btn, .im-btn, .mpa-btn, .azc-btn,
+  .easel-back-btn, .easel-err-btn, .easel-q-btn, .intel-copy-btn, .cal-png-btn,
+  .peer-count-btn, .atlas-back-btn, .swarm-start-btn, .swarm-stop-btn,
+  .alch-seal-btn, .alch-onb-action,
+  .ao-btn-primary, .chat-btn-primary, .fp-btn-primary, .fp-btn-skip,
+  .alch-seal-btn-danger, .ao-btn-glyph, .swarm-icon-btn, .ux-icon-btn,
+  .alch-onb-secondary, .ds-primary, .ds-danger, .ds-icon-btn, .ds-ghost
+):disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
 /* ── NATIVE FORM CONTROLS + DROPDOWNS ───────────────────────────────────── */
 html[data-ds] :is(input[type="text"], input[type="search"], input[type="email"],
                   input[type="number"], input:not([type]), textarea, .ds-input) {
@@ -325,37 +357,6 @@ html[data-ds] :is(select, .ds-select):not(.cb-intake-input):not(.cb-picker selec
   border-color: var(--ds-focus) !important;
 }
 
-/* ── DROPDOWN TRIGGERS — the closed control that opens a custom menu. Make them
-   match the native <select> above so every dropdown reads identically when
-   closed (was: c2-scope 'scope'-kicker pill, cw-scope 28px pill, c2-rowsctl 9px
-   uppercase mini — all different). The inner chevron (.c2-chev) is left as-is. */
-html[data-ds] :is(.c2-scope-btn, .cw-scope-btn, .c2-rowsctl-btn) {
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 7px !important;
-  height: var(--ds-control-h) !important;
-  min-height: var(--ds-control-h) !important;
-  padding: 0 11px !important;
-  border-radius: var(--ds-radius) !important;
-  border: 1px solid var(--ds-border) !important;
-  background: var(--ds-surface-3) !important;
-  color: var(--ds-ink-1) !important;
-  font: var(--ds-weight-med) var(--ds-text-sm)/1 var(--ds-font-mono) !important;
-  letter-spacing: 0 !important;
-  text-transform: none !important;
-}
-html[data-ds] :is(.c2-scope-btn, .cw-scope-btn, .c2-rowsctl-btn):hover {
-  background: var(--ds-surface-4) !important;
-  border-color: var(--ds-ink-3) !important;
-}
-/* the "scope" kicker inside .c2-scope-btn → quiet caps label */
-html[data-ds] .c2-scope-k {
-  font-size: var(--ds-text-2xs) !important;
-  letter-spacing: 0.1em !important;
-  text-transform: uppercase !important;
-  opacity: 0.55;
-}
-
 /* ── DROPDOWN MENUS — one panel, one option row, one selected state ──────────
    These diverged badly per page: panel backgrounds were --ed-bg-2 (cold grey)
    vs --alchemy-charcoal (warm) vs glass --lg-solid; shadows ran 0.45–0.55 plus
@@ -363,8 +364,7 @@ html[data-ds] .c2-scope-k {
    checkmark on others. Unify the floating panel + its rows everywhere.
    (Info popovers — .anon-popover, .search-latency-popover, .ux-conn-popover —
    are tooltips, NOT dropdowns, so they're intentionally not in this group.) */
-html[data-ds] :is(.ac-sent-menu, .c2-rowsctl-menu, .c2-scope-menu, .cw-scope-menu,
-                  .cb-intake-intent-options) {
+html[data-ds] :is(.ac-sent-menu, .cb-intake-intent-options) {
   padding: 5px !important;
   border-radius: var(--ds-radius) !important;
   border: 1px solid var(--ds-border-strong) !important;
@@ -373,7 +373,7 @@ html[data-ds] :is(.ac-sent-menu, .c2-rowsctl-menu, .c2-scope-menu, .cw-scope-men
 }
 /* option rows — visual only; don't force display/min-height so multi-line
    options (.ac-sent-opt has a label + description) keep their structure. */
-html[data-ds] :is(.ac-sent-opt, .ac-jbn-opt, .c2-rowsctl-opt, .c2-scope-opt, .cw-scope-opt,
+html[data-ds] :is(.ac-sent-opt, .ac-jbn-opt,
                   .cb-intake-intent-option, .cb-intake-team-option) {
   padding: 6px 10px !important;
   border: 0 !important;
@@ -383,7 +383,7 @@ html[data-ds] :is(.ac-sent-opt, .ac-jbn-opt, .c2-rowsctl-opt, .c2-scope-opt, .cw
   font-family: var(--ds-font-mono) !important;
   text-align: left;
 }
-html[data-ds] :is(.ac-sent-opt, .ac-jbn-opt, .c2-rowsctl-opt, .c2-scope-opt, .cw-scope-opt,
+html[data-ds] :is(.ac-sent-opt, .ac-jbn-opt,
                   .cb-intake-intent-option, .cb-intake-team-option):hover {
   background: var(--ds-surface-4) !important;
   color: var(--ds-ink-1) !important;
@@ -391,7 +391,7 @@ html[data-ds] :is(.ac-sent-opt, .ac-jbn-opt, .c2-rowsctl-opt, .c2-scope-opt, .cw
 /* selected — ONE oxide-tint wash for every family (was oxide-tint here,
    checkmark there, nothing elsewhere). Covers aria-selected, aria-checked and
    the .is-active / .is-selected conventions. */
-html[data-ds] :is(.ac-sent-opt, .ac-jbn-opt, .c2-rowsctl-opt, .c2-scope-opt, .cw-scope-opt,
+html[data-ds] :is(.ac-sent-opt, .ac-jbn-opt,
                   .cb-intake-intent-option, .cb-intake-team-option):is([aria-selected="true"],
                   [aria-checked="true"], .is-active, .is-selected) {
   background: var(--ds-accent-soft) !important;
@@ -411,7 +411,7 @@ html[data-ds] :is(
   .os-tab, .os-tab-new, .os-tab-close,
   .cc-tab, .tab-btn, .chat-seg-btn, .chat-room-btn,
   .traffic-chip, .net-subtab, .net-mode-btn, .livegraph-mode-btn,
-  .alch-prog-tab, .alch-page-view-btn, .c2-scope-btn, .cw-scope-btn
+  .alch-prog-tab, .alch-page-view-btn
 ):focus-visible {
   outline: 2px solid var(--page-focus, var(--ds-focus)) !important;
   outline-offset: 2px;

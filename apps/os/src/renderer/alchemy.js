@@ -58,8 +58,6 @@ import { unreadCounts, unreadRecordsForMode, markModeSeen, fingerprintItems, unr
 import { evidenceMoveCards, indexCohortEvidence, rankEvidenceNeighbors, teamEvidence, recentClaims, teamTimeline, claimLane, teamProgressRollup } from "./cohort-evidence-index.mjs";
 import { cardTraceBodyHtml, cardTraceHtml } from "./cohort-trace-view.mjs";
 import { getCohortTimeline } from "./cohort-timeline.js";
-import { isPresent, buildDefaultTimeline } from "./cohort-timeline-tracks.mjs";
-import { renderTimelineLanesHtml } from "./cohort-timeline-render.mjs";
 import { getStandingWeekly } from "./cohort-standing-weekly.js";
 import { periodScrubberHtml, wireScrubber, weekStopsFrom, snapshotStopsFrom } from "./cohort-period-scrubber.mjs";
 import { putLocalRecord, getRecord, getHealth, getManifest, getNodeLog } from "./sync-client.js";
@@ -80,7 +78,7 @@ import { reduceAsks } from "./asks-events.mjs";
 import { getAppContext } from "./app-context.mjs";
 import { getPrefs, setPrefs } from "./cohort-prefs.mjs";
 import { buildViewer, buildAuthorMeta, buildBlendedFeed, feedItemLabel, getLastSeen, markSeen } from "./activity-feed.mjs";
-import { mirrorViewModel, subjectEyebrow, isSelfSubject } from "./mirror-view.mjs";
+import { mirrorViewModel, normalizeMirrorMode, subjectEyebrow, isSelfSubject } from "./mirror-view.mjs";
 import { openSelfReport } from "./self-report.js";
 import { createLazyModule } from "./lazy-module.js";
 import { loadStylesheetOnce } from "./stylesheet-loader.js";
@@ -91,6 +89,7 @@ const COME_JOIN_NOTIFY_LAST_LS_KEY = "srwk:comejoin:last_alert_ms_v1";
 const COME_JOIN_NOTIFY_COOLDOWN_MS = 2 * 60 * 1000;
 const CONTEXT_VIEW_LS_KEY = "srwk:context_view"; // context page view: "articles" | "raw" | "evidence"
 const CONST_MODE_LS_KEY = "srwk:const_mode";  // constellation sub-view: "map" | "ring" | "journey" | "stack" | "targets" | "collab" ("shipped" -> mirror, "timeline" -> calendar)
+const MIRROR_VIEW_LS_KEY = "srwk:mirror_view"; // mirror subject state: { mode, focus, a, b } — survives reloads
 const CONST_SCOPE_LS_KEY = "srwk:const_scope"; // network scope: "projects" | "people"
 const CONST_LENS_LS_KEY = "srwk:const_lens";  // map lens: "all" | "relies" | "works" | "substrate"
 const CONST_TIER_LS_KEY = "srwk:const_tier";  // pinned line-source tier: "all" | "record" | "mention"
@@ -196,11 +195,9 @@ const membraneLazy = createLazyModule(() =>
   ]).then(([, module]) => module));
 const calendarLazy = createLazyModule(() =>
   Promise.all([
-    loadStylesheetOnce("vendor/shape-ui/cohort-calendar-week.css"),
     loadStylesheetOnce("renderer/calendar.css"),
-    loadStylesheetOnce("renderer/cohort-timeline-view.css"),
     import("./calendar.js"),
-  ]).then(([, , , module]) => module));
+  ]).then(([, module]) => module));
 const calendarSupabaseLazy = createLazyModule(() => import("./calendar-supabase.mjs"));
 const githubUserLazy = createLazyModule(() => import("./gh-user.js"));
 const githubForkLazy = createLazyModule(() => import("./gh-fork.js"));
@@ -323,14 +320,13 @@ const state = {
   renderSeq: 0,               // monotonic render guard; stale delayed swaps must not overwrite the latest view
   calendar: {                     // calendar tab state — see renderCalendar()
     weekIdx: null,                // 0..9; resolved on first render via calendarCurrentWeekIdx()
-    view: "cal",                  // "cal" (the unified hour grid + filter + signals) | "presence" (availability gantt)
+    view: "cal",                  // "cal" (the unified hour grid + filter) | "presence" (availability gantt)
     data: null,                   // raw Phala JSON — live response or bundled snapshot
     source: null,                 // "live" | "bundled" | null (no data yet)
     loading: false,               // true while the async live fetch is in flight
     initialMount: true,           // first render? drives scroll-to-now
     detach: null,                 // teardown returned by attachCalendarPageBehavior
     catHidden: [],                // category keys the legend-filter has switched off
-    scope: null,                  // team record_id the signals are focused on (null = all cohort)
   },
   events: [],          // normalized feed items, latest-first
   fetchedAt: 0,
@@ -384,6 +380,17 @@ export function mount(container) {
     state.constellationLens = constNormalizeConstellationLens(localStorage.getItem(CONST_LENS_LS_KEY));
     state.constEdgeTier = constNormalizeEdgeTier(localStorage.getItem(CONST_TIER_LS_KEY));
     state.constPeopleLinkFilter = constNormalizePeopleLinkFilter(localStorage.getItem(CONST_PEOPLE_LINK_LS_KEY));
+    // Mirror subject state (you · browse · compare + picks) survives reloads;
+    // stale team ids are re-validated at render by mirror-view's resolvers.
+    try {
+      const mv = JSON.parse(localStorage.getItem(MIRROR_VIEW_LS_KEY) || "null");
+      if (mv && typeof mv === "object") {
+        state.mirrorMode = normalizeMirrorMode(mv.mode);
+        if (mv.focus) state.mirrorFocusId = String(mv.focus);
+        if (mv.a) state.mirrorCompareA = String(mv.a);
+        if (mv.b) state.mirrorCompareB = String(mv.b);
+      }
+    } catch {}
     // Overview-first: the relationship map always OPENS on the themes layer (the
     // few big spaces) so you see where everything sits, then zoom in to drill
     // themes → ecosystems → teams. We deliberately do NOT restore a saved grain
@@ -1723,6 +1730,13 @@ function renderModeContent() {
   if (!canvas) return;
   const renderLabel = state.detailRecordId ? `detail:${state.detailRecordId}` : state.mode;
   try {
+    // Leaving the calendar (another mode, or a detail page over it): stop its
+    // now-line ticker (it holds refs into the markup we're about to replace).
+    // Repaints ON the calendar tear it down themselves in paintCalendarView.
+    if ((state.detailRecordId || state.mode !== "calendar") && state.calendar.detach) {
+      state.calendar.detach();
+      state.calendar.detach = null;
+    }
     // Detail page takes precedence over mode — opened by clicking a card,
     // closed by the back button (which clears state.detailRecordId).
     if (state.detailRecordId) {
@@ -7867,6 +7881,17 @@ function renderMirrorTop(vm, cardByTeam) {
   return `<div class="ac-mirror-wrap" data-mirror-wrap>${switcher}${body}</div>`;
 }
 
+function saveMirrorView() {
+  try {
+    localStorage.setItem(MIRROR_VIEW_LS_KEY, JSON.stringify({
+      mode: state.mirrorMode || "self",
+      focus: state.mirrorFocusId || "",
+      a: state.mirrorCompareA || "",
+      b: state.mirrorCompareB || "",
+    }));
+  } catch {}
+}
+
 function wireMirrorSwitch() {
   const canvas = state.canvas;
   if (!canvas) return;
@@ -7875,12 +7900,13 @@ function wireMirrorSwitch() {
       const m = btn.getAttribute("data-mirror-mode");
       if (!m || state.mirrorMode === m) return;
       state.mirrorMode = m;
+      saveMirrorView();
       renderSayDidShipped();
     });
   }
   const onPick = (key, attr) => {
     const sel = canvas.querySelector(`[data-mirror-pick="${key}"]`);
-    if (sel) sel.addEventListener("change", () => { state[attr] = sel.value; renderSayDidShipped(); });
+    if (sel) sel.addEventListener("change", () => { state[attr] = sel.value; saveMirrorView(); renderSayDidShipped(); });
   };
   onPick("focus", "mirrorFocusId");
   onPick("compare-a", "mirrorCompareA");
@@ -8810,62 +8836,6 @@ function constBubbleContainerSvg(c, accentStyle, dim = false) {
 // ones stay hover-only so the at-rest map doesn't collapse into a name pile.
 const BUBBLE_LABEL_R_MIN = 12.5;
 
-// Cohort Timeline lane view — activity / session-insights / standing / presence
-// on one shared program-time axis (data: cohort-timeline-tracks.mjs; HTML:
-// cohort-timeline-render.mjs; visuals: cohort-timeline-view.css). Reads the
-// rewind-aware cohort surface so the canonical "As of [Total ▾]" selector scopes
-// it like every other cohort view. The pure data + HTML layers are unit-tested;
-// this only wires them to the canvas. The session-insights lane lights up from
-// the attributed transcript_evidence_cards (empty until those are present).
-function buildCohortTimelineModel(cohort = state.cohort) {
-  cohort = cohort || {};
-  const teams = cohort.teams || [];
-  const people = cohort.people || [];
-  const teamNameById = new Map(
-    teams.filter((t) => t && t.record_id).map((t) => [t.record_id, t.name || t.record_id]),
-  );
-  const nowMs = Date.now();
-  return buildDefaultTimeline(
-    {
-      whatsNew: cohort.whats_new || [],
-      standingWeekly: state.standingWeekly,
-      people,
-      evidenceCards: cohort.transcript_evidence_cards || [],
-      teamNameById,
-    },
-    { startMs: PROGRAM_START_MS, endMs: PROGRAM_END_MS, nowMs },
-  );
-}
-
-function legacyCohortTimelinePreview() {
-  loadStylesheetOnce("renderer/cohort-timeline-view.css");
-  const timeline = buildCohortTimelineModel(activeConstellationCohort());
-  const points = timeline.lanes.reduce(
-    (n, l) => n + ((l.items || l.points || l.samples || []).length),
-    0,
-  );
-  const sentenceBar = `
-    <div class="ac-sentence" role="group" aria-label="cohort timeline summary">
-      <strong class="ac-sent-fact">${escHtml(String(timeline.lanes.length))} lanes</strong>
-      <span class="ac-sent-word">· activity, session insights, standing &amp; presence on the program axis</span>
-      <span class="ac-sent-word">·</span>
-      <strong class="ac-sent-fact">${escHtml(String(points))}</strong>
-      <span class="ac-sent-word">points · scoped by the “As of” rewind</span>
-    </div>`;
-  state.canvas.innerHTML = `
-    ${cohortPageHead("timeline")}
-    ${sentenceBar}
-    <div class="alch-timeline-view">${renderTimelineLanesHtml(timeline)}</div>`;
-}
-
-// The timeline writes straight into state.canvas with no .ac-inspector panel,
-// so neither the inspector's [data-const-team] delegate nor the persistent map
-// canvas handler (which doesn't handle teams, and isn't even bound on a cold
-// deep-link into timeline mode) ever reaches its dots. Bind ONE idempotent
-// canvas delegate, scoped to the timeline markers, so a team/insight dot opens
-// that team's dossier with Back returning to the constellation (this view) —
-// mirroring how say/did/shipped project cards open. The .ctl-dot markers are
-// native <button>s, so Enter/Space fire this click handler for free.
 function renderConstellation() {
   const cohort = activeConstellationCohort();
   const teams = cohort.teams || [];
@@ -11028,65 +10998,6 @@ function ensureCalendarSurfaceLoaded() {
     });
 }
 
-// Daily context for the calendar grid — the two agenda signals that fold onto
-// the week: who's in town (real presence, from people dates/absences) and the
-// workstream scope they follow. Shipped activity rides the existing whats_new
-// `activity` path in the renderer; standing is deliberately not surfaced here
-// (seed data — it lives in the standing views). Computed host-side because the
-// renderer (calendar.js) never sees people/team data.
-function computeCalendarSignals() {
-  const cal = state.calendar;
-  const cohort = activeConstellationCohort();
-  const live = state.cohort || cohort;
-  const people = Array.isArray(live?.people) ? live.people : [];
-  const teams = (cohort?.teams || [])
-    .filter(t => t && t.record_id && teamKind(t) !== "person")
-    .sort((a, b) => String(a.name || a.record_id).localeCompare(String(b.name || b.record_id)))
-    .map(t => ({ id: t.record_id, name: t.name || t.record_id }));
-  const scopeId = teams.some(t => t.id === cal.scope) ? cal.scope : null;
-
-  const DAY = 86400000, WK = 7 * DAY;
-  const wi = Number.isFinite(cal.weekIdx) ? cal.weekIdx : 0;
-  const winStart = PROGRAM_START_MS + wi * WK;
-  const roster = people.filter(p => p && (p.dates_start || p.dates_end)
-    && (!scopeId || p.team === scopeId || (Array.isArray(p.secondary_teams) && p.secondary_teams.includes(scopeId))));
-  const rosterTotal = roster.length;
-  const occAt = (ms) => roster.reduce((n, p) => n + (isPresent(p, ms) ? 1 : 0), 0);
-  const perDay = [];
-  for (let k = 0; k < 7; k++) {
-    const noon = winStart + k * DAY + DAY / 2;
-    const present = roster.filter(p => isPresent(p, noon));
-    perDay.push({ inTown: present.length, inTownNames: present.map(p => p.name || p.record_id) });
-  }
-  // Week-over-week occupancy (each week's mean of its 7 days), so the in-town
-  // hover can place "this week" in the arc of the whole residency.
-  const weeklyOccupancy = [];
-  for (let w = 0; w < WEEKS_TOTAL; w++) {
-    const wStart = PROGRAM_START_MS + w * WK;
-    let sum = 0;
-    for (let k = 0; k < 7; k++) sum += occAt(wStart + k * DAY + DAY / 2);
-    const present = Math.round(sum / 7);
-    weeklyOccupancy.push({ week: w, present, frac: rosterTotal ? present / rosterTotal : 0, isCurrent: w === wi });
-  }
-  // Per-week shipping counts (releases) so the residency arc carries ship marks
-  // across all ten weeks, not just the viewed one.
-  const whatsNew = Array.isArray(live?.whats_new) ? live.whats_new : [];
-  const weeklyShips = new Array(WEEKS_TOTAL).fill(0);
-  for (const a of whatsNew) {
-    if (!a || a.kind !== "release" || !a.date) continue;
-    const t = Date.parse(`${a.date}T12:00:00Z`);
-    if (!Number.isFinite(t)) continue;
-    const wIdx = Math.floor((t - PROGRAM_START_MS) / WK);
-    if (wIdx >= 0 && wIdx < WEEKS_TOTAL) weeklyShips[wIdx] += 1;
-  }
-  return {
-    scope: { id: scopeId, name: scopeId ? (teams.find(t => t.id === scopeId)?.name || scopeId) : "all cohort", teams },
-    perDay,
-    rosterTotal,
-    weeklyOccupancy,
-    weeklyShips,
-  };
-}
 
 function paintCalendarView({ wire = false } = {}) {
   seedCalendarData();
@@ -11098,17 +11009,14 @@ function paintCalendarView({ wire = false } = {}) {
   const cal = state.calendar;
   if (cal.weekIdx == null) cal.weekIdx = calendarCurrentWeekIdx();
   // Tear down the previous now-line ticker before swapping markup so
-  // intervals don't stack across repaints; drop any open in-town popover (it
-  // lives on <body>, outside the canvas being replaced).
+  // intervals don't stack across repaints.
   if (cal.detach) { cal.detach(); cal.detach = null; }
-  calendarModule.closeCalendarInTown?.();
   // Agenda folded into the grid; only "cal" and "presence" remain. A view value
   // left over from the retired agenda tab degrades to the calendar grid.
   if (cal.view !== "presence" && cal.view !== "cal") cal.view = "cal";
   const presence = cal.view === "presence";
-  // The calendar page is the week grid alone now — the program-axis "follow board"
-  // that used to ride under it (followed subscription lanes) was removed, so the
-  // host no longer builds or passes a followed timeline.
+  // The calendar page is the week grid alone now — the follow board / signal
+  // lanes that used to ride under it were removed with their whole stack.
   state.canvas.innerHTML = calendarModule.renderCalendarPage({
     data: cal.data,
     calendarGoogleEvents: state.cohort?.calendar_google_events || {},
@@ -11116,9 +11024,7 @@ function paintCalendarView({ wire = false } = {}) {
     source: cal.source,
     view: cal.view,
     presenceHtml: presence ? renderCalAvailability() : "",
-    activity: Array.isArray(state.cohort?.whats_new) ? state.cohort.whats_new : [],
     catHidden: Array.isArray(cal.catHidden) ? cal.catHidden : [],
-    signals: presence ? null : computeCalendarSignals(),
   });
   if (presence) {
     mountAvailabilityCanvas();
@@ -11165,59 +11071,18 @@ function wireCalendar() {
     });
   }
 
-  // calendar-grid controls (the agenda's filter + signals, now on the grid):
-  // category filter, workstream scope, and the signal-row toggles. Only the
-  // calendar view carries them — presence is its own surface.
+  // calendar-grid controls: the category legend-filter. Only the calendar view
+  // carries it — presence is its own surface.
   if (cal.view !== "presence") {
-    const toggleIn = (arrKey, val) => {
-      const set = new Set(Array.isArray(cal[arrKey]) ? cal[arrKey] : []);
-      set.has(val) ? set.delete(val) : set.add(val);
-      cal[arrKey] = [...set];
-      refreshCalendarView();
-    };
     for (const b of state.canvas.querySelectorAll("[data-c2-cat]")) {   // legend → category show/hide
-      b.addEventListener("click", () => toggleIn("catHidden", b.getAttribute("data-c2-cat")));
-    }
-    // scope dropdown — focuses the daily signals on one workstream. Keyboard:
-    // the trigger opens on Enter/↓; once open ↑/↓ roam the options, Enter selects,
-    // Escape closes and returns focus to the trigger (listbox a11y pattern).
-    const scopeBtn = state.canvas.querySelector("[data-c2-scope-toggle]");
-    const scopeMenu = state.canvas.querySelector(".c2-scope-menu");
-    if (scopeBtn && scopeMenu) {
-      const opts = [...scopeMenu.querySelectorAll("[data-c2-scope]")];
-      const setOpen = (open) => {
-        scopeMenu.toggleAttribute("hidden", !open);
-        scopeBtn.setAttribute("aria-expanded", open ? "true" : "false");
-        if (open) (opts.find(o => o.getAttribute("aria-selected") === "true") || opts[0])?.focus();
-      };
-      scopeBtn.addEventListener("click", (e) => { e.stopPropagation(); setOpen(scopeMenu.hasAttribute("hidden")); });
-      scopeBtn.addEventListener("keydown", (e) => {
-        if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " " || e.key === "Spacebar") { e.preventDefault(); setOpen(true); }
-      });
-      for (const opt of opts) {
-        opt.addEventListener("click", () => { cal.scope = opt.getAttribute("data-c2-scope") || null; refreshCalendarView(); });
-      }
-      scopeMenu.addEventListener("keydown", (e) => {
-        const i = opts.indexOf(document.activeElement);
-        if (e.key === "ArrowDown") { e.preventDefault(); opts[Math.min(opts.length - 1, i + 1)]?.focus(); }
-        else if (e.key === "ArrowUp") { e.preventDefault(); opts[Math.max(0, i - 1)]?.focus(); }
-        else if (e.key === "Home") { e.preventDefault(); opts[0]?.focus(); }
-        else if (e.key === "End") { e.preventDefault(); opts[opts.length - 1]?.focus(); }
-        else if (e.key === "Escape") { e.preventDefault(); setOpen(false); scopeBtn.focus(); }
+      b.addEventListener("click", () => {
+        const set = new Set(Array.isArray(cal.catHidden) ? cal.catHidden : []);
+        const val = b.getAttribute("data-c2-cat");
+        set.has(val) ? set.delete(val) : set.add(val);
+        cal.catHidden = [...set];
+        refreshCalendarView();
       });
     }
-    if (!state.c2ScopeOutsideBound) {
-      state.c2ScopeOutsideBound = true;
-      document.addEventListener("click", (e) => {
-        if (state.mode !== "calendar") return;
-        const m = state.canvas?.querySelector(".c2-scope-menu");
-        if (m && !m.hasAttribute("hidden") && !e.target.closest("[data-c2-scope-ctl]")) {
-          m.setAttribute("hidden", "");
-          state.canvas.querySelector("[data-c2-scope-toggle]")?.setAttribute("aria-expanded", "false");
-        }
-      });
-    }
-
   }
 
   // presence-view extras — gantt export + the "edit my availability" jump.
@@ -11263,6 +11128,13 @@ function wireCalendar() {
       calendarLazy.peek()?.openCalendarEvent?.(card.dataset.c2Ev, { anchor: event.currentTarget });
     });
   }
+
+  // "suggest an event" — opens the suggestion form (routes to the program
+  // admins through the anon Supabase inbox; see calendar-suggest.mjs).
+  const suggestBtn = state.canvas.querySelector("[data-c2-suggest]");
+  if (suggestBtn) suggestBtn.addEventListener("click", () => {
+    calendarLazy.peek()?.openCalendarSuggest?.();
+  });
 
   for (const btn of state.canvas.querySelectorAll("[data-c2-retry]")) {
     btn.addEventListener("click", () => {
@@ -16112,9 +15984,7 @@ function renderContextVault() {
   const manifest = cv.manifest || null;
   const sources = contextArticleSources(manifest);
   const rawScripts = manifest?.raw_scripts || [];
-  // Context views live in the rail sub-nav. Keep the page body about the
-  // selected lane instead of rendering a second tab strip here.
-  const nav = "";
+  // Context views live in the rail sub-nav — no in-page tab strip.
 
   // Evidence view — distilled transcript cards read live from Supabase
   // (cohort-source.js overlays them onto the surface). Full-width under the
@@ -16124,7 +15994,7 @@ function renderContextVault() {
     const { t2cards, t3cards, insights } = contextEvidenceData();
     state.canvas.innerHTML = `
       <section class="alch-cv">
-        ${pageHeadHtml({ nav, side: contextToolbarHtml() })}
+        ${pageHeadHtml({ side: contextToolbarHtml() })}
         ${renderContextEvidence(tier, t3cards, t2cards, insights)}
       </section>
     `;
@@ -16228,7 +16098,7 @@ function renderContextVault() {
 
   state.canvas.innerHTML = `
     <section class="alch-cv">
-      ${pageHeadHtml({ nav, side: contextToolbarHtml() })}
+      ${pageHeadHtml({ side: contextToolbarHtml() })}
       ${mode === "raw" ? renderContextComposer() : ""}
       ${mode === "raw" ? transcriptsSourceToggleHtml(tsource, rawScripts.length, distilled.length) : ""}
       ${cv.message ? `<p class="alch-cv-message">${escHtml(cv.message)}</p>` : ""}
