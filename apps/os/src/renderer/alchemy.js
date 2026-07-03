@@ -346,10 +346,10 @@ const state = {
     // (articles / raw / evidence) normalize into these.
     mode: "stream",
     query: "",
-    tag: null,
     selectedStream: null, // "kind:id" of the stream row whose reader is open
     topicKey: null,       // active library topic
     libraryOpen: null,    // { kind, id } — a hint/session opened from a topic page
+    collapsedGroups: null, // Set of folded stream date-group labels (session-only)
     prefs: null,          // lazy-loaded personalization (width / measure / size / accent)
     preview: null,        // active restyle lens: { style, mode: "one" | "all" } — never persisted
     previewId: null,      // the source id a "one" preview applies to
@@ -14696,6 +14696,25 @@ function selectContextStreamItem(key) {
   if (kind === "raw" && !cv.rawTextById?.[id]) loadContextRawScriptText(id);
 }
 
+// Fold/unfold one date group in place. The row visibility goes through the
+// shared filter pass so an active search keeps looking inside folded groups.
+function toggleContextStreamGroup(btn) {
+  const cv = state.contextVault;
+  const set = cv.collapsedGroups instanceof Set ? cv.collapsedGroups : (cv.collapsedGroups = new Set());
+  const label = btn.dataset.cvGroup || "";
+  const collapsed = !set.has(label);
+  if (collapsed) set.add(label); else set.delete(label);
+  btn.classList.toggle("is-collapsed", collapsed);
+  btn.setAttribute("aria-expanded", String(!collapsed));
+  btn.title = collapsed ? "expand" : "collapse";
+  let el = btn.nextElementSibling;
+  while (el && !el.matches("[data-cv-group]")) {
+    if (el.matches("[data-cv-stream]")) el.dataset.cvCollapsed = collapsed ? "1" : "";
+    el = el.nextElementSibling;
+  }
+  if (typeof cv._applyFilter === "function") cv._applyFilter();
+}
+
 function selectContextTopic(key) {
   const cv = state.contextVault;
   if (!key || (cv.topicKey === key && !cv.libraryOpen)) return;
@@ -15516,15 +15535,28 @@ function cohortKeyFormHtml(configured) {
 
 // One evidence claim as a compact row — the library/topic and session-rollup
 // representation (the old full-card grid retired with the evidence view).
+// Provenance (evidence level · scope · teams · date) stays tucked under the
+// claim and reveals on hover — details without a click, noise off by default.
 function contextClaimRowHtml(card) {
   const type = String(card.claim_type || "insight").replace(/_/g, " ");
   const text = String(card.claim_text || card.title || card.summary || "").trim();
   const confNum = Number(card.confidence);
   const conf = Number.isFinite(confNum) ? `${Math.round(confNum * 100)}%` : "";
+  const teams = (Array.isArray(card.content_json?.teams) ? card.content_json.teams : [])
+    .map((t) => String(t).replace(/-/g, " ").trim()).filter(Boolean).slice(0, 3).join(", ");
+  const prov = [
+    String(card.evidence_level || "").replace(/_/g, " ").trim(),
+    String(card.attribution_scope || "").replace(/_/g, " ").trim(),
+    teams,
+    contextEvidenceDate(card.created_at),
+  ].filter(Boolean).join(" · ");
   return `
     <div class="alch-cv-claim">
       <span class="alch-cv-claim-type">${escHtml(type)}</span>
-      <p class="alch-cv-claim-text">${escHtml(text)}</p>
+      <div class="alch-cv-claim-main">
+        <p class="alch-cv-claim-text">${escHtml(text)}</p>
+        ${prov ? `<span class="alch-cv-claim-prov">${escHtml(prov)}</span>` : ""}
+      </div>
       ${conf ? `<span class="alch-cv-claim-conf" title="confidence">${escHtml(conf)}</span>` : ""}
     </div>`;
 }
@@ -15560,7 +15592,7 @@ function renderDistilledTranscriptDetail(selected) {
     const configured = cohortKeyConfigured();
     const showKeyForm = cohortKeyFormEnabled();
     const lede = configured
-      ? `Google sign-in is active, but no cohort readouts came back yet. The backup key may be wrong or expired, or no sessions have been distilled, reviewed, and published.`
+      ? `Google sign-in is the primary path, but no cohort readouts came back yet. The backup key may be wrong or expired, or no sessions have been distilled, reviewed, and published.`
       : `Sign in with Google to unlock cohort readouts. Generalized public claims still appear without it.`;
     return `
       <article class="alch-cv-detail alch-cv-empty-detail">
@@ -15658,16 +15690,21 @@ function canCaptureContextSnapshot() {
   );
 }
 
-function contextToolbarHtml() {
+function contextToolbarHtml(view = "stream") {
   const p = contextPrefs();
+  const cv = state.contextVault;
   const canSnapshot = canCaptureContextSnapshot();
+  const addBtn = view === "stream" ? `
+      <button class="alch-cv-tool${cv.composeOpen ? " is-on" : ""}" type="button" data-cv-add aria-expanded="${cv.composeOpen === true}" title="add context — paste a transcript or note for distillation">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>add
+      </button>` : "";
   const seg = (set, val, cur, label) =>
     `<button class="alch-cv-seg${val === cur ? " is-on" : ""}" type="button" data-cv-pref="${set}" data-v="${escAttr(val)}">${label}</button>`;
   const activeAccent = (p.accent && CV_ACCENTS[p.accent]) ? p.accent : "#EAB308";
   const sw = (val) =>
     `<button class="alch-cv-sw${val === activeAccent ? " is-on" : ""}" type="button" data-cv-pref="accent" data-v="${val}" style="background:${val}" title="${val}" aria-label="accent ${val}"></button>`;
   return `
-    <div class="alch-cv-toolbar">
+    <div class="alch-cv-toolbar">${addBtn}
       <button class="alch-cv-tool${canSnapshot ? "" : " is-disabled"}" type="button" data-cv-snapshot${canSnapshot ? "" : " disabled aria-disabled=\"true\""} title="${canSnapshot ? "Save this reader as a PNG" : "Snapshots are available in the desktop app"}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-2h6l2 2h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg>snapshot
       </button>
@@ -15690,26 +15727,6 @@ function contextToolbarHtml() {
         <p class="alch-cv-pop-note">Saved to this device only — your copy. The shared design system doesn't change.</p>
       </div>
     </div>`;
-}
-
-// Tag chips for the stream — one vocabulary across species (article
-// skills/tags ∪ readout themes ∪ raw source kinds), slugged so multi-word
-// topics survive the whitespace-tokenized data-cv-tags filter, busiest first.
-function contextStreamTags(items) {
-  const counts = new Map();
-  const add = (slug) => { if (slug) counts.set(slug, (counts.get(slug) || 0) + 1); };
-  for (const item of items || []) {
-    if (item.kind === "article") articleTopics(item.record).forEach((t) => add(topicSlug(t)));
-    else if (item.kind === "readout") distilledTopics(item.record).forEach((t) => add(topicSlug(t)));
-    else add(topicSlug(String(item.record?.source_kind || "")));
-  }
-  return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([slug]) => slug).slice(0, 20);
-}
-
-function contextTagChipsHtml(tags, active) {
-  if (!tags || !tags.length) return "";
-  return `<div class="alch-cv-tags">${tags.map((t) =>
-    `<button class="alch-cv-tag${t === active ? " is-on" : ""}" type="button" data-cv-tag="${escAttr(t)}">#${escHtml(t)}</button>`).join("")}</div>`;
 }
 
 // Ephemeral raw-transcript distillation prompt (preview-only companion to the
@@ -15962,13 +15979,13 @@ function contextStreamConfBadge(record) {
   return `<span class="alch-cv-conf is-${tierWord.replace(/\s+/g, "-")}" title="type confidence ${Math.round(c * 100)}%">${escHtml(tierWord)}</span>`;
 }
 
-function contextStreamRowHtml(item, selectedKey) {
+function contextStreamRowHtml(item, selectedKey, inCollapsedGroup = false) {
   const key = streamKey(item.kind, item.id);
   const selectedCls = key === selectedKey ? " is-selected" : "";
   const pvBadge = item.kind === "article" && contextPreviewApplies(item.record) ? `<span class="alch-cv-pvbadge">preview</span>` : "";
   const desc = contextStreamDesc(item);
   return `
-    <button class="alch-cv-source alch-cv-transcript-source${selectedCls}" type="button" data-cv-stream="${escAttr(key)}" data-cv-tags="${contextStreamTagsAttr(item)}">
+    <button class="alch-cv-source alch-cv-transcript-source${selectedCls}" type="button" data-cv-stream="${escAttr(key)}" data-cv-tags="${contextStreamTagsAttr(item)}"${inCollapsedGroup ? ` data-cv-collapsed="1" hidden` : ""}>
       ${pvBadge}
       <strong>${escHtml(contextStreamTitle(item))}</strong>
       ${desc ? `<span class="alch-cv-source-desc">${escHtml(desc)}</span>` : ""}
@@ -16014,11 +16031,17 @@ function contextTopicPageHtml(topicKey) {
       <span>${escHtml(contextArticleDek(a))}</span>
     </button>`).join("");
   const claimsBody = page.claims.map(contextClaimRowHtml).join("");
-  const sessRows = page.sessions.map((d) => `
+  const sessRows = page.sessions.map((d) => {
+    const summary = String(d.summary || d.thesis || "").trim();
+    return `
     <button class="alch-cv-lib-item alch-cv-lib-sess" type="button" data-cv-lib-open="${escAttr(streamKey("readout", d.id))}">
-      <strong>${escHtml(distilledTranscriptTitle(d))}</strong>
-      <span class="alch-cv-lib-when">${escHtml(contextEvidenceDate(d.date || d.created_at) || "")}</span>
-    </button>`).join("");
+      <span class="alch-cv-lib-sess-head">
+        <strong>${escHtml(distilledTranscriptTitle(d))}</strong>
+        <span class="alch-cv-lib-when">${escHtml(contextEvidenceDate(d.date || d.created_at) || "")}</span>
+      </span>
+      ${summary ? `<span class="alch-cv-lib-desc">${escHtml(summary)}</span>` : ""}
+    </button>`;
+  }).join("");
   const empty = !(page.hints.length || page.claims.length || page.sessions.length);
   return `
     <article class="alch-cv-detail alch-cv-topic-page">
@@ -16062,7 +16085,6 @@ function renderContextVault() {
 
   let sourceRows = "";
   let detail = "";
-  let chips = "";
   let searchLabel = "context";
   let emptySourceCopy = "";
 
@@ -16095,18 +16117,24 @@ function renderContextVault() {
     cv.selectedStream = sel ? streamKey(sel.kind, sel.id) : null;
     if (sel) contextNoteDetailSelection(sel.kind, sel.id);
     const groups = groupStreamItems(items, new Date());
-    sourceRows = groups.map((g) => `
-      <div class="alch-cv-group-head">${escHtml(g.label)}<span>${g.items.length}</span></div>
-      ${g.items.map((it) => contextStreamRowHtml(it, cv.selectedStream)).join("")}
-    `).join("");
-    chips = contextTagChipsHtml(contextStreamTags(items), cv.tag);
+    const collapsed = cv.collapsedGroups instanceof Set ? cv.collapsedGroups : (cv.collapsedGroups = new Set());
+    sourceRows = groups.map((g) => {
+      const isCollapsed = collapsed.has(g.label);
+      return `
+      <button class="alch-cv-group-head${isCollapsed ? " is-collapsed" : ""}" type="button" data-cv-group="${escAttr(g.label)}" aria-expanded="${!isCollapsed}" title="${isCollapsed ? "expand" : "collapse"}">
+        <svg class="alch-cv-group-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        ${escHtml(g.label)}<span>${g.items.length}</span>
+      </button>
+      ${g.items.map((it) => contextStreamRowHtml(it, cv.selectedStream, isCollapsed)).join("")}
+    `;
+    }).join("");
     detail = sel ? contextStreamDetailHtml(sel.kind, sel.record) : renderDistilledTranscriptDetail(null);
   }
 
   state.canvas.innerHTML = `
     <section class="alch-cv">
-      ${pageHeadHtml({ side: contextToolbarHtml() })}
-      ${view === "stream" ? renderContextComposer() : ""}
+      ${pageHeadHtml({ side: contextToolbarHtml(view) })}
+      ${view === "stream" && cv.composeOpen ? renderContextComposer() : ""}
       ${cv.message ? `<p class="alch-cv-message">${escHtml(cv.message)}</p>` : ""}
       ${cv.error ? `<p class="alch-cv-error">${escHtml(cv.error)}</p>` : ""}
       <div class="alch-cv-layout">
@@ -16116,7 +16144,6 @@ function renderContextVault() {
             <input type="search" class="alch-cv-search-input" data-cv-search value="${escAttr(cv.query || "")}" placeholder="Search ${escAttr(searchLabel)} or #tag…" spellcheck="false" autocomplete="off" aria-label="search ${escAttr(searchLabel)}" />
             <button class="alch-cv-search-clear" type="button" data-cv-search-clear>clear</button>
           </div>
-          ${chips}
           <div class="alch-cv-sources">${sourceRows || `<p class="alch-cv-muted">${emptySourceCopy}</p>`}</div>
         </aside>
         <div class="alch-cv-handle" data-cv-handle title="Drag to resize · double-click to reset"><span class="alch-cv-wl">${contextPrefs().sidebarW}px</span></div>
@@ -16137,6 +16164,28 @@ function wireContextVault() {
   for (const btn of state.canvas.querySelectorAll("[data-cv-topic]")) {
     btn.addEventListener("click", () => selectContextTopic(btn.dataset.cvTopic));
   }
+  for (const btn of state.canvas.querySelectorAll("[data-cv-group]")) {
+    btn.addEventListener("click", () => toggleContextStreamGroup(btn));
+  }
+  // ↑/↓ move the selection through visible rows (stream items or topics) —
+  // read the whole corpus without another click.
+  const sourcesEl = state.canvas.querySelector(".alch-cv-sources");
+  if (sourcesEl) {
+    sourcesEl.addEventListener("keydown", (e) => {
+      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+      const rows = [...sourcesEl.querySelectorAll("[data-cv-stream], [data-cv-topic]")].filter((r) => !r.hidden);
+      if (!rows.length) return;
+      let i = rows.indexOf(document.activeElement);
+      if (i < 0) i = rows.findIndex((r) => r.classList.contains("is-selected"));
+      const j = Math.min(rows.length - 1, Math.max(0, i < 0 ? 0 : i + (e.key === "ArrowDown" ? 1 : -1)));
+      const next = rows[j];
+      if (!next) return;
+      e.preventDefault();
+      next.focus();
+      try { next.scrollIntoView({ block: "nearest" }); } catch {}
+      next.click();
+    });
+  }
   const composeForm = state.canvas.querySelector("form[data-cv-compose]");
   if (composeForm) {
     composeForm.addEventListener("submit", (e) => {
@@ -16148,6 +16197,9 @@ function wireContextVault() {
     const details = composeForm.querySelector("[data-cv-compose-details]");
     if (details) details.addEventListener("toggle", () => {
       state.contextVault.composeOpen = details.open;
+      // collapsing via the summary removes the composer entirely — it lives
+      // behind the toolbar's add button, not as standing page chrome
+      if (!details.open) { renderContextVault(); wireContextVault(); }
     });
   }
   wireContextVaultFilter();
@@ -16216,19 +16268,22 @@ function wireContextVaultFilter() {
   const input = state.canvas.querySelector("[data-cv-search]");
   const sources = state.canvas.querySelector(".alch-cv-sources");
   const clearBtn = state.canvas.querySelector("[data-cv-search-clear]");
-  const chips = state.canvas.querySelectorAll("[data-cv-tag]");
   const apply = () => {
-    const q = String(cv.query || "").trim().toLowerCase();
-    const tag = cv.tag ? String(cv.tag).toLowerCase() : "";
+    const raw = String(cv.query || "").trim().toLowerCase();
+    // "#memory" searches the row's topic tokens; plain text searches everything
+    const q = raw.startsWith("#") ? raw.slice(1) : raw;
+    const tagOnly = raw.startsWith("#");
     if (sources) {
       const rows = sources.querySelectorAll(".alch-cv-source");
       let shown = 0;
       for (const row of rows) {
         const text = (row.textContent || "").toLowerCase();
         const tags = (row.dataset.cvTags || "").toLowerCase();
-        const okQ = !q || text.includes(q) || tags.includes(q);
-        const okTag = !tag || tags.split(/\s+/).includes(tag);
-        const ok = okQ && okTag;
+        const okQ = !q || (tagOnly ? tags.includes(q) : (text.includes(q) || tags.includes(q)));
+        // A collapsed date group keeps its rows folded — unless a search is
+        // active, which looks inside collapsed groups too.
+        const folded = row.dataset.cvCollapsed === "1" && !q;
+        const ok = okQ && !folded;
         row.hidden = !ok;
         if (ok) shown += 1;
       }
@@ -16245,19 +16300,23 @@ function wireContextVaultFilter() {
         empty.hidden = true;
       }
     }
-    if (clearBtn) clearBtn.classList.toggle("is-show", !!(q || tag));
-    for (const chip of chips) chip.classList.toggle("is-on", String(chip.dataset.cvTag).toLowerCase() === tag);
+    if (clearBtn) clearBtn.classList.toggle("is-show", !!q);
   };
+  cv._applyFilter = apply;
   if (input) input.addEventListener("input", () => { cv.query = input.value || ""; apply(); });
-  if (clearBtn) clearBtn.addEventListener("click", () => { cv.query = ""; cv.tag = null; if (input) input.value = ""; apply(); });
-  for (const chip of chips) {
-    chip.addEventListener("click", () => { const t = chip.dataset.cvTag; cv.tag = (cv.tag === t) ? null : t; apply(); });
-  }
-  if (cv.query || cv.tag) apply();
+  if (clearBtn) clearBtn.addEventListener("click", () => { cv.query = ""; if (input) input.value = ""; apply(); });
+  if (cv.query) apply();
 }
 
 // Header tools: snapshot + the reader-settings popover (width / size / accent).
 function wireContextVaultToolbar() {
+  const addBtn = state.canvas.querySelector("[data-cv-add]");
+  if (addBtn) addBtn.addEventListener("click", () => {
+    const cv = state.contextVault;
+    cv.composeOpen = cv.composeOpen !== true;
+    renderContextVault(); wireContextVault();
+    if (cv.composeOpen) state.canvas.querySelector(".alch-cv-compose-body-input")?.focus();
+  });
   const snapBtn = state.canvas.querySelector("[data-cv-snapshot]");
   if (snapBtn && !snapBtn.disabled) snapBtn.addEventListener("click", () => { void snapshotContextReader(); });
   const setBtn = state.canvas.querySelector("[data-cv-settings]");

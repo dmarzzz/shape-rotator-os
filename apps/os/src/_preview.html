@@ -149,6 +149,19 @@
       return surface;
     }
 
+    // Headless-screenshot driver: ?revealdemo=1 forces the hover-reveal
+    // states (claim provenance / session summary) so a static shot shows them.
+    if (qs.get("revealdemo")) {
+      window.addEventListener("load", () => setTimeout(() => {
+        const st = document.createElement("style");
+        st.textContent = ".alch-cv-claim{background:var(--ds-surface-3)}" +
+          ".alch-cv-claim .alch-cv-claim-prov{max-height:2.6em;opacity:1}" +
+          ".alch-cv-lib-sess{background:var(--ds-surface-3)}" +
+          ".alch-cv-lib-sess .alch-cv-lib-desc{max-height:4em;opacity:1}";
+        document.head.appendChild(st);
+      }, 1500));
+    }
+
     // Headless-screenshot driver: ?sel=<stream key> clicks a stream row,
     // ?open=<key> opens a library item — retried until the async data paints.
     window.addEventListener("load", () => {
