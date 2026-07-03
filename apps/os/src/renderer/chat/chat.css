@@ -369,6 +369,7 @@
 /* compact run — same sender within 5 min: no header, tucked against the
    previous card; the time ghosts in at top-right on hover */
 .chat-msg.is-compact { margin-top: 0; border-top-left-radius: 3px; border-top-right-radius: 3px; }
+.chat-msg:has(+ .chat-msg.is-compact) { border-bottom-left-radius: 3px; border-bottom-right-radius: 3px; }
 .chat-msg + .chat-msg.is-compact { margin-top: 2px; }
 .chat-msg-time-ghost {
   position: absolute;
@@ -453,7 +454,7 @@
 /* "new messages ↓" — floats over the timeline while you're reading history */
 .chat-newmsg {
   position: absolute;
-  left: 50%; bottom: 74px;
+  left: 50%; bottom: 96px;   /* clears the composer even when it grows to multiline */
   transform: translateX(-50%);
   z-index: 5;
   padding: 5px 14px;
