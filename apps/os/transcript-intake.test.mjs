@@ -9,6 +9,7 @@ const require = createRequire(import.meta.url);
 const {
   buildTranscriptIntakeBody,
   getTranscriptIntakeOptions,
+  listTranscriptIntakeHistory,
   loadTranscriptPolicy,
   routeForTranscriptType,
   stageTranscriptFile,
@@ -144,3 +145,27 @@ function response(body, init = {}) {
     json: async () => body,
   };
 }
+
+test("listTranscriptIntakeHistory reads manifests newest-first with submit state", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "srwk-intake-"));
+  const sub = path.join(root, "raw_transcripts", "salon");
+  fs.mkdirSync(sub, { recursive: true });
+  fs.writeFileSync(path.join(sub, "a.txt.manifest.json"), JSON.stringify({
+    staged_at: "2026-07-01T10:00:00Z", session_type: "salon", label: "older", processing_queued: true, submitted_at: "2026-07-01T10:00:05Z",
+  }));
+  fs.writeFileSync(path.join(sub, "b.txt.manifest.json"), JSON.stringify({
+    staged_at: "2026-07-02T10:00:00Z", session_type: "salon", label: "newer, staged only",
+  }));
+  const items = listTranscriptIntakeHistory({ intakeRoot: root });
+  assert.equal(items.length, 2);
+  assert.equal(items[0].label, "newer, staged only");
+  assert.equal(items[0].submitted_at, null);
+  assert.equal(items[1].submitted_at, "2026-07-01T10:00:05Z");
+  assert.equal(items[1].processing_queued, true);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("listTranscriptIntakeHistory is safe on a missing intake root", () => {
+  const items = listTranscriptIntakeHistory({ intakeRoot: path.join(os.tmpdir(), "srwk-no-such-dir-xyz") });
+  assert.deepEqual(items, []);
+});

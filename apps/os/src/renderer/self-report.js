@@ -1065,6 +1065,8 @@ function renderReview(person, state) {
     if (statusEl) statusEl.textContent = "sent - refreshing the cohort record...";
     try { await refreshCohortFromGithub(); } catch {}
     setTimeout(() => { refreshCohortFromGithub().catch(() => {}); }, 1500);
+    // Stamp the successful sync for the chat panel's staleness nudge.
+    try { localStorage.setItem("srwk:last_sync_at", String(Date.now())); } catch {}
     renderSuccess(selChanged, selTeam);
   });
   const refineBtn = host.querySelector("[data-sr-refine]");

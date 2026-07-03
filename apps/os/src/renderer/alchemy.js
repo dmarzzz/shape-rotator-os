@@ -339,6 +339,9 @@ const state = {
     mode: "articles",
     query: "",
     tag: null,
+    // distilled-list ordering: "grouped" (by session type) | "newest" (flat
+    // chronological) — both were asked for in the 2026-07-02 session.
+    tsort: (() => { try { return localStorage.getItem("srwk:cv_tsort") === "newest" ? "newest" : "grouped"; } catch { return "grouped"; } })(),
     prefs: null,          // lazy-loaded personalization (width / measure / size / accent)
     preview: null,        // active restyle lens: { style, mode: "one" | "all" } — never persisted
     previewId: null,      // the source id a "one" preview applies to
@@ -16031,32 +16034,45 @@ function renderContextVault() {
     }).join("");
     detail = renderContextVaultDetail(selected);
   } else if (tsource === "distilled") {
-    // Grouped by session type with a per-readout confidence badge (2026-07-02
-    // feedback: "there needs to be grouping for the transcript page — type,
-    // confidence"). Groups keep the list's recency order internally.
-    const groups = new Map();
-    for (const s of distilled) {
-      const label = String(s.session_type || s.kind || "session").replace(/_/g, " ");
-      if (!groups.has(label)) groups.set(label, []);
-      groups.get(label).push(s);
-    }
+    // Two orderings, both asked for in the 2026-07-02 session: grouped by
+    // session type with confidence badges ("there needs to be grouping"), OR
+    // one chronological scroll ("I want to just scroll down and see everything
+    // in order"). A tiny toggle honors both; grouped is the default.
+    const tsort = state.contextVault.tsort === "newest" ? "newest" : "grouped";
     const confBadge = (s) => {
       if (!Number.isFinite(s.confidence)) return "";
       const tier = s.confidence >= 0.8 ? "sure" : s.confidence >= 0.5 ? "best guess" : "needs review";
       return `<span class="alch-cv-conf is-${tier.replace(/\s+/g, "-")}" title="type confidence ${Math.round(s.confidence * 100)}%">${escHtml(tier)}</span>`;
     };
-    sourceRows = [...groups.entries()].map(([label, items]) => `
-      <div class="alch-cv-group-head">${escHtml(label)}<span>${items.length}</span></div>
-      ${items.map(s => {
-        const selectedCls = selectedDistilled && selectedDistilled.id === s.id ? " is-selected" : "";
-        return `
+    const row = (s) => {
+      const selectedCls = selectedDistilled && selectedDistilled.id === s.id ? " is-selected" : "";
+      return `
         <button class="alch-cv-source alch-cv-transcript-source${selectedCls}" type="button" data-cv-distilled-source="${escAttr(s.id)}" data-cv-tags="${escAttr((Array.isArray(s.themes) ? s.themes : []).join(" "))}">
           <strong>${escHtml(distilledTranscriptTitle(s))}</strong>
           <span class="alch-cv-source-meta">${escHtml(distilledTranscriptMeta(s))}</span>
           ${confBadge(s)}
         </button>`;
-      }).join("")}
-    `).join("");
+    };
+    const sortToggle = `
+      <div class="alch-cv-tsort" role="group" aria-label="transcript ordering">
+        <button type="button" class="alch-cv-tsort-btn${tsort === "grouped" ? " is-on" : ""}" data-cv-tsort="grouped">by type</button>
+        <button type="button" class="alch-cv-tsort-btn${tsort === "newest" ? " is-on" : ""}" data-cv-tsort="newest">newest</button>
+      </div>`;
+    if (tsort === "newest") {
+      // The list arrives created_at-desc from Supabase — render it flat.
+      sourceRows = sortToggle + distilled.map(row).join("");
+    } else {
+      const groups = new Map();
+      for (const s of distilled) {
+        const label = String(s.session_type || s.kind || "session").replace(/_/g, " ");
+        if (!groups.has(label)) groups.set(label, []);
+        groups.get(label).push(s);
+      }
+      sourceRows = sortToggle + [...groups.entries()].map(([label, items]) => `
+        <div class="alch-cv-group-head">${escHtml(label)}<span>${items.length}</span></div>
+        ${items.map(row).join("")}
+      `).join("");
+    }
     detail = renderDistilledTranscriptDetail(selectedDistilled);
   } else {
     sourceRows = rawScripts.map(s => {
@@ -16134,6 +16150,17 @@ function wireContextVault() {
   }
   for (const btn of state.canvas.querySelectorAll("[data-cv-distilled-source]")) {
     btn.addEventListener("click", () => selectContextDistilled(btn.dataset.cvDistilledSource));
+  }
+  // grouped-by-type ⇄ newest-first ordering for the distilled list (both were
+  // asked for; the preference sticks per device).
+  for (const btn of state.canvas.querySelectorAll("[data-cv-tsort]")) {
+    btn.addEventListener("click", () => {
+      const next = btn.dataset.cvTsort === "newest" ? "newest" : "grouped";
+      if (state.contextVault.tsort === next) return;
+      state.contextVault.tsort = next;
+      try { localStorage.setItem("srwk:cv_tsort", next); } catch {}
+      renderContextVault(); wireContextVault();
+    });
   }
   for (const btn of state.canvas.querySelectorAll("[data-cv-copy-distilled]")) {
     btn.addEventListener("click", async () => {
