@@ -1666,7 +1666,10 @@ ipcMain.handle("env:get", async () => ({
 // tiny read; empty string on un-provisioned / public builds.
 ipcMain.on("cohort-key:get", (e) => { e.returnValue = COHORT_KEY; });
 ipcMain.handle("shell:openExternal", async (_e, url) => {
-  if (typeof url === "string" && /^https?:\/\//i.test(url)) shell.openExternal(url);
+  // http(s) links + mailto drafts only. mailto opens the member's own mail
+  // client with a prefilled draft ("send it to me", 2026-07-02 feedback) —
+  // nothing sends without the member hitting send in their own mailer.
+  if (typeof url === "string" && /^(https?:\/\/|mailto:)/i.test(url)) shell.openExternal(url);
 });
 ipcMain.handle("shell:openDownloadedInstaller", async (_e, filePath) => {
   if (typeof filePath !== "string" || !filePath.trim()) {

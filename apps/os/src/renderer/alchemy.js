@@ -15722,6 +15722,9 @@ function renderDistilledTranscriptDetail(selected) {
           <button class="alch-cv-md-action" type="button" data-cv-copy-distilled="${escAttr(selected.id)}" title="copy this readout">
             <span class="alch-cv-md-action-label">copy .md</span>
           </button>
+          <button class="alch-cv-md-action" type="button" data-cv-email-distilled="${escAttr(selected.id)}" title="open a prefilled email draft in your own mail client — nothing sends until you hit send there">
+            <span class="alch-cv-md-action-label">email me</span>
+          </button>
         </div>
       </header>
       <article class="alch-cv-reader">
@@ -16239,6 +16242,29 @@ function wireContextVault() {
       if (!d) return;
       const ok = await copyTextToClipboard(d.body_md || "");
       flashCopyButton(btn, ok);
+    });
+  }
+  // "Send it to me" (2026-07-02 feedback), scoped safe: prefill a mailto draft
+  // in the member's OWN mail client — no server-side send, no admin queue, and
+  // the member is the only trigger. mailto bodies have practical length limits,
+  // so the full markdown goes to the clipboard and the draft carries the
+  // summary + the head of the readout with a paste note.
+  for (const btn of state.canvas.querySelectorAll("[data-cv-email-distilled]")) {
+    btn.addEventListener("click", async () => {
+      const d = contextDistilledById(btn.dataset.cvEmailDistilled);
+      if (!d || !window.api?.openExternal) return;
+      const md = String(d.body_md || "");
+      await copyTextToClipboard(md);
+      const subject = `Distilled readout: ${distilledTranscriptTitle(d)}`;
+      const body = [
+        distilledTranscriptMeta(d),
+        d.summary || "",
+        Array.isArray(d.themes) && d.themes.length ? `themes: ${d.themes.join(", ")}` : "",
+        "",
+        md.slice(0, 1400),
+        md.length > 1400 ? "\n[truncated — the full readout is on your clipboard, paste it here]" : "",
+      ].filter(Boolean).join("\n");
+      window.api.openExternal(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
     });
   }
   const keyForm = state.canvas.querySelector("[data-cv-cohort-key-form]");
