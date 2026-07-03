@@ -257,9 +257,13 @@ function evidenceCardLine(c) {
     evidenceConfidence(c) && `confidence ${evidenceConfidence(c)}`,
     c?.attribution_scope && `scope ${c.attribution_scope}`,
   ].filter(Boolean).join("; ");
+  // Inferred team attributions (text-matched by the app, not declared by the
+  // engine) are labelled so the model treats them as "probably about", never
+  // as a declared fact — a card that merely MENTIONS a team lands on it.
+  const inferred = cj.teams_basis === "inferred";
   const bits = [
     `- ${wk ? `[${wk}] ` : ""}${shortText(text, 260)}`,
-    teams && `teams: ${teams}`,
+    teams && `teams${inferred ? " (inferred from content — may only mention them)" : ""}: ${teams}`,
     people && `people: ${people}`,
     themes && `themes: ${themes}`,
     claims && `claims: ${claims}`,

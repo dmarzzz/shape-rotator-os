@@ -206,8 +206,15 @@ export function attributeInsightCards(cards = [], teams = [], { maxTeams = 2, mi
       }
     }
     if (!scored.length) return card;
-    scored.sort((a, b) => (b.named === a.named ? b.score - a.score : (b.named ? 1 : -1)));
-    const picked = scored.slice(0, maxTeams).map((s) => s.id);
+    // When any team is NAME-matched, attribute to named teams only: letting a
+    // generic-token match ride along in the second slot was the cross-team
+    // "gather of mentions" leak (2026-07-02 feedback — Conclave notes surfacing
+    // on other teams' pages). Token-only attribution still works when no team
+    // is named at all.
+    const named = scored.filter((s) => s.named);
+    const pool = named.length ? named : scored;
+    pool.sort((a, b) => b.score - a.score);
+    const picked = pool.slice(0, maxTeams).map((s) => s.id);
     const cj = card.content_json && typeof card.content_json === "object" ? card.content_json : {};
     return { ...card, content_json: { ...cj, teams: picked, teams_basis: "inferred" } };
   });
