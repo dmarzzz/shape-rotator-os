@@ -27,11 +27,18 @@ test("chat-markdown: escapes HTML everywhere, even in code fences", () => {
   assert.match(html, /<pre><code>/);
 });
 
-test("chat-markdown: links only for http(s); others render as plain label", () => {
+test("chat-markdown: links only for http(s), inert data-href (no live anchor); others render as plain label", () => {
   const html = renderChatMarkdown("[ok](https://example.com) and [bad](javascript:alert(1))");
-  assert.match(html, /<a href="https:\/\/example\.com" data-external>ok<\/a>/);
+  assert.match(html, /<a class="cc-md-link" data-href="https:\/\/example\.com" title="https:\/\/example\.com">ok<\/a>/);
+  assert.doesNotMatch(html, /(?<!data-)href="/); // never a real href — it would navigate the window
   assert.doesNotMatch(html, /javascript:/);
   assert.match(html, /bad/);
+});
+
+test("chat-markdown: a quote in the URL cannot break out of the attribute", () => {
+  const html = renderChatMarkdown('[x](https://a.com/"onmouseover="alert(1))');
+  assert.doesNotMatch(html, /onmouseover="alert/);
+  assert.match(html, /&quot;onmouseover=&quot;/); // escaped before the attribute
 });
 
 test("chat-markdown: plain text passes through as a paragraph; empty stays empty", () => {

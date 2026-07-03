@@ -449,6 +449,17 @@ function createController() {
     }
   }
 
+  // Markdown links in assistant bubbles carry data-href (never a live href — a
+  // real anchor would navigate the whole window). One delegated handler routes
+  // them to the default browser; survives every re-render.
+  log.addEventListener("click", (e) => {
+    const a = e.target.closest?.(".cc-md-link[data-href]");
+    if (!a) return;
+    e.preventDefault();
+    const href = a.getAttribute("data-href");
+    if (href && /^https?:\/\//i.test(href)) window.api?.openExternal?.(href);
+  });
+
   function appendBubble(role, text) {
     if (empty) empty.hidden = true;
     const row = document.createElement("div");
@@ -784,8 +795,10 @@ function createController() {
   // The upload token resolves automatically — you're already in the app, so it
   // should carry your credentials (2026-07-03 feedback: "you need a supabase key
   // but that should automatically be the app"). Order: an explicit manual
-  // override → the signed-in member's Supabase session token → the build's
-  // baked cohort key. Manual entry remains only as the advanced escape hatch.
+  // override → the signed-in member's Supabase session token. NO cohort-key
+  // fallback here: the ingest-artifacts function verifies its bearer against
+  // /auth/v1/user (checked in the Engine repo), so only a real auth-user token
+  // can upload — the read-only cohort_app key would 401.
   async function resolveIntakeToken(explicit) {
     const manual = String(explicit || "").trim();
     if (manual) return { token: manual, source: "manual" };
@@ -793,8 +806,6 @@ function createController() {
       const s = window.api?.auth?.getSession ? await window.api.auth.getSession() : null;
       if (s && s.access_token) return { token: String(s.access_token), source: "login" };
     } catch { /* fall through */ }
-    const baked = (window.api && typeof window.api.cohortKey === "string") ? window.api.cohortKey.trim() : "";
-    if (baked) return { token: baked, source: "app" };
     return { token: "", source: "none" };
   }
 
@@ -930,9 +941,8 @@ function createController() {
       const r = await resolveIntakeToken(readTranscriptSupabaseConfig().accessToken);
       if (!connSummary) return;
       if (r.source === "login") connSummary.textContent = "✓ uploads as you (signed in) — override (advanced)";
-      else if (r.source === "app") connSummary.textContent = "✓ connected through the app — override (advanced)";
       else if (r.source === "manual") connSummary.textContent = "✓ manual token set — storage connection (advanced)";
-      else connSummary.textContent = "⚠ not connected — set a token here, or sign in";
+      else connSummary.textContent = "⚠ not connected — sign in to the app, or set a token here";
     })();
 
     function setStatus(kind, text) {

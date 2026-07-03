@@ -454,9 +454,11 @@ body.cc-resizing .cc-resize::before { background: var(--ds-accent); }
   border-left: 2px solid var(--ds-border-strong);
   color: var(--ds-ink-2);
 }
-.cc-msg-body a { color: var(--ds-accent); }
+.cc-msg-body a { color: var(--ds-accent); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 
 /* Page-context preset chips — one tap asks about the page you came from. */
+/* display:flex would beat the UA's [hidden] rule — restate it explicitly. */
+.cc-page-presets[hidden] { display: none; }
 .cc-page-presets {
   display: flex;
   flex-wrap: wrap;

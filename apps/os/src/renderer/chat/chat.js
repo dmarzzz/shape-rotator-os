@@ -787,10 +787,12 @@ export function mountChat(host) {
     if (nearBottom) {
       tl.scrollTop = tl.scrollHeight;
       hideNewMsgChip();
-    } else if (freshIds.length && !freshIds.every((id) => byId.get(id)?.mine)) {
+    } else {
       // Reading history while others talk below — offer the way down instead
-      // of yanking the scroll.
-      bumpNewMsgChip(freshIds.length);
+      // of yanking the scroll. Count only OTHER people's messages: your own
+      // echoes arriving in the same batch aren't "new" to you.
+      const foreign = freshIds.filter((id) => !byId.get(id)?.mine);
+      if (foreign.length) bumpNewMsgChip(foreign.length);
     }
   }
 

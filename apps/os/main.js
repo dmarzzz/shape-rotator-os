@@ -1315,6 +1315,19 @@ function createWindow() {
   hideNativeMenuBar(win);
   if (ws.fullscreen) win.setFullScreen(true);
   if (process.env.SRWK_ALWAYS_ON_TOP === "1") win.setAlwaysOnTop(true);
+  // Navigation guard: the app window only ever shows its own file:// bundle.
+  // Any anchor or script that tries to top-level-navigate (which would replace
+  // the app AND expose the preload bridge to a remote page) is cancelled;
+  // http(s) targets open in the default browser instead. Same for window.open.
+  win.webContents.on("will-navigate", (e, url) => {
+    if (String(url).startsWith("file://")) return;
+    e.preventDefault();
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+  });
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+    return { action: "deny" };
+  });
   win.loadFile(
     path.join(__dirname, "src", "index.html"),
     NAV_VISUAL_AUDIT ? { query: { navAudit: "1" } } : undefined

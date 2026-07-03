@@ -22,9 +22,13 @@ function inline(text) {
   t = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   t = t.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
   t = t.replace(/(^|\s)_([^_\n]+)_/g, "$1<em>$2</em>");
-  // [label](url) — external http(s) links only; anything else stays inert
+  // [label](url) — external http(s) links only; anything else stays inert.
+  // NO real href: a live anchor inside an Electron renderer top-level-navigates
+  // the whole window on click. The URL rides in data-href and a delegated
+  // handler (cohort-chat.js) routes it through shell.openExternal — same
+  // pattern as chat.js linkify. url is already HTML-escaped (escHtml ran first).
   t = t.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, label, url) =>
-    /^https?:\/\//.test(url) ? `<a href="${url}" data-external>${label}</a>` : label);
+    /^https?:\/\//.test(url) ? `<a class="cc-md-link" data-href="${url}" title="${url}">${label}</a>` : label);
   return t;
 }
 
