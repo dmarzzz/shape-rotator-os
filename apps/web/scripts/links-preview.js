@@ -72,17 +72,29 @@ async function embeddedHtml(url) {
   doc.querySelectorAll("[target]").forEach((el) => el.removeAttribute("target"));
   linkifyBareUrls(doc);
 
-  // Embedded one-pagers (onboard / school site) center a hero with
-  // `min-height: 100vh`, which fills the short preview iframe edge-to-edge so
-  // the panel reads as blank until you scroll. Neutralize viewport-locked
-  // heights so the document flows from the top and the real content is visible
-  // immediately. Appended last so it wins the cascade.
+  // Embedded one-pagers (onboard / school site) wrap their content in a hero
+  // with `min-height: 100vh` AND pin a `position: sticky` top bar (`.topbar`,
+  // with a `backdrop-filter` blur). In the short preview iframe that sticky bar
+  // stays pinned to the top and, together with the masthead below it, fills the
+  // visible area, so the panel reads as just a header band with the real
+  // handout content stranded below the fold (the bug in the screenshot).
+  //
+  // Neutralize the viewport-locked heights AND demote the sticky/fixed chrome
+  // to static so the document flows naturally from the top and the actual
+  // content is visible immediately. Appended last so it wins the cascade.
   const fit = doc.createElement("style");
   fit.id = "sr-preview-fit";
   fit.textContent =
     "html,body{height:auto!important;min-height:0!important}" +
     "body{display:block!important}" +
-    "body>*{min-height:0!important}";
+    "body>*{min-height:0!important}" +
+    // Demote any sticky/fixed chrome (the handouts' .topbar, plus common header
+    // class names) so it scrolls with the content instead of clipping the
+    // short preview. Drop the backdrop blur which only reads as haze at this
+    // size.
+    ".topbar,.top-bar,[class*='topbar'],[class*='top-bar']," +
+    "header,[class*='site-header'],[class*='nav-bar']" +
+    "{position:static!important;top:auto!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}";
   doc.head.appendChild(fit);
 
   const srcdoc = `<!doctype html>\n${doc.documentElement.outerHTML}`;
