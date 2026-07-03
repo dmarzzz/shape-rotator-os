@@ -689,8 +689,17 @@ export function needsProjectConfirmation(route, focusResolution) {
     && focusResolution.candidates.length > 1;
 }
 
-function routingBlock({ route, focus, focusResolution, page } = {}) {
+function routingBlock({ route, focus, focusResolution, page, now, member } = {}) {
   const lines = [`intent: ${route || "answer"}`];
+  // Anchor relative time: the evidence pack is full of dates, and without a
+  // "now" the model can't tell this week from last month.
+  if (now) lines.push(`today: ${now}`);
+  // WHO is asking (from the device identity, never inferred) — grounds "my
+  // team", personalizes connection answers, and stops self-introductions.
+  if (member && member.name) {
+    lines.push(`asking_member: ${member.name}${member.record_id ? ` (id:${member.record_id})` : ""}${member.team ? ` — team ${member.team}` : ""}`);
+    lines.push("instruction: 'I/my/our' in the question refers to this member. When suggesting who to talk to, don't suggest their own team.");
+  }
   if (page && page.label) {
     lines.push(`current_page: ${page.label}${page.detail ? ` — ${page.detail}` : ""}`);
     lines.push("instruction: The member is looking at this page right now. Assume an ambiguous question ('what is this?', 'how does this work?') refers to it, and ground the answer in that page's purpose before anything else. Don't dump everything about the page unprompted — answer the question, briefly.");
@@ -719,6 +728,8 @@ const SYSTEM = [
   "You are the Shape Rotator cohort assistant, embedded in the cohort's desktop app.",
   "Answer the member's question using ONLY the cohort context provided below. Do not invent teams, people, facts, or links.",
   "Be concrete and concise. Refer to teams and people by name. When you don't have enough grounded information, say so plainly.",
+  "Your reply renders as markdown in a narrow chat panel. Lead with the answer in your first sentence — never open with filler like 'Based on the context provided'. Default to under ~120 words; go longer only when the member asks for depth or a rundown. **Bold** the team/people names you cite, use short `-` bullets for 3+ parallel items, and use `###` headings only in long multi-section answers.",
+  "When there is more grounded material than fits a short answer, give the short answer and end with ONE brief offer to go deeper (e.g. 'want the week-by-week?') — don't dump everything unprompted.",
   "Use the data-quality block as an explicit reliability signal: distinguish declared profile fields, live transcript-derived evidence, inferred attribution, GitHub/release activity, and coverage gaps.",
   "When describing a project, prefer this shape: what it is, who it serves, what it is doing now, strongest evidence, current bottleneck/gap, and next useful check. Skip generic praise unless the context names the evidence.",
   "When asked who to connect with / who to talk to, use each team's `seeking`/`offering` and its `suggested connections`, and explain the specific reason for each suggestion (the need met, the shared problem, the dependency).",
@@ -760,12 +771,12 @@ export const ACTION_CONTRACT = [
 // `agent:true` appends the ACTION_CONTRACT so the model may propose structured
 // changes; `toolResults` injects the output of a prior tool step (e.g. a scan
 // digest) for the next loop iteration.
-export function buildChatPrompt({ surface, history = [], question, maxChars = 22000, agent = false, toolResults = "", focus = null, focusResolution = null, route = null, distillations = null, page = null } = {}) {
+export function buildChatPrompt({ surface, history = [], question, maxChars = 22000, agent = false, toolResults = "", focus = null, focusResolution = null, route = null, distillations = null, page = null, now = "", member = null } = {}) {
   const activeRoute = route || classifyChatIntent(question);
   const context = buildCohortContext(surface, { question, maxChars, focus, distillations });
   const convo = (Array.isArray(history) ? history : [])
     .filter((m) => m && m.content)
-    .slice(-6)
+    .slice(-10)
     .map((m) => `${m.role === "assistant" ? "Assistant" : "Member"}: ${m.content}`)
     .join("\n");
   // The FOCUS is chosen by the MEMBER (an explicit pick or the project they named),
@@ -777,7 +788,7 @@ export function buildChatPrompt({ surface, history = [], question, maxChars = 22
   return [
     SYSTEM,
     agent ? ACTION_CONTRACT : "",
-    routingBlock({ route: activeRoute, focus, focusResolution, page }),
+    routingBlock({ route: activeRoute, focus, focusResolution, page, now, member }),
     focusBlock,
     "\n===== COHORT CONTEXT =====",
     context,

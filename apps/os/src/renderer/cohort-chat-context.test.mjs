@@ -280,6 +280,21 @@ test("no distillations → no catalog section (and no crash)", () => {
   assert.doesNotMatch(ctx2, /Distilled transcripts on file/);
 });
 
+test("prompt anchors today + the asking member when provided (and stays silent otherwise)", () => {
+  const p = buildChatPrompt({
+    surface,
+    question: "what's happening this week?",
+    now: "2026-07-03",
+    member: { name: "Mika", record_id: "mika", team: "abra" },
+  });
+  assert.match(p, /today: 2026-07-03/);
+  assert.match(p, /asking_member: Mika \(id:mika\) — team abra/);
+  assert.match(p, /don't suggest their own team/);
+  const bare = buildChatPrompt({ surface, question: "what's happening this week?" });
+  assert.doesNotMatch(bare, /asking_member/);
+  assert.doesNotMatch(bare, /\ntoday: /);
+});
+
 test("page context enters the routing block and scopes ambiguous questions", () => {
   const prompt = buildChatPrompt({
     surface,

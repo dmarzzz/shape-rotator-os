@@ -382,13 +382,23 @@
         </div>
 
         <form id="cohort-chat-form" class="cohort-chat-form" autocomplete="off" spellcheck="false">
+          <button id="cohort-chat-jump" class="cc-jump-latest" type="button" hidden aria-label="jump to the latest message">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+            latest
+          </button>
           <div class="cc-page-presets" id="cohort-chat-presets" hidden></div>
           <div class="cohort-chat-pre-message" id="cohort-chat-pre-message"></div>
-          <div class="cohort-chat-input-row">
+          <div class="cc-composer">
             <textarea id="cohort-chat-input" class="cohort-chat-input" rows="1"
-                      placeholder=""></textarea>
-            <button id="cohort-chat-send" class="cohort-chat-send" type="submit">send</button>
-            <button id="cohort-chat-stop" class="cohort-chat-stop" type="button" hidden>stop</button>
+                      placeholder="ask the cohort — or ask me to do something…"></textarea>
+            <button id="cohort-chat-send" class="ds-icon-btn ds-primary cc-send" type="submit" disabled
+                    title="send — Enter (Shift+Enter for a new line)" aria-label="send">
+              <span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></span>
+            </button>
+            <button id="cohort-chat-stop" class="ds-icon-btn ds-danger cc-send" type="button" hidden
+                    title="stop generating" aria-label="stop generating">
+              <span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg></span>
+            </button>
           </div>
         </form>
         <!-- In-panel hosts for the non-chat tabs; revealed by data-cc-view (CSS).
@@ -420,7 +430,7 @@
           </div>
           <div class="cohort-chat-settings-status" id="cohort-chat-settings-status"></div>
           <div class="cohort-chat-settings-actions">
-            <button id="cohort-chat-settings-save" class="cohort-chat-send" type="button">save</button>
+            <button id="cohort-chat-settings-save" class="btn ds-primary" type="button">save</button>
           </div>
         </div>
       </div>

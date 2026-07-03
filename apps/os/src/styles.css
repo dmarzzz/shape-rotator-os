@@ -19675,10 +19675,6 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
 .alch-cv-conf.is-sure { border-color: color-mix(in srgb, var(--ds-accent) 45%, transparent); color: var(--ds-accent); }
 .alch-cv-conf.is-needs-review { border-color: color-mix(in srgb, var(--ds-danger, #e5484d) 45%, transparent); color: var(--ds-danger, #e5484d); }
 
-
-
-
-
 .alch-cv-detail {
   display: flex;
   flex-direction: column;

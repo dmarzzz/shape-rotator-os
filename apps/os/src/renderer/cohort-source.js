@@ -763,17 +763,17 @@ async function mergeSyncOverBaseline(baseline, overlay) {
 // by the refresh loop to skip re-render when GitHub returned identical
 // data (the usual case between merges).
 // Apply the live Supabase evidence overlay on top of a merged surface.
-// Builds carrying a cohort key (the distributed app) read the GATED T2 cohort
-// evidence (cohort_app_transcript_evidence_cards) AND the anon T3 public set, and
-// merge them (T2 ∪ T3, deduped). Builds with no cohort key (the public web bundle)
-// read only the anon T3 public set. On a Supabase outage — or no key at all — the
+// Builds with a gated bearer (cohort key or Google sign-in app session) read the
+// GATED T2 cohort evidence (cohort_app_transcript_evidence_cards) AND the anon T3 public set, and
+// merge them (T2 + T3, deduped). Builds with no gated bearer (public web /
+// signed-out build) read only the anon T3 public set. On a Supabase outage, the
 // surface keeps whatever cards it already carries, so the app degrades gracefully.
 async function applyEvidenceOverlay(surface) {
   try {
     // The gated T2 cohort read is ENABLED (see COHORT_APP_READER_ENABLED): when a
-    // cohort key is configured the named/cohort-internal T2 cards load live; with no
-    // key it no-ops gracefully and we serve T2 from the committed bundle + the anon T3
-    // read. The 3rd read pulls gated cohort-insight cards (collaboration_contribution)
+    // gated bearer exists the named/cohort-internal T2 cards load live; with none it
+    // no-ops gracefully and we serve the committed bundle + the anon T3 read. The 3rd
+    // read pulls gated cohort-insight cards (collaboration_contribution)
     // for the live clique-edge path. All reads run in parallel and never throw.
     const [cohort, pub, insight] = await Promise.all([
       COHORT_APP_READER_ENABLED ? fetchCohortEvidenceCards() : Promise.resolve({ cards: [], source: "disabled" }),
@@ -876,16 +876,16 @@ async function applyArticleOverlay(surface) {
   return surface;
 }
 
-// Apply the live Supabase distilled-readout overlay. A build carrying a cohort key
-// (the distributed app) reads the GATED cohort distillations (the role-gated
-// cohort_app_transcript_distillations view) and hangs them on
+// Apply the live Supabase distilled-readout overlay. A build with a gated bearer
+// (cohort key or Google sign-in app session) reads the GATED cohort distillations
+// (the role-gated cohort_app_transcript_distillations view) and hangs them on
 // surface.transcript_distillations.artifacts so the transcripts tab can show the
 // cleaned readouts into the transcripts tab without requiring local raw files.
-// No cohort key (public web / un-provisioned build) or a Supabase outage leaves
+// No gated bearer (public web / signed-out build) or a Supabase outage leaves
 // whatever the surface carries; the generalized evidence tab remains usable.
 async function applyDistillationOverlay(surface) {
   // The cohort_app distillation view is live (see COHORT_APP_READER_ENABLED). With a
-  // cohort key the distilled readouts load into the transcripts tab; with no key
+  // gated bearer the distilled readouts load into the transcripts tab; with none
   // the fetch no-ops and the public/browser app keeps its normal empty state.
   if (!COHORT_APP_READER_ENABLED) return surface;
   try {
