@@ -26,7 +26,7 @@ UX improvement · **P3** = nice-to-have / bigger design question.
   with the page (calendar area especially).
 - [x] **P2 — Surface the rewrite feature. (`543a2bf8`)** "Rewrite this article/context with your
   own LLM" exists but is undiscoverable — make the entry point clear on the item.
-- [ ] **P3 — "Send it to me" digest.** One-click "email me this transcript/digest"
+- [x] **P3 — "Send it to me" digest (v1, `c048877a`).** One-click "email me this transcript/digest"
   from a meeting; admin approve/disapprove flow; watch prompt-injection risk.
 
 ## Transcripts & upload
