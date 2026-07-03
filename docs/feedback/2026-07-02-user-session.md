@@ -88,7 +88,7 @@ UX improvement · **P3** = nice-to-have / bigger design question.
 
 - [x] **P1 — Remove the extra info beneath the board. (`4503eb8f`)** "All that extra information is
   useless. Remove it, even if it's linked in the back."
-- [ ] **P2 — Empty-team handling.** Teams with little data (e.g. a member who just
+- [x] **P2 — Empty-team handling. (`2f7b972a`)** Teams with little data (e.g. a member who just
   joined) open to nothing — show a useful empty state.
 - [x] **P2 — View-switch bugs. (`97ba9234`)** Timeline flash when switching views; switching
   between teams sometimes makes everything unclickable.
