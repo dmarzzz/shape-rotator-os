@@ -1593,10 +1593,9 @@ function render(opts = {}) {
   // ~16. Leaving them alive across renders would silently exhaust the
   // budget after a few mode switches.
   destroyAllShapes();
-  // Close any open sentence-bar dropdown before the canvas rewrite — a menu
+  // Close any open sentence-bar dropdown before the canvas rewrite. A menu
   // opened from the outgoing view (z-index 80, absolutely positioned) could
-  // otherwise survive the switch and sit over the new view eating clicks
-  // (2026-07-02 feedback: "switching between teams… stops clicking").
+  // otherwise survive the switch and sit over the new view eating clicks.
   closeConstSentenceMenus();
   // Tear down the membrane scene when leaving membrane mode — same WebGL
   // budget concern, plus the RAF loop should stop.
@@ -1656,10 +1655,9 @@ function renderActivityMode() {
       <span class="alch-activity-label">${escHtml(feedItemLabel(ev, nameOf))}</span>
       <time class="alch-activity-time">${escHtml(activityRelTime(ev.created_at))}</time>
     </li>`;
-  // Post-it board first (2026-07-02 feedback: "keep it very just asks —
-  // anything, official or unofficial"): open asks lead the page as a board;
-  // the event feed demotes to a "cohort activity" section below. Both keep
-  // the blended ranking within their own group.
+  // Post-it board first: open asks lead the page as a board. The event feed
+  // demotes to a "cohort activity" section below. Both keep the blended ranking
+  // within their own group.
   const askItems = view.items.filter((it) => it && it._feedKind === "ask");
   const eventItems = view.items.filter((it) => !(it && it._feedKind === "ask"));
   const newBadge = view.newCount ? ` · <strong>${view.newCount} new</strong>` : "";
@@ -5975,8 +5973,7 @@ function constTeamInspectorHtml(team, ctx) {
     indeg ? `${indeg} team${indeg === 1 ? "" : "s"} depend on it` : "",
   ].filter(Boolean) : [];
   // A just-arrived record can be almost empty; say so plainly and point at the
-  // fix instead of rendering a hero over nothing (2026-07-02: clicking a new
-  // member's team showed "nothing").
+  // fix instead of rendering a hero over nothing.
   const isSparse = !constText(currentRole) && !success.length && !assessed
     && !sourceProofParts.length && !inboundEdges.length && !outboundEdges.length;
   const sparseNote = isSparse
@@ -9536,12 +9533,11 @@ function openDirectoryRecord(recordId) {
 // The one live dossier view transition (the sigil card→hero morph). Rapid
 // team switching could start a second transition while the first was still
 // running — and while a transition runs, the ::view-transition overlay
-// covers the page (nothing is clickable) showing the OLD view's snapshot
-// (its timeline strip "leaking" into the current view). If the compositor
-// is throttled (occluded window), the queued render never committed at all,
-// so clicks appeared to stop opening anything. Track the live transition,
-// skip it before any further detail navigation, and watchdog-skip it if it
-// hasn't started animating shortly after creation (2026-07-02/03 feedback).
+// covers the page while showing the outgoing view's snapshot. If the compositor
+// is throttled, the queued render may not commit at all, so clicks can appear to
+// stop opening anything. Track the live transition, skip it before any further
+// detail navigation, and watchdog-skip it if it hasn't started animating shortly
+// after creation.
 let _detailVT = null;
 let _detailVTWatchdog = 0;
 function cancelDetailViewTransition() {
@@ -13585,12 +13581,9 @@ function renderCollab() {
       ${matrixNote}
     </section>`;
   // The under-board extras (latent overlaps, unmatched offers, shared focus
-  // areas) were removed on direct user feedback (2026-07-02 session): "beneath
-  // the actual board, all that extra information is useless. Remove it." The
-  // round-3 pass (2026-07-03) also dropped the trailing self-declared
-  // disclaimer line — the board now ends at the map. The model still computes
-  // underusedOffers/convergence — the chat context and rail nudges read them —
-  // only the page sections are gone.
+  // areas) stay out of the page surface, and the board now ends at the map. The
+  // model still computes underusedOffers/convergence — the chat context and rail
+  // nudges read them — only the page sections are gone.
 
   // The header stays calm: title + a static lead line. The team picker + intake
   // moved into the filter row (cb-maphead-left); the *adaptive* "what to do next"
@@ -15984,8 +15977,8 @@ function contextStreamMeta(item) {
     const st = String(item.record?.session_type || item.record?.kind || "").replace(/_/g, " ").trim();
     if (st) bits.push(st);
     // Whose session this was. The stream is deliberately cohort-wide, so
-    // without attribution another team's readout reads as leaked content
-    // ("why is conclave on my context page?", 2026-07-02/03 feedback).
+    // explicit attribution prevents a cohort-wide readout from looking like a
+    // page-scoping bug.
     const teams = (Array.isArray(item.record?.teams) ? item.record.teams : [])
       .map((t) => evTeamName(String(t || "").trim())).filter(Boolean);
     if (teams.length) bits.push(teams.slice(0, 2).join(", ") + (teams.length > 2 ? ` +${teams.length - 2}` : ""));
@@ -16267,7 +16260,7 @@ function wireContextDetailRegion(root = state.canvas) {
       flashCopyButton(btn, ok);
     });
   }
-  // "Send it to me" (2026-07-02 feedback), scoped safe: prefill a mailto draft
+  // Scoped safe delivery: prefill a mailto draft
   // in the member's OWN mail client — no server-side send, no admin queue, and
   // the member is the only trigger. mailto bodies have practical length limits,
   // so the full markdown goes to the clipboard and the draft carries the
@@ -16450,9 +16443,8 @@ function wireContextVaultDetailActions(root = state.canvas) {
   if (!root) return;
   setupContextReadingSpine(root);
   // Header dropdowns (rewrite-with-your-AI + the "more" overflow). These menus
-  // shipped with NO handlers — the rewrite feature was unreachable from the
-  // header (2026-07-02: "it's not clear where that comes up"). One toggle per
-  // wrap; a single document-level dismiss closes any open menu.
+  // need explicit handlers so rewrite actions remain reachable from the header.
+  // One toggle per wrap; a single document-level dismiss closes any open menu.
   const closeCvMenus = closeContextReaderMenus;
   for (const wrap of root.querySelectorAll(".alch-cv-restyle-wrap")) {
     const toggle = wrap.querySelector("[data-cv-restyle-toggle], [data-cv-more-toggle]");
@@ -16482,8 +16474,7 @@ function wireContextVaultDetailActions(root = state.canvas) {
   for (const btn of root.querySelectorAll("[data-cv-revert]")) {
     btn.addEventListener("click", clearContextPreview);
   }
-  // "If I see raw transcripts and it's not distilled, maybe someone can do it
-  // using their own [AI]" (2026-07-02) — distill a RAW transcript into an
+  // Distill a RAW transcript into an
   // ephemeral preview readout with the member's own local AI. Never saved,
   // never published; same machinery as the article restyle.
   for (const btn of root.querySelectorAll("[data-cv-distill-raw]")) {
