@@ -5850,6 +5850,11 @@ function constPersonInspectorHtml(person, ctx) {
       <section class="ac-inspector-section ac-action-card">
         <h4>current note</h4>
         <p>${escHtml(constShortText(now, 220))}</p>
+      </section>` : ""}
+    ${!goto.length && !themes.length && !now ? `
+      <section class="ac-inspector-section ac-action-card">
+        <h4>nothing synced yet</h4>
+        <p class="ac-inspector-empty">${escHtml(constPersonDisplayName(person))} hasn't synced any info to the cohort yet — new members start blank, so this isn't an error. What they're working on, their themes, and who to pair them with appear here once they sync their profile (chat → sync) or fill in their cohort record.</p>
       </section>` : ""}`;
 }
 
@@ -9528,8 +9533,27 @@ function openDirectoryRecord(recordId) {
   return true;
 }
 
+// The one live dossier view transition (the sigil card→hero morph). Rapid
+// team switching could start a second transition while the first was still
+// running — and while a transition runs, the ::view-transition overlay
+// covers the page (nothing is clickable) showing the OLD view's snapshot
+// (its timeline strip "leaking" into the current view). If the compositor
+// is throttled (occluded window), the queued render never committed at all,
+// so clicks appeared to stop opening anything. Track the live transition,
+// skip it before any further detail navigation, and watchdog-skip it if it
+// hasn't started animating shortly after creation (2026-07-02/03 feedback).
+let _detailVT = null;
+let _detailVTWatchdog = 0;
+function cancelDetailViewTransition() {
+  clearTimeout(_detailVTWatchdog);
+  if (_detailVT) { try { _detailVT.skipTransition(); } catch {} _detailVT = null; }
+}
+
 function openDetail(recordId, returnMode = state.mode || "shapes", anchor = null) {
   if (!recordId) return;
+  // Flush any in-flight dossier morph so its pending DOM update commits and
+  // its overlay stops eating this navigation's clicks.
+  cancelDetailViewTransition();
   const mode = normalizeDetailReturnMode(returnMode);
   state.mode = mode;
   state.detailRecordId = String(recordId);
@@ -9568,13 +9592,25 @@ function openDetail(recordId, returnMode = state.mode || "shapes", anchor = null
     && matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (cardCanvas && !reduceMotion && typeof document.startViewTransition === "function") {
     cardCanvas.style.viewTransitionName = "sr-sigil";
-    document.startViewTransition(update);
+    let vt = null;
+    try { vt = document.startViewTransition(update); } catch { update(); return; }
+    _detailVT = vt;
+    // If the transition hasn't finished shortly after starting (throttled
+    // compositor, background window), skip it: skipTransition() forces the
+    // pending render to commit and drops the click-eating overlay.
+    _detailVTWatchdog = setTimeout(() => { if (_detailVT === vt) cancelDetailViewTransition(); }, 1200);
+    vt.finished.catch(() => {}).finally(() => {
+      if (_detailVT === vt) { clearTimeout(_detailVTWatchdog); _detailVT = null; }
+    });
   } else {
     update();
   }
 }
 
 function closeDetail() {
+  // Never re-render the page out from under a live dossier morph — the
+  // transition would finish over stale DOM, leaving old-view pixels behind.
+  cancelDetailViewTransition();
   state.detailRecordId = null;
   if (state.detailReturnMode) state.mode = state.detailReturnMode;
   state.detailReturnMode = null;
@@ -15009,7 +15045,7 @@ function renderContextVaultDetail(selected) {
     <article class="alch-cv-detail">
       <header class="alch-cv-detail-head">
         <div>
-          <span class="alch-cv-eyebrow" title="an in-app reading copy of this article — it isn't published anywhere until someone opens an ask/program PR">draft — in-app copy, not published</span>
+          <span class="alch-cv-eyebrow" title="this article lives only inside this app — nothing is published anywhere unless someone promotes it with an ask/program PR (in the more menu)">article · only in this app — not published</span>
         </div>
         <div class="alch-cv-detail-actions">
           <button class="alch-cv-md-action" type="button" data-cv-copy-article="${escAttr(selected.id)}" title="copy ${escAttr(selectedMdFile)}">
@@ -15608,7 +15644,10 @@ function renderDistilledTranscriptDetail(selected) {
   const themeChips = themes.slice(0, 6).map((t) => `<span class="alch-ev-chip">${escHtml(String(t))}</span>`).join("");
   const who = [...(Array.isArray(selected.teams) ? selected.teams : []), ...(Array.isArray(selected.people) ? selected.people : [])]
     .map((w) => String(w).replace(/-/g, " ").trim()).filter(Boolean);
-  const body = selected.body_md ? renderProgramMarkdown(selected.body_md) : `<p class="alch-cv-muted">This readout has no body.</p>`;
+  // Wrapped in .alch-cv-article-md so readout markdown gets the same explicit
+  // heading hierarchy + body treatment as article markdown (the bare grid
+  // layout left `##` headings indistinguishable from body text when scanning).
+  const body = selected.body_md ? `<div class="alch-cv-article-md">${renderProgramMarkdown(selected.body_md)}</div>` : `<p class="alch-cv-muted">This readout has no body.</p>`;
   const overTime = evidenceOverTimeLinks({ teams: selected.teams, week_start: selected.week_start, date: selected.date });
   const claimsBlock = contextSessionClaimsHtml(selected);
   return `
@@ -15956,6 +15995,12 @@ function contextStreamMeta(item) {
   if (item.kind === "readout") {
     const st = String(item.record?.session_type || item.record?.kind || "").replace(/_/g, " ").trim();
     if (st) bits.push(st);
+    // Whose session this was. The stream is deliberately cohort-wide, so
+    // without attribution another team's readout reads as leaked content
+    // ("why is conclave on my context page?", 2026-07-02/03 feedback).
+    const teams = (Array.isArray(item.record?.teams) ? item.record.teams : [])
+      .map((t) => evTeamName(String(t || "").trim())).filter(Boolean);
+    if (teams.length) bits.push(teams.slice(0, 2).join(", ") + (teams.length > 2 ? ` +${teams.length - 2}` : ""));
   } else if (item.kind === "article") {
     const section = contextArticleSection(item.record);
     if (section) bits.push(section);

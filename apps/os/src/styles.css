@@ -19941,10 +19941,12 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
 .alch-cv-reader {
   display: grid;
   gap: 20px;
-  max-width: 70ch;
+  /* honors the Aa reader-settings width pref (applyContextPrefs) */
+  max-width: var(--cv-measure, 70ch);
   padding: 6px 0 8px;
 }
 
+/* Markdown body — articles AND distilled readouts share this wrapper. */
 .alch-cv-article-md {
   display: block;
 }
@@ -19952,27 +19954,35 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
 .alch-cv-article-md .alch-prog-p,
 .alch-cv-article-md .alch-prog-ul,
 .alch-cv-article-md .alch-prog-ol {
-  color: rgba(var(--ink-rgb), 0.74);
-  font-size: 15px;
+  color: var(--ds-ink-2, rgba(241, 236, 231, 0.74));
+  font-family: var(--ds-font-ui, system-ui, sans-serif);
+  /* honors the Aa reader-settings text-size pref (applyContextPrefs) */
+  font-size: var(--cv-fs, var(--ds-text-lg, 16px));
   line-height: 1.72;
 }
 
-/* Explicit heading hierarchy — unstyled, headings sat at browser defaults and
-   read as merged with the body ("headings are clear" feedback, 2026-07-02). */
-.alch-cv-article-md .alch-prog-h1,
-.alch-cv-article-md .alch-prog-h2,
-.alch-cv-article-md .alch-prog-h3,
-.alch-cv-article-md .alch-prog-h4 {
-  font-family: var(--ds-font-ui, system-ui, sans-serif);
+/* Explicit heading hierarchy — the editorial `.alchemy-canvas h2` rule left
+   markdown headings italic + regular-weight, so they read as merged with the
+   body when scanning ("headings should be clearly distinct", 2026-07-02/03
+   feedback). Upright, semibold, stepped sizes, extra air above each section. */
+.alch-cv-reader .alch-prog-h1,
+.alch-cv-reader .alch-prog-h2,
+.alch-cv-reader .alch-prog-h3,
+.alch-cv-reader .alch-prog-h4 {
+  margin: 28px 0 10px;
   color: var(--ds-ink-1, rgba(241, 236, 231, 0.94));
+  font-family: var(--ds-font-ui, system-ui, sans-serif);
+  font-style: normal;
   font-weight: var(--ds-weight-semi, 600);
-  line-height: 1.25;
-  margin: 26px 0 10px;
+  letter-spacing: var(--ds-track-tight, -0.01em);
+  line-height: var(--ds-lh-xl, 1.25);
 }
-.alch-cv-article-md .alch-prog-h1 { font-size: var(--ds-text-2xl, 24px); }
-.alch-cv-article-md .alch-prog-h2 { font-size: var(--ds-text-xl, 20px); }
-.alch-cv-article-md .alch-prog-h3,
-.alch-cv-article-md .alch-prog-h4 { font-size: var(--ds-text-lg, 16px); }
+.alch-cv-reader .alch-prog-h1 { font-size: var(--ds-text-2xl, 24px); line-height: var(--ds-lh-2xl, 1.15); }
+.alch-cv-reader .alch-prog-h2 { font-size: var(--ds-text-xl, 20px); }
+.alch-cv-reader .alch-prog-h3,
+.alch-cv-reader .alch-prog-h4 { font-size: var(--ds-text-lg, 16px); }
+/* the reader grid already provides the air above the body's first heading */
+.alch-cv-article-md > :first-child { margin-top: 0; }
 
 .alch-cv-article-md .alch-prog-p {
   margin: 0 0 15px;
