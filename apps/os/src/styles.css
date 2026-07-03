@@ -19458,6 +19458,24 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
 
 /* The context page header now uses the shared .alch-page-head (2026-06);
    the content-release line lives in the header's side meta. */
+/* the lens question — what this view answers, stated once at the top */
+.alch-cv-question {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: -6px 0 0;
+}
+.alch-cv-question h2 {
+  margin: 0;
+  font: var(--ds-weight-med, 500) var(--ds-text-lg, 17px)/1.25 var(--ds-font-ui, sans-serif);
+  color: var(--ds-ink-1, rgba(241, 236, 231, 0.94));
+}
+.alch-cv-question span {
+  font: var(--ds-weight-reg, 400) var(--ds-text-xs, 12px)/1.5 var(--ds-font-ui, sans-serif);
+  color: var(--ds-ink-3, rgba(241, 236, 231, 0.52));
+}
+
 .alch-cv-message,
 .alch-cv-error {
   margin: 0;
