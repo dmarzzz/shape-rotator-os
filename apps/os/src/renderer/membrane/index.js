@@ -1750,11 +1750,8 @@ export function mountMembrane(container, opts = {}) {
   }
 
   let dataStore = {};
-  // Which left-rail notification category is click-pinned open (null = none).
-  // Read by feedCategoryHtml and the pin/dismiss handlers in renderFeed —
-  // declared here with the rest of the mount state so the first render
-  // (mount end) never hits the temporal dead zone.
-  let feedPinnedCategory = null;
+  // (feedPinnedCategory is gone: the in-flow click-pin was replaced by the
+  // .mfeed-pop popover — state lives in feedPopCat/feedPopPinned above.)
 
   // ── hub prototype: field feed + capture bar ─────────────────────────────
   // The center feed blends three sources into one "cohort today" stream:

@@ -740,13 +740,9 @@ html[data-theme="light"] .membrane-agenda .magenda-next {
 }
 .membrane-agenda .magenda-add svg { width: 13px; height: 13px; display: block; }
 
-/* Hover-reveal CTA — mirror of the left feed's .mfeed-cta grammar (grid
-   0fr→1fr accordion; fast collapse at rest, slower reveal on hover — the
-   house asymmetric-timing law) so the two rails share one hover vocabulary.
-   Right-aligned by the card's own flex-end column; tinted by its category. */
-/* The old .magenda-cta hover layer grew a row INSIDE the card
-   (grid-template-rows 0fr→1fr), stretching it and shifting every card below —
-   you could never read a card calmly (2026-07-03 feedback). Hover now only
+/* The old .magenda-cta hover layer (grid 0fr→1fr accordion) grew a row INSIDE
+   the card, stretching it and shifting every card below — you could never
+   read a card calmly (2026-07-03 feedback). Fully removed: hover now only
    tints (the .magenda-up-event:hover rules); the title attribute still names
    the click destination. */
 
@@ -3471,7 +3467,10 @@ html[data-theme="light"] .mcap-verbs { background: rgba(255, 255, 255, 0.5); }
   color: var(--membrane-mist);
 }
 .mcap-input::placeholder { color: rgba(var(--mem-ink-rgb), 0.35); }
-.mcap-input:focus-visible { outline: none; } /* the bar's focus-within carries it */
+/* the bar's :focus-within carries focus — no inner ring (plain :focus too:
+   programmatic focus, e.g. the preview's ?post driver, draws the UA ring) */
+.mcap-input:focus,
+.mcap-input:focus-visible { outline: none; }
 
 .mcap-send {
   flex: none;
