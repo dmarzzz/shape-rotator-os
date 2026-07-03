@@ -658,6 +658,11 @@ async function boot() {
       // profile page now.)
       const cluster = document.createElement("div");
       cluster.className = "fg-footer-vcluster";
+      // The nav pin lives with the version cluster in the footer — its original
+      // eyebrow-row spot sat inside the top tab-strip band (--content-top-h) and
+      // visually overlapped it (2026-07-03 feedback: "pin button overlapping").
+      const navPin = document.getElementById("nav-pin-btn");
+      if (navPin) cluster.appendChild(navPin);
       cluster.appendChild(ver);
       cluster.appendChild(updIcon);
       row.appendChild(cluster);

@@ -5940,10 +5940,19 @@ function constTeamInspectorHtml(team, ctx) {
     stageNum == null ? "" : `stage ${stageNum}${matWord ? ` · ${matWord}` : ""}`,
     indeg ? `${indeg} team${indeg === 1 ? "" : "s"} depend on it` : "",
   ].filter(Boolean) : [];
+  // A just-arrived record can be almost empty; say so plainly and point at the
+  // fix instead of rendering a hero over nothing (2026-07-02: clicking a new
+  // member's team showed "nothing").
+  const isSparse = !constText(currentRole) && !success.length && !assessed
+    && !sourceProofParts.length && !inboundEdges.length && !outboundEdges.length;
+  const sparseNote = isSparse
+    ? `<p class="ac-inspector-note ac-inspector-sparse">Nothing declared yet — this record is new or hasn't synced. Once they claim their profile and run sync, their focus, evidence, and connections land here.</p>`
+    : "";
   return `
     <div class="ac-inspector-hero" data-const-team="${escAttr(team.record_id)}">
       <h3><button type="button" class="ac-inspector-name-link" data-const-open-record="${escAttr(team.record_id)}">${escHtml(team.name || team.record_id)}</button></h3>
       <p>${escHtml(constShortText(currentRole, 150) || "No current focus in profile.")}</p>
+      ${sparseNote}
       <div class="ac-inspector-pills">
         <span>${escHtml(CONST_DOMAIN_LABEL[constDomainClass(team.domain)] || "other")}</span>
         ${success.map(s => `<span>${escHtml(s)}</span>`).join("")}
@@ -16152,9 +16161,9 @@ function renderContextVault() {
         const selectedCls = selectedDistilled && selectedDistilled.id === s.id ? " is-selected" : "";
         return `
         <button class="alch-cv-source alch-cv-transcript-source${selectedCls}" type="button" data-cv-distilled-source="${escAttr(s.id)}" data-cv-tags="${escAttr((Array.isArray(s.themes) ? s.themes : []).join(" "))}">
-          ${confBadge(s)}
           <strong>${escHtml(distilledTranscriptTitle(s))}</strong>
           <span class="alch-cv-source-meta">${escHtml(distilledTranscriptMeta(s))}</span>
+          ${confBadge(s)}
         </button>`;
       }).join("")}
     `).join("");

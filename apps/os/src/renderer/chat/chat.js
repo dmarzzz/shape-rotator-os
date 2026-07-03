@@ -370,6 +370,7 @@ export function mountChat(host) {
             <span class="chat-rooms-title">channels</span>
             <button class="chat-signout" type="button" title="sign out">sign out</button>
           </header>
+          <input class="chat-room-filter" type="search" placeholder="filter channels…" spellcheck="false" aria-label="filter channels" />
           <ul class="chat-room-list" role="list"></ul>
         </aside>
         <section class="chat-room">
@@ -388,6 +389,8 @@ export function mountChat(host) {
       </div>`;
 
     host.querySelector(".chat-signout").addEventListener("click", () => api.logout());
+    // The filter lives OUTSIDE the re-rendered <ul>, so typing keeps focus/caret.
+    host.querySelector(".chat-room-filter").addEventListener("input", () => renderRoomList());
 
     const form = host.querySelector(".chat-composer");
     const input = host.querySelector(".chat-compose-input");
@@ -513,8 +516,16 @@ export function mountChat(host) {
           ${r.lastPreview ? `<span class="chat-room-preview"><span class="chat-room-preview-who">${esc(r.lastMine ? "you" : senderName(r.lastSender))}</span><span class="chat-room-preview-msg">${esc(r.lastPreview)}</span></span>` : ""}
         </button>
       </li>`;
-    const readable = rooms.filter((r) => !r.encrypted || status.cryptoReady);
-    const locked = rooms.filter((r) => !readable.includes(r));
+    // Live name filter (2026-07-02 feedback: "there should be some sort of
+    // filter option") — filters in place; the readable/locked grouping holds.
+    const q = String(host.querySelector(".chat-room-filter")?.value || "").trim().toLowerCase();
+    const visible = q ? rooms.filter((r) => String(r.name || "").toLowerCase().includes(q)) : rooms;
+    const readable = visible.filter((r) => !r.encrypted || status.cryptoReady);
+    const locked = visible.filter((r) => !readable.includes(r));
+    if (!visible.length) {
+      ul.innerHTML = `<li class="chat-room-empty">no channels match “${esc(q)}”.</li>`;
+      return;
+    }
     ul.innerHTML = readable.map(roomLi).join("")
       + (locked.length ? `<li class="chat-room-sep" aria-hidden="true">🔒 encrypted — verify this session to read</li>${locked.map(roomLi).join("")}` : "");
     ul.querySelectorAll("[data-room]").forEach((btn) => {

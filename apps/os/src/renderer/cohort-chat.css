@@ -832,6 +832,15 @@ body.cc-resizing .cc-resize::before { background: var(--ds-accent); }
   line-height: var(--ds-lh-xs);
   color: var(--ds-ink-3);
 }
+.cc-upload-dup {
+  margin-top: 6px;
+  padding: 7px 10px;
+  border: 1px dashed color-mix(in srgb, var(--ds-accent) 45%, var(--ds-border));
+  border-radius: 8px;
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-lh-xs);
+  color: var(--ds-ink-2);
+}
 .cc-upload-route {
   min-height: 56px;
   border: 1px solid var(--ds-border);

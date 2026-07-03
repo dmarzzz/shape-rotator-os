@@ -504,6 +504,21 @@
   padding: 1px 4px; border: 1px solid rgba(var(--ink-rgb), 0.18); border-radius: 4px;
 }
 
+/* live channel-name filter above the room list */
+.chat-room-filter {
+  margin: 0 12px 8px;
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: rgba(var(--ink-rgb), 0.85);
+  background: rgba(var(--ink-rgb), 0.05);
+  border: 1px solid rgba(var(--ink-rgb), 0.12);
+  border-radius: 8px;
+  outline: none;
+}
+.chat-room-filter::placeholder { color: rgba(var(--ink-rgb), 0.3); }
+.chat-room-filter:focus { border-color: rgba(var(--ink-rgb), 0.28); }
+
 /* divider between readable channels and still-locked encrypted ones */
 .chat-room-sep {
   padding: 10px 14px 4px;

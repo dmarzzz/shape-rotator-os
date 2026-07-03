@@ -6427,6 +6427,14 @@ html[data-ds] .alch-zoom-ctl .azc-btn { height: 24px !important; min-height: 24p
   letter-spacing: -0.01em;
 }
 .ac-inspector-hero p,
+/* Sparse-record note — a bordered aside so "nothing here yet" reads as a
+   state, not a rendering failure. */
+.ac-inspector-sparse {
+  margin-top: 8px !important;
+  padding: 8px 10px;
+  border: 1px dashed rgba(var(--ink-rgb), 0.22);
+  border-radius: 8px;
+}
 .ac-inspector-note,
 .ac-inspector-empty {
   margin: 0;
@@ -17289,14 +17297,16 @@ body[data-blank] .blank-tab { display: flex; }
   color: rgba(var(--ink-rgb), 0.50);
 }
 .primary-nav .nav-cat--eyebrow:hover { color: rgba(var(--ink-rgb), 0.66); }
-/* Pin toggle — keep the drawer open permanently (2026-07-02 feedback). Sits at
- * the eyebrow row's right edge, clear of the macOS traffic-light zone. */
-.primary-nav .nav-cat--eyebrow { display: flex; align-items: center; justify-content: space-between; }
+/* Pin toggle — keep the drawer open permanently (2026-07-02 feedback). Lives in
+ * the drawer FOOTER row beside the version cluster (boot.js moves it there):
+ * its first home, the eyebrow row, sits inside the top tab-strip band
+ * (--content-top-h) and the button visually overlapped it. */
 .nav-pin {
   appearance: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: none;
   width: 26px;
   height: 26px;
   padding: 0;
@@ -17305,6 +17315,7 @@ body[data-blank] .blank-tab { display: flex; }
   background: transparent;
   color: rgba(var(--ink-rgb), 0.45);
   cursor: pointer;
+  -webkit-app-region: no-drag;
 }
 .nav-pin svg { width: 14px; height: 14px; }
 .nav-pin:hover { color: rgba(var(--ink-rgb), 0.85); border-color: rgba(var(--ink-rgb), 0.14); }
@@ -20114,8 +20125,10 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
 .alch-cv-group-head:first-child { margin-top: 2px; }
 .alch-cv-group-head span { color: var(--ds-ink-4, rgba(241, 236, 231, 0.32)); }
 .alch-cv-conf {
-  float: right;
-  margin-left: 8px;
+  /* the source row is a flex COLUMN — the badge is its own compact row,
+     never floated (float is ignored in flex and stretched full-width). */
+  align-self: flex-start;
+  margin-top: 2px;
   padding: 1px 7px;
   border-radius: 999px;
   border: 1px solid var(--ds-border, rgba(241, 236, 231, 0.14));

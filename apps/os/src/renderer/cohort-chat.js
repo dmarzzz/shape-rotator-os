@@ -868,6 +868,7 @@ function createController() {
         </label>
       </div>
       <div class="cc-upload-route" data-cc-transcript-route></div>
+      <div class="cc-upload-dup" data-cc-transcript-dup hidden></div>
       <details class="cc-upload-connection">
         <summary>Supabase</summary>
         <div class="cc-upload-grid is-connection">
@@ -944,6 +945,27 @@ function createController() {
       const type = selectedType();
       submit.disabled = busy || !selectedFile || !type;
       route.innerHTML = routeBadges(type);
+      void warnDuplicate(type);
+    }
+    // "It should be already in there, but I think I can upload this" — check the
+    // live distilled readouts for the same session type on the same date and
+    // say so BEFORE the member re-uploads. Soft note only; never blocks.
+    const dupEl = card.querySelector("[data-cc-transcript-dup]");
+    async function warnDuplicate(type) {
+      if (!dupEl) return;
+      if (!type || !date || !date.value) { dupEl.hidden = true; dupEl.textContent = ""; return; }
+      let artifacts = [];
+      try { artifacts = await getDistillationsForPrompt(); } catch {}
+      if (selectedType() !== type) return; // selection changed mid-fetch
+      const dup = artifacts.find((a) =>
+        a && a.session_type === type.key && String(a.date || a.created_at || "").slice(0, 10) === date.value);
+      if (dup) {
+        dupEl.hidden = false;
+        dupEl.textContent = `Heads up: a distilled ${type.label || type.key} readout for ${date.value} already exists (“${dup.title || "untitled"}”). Adding this file will create a second entry.`;
+      } else {
+        dupEl.hidden = true;
+        dupEl.textContent = "";
+      }
     }
     function setBusy(on) {
       busy = on;
@@ -1004,6 +1026,7 @@ function createController() {
       const z = (n) => String(n).padStart(2, "0");
       date.value = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
       date.addEventListener("click", () => { try { date.showPicker(); } catch {} });
+      date.addEventListener("change", syncUploadState); // re-run the duplicate check
     }
     cancel.addEventListener("click", () => card.remove());
     submit.addEventListener("click", async () => {
