@@ -84,9 +84,11 @@ const ITEM_MAX = 140; // live test: prior_work artifact descriptions were cut mi
 // running on THEIR machine with THEIR tools/github, grounds the update in real
 // recent work and ASKS one question to sharpen it (rather than silently guessing).
 // It emits STRICT JSON with only the changed whitelist fields + a `question`.
-// `answer` folds the member's reply back in on a refine pass. Conservative by
-// construction: propose a field only when the evidence supports it, never invent.
-export function buildSelfReportPrompt({ person = {}, sessionDigest = "", githubDigest = "", appContextDigest = "", answer = "" } = {}) {
+// `answer` folds the member's reply back in on a refine pass; `guidance` is what
+// they wrote BEFORE the first pass (authoritative corrections/context — cuts the
+// number of refine iterations). Conservative by construction: propose a field
+// only when the evidence supports it, never invent.
+export function buildSelfReportPrompt({ person = {}, sessionDigest = "", githubDigest = "", appContextDigest = "", answer = "", guidance = "" } = {}) {
   const cur = {};
   for (const k of Object.keys(SELF_REPORT_FIELDS)) {
     if (person && person[k] != null) cur[k] = person[k];
@@ -156,6 +158,7 @@ export function buildSelfReportPrompt({ person = {}, sessionDigest = "", githubD
     "",
     "CURRENT PROFILE (do not repeat unchanged values):",
     JSON.stringify(cur, null, 1),
+    guidance ? `\nMEMBER GUIDANCE (they wrote this before drafting — treat it as authoritative context and corrections, ahead of any inference):\n${guidance}` : "",
     answer ? `\nTHEIR ANSWER to your last question (fold this in, then ask a follow-up only if needed):\n${answer}` : "",
     "",
     "EVIDENCE:",

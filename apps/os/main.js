@@ -1315,6 +1315,19 @@ function createWindow() {
   hideNativeMenuBar(win);
   if (ws.fullscreen) win.setFullScreen(true);
   if (process.env.SRWK_ALWAYS_ON_TOP === "1") win.setAlwaysOnTop(true);
+  // Navigation guard: the app window only ever shows its own file:// bundle.
+  // Any anchor or script that tries to top-level-navigate (which would replace
+  // the app AND expose the preload bridge to a remote page) is cancelled;
+  // http(s) targets open in the default browser instead. Same for window.open.
+  win.webContents.on("will-navigate", (e, url) => {
+    if (String(url).startsWith("file://")) return;
+    e.preventDefault();
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+  });
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+    return { action: "deny" };
+  });
   win.loadFile(
     path.join(__dirname, "src", "index.html"),
     NAV_VISUAL_AUDIT ? { query: { navAudit: "1" } } : undefined
@@ -1666,7 +1679,10 @@ ipcMain.handle("env:get", async () => ({
 // tiny read; empty string on un-provisioned / public builds.
 ipcMain.on("cohort-key:get", (e) => { e.returnValue = COHORT_KEY; });
 ipcMain.handle("shell:openExternal", async (_e, url) => {
-  if (typeof url === "string" && /^https?:\/\//i.test(url)) shell.openExternal(url);
+  // http(s) links + mailto drafts only. mailto opens the member's own mail
+  // client with a prefilled draft ("send it to me", 2026-07-02 feedback) —
+  // nothing sends without the member hitting send in their own mailer.
+  if (typeof url === "string" && /^(https?:\/\/|mailto:)/i.test(url)) shell.openExternal(url);
 });
 ipcMain.handle("shell:openDownloadedInstaller", async (_e, filePath) => {
   if (typeof filePath !== "string" || !filePath.trim()) {

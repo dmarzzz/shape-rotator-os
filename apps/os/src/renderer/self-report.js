@@ -498,7 +498,7 @@ function renderConsent(person, githubFallback) {
       <input type="checkbox" data-sr-sessions ${rememberedSessions ? "checked" : ""}>
       <span>
         <b>My local AI sessions this week</b>
-        <small>Reads your Claude Code / Codex logs <em>on this machine</em>, scrubbed into a short summary. Raw content never leaves your computer.</small>
+        <small>Reads your Claude Code / Codex logs <em>on this machine</em>, scrubbed into a short summary. Raw content never leaves your computer, and the draft is directed to keep only what's relevant to your cohort work — you review every field before anything sends.</small>
       </span>
     </label>
     <label class="selfrep-consent${hasGithub ? "" : " is-disabled"}">
@@ -522,6 +522,14 @@ function renderConsent(person, githubFallback) {
         <small>No scan. Answer a few questions, preview the changed fields, then send only what you approve to Supabase.</small>
       </span>
     </button>
+    <label class="selfrep-guide">
+      <span><b>Guide it before it runs</b> <small>(optional)</small></span>
+      <textarea data-sr-guidance rows="2" placeholder="anything it should know up front — e.g. “we pivoted from NDI to transcripts”, “ignore my side project”…" spellcheck="true"></textarea>
+    </label>
+    <details class="selfrep-prompt-preview" data-sr-prompt-details>
+      <summary>see the exact prompt it will run</summary>
+      <pre data-sr-prompt-preview></pre>
+    </details>
     <div class="selfrep-actions">
       <button type="button" class="selfrep-btn selfrep-ghost" data-sr-close>cancel</button>
       <button type="button" class="selfrep-btn selfrep-primary" data-sr-run disabled>scan &amp; draft</button>
@@ -536,6 +544,26 @@ function renderConsent(person, githubFallback) {
   sessions.addEventListener("change", refresh);
   if (github) github.addEventListener("change", refresh);
   refresh();
+  // "It shows you the prompt… and so you could adjust it" — the ACTUAL prompt
+  // the run will pipe to the local AI, live-updated as sources/guidance change.
+  // Digest slots show placeholders (the scans haven't run yet by definition).
+  const promptDetails = host.querySelector("[data-sr-prompt-details]");
+  const promptPre = host.querySelector("[data-sr-prompt-preview]");
+  const guidanceEl = host.querySelector("[data-sr-guidance]");
+  const fillPromptPreview = () => {
+    if (!promptDetails || !promptDetails.open || !promptPre) return;
+    promptPre.textContent = buildSelfReportPrompt({
+      person,
+      appContextDigest: "[the app's current read on you — profile, team focus, recent timeline — is inserted here]",
+      sessionDigest: sessions.checked ? "[a scrubbed digest of your recent local AI sessions is inserted here after the scan]" : "",
+      githubDigest: (github && github.checked) ? "[a scrubbed digest of your recent GitHub activity is inserted here after the scan]" : "",
+      guidance: ((guidanceEl && guidanceEl.value) || "").trim(),
+    });
+  };
+  if (promptDetails) promptDetails.addEventListener("toggle", fillPromptPreview);
+  if (guidanceEl) guidanceEl.addEventListener("input", fillPromptPreview);
+  sessions.addEventListener("change", fillPromptPreview);
+  if (github) github.addEventListener("change", fillPromptPreview);
   for (const b of host.querySelectorAll("[data-sr-close]")) b.addEventListener("click", closeSelfReport);
   const manual = host.querySelector("[data-sr-manual]");
   if (manual) manual.addEventListener("click", () => { void renderManualDraft(person, githubFallback); });
@@ -549,6 +577,7 @@ function renderConsent(person, githubFallback) {
     runSelfReport(person, {
       ...choices,
       githubFallback,
+      guidance: ((host.querySelector("[data-sr-guidance]") || {}).value || "").trim().slice(0, 1200),
     });
   });
 }
@@ -693,6 +722,7 @@ function renderBusy(message) {
   clearBusyTimer();
   host.innerHTML = card(`
     <header class="selfrep-head"><span class="selfrep-eyebrow">working…</span></header>
+    <ul class="selfrep-busy-steps" data-sr-steps hidden></ul>
     <div class="selfrep-busy"><span class="selfrep-spinner" aria-hidden="true"></span><span data-sr-status>${esc(message)}</span></div>
     <p class="selfrep-foot" data-sr-elapsed>your own local AI is working — local runs can take 10–60s.</p>
   `);
@@ -704,9 +734,20 @@ function renderBusy(message) {
     el.textContent = `your own local AI is working — ${Math.round((Date.now() - start) / 1000)}s (local runs can take 10–60s).`;
   }, 1000);
 }
+// Advance the busy card to the next step, keeping the finished ones visible as a
+// checked list ("going through this, going through that") so a long run reads as
+// progress, not a frozen spinner.
 function setBusy(message) {
   const el = host && host.querySelector("[data-sr-status]");
-  if (el) el.textContent = message;
+  if (!el) return;
+  const steps = host.querySelector("[data-sr-steps]");
+  if (steps && el.textContent && el.textContent !== message) {
+    const li = document.createElement("li");
+    li.textContent = `✓ ${el.textContent}`;
+    steps.appendChild(li);
+    steps.hidden = false;
+  }
+  el.textContent = message;
 }
 function renderError(message) {
   clearBusyTimer();
@@ -748,6 +789,7 @@ async function synthesize(person, digests, answer = "") {
     sessionDigest: digests.sessionDigest,
     githubDigest: digests.githubDigest,
     appContextDigest: digests.appContextDigest,
+    guidance: digests.guidance || "",
     answer,
   });
   const synth = await safeCall(() => window.api?.selfReportSynthesize?.({ prompt }));
@@ -782,7 +824,7 @@ async function synthesize(person, digests, answer = "") {
   };
 }
 
-async function runSelfReport(person, { useSessions, useGithub, githubFallback }) {
+async function runSelfReport(person, { useSessions, useGithub, githubFallback, guidance = "" }) {
   renderBusy("reading your recent work…");
   let surface = null;
   try { surface = await getCohortSurface(); } catch {}
@@ -793,6 +835,7 @@ async function runSelfReport(person, { useSessions, useGithub, githubFallback })
   const sourceNotes = [];
   if (appContextDigest) sourceNotes.push("App: used current profile, team focus, and recent timeline as correction context.");
   if (useSessions) {
+    setBusy("reading your recent local sessions…");
     const scan = await safeCall(() => window.api?.selfReportScan?.({ days: SELF_REPORT_LOOKBACK_DAYS }));
     if (!scan || !scan.ok) return renderError("Scanning your local sessions isn’t available on this build yet.");
     sessionDigest = scan.digest || "";
@@ -810,7 +853,9 @@ async function runSelfReport(person, { useSessions, useGithub, githubFallback })
   if (!sessionDigest && !githubDigest) {
     return renderError("No recent activity found to read. Try again after some work, or update your profile by hand.");
   }
-  const digests = { sessionDigest, githubDigest, githubSourceKind, appContextDigest, sourceNotes, team: currentTeam };
+  if (guidance) sourceNotes.push("You: pre-run guidance was folded into the draft.");
+  // guidance rides in digests so refine passes keep honoring it too.
+  const digests = { sessionDigest, githubDigest, githubSourceKind, appContextDigest, sourceNotes, team: currentTeam, guidance };
   const res = await synthesize(currentPerson, digests, "");
   if (!res.ok) return renderError(res.error);
   if (!res.changed.length && !(res.teamChanged && res.teamChanged.length)) {
@@ -820,30 +865,41 @@ async function runSelfReport(person, { useSessions, useGithub, githubFallback })
 }
 
 // ── Step 3 — review → optional interview refine → send/apply ──────────
-function diffRows(base, draft, changed) {
+// Every diff row carries a tick box (default on): only ticked fields are sent,
+// so an update is never all-or-nothing ("does it wipe everything?" feedback).
+function diffRows(base, draft, changed, pickAttr) {
   return (Array.isArray(changed) ? changed : []).map((k) => `
     <div class="selfrep-diff">
+      <input type="checkbox" class="selfrep-diff-pick" ${pickAttr}="${esc(k)}" checked aria-label="include ${esc(fieldLabel(k))} in the update" title="untick to leave this field as-is">
       <div class="selfrep-diff-k">${esc(fieldLabel(k))}</div>
       <div class="selfrep-diff-was">${esc(asText(base && base[k]) || "—")}</div>
       <div class="selfrep-diff-arrow" aria-hidden="true">→</div>
-      <div class="selfrep-diff-new">${esc(asText(draft && draft[k]))}</div>
+      <div class="selfrep-diff-new">
+        <button type="button" class="selfrep-diff-edit" data-sr-edit title="edit this value before sending (lists are comma-separated)">✎</button>
+        <span class="selfrep-diff-new-text">${esc(asText(draft && draft[k]))}</span>
+      </div>
     </div>`).join("");
+}
+
+// Parse an inline edit back into the field's shape: lists split on commas/
+// newlines, objects (journey) round-trip as JSON, strings pass through.
+// Empty or unparseable input keeps the AI's proposed value.
+function parseEditedValue(raw, original) {
+  const t = String(raw || "").trim();
+  if (!t) return original;
+  if (Array.isArray(original)) return t.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
+  if (original && typeof original === "object") { try { return JSON.parse(t); } catch { return original; } }
+  return t;
 }
 
 function renderReview(person, state) {
   clearBusyTimer();
   if (!host) return; // an async pass finished after the modal was closed
-  const { merged, changed, team, teamMerged = {}, teamChanged = [], usefulness = {}, question, digests } = state;
-  const rows = changed.map((k) => `
-    <div class="selfrep-diff">
-      <div class="selfrep-diff-k">${esc(fieldLabel(k))}</div>
-      <div class="selfrep-diff-was">${esc(asText(person[k]) || "—")}</div>
-      <div class="selfrep-diff-arrow" aria-hidden="true">→</div>
-      <div class="selfrep-diff-new">${esc(asText(merged[k]))}</div>
-    </div>`).join("");
+  const { merged, changed, team, teamMerged = {}, teamChanged = [], usefulness = {}, question, digests, refined = false } = state;
+  const rows = diffRows(person, merged, changed, "data-sr-pick");
   const coverage = assessSelfReportCoverage(person, changed);
   const missing = coverage.missingEmptyFields.map(fieldLabel).join(", ");
-  const teamRows = diffRows(team || {}, teamMerged, teamChanged);
+  const teamRows = diffRows(team || {}, teamMerged, teamChanged, "data-sr-pick-team");
   const totalChanged = changed.length + teamChanged.length;
   const profileCoverageHtml = changed.length ? (coverage.status === "broad" ? "" : `
     <div class="selfrep-coverage is-${coverage.status}">
@@ -878,24 +934,29 @@ function renderReview(person, state) {
   const sourceHtml = sourceNotes.length ? `
     <div class="selfrep-sources">${sourceNotes.map((note) => `<span>${esc(note)}</span>`).join("")}</div>` : "";
   // Router-style: the member's AI asks ONE question to sharpen; answering it runs a
-  // refine pass. Optional — they can send the reviewed delta as-is.
+  // refine pass. Optional — they can send the reviewed delta as-is. The question
+  // LEADS the card (per user feedback: statement + question first, detail after).
   const refine = question ? `
     <div class="selfrep-refine">
       <p class="selfrep-q">${esc(question)}</p>
       <textarea data-sr-answer placeholder="answer to sharpen it (optional)…"></textarea>
       <button type="button" class="selfrep-btn selfrep-ghost selfrep-refine-btn" data-sr-refine>refine with my answer ↻</button>
     </div>` : "";
+  const refinedNote = refined ? `
+    <div class="selfrep-refined-ok" role="status">✓ refined with your answer — this is the updated draft (${totalChanged} field${totalChanged === 1 ? "" : "s"}).</div>` : "";
   host.innerHTML = card(`
     <header class="selfrep-head"><span class="selfrep-eyebrow">proposed update · ${totalChanged} field${totalChanged === 1 ? "" : "s"}</span>
       <button type="button" class="selfrep-x" data-sr-close aria-label="close">✕</button></header>
-    <p class="selfrep-lede">Drafted from this week's work by your own AI. Person fields update your public profile; project evidence goes to review before it changes the team record.</p>
-    ${sourceHtml}
+    <p class="selfrep-lede">Drafted from this week's work by your own AI. <b>Nothing is saved or sent until you hit “send update.”</b> Person fields update your profile inside this cohort-gated app (not posted anywhere public); project evidence goes to review before it changes the team record.</p>
+    ${refinedNote}
     ${usefulnessHtml}
+    ${refine}
+    ${sourceHtml}
     ${profileCoverageHtml}
     ${projectCoverageHtml}
     ${personSection}
     ${teamSection}
-    ${refine}
+    ${totalChanged ? `<p class="selfrep-pick-hint">Only ticked fields are sent — untick anything you'd rather leave as-is.</p>` : ""}
     <div class="selfrep-actions">
       <button type="button" class="selfrep-btn selfrep-ghost" data-sr-close>discard</button>
       <button type="button" class="selfrep-btn selfrep-primary" data-sr-apply>send update</button>
@@ -903,14 +964,49 @@ function renderReview(person, state) {
     <p class="selfrep-foot" data-sr-send-status></p>
   `);
   for (const b of host.querySelectorAll("[data-sr-close]")) b.addEventListener("click", closeSelfReport);
+  // Per-card edit (✎): swap the proposed value for an editable box. The edited
+  // text is read back at send time (see pickDelta) — one card at a time, never
+  // a full regenerate.
+  for (const btn of host.querySelectorAll("[data-sr-edit]")) {
+    btn.addEventListener("click", () => {
+      const cell = btn.closest(".selfrep-diff-new");
+      const span = cell && cell.querySelector(".selfrep-diff-new-text");
+      if (!span) return;
+      const ta = document.createElement("textarea");
+      ta.className = "selfrep-diff-editbox";
+      ta.rows = 2;
+      ta.value = span.textContent;
+      span.replaceWith(ta);
+      btn.remove();
+      ta.focus();
+    });
+  }
   let applied = false;
   host.querySelector("[data-sr-apply]").addEventListener("click", async () => {
     if (applied) return; // guard a double-click → duplicate inbox rows + double editor open
-    applied = true;
     const applyBtn = host.querySelector("[data-sr-apply]");
     const statusEl = host.querySelector("[data-sr-send-status]");
+    // Only ticked rows are sent; untouched fields keep their current value.
+    const picked = (attr) => new Set(Array.from(host.querySelectorAll(`[${attr}]`))
+      .filter((el) => el.checked).map((el) => el.getAttribute(attr)));
+    const selChanged = changed.filter((k) => picked("data-sr-pick").has(k));
+    const selTeam = teamChanged.filter((k) => picked("data-sr-pick-team").has(k));
+    if (!selChanged.length && !selTeam.length) {
+      if (statusEl) statusEl.textContent = "nothing ticked — tick at least one field to send.";
+      return;
+    }
+    applied = true;
     if (applyBtn) applyBtn.disabled = true;
     if (statusEl) statusEl.textContent = "sending to Supabase...";
+    // Per-row inline edits (✎) override the AI's proposed value for that field.
+    const pickDelta = (src, keys, attr) => {
+      const d = {};
+      for (const k of keys) {
+        const box = host.querySelector(`[${attr}="${k}"]`)?.closest(".selfrep-diff")?.querySelector(".selfrep-diff-editbox");
+        d[k] = box ? parseEditedValue(box.value, src[k]) : src[k];
+      }
+      return d;
+    };
     const directSourceKinds = Array.isArray(digests && digests.sourceKinds) && digests.sourceKinds.length
       ? digests.sourceKinds.slice(0, 8).map(String)
       : [
@@ -921,8 +1017,8 @@ function renderReview(person, state) {
     let ctx = {};
     try { ctx = await getAppContext(); } catch {}
     const claimHash = getClaimTokenHash();
-    if (changed.length) {
-      const direct = await saveSelfReportUpdate(person.record_id, merged, {
+    if (selChanged.length) {
+      const direct = await saveSelfReportUpdate(person.record_id, pickDelta(merged, selChanged, "data-sr-pick"), {
         question: question || "",
         sourceKinds: directSourceKinds,
         appVersion: ctx.appVersion,
@@ -938,8 +1034,8 @@ function renderReview(person, state) {
         return;
       }
     }
-    if (teamChanged.length && team && team.record_id) {
-      const teamRes = await saveProfileProposal(team.record_id, teamMerged, {
+    if (selTeam.length && team && team.record_id) {
+      const teamRes = await saveProfileProposal(team.record_id, pickDelta(teamMerged, selTeam, "data-sr-pick-team"), {
         proposerRecordId: person.record_id,
         proposerClaimHash: claimHash,
         rationale: question ? `Self-report project evidence proposal. Follow-up question: ${question}` : "Self-report project evidence proposal.",
@@ -957,19 +1053,19 @@ function renderReview(person, state) {
         return;
       }
     }
-    emitSelfReport(person.record_id, Object.keys(merged || {}), {
-      coverageStatus: changed.length ? coverage.status : projectStatus,
+    emitSelfReport(person.record_id, selChanged, {
+      coverageStatus: selChanged.length ? coverage.status : projectStatus,
       sourceKinds: directSourceKinds,
       usedAppContext: !!digests.appContextDigest,
-      teamRecordId: team && teamChanged.length ? team.record_id : "",
-      teamFields: teamChanged,
-      teamProposalStatus: teamChanged.length ? "pending_review" : "",
+      teamRecordId: team && selTeam.length ? team.record_id : "",
+      teamFields: selTeam,
+      teamProposalStatus: selTeam.length ? "pending_review" : "",
       usefulness: usefulnessReport,
     });
     if (statusEl) statusEl.textContent = "sent - refreshing the cohort record...";
     try { await refreshCohortFromGithub(); } catch {}
     setTimeout(() => { refreshCohortFromGithub().catch(() => {}); }, 1500);
-    renderSuccess(Object.keys(merged || {}), teamChanged);
+    renderSuccess(selChanged, selTeam);
   });
   const refineBtn = host.querySelector("[data-sr-refine]");
   if (refineBtn) {
@@ -981,12 +1077,16 @@ function renderReview(person, state) {
       refining = true;
       refineBtn.disabled = true;
       const gen = runGen;
+      // Swap to the busy card (spinner + live elapsed) — leaving the review card up
+      // made the click look dead for the whole 10–60s local run. setBusy() inside
+      // synthesize() only updates the busy card's status line.
+      renderBusy("sharpening with your answer…");
       const res = await synthesize(person, digests, answer);
       if (gen !== runGen) return; // modal closed/reopened mid-run → drop the stale result
       refining = false;
       if (!res.ok) return renderError(res.error);
       if (!res.changed.length && !(res.teamChanged && res.teamChanged.length)) return renderError("Looks good — nothing more to change. 🎉");
-      renderReview(person, { ...res, digests });
+      renderReview(person, { ...res, digests, refined: true });
     });
   }
 }

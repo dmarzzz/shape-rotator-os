@@ -24,9 +24,22 @@ import { loadCalendarIngressConfig } from "./calendar-ingress.mjs";
 import { emitConnection, emitContest, emitSelfReport } from "./cohort-emit.mjs";
 import { submitContest } from "./supabase-contest.mjs";
 import { scanGithubActivity, resolvePersonHandle, summarizeEvents, digestFromEvents } from "./gh-self-report.mjs";
+import { renderChatMarkdown } from "./chat-markdown.mjs";
+import { fetchCohortDistillations } from "./supabase-distillations.mjs";
 
 let stylesheetPromise = null;
 let controller = null;
+
+// Distilled-readout catalog for the prompt, cached for a few minutes so every
+// chat turn doesn't re-hit Supabase. fetchCohortDistillations never throws
+// (unconfigured/outage → empty list), so this is always safe to await.
+let distillCache = { at: 0, artifacts: [] };
+async function getDistillationsForPrompt() {
+  if (Date.now() - distillCache.at < 5 * 60 * 1000) return distillCache.artifacts;
+  const { artifacts } = await fetchCohortDistillations();
+  distillCache = { at: Date.now(), artifacts: artifacts || [] };
+  return distillCache.artifacts;
+}
 
 const FALLBACK_TRANSCRIPT_TYPES = [
   { key: "weekly_standup", label: "Weekly standup", routePath: "raw_transcripts/weekly_standup", maxTier: "T2", cohortMode: "aggregate_only", publicAllowed: false },
@@ -47,6 +60,33 @@ const FALLBACK_TRANSCRIPT_CONFIDENCE = [
 ];
 
 function $(id) { return document.getElementById(id); }
+
+// What page is the member looking at? Read from the DOM the app already stamps
+// (body.dataset.activeTab + body.dataset.alchMode) — the bot assumes ambiguous
+// questions refer to it, and the panel offers page-specific preset prompts.
+const PAGE_MAP = {
+  membrane: { label: "membrane (landing)", detail: "calendar agenda, incoming notices, what's-new feed", presets: ["what is this page showing me?", "what's happening this week?"] },
+  collab: { label: "collabboard", detail: "needs×offers matrix — who can help whom", presets: ["how does this board work?", "who should my team talk to?"] },
+  calendar: { label: "calendar", detail: "the cohort's shared program calendar", presets: ["what's next on the calendar?", "anything big coming up?"] },
+  context: { label: "context vault", detail: "transcripts, distilled readouts, and articles", presets: ["which transcripts are relevant to my team?", "what's new in context?"] },
+  shapes: { label: "teams directory", detail: "the cohort's teams and their profiles", presets: ["where is everyone at, quickly?", "which team is closest to ours?"] },
+  constellation: { label: "cohort constellation", detail: "the people/teams map", presets: ["where is everyone at, quickly?", "what does this view mean?"] },
+  mirror: { label: "mirror", detail: "your profile as the app understands you", presets: ["what does sync actually send?", "what's stale on my profile?"] },
+  activity: { label: "asks & activity", detail: "open asks and the activity feed", presets: ["what are people asking for right now?", "any asks my team could claim?"] },
+  asks: { label: "asks board", detail: "open asks from the cohort", presets: ["what are people asking for right now?", "any asks my team could claim?"] },
+  profile: { label: "a profile page", detail: "one member's or team's profile", presets: ["what is this profile telling me?"] },
+  program: { label: "program handbook", detail: "the program's pages and schedule", presets: ["what should I be doing this week?"] },
+};
+function currentPageContext() {
+  try {
+    const tab = document.body.dataset.activeTab || "";
+    if (tab === "chat") return { key: "chat", label: "matrix chat", detail: "the cohort's chat channels", presets: [] };
+    if (tab === "network") return { key: "network", label: "network glance", detail: "", presets: [] };
+    const mode = document.body.dataset.alchMode || "";
+    const hit = PAGE_MAP[mode];
+    return hit ? { key: mode, ...hit } : null;
+  } catch { return null; }
+}
 
 // Resolve the member's own person record from their claimed identity + the surface
 // (mirrors gh-fork.js::getCurrentGithubHandle). Used to hand off into the mirror.
@@ -156,6 +196,7 @@ function createController() {
   let activeFocusResolution = null;
   let selectedTeamId = "";      //   what's scanned + the team a write targets; the
                                 //   member's explicit pick (UI), else named-in-chat/primary
+  let activePage = null;        // the page the member opened the chat FROM (currentPageContext)
 
   // Auto-scroll should follow the stream, but never YANK a user who has scrolled
   // up to read earlier output. Check before each chunk grows the log.
@@ -225,12 +266,55 @@ function createController() {
     setChatView(lastView);  // return to the view you collapsed from (lastView starts "ask").
                             // Re-asserting the SAME view skips setChatView's leaving-sync
                             // teardown, so a self-report still running in the background survives.
+    // Resolve the page the member opened the chat FROM — it scopes ambiguous
+    // questions and drives the preset chips above the composer. NOT a one-shot:
+    // syncActivePage() keeps it live while the panel stays open (see the
+    // MutationObserver below) and send() re-resolves before every prompt.
+    syncActivePage(true);
+    // Restore the full-page preference (don't rewrite it — just reflect it).
+    let wantFull = false; try { wantFull = localStorage.getItem("srwk:chat_expanded_v1") === "1"; } catch {}
+    setChatFull(wantFull, { remember: false });
     syncDial(true);  // dial state only
     setDocked(true);  // grows the window + opens the dock (owns html.cohort-chat-open)
     window.addEventListener("keydown", onKey, true);
     setTimeout(() => input.focus(), 60);
     refreshReadiness();
     void onboardThenOffer();
+  }
+
+  // Keep activePage tracking the page the member is ACTUALLY on. Called on
+  // open, before every send, and from a MutationObserver when the app's mode
+  // attributes change while the panel is open — a stale snapshot had the bot
+  // offering membrane presets on the collab board (2026-07-02 follow-up).
+  function syncActivePage(force = false) {
+    const next = currentPageContext();
+    if (!force && (next && next.key) === (activePage && activePage.key)) return;
+    activePage = next;
+    renderPagePresets();
+  }
+  const pageObserver = new MutationObserver(() => {
+    if (panel.hidden) return;
+    syncActivePage();
+  });
+  pageObserver.observe(document.body, { attributes: true, attributeFilter: ["data-alch-mode", "data-active-tab"] });
+
+  // Page-specific preset prompts ("oh, I can just ask the bot about this page").
+  // One tap fills + sends. Hidden once a preset is used or when the page has none.
+  function renderPagePresets() {
+    const hostEl = $("cohort-chat-presets");
+    if (!hostEl) return;
+    const presets = (activePage && Array.isArray(activePage.presets)) ? activePage.presets : [];
+    if (!presets.length) { hostEl.hidden = true; hostEl.innerHTML = ""; return; }
+    hostEl.hidden = false;
+    hostEl.innerHTML = `<span class="cc-page-presets-label">on ${esc(activePage.label)}:</span>`
+      + presets.map((p) => `<button type="button" class="cc-page-preset" data-cc-preset="${esc(p)}">${esc(p)}</button>`).join("");
+    for (const btn of hostEl.querySelectorAll("[data-cc-preset]")) {
+      btn.addEventListener("click", () => {
+        input.value = btn.getAttribute("data-cc-preset") || "";
+        hostEl.hidden = true;
+        void send();
+      });
+    }
   }
 
   // First: if there's no local AI yet, show the setup guide (Claude Code / Codex);
@@ -327,6 +411,7 @@ function createController() {
   function close() {
     panel.hidden = true;
     panel.setAttribute("aria-hidden", "true");
+    _html.classList.remove("cohort-chat-full");  // drop full-page; the preference survives for next open
     syncDial(false);  // dial state only
     setDocked(false);  // shrinks the window back + closes the dock
     window.removeEventListener("keydown", onKey, true);
@@ -364,13 +449,27 @@ function createController() {
     }
   }
 
+  // Markdown links in assistant bubbles carry data-href (never a live href — a
+  // real anchor would navigate the whole window). One delegated handler routes
+  // them to the default browser; survives every re-render.
+  log.addEventListener("click", (e) => {
+    const a = e.target.closest?.(".cc-md-link[data-href]");
+    if (!a) return;
+    e.preventDefault();
+    const href = a.getAttribute("data-href");
+    if (href && /^https?:\/\//i.test(href)) window.api?.openExternal?.(href);
+  });
+
   function appendBubble(role, text) {
     if (empty) empty.hidden = true;
     const row = document.createElement("div");
     row.className = `cc-msg is-${role}`;
     const body = document.createElement("div");
     body.className = "cc-msg-body";
-    body.textContent = text || "";
+    // Assistant prose renders as markdown (escape-first — see chat-markdown.mjs);
+    // user text stays literal.
+    if (role === "assistant" && text) body.innerHTML = renderChatMarkdown(text);
+    else body.textContent = text || "";
     row.appendChild(body);
     log.appendChild(row);
     log.scrollTop = log.scrollHeight;
@@ -693,6 +792,23 @@ function createController() {
     return { sessionTypes: FALLBACK_TRANSCRIPT_TYPES, confidenceOptions: FALLBACK_TRANSCRIPT_CONFIDENCE };
   }
 
+  // The upload token resolves automatically — you're already in the app, so it
+  // should carry your credentials (2026-07-03 feedback: "you need a supabase key
+  // but that should automatically be the app"). Order: an explicit manual
+  // override → the signed-in member's Supabase session token. NO cohort-key
+  // fallback here: the ingest-artifacts function verifies its bearer against
+  // /auth/v1/user (checked in the Engine repo), so only a real auth-user token
+  // can upload — the read-only cohort_app key would 401.
+  async function resolveIntakeToken(explicit) {
+    const manual = String(explicit || "").trim();
+    if (manual) return { token: manual, source: "manual" };
+    try {
+      const s = window.api?.auth?.getSession ? await window.api.auth.getSession() : null;
+      if (s && s.access_token) return { token: String(s.access_token), source: "login" };
+    } catch { /* fall through */ }
+    return { token: "", source: "none" };
+  }
+
   function readTranscriptSupabaseConfig() {
     const base = readSupabaseConfig();
     const ingress = loadCalendarIngressConfig();
@@ -743,6 +859,7 @@ function createController() {
     card.className = "cc-card is-transcript-intake";
     card.innerHTML = `
       <div class="cc-card-eyebrow">add transcript</div>
+      <p class="cc-upload-privacy">Uploads go to the program's private store and queue for processing — nothing publishes automatically, and the raw file is never shown to the cohort. Pick a type below to see exactly where this one routes.</p>
       <button type="button" class="cc-upload-dropzone" data-cc-transcript-dropzone aria-label="choose a transcript file"></button>
       <div class="cc-upload-grid">
         <label class="cc-upload-field">
@@ -779,8 +896,9 @@ function createController() {
         </label>
       </div>
       <div class="cc-upload-route" data-cc-transcript-route></div>
+      <div class="cc-upload-dup" data-cc-transcript-dup hidden></div>
       <details class="cc-upload-connection">
-        <summary>Supabase</summary>
+        <summary>storage connection (advanced — the program's Supabase database)</summary>
         <div class="cc-upload-grid is-connection">
           <label class="cc-upload-field">
             <span>org id</span>
@@ -816,6 +934,17 @@ function createController() {
     let selectedFile = null;
     let busy = false;
 
+    // Say HOW the upload will authenticate, up front — signed-in members and
+    // provisioned builds never need to think about tokens.
+    const connSummary = card.querySelector(".cc-upload-connection summary");
+    void (async () => {
+      const r = await resolveIntakeToken(readTranscriptSupabaseConfig().accessToken);
+      if (!connSummary) return;
+      if (r.source === "login") connSummary.textContent = "✓ uploads as you (signed in) — override (advanced)";
+      else if (r.source === "manual") connSummary.textContent = "✓ manual token set — storage connection (advanced)";
+      else connSummary.textContent = "⚠ not connected — sign in to the app, or set a token here";
+    })();
+
     function setStatus(kind, text) {
       if (!text) { stat.hidden = true; stat.textContent = ""; return; }
       stat.hidden = false;
@@ -829,6 +958,14 @@ function createController() {
     function selectedType() {
       return types.find((type) => type.key === select.value) || null;
     }
+    // Plain-words answer to "am I just yoloing this?": what the chosen type does
+    // to the file once it's queued, ahead of the machine route/tier badges.
+    const COHORT_MODE_EXPLAINER = {
+      aggregate_only: "used only for aggregate cohort signals — the transcript itself is never surfaced",
+      distilled_readout: "a paraphrased, distilled readout is produced for the cohort; the raw file stays private",
+      team_call_required: "surfaced only if the team on the call approves it",
+      never: "stays in the do-not-publish store — read by nothing downstream",
+    };
     function routeBadges(type) {
       if (!type) return "";
       const badges = [
@@ -836,8 +973,10 @@ function createController() {
         type.cohortMode ? `<span>${esc(String(type.cohortMode).replace(/_/g, " "))}</span>` : "",
         `<span>Drive queued</span>`,
       ].filter(Boolean).join("");
+      const explain = COHORT_MODE_EXPLAINER[type.cohortMode] || "";
       return `
         <div class="cc-upload-route-line"><strong>${esc(type.routePath || "needs_calendar_match")}</strong></div>
+        ${explain ? `<div class="cc-upload-route-explain">After processing: ${esc(explain)}.${type.publicAllowed ? " Public excerpts are possible for this type, only after review." : " Never leaves the cohort."}</div>` : ""}
         <div class="cc-upload-route-badges">${badges}</div>
         ${type.accessNote ? `<div class="cc-upload-route-note">${esc(type.accessNote)}</div>` : ""}`;
     }
@@ -845,6 +984,27 @@ function createController() {
       const type = selectedType();
       submit.disabled = busy || !selectedFile || !type;
       route.innerHTML = routeBadges(type);
+      void warnDuplicate(type);
+    }
+    // "It should be already in there, but I think I can upload this" — check the
+    // live distilled readouts for the same session type on the same date and
+    // say so BEFORE the member re-uploads. Soft note only; never blocks.
+    const dupEl = card.querySelector("[data-cc-transcript-dup]");
+    async function warnDuplicate(type) {
+      if (!dupEl) return;
+      if (!type || !date || !date.value) { dupEl.hidden = true; dupEl.textContent = ""; return; }
+      let artifacts = [];
+      try { artifacts = await getDistillationsForPrompt(); } catch {}
+      if (selectedType() !== type) return; // selection changed mid-fetch
+      const dup = artifacts.find((a) =>
+        a && a.session_type === type.key && String(a.date || a.created_at || "").slice(0, 10) === date.value);
+      if (dup) {
+        dupEl.hidden = false;
+        dupEl.textContent = `Heads up: a distilled ${type.label || type.key} readout for ${date.value} already exists (“${dup.title || "untitled"}”). Adding this file will create a second entry.`;
+      } else {
+        dupEl.hidden = true;
+        dupEl.textContent = "";
+      }
     }
     function setBusy(on) {
       busy = on;
@@ -905,6 +1065,7 @@ function createController() {
       const z = (n) => String(n).padStart(2, "0");
       date.value = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
       date.addEventListener("click", () => { try { date.showPicker(); } catch {} });
+      date.addEventListener("change", syncUploadState); // re-run the duplicate check
     }
     cancel.addEventListener("click", () => card.remove());
     submit.addEventListener("click", async () => {
@@ -916,6 +1077,7 @@ function createController() {
       setStatus("", "uploading…");
       try {
         const currentConfig = readTranscriptSupabaseConfig();
+        const resolved = await resolveIntakeToken(token.value || currentConfig.accessToken);
         const res = await window.api.submitTranscriptIntake({
           filePath: selectedFile.filePath,
           sessionType: type.key,
@@ -927,7 +1089,7 @@ function createController() {
           supabase: {
             ...currentConfig,
             orgId: (org.value || currentConfig.orgId || "").trim(),
-            accessToken: (token.value || currentConfig.accessToken || "").trim(),
+            accessToken: resolved.token,
           },
         });
         if (res && res.ok) {
@@ -996,7 +1158,9 @@ function createController() {
           if (said) display = said.question || said.text || "";
         }
         activeBubbleBody.hidden = false;
-        activeBubbleBody.textContent = display || finalText;
+        // The stream typed out plain text; the finished answer swaps to rendered
+        // markdown so **bold**/# headings stop showing as raw asterisks.
+        activeBubbleBody.innerHTML = renderChatMarkdown(display || finalText);
         ephemeralText = display || finalText;
         // Ephemeral one-shots (article restyle) never join the conversation.
         if (!pendingEphemeral) history.push({ role: "assistant", content: display || finalText });
@@ -1086,6 +1250,8 @@ function createController() {
       return;
     }
     activeFocus = activeFocusResolution.focus;
+    syncActivePage(); // the prompt must carry the page the member is on NOW
+    const distillations = await getDistillationsForPrompt();
     runTurn(buildChatPrompt({
       surface,
       history: history.slice(0, -1),
@@ -1094,6 +1260,8 @@ function createController() {
       focus: activeFocus,
       focusResolution: activeFocusResolution,
       route,
+      distillations,
+      page: activePage,
     }), { focus: activeFocus, focusResolution: activeFocusResolution, route });
   }
 
@@ -1235,6 +1403,8 @@ function createController() {
     pendingActionCtx = buildActionCtx(surface);
     runTurn(buildChatPrompt({
       surface, history: history.slice(-6), question: lastQuestion, agent: true, focus: activeFocus, focusResolution: activeFocusResolution,
+      distillations: await getDistillationsForPrompt(),
+      page: activePage,
       toolResults: `GITHUB ACTIVITY${scopeNote} (${priv ? "incl. private — scrubbed digest" : "public"}):\n${digest}`,
     }), { focus: activeFocus, focusResolution: activeFocusResolution, route: classifyChatIntent(lastQuestion) });
   }
@@ -1366,6 +1536,23 @@ function createController() {
 
   form.addEventListener("submit", send);
   stopBtn.addEventListener("click", stop);
+  // Full-page expansion (2026-07-02 feedback): the card grows from the 400px
+  // side dock to cover the window. Pure CSS class flip — the window/dock IPC
+  // stays at side-panel size, the card just overlays the content. Preference
+  // persists; close() drops the class but keeps the preference for next open.
+  const CHAT_FULL_KEY = "srwk:chat_expanded_v1";
+  const expandBtn = $("cohort-chat-expand");
+  function setChatFull(on, { remember = true } = {}) {
+    _html.classList.toggle("cohort-chat-full", on);
+    if (expandBtn) {
+      expandBtn.setAttribute("aria-pressed", on ? "true" : "false");
+      expandBtn.title = on ? "back to side panel" : "expand to full page";
+    }
+    if (remember) { try { localStorage.setItem(CHAT_FULL_KEY, on ? "1" : "0"); } catch {} }
+  }
+  if (expandBtn) expandBtn.addEventListener("click", () => {
+    setChatFull(!_html.classList.contains("cohort-chat-full"));
+  });
   // The cogwheel toggles the settings dropdown; clicking outside it (anywhere
   // but the menu or the cogwheel) dismisses it, like any dropdown.
   settingsBtn.addEventListener("click", () => { settingsEl.hidden ? openSettings() : closeSettings(); });

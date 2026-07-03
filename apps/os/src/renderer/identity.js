@@ -373,7 +373,7 @@ async function renderResealCard(host, { variant, cohortHint, close, repaint, sea
     const resyncHtml = `
       <button class="alch-seal-btn" data-im-resync type="button"
               title="re-pull cohort-data/*.md from github. background pulls run hourly; click to refresh now.">
-        <span class="im-resync-label">re-sync the rolls</span>
+        <span class="im-resync-label">refresh the roster</span>
       </button>
     `;
     // Contact block — pulled from the full cohort record so the card
@@ -446,7 +446,7 @@ async function renderResealCard(host, { variant, cohortHint, close, repaint, sea
           </div>
           <div class="alch-seal-actions">
             ${resyncHtml}
-            <button class="alch-seal-btn alch-seal-btn-danger" type="button" data-im-action="unclaim">break the seal</button>
+            <button class="alch-seal-btn alch-seal-btn-danger" type="button" data-im-action="unclaim" title="unclaim — forget this identity on this device">break the seal</button>
           </div>
         </div>
         ${edgesHtml}
@@ -503,34 +503,34 @@ async function renderResealCard(host, { variant, cohortHint, close, repaint, sea
     <div class="enroll-scan" aria-hidden="true"></div>
     <div class="enroll-band">
       <span class="enroll-issuer"><svg class="issuer-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg> shape rotator · alchemy</span>
-      <span class="enroll-doc">${claimed ? "re-seal" : "the threshold"}</span>
+      <span class="enroll-doc">${claimed ? "switch profile" : "the threshold"}</span>
     </div>
 
     <header class="im-head">
       <h2 id="im-title" class="im-title">
-        ${claimed ? "re-seal" : "identify yourself"}
+        ${claimed ? "switch profile" : "identify yourself"}
       </h2>
       <p class="im-sub">
         ${claimed
-          ? `sealed as <strong>${escHtml(currentResolved?.label || currentId.display_name)}</strong> <span class="im-current-kind">(${escHtml(currentId.kind)} · ${escHtml(currentId.record_id)})</span>. choose another shape to re-seal, or use the controls below.`
-          : "strike your seal to cross into the cohort. your shape, your record — stored on this device, never broadcast."}
+          ? `claimed as <strong>${escHtml(currentResolved?.label || currentId.display_name)}</strong> <span class="im-current-kind">(${escHtml(currentId.kind)} · ${escHtml(currentId.record_id)})</span>. pick another record below to switch, or use the controls here.`
+          : "pick your record so the app knows who you are. it stays on this device — never broadcast."}
       </p>
       ${claimed ? `
         <div class="im-current-actions">
           <button class="im-btn im-current-edit"    type="button" data-im-action="edit">edit my record →</button>
-          <button class="im-btn im-current-unclaim" type="button" data-im-action="unclaim">break the seal</button>
+          <button class="im-btn im-current-unclaim" type="button" data-im-action="unclaim" title="forget this identity on this device">unclaim</button>
         </div>
       ` : ""}
     </header>
 
     <section class="im-section">
-      <h3 class="im-h"><span class="im-h-no">01</span> ${claimed ? "re-seal as another shape" : "find your shape"}</h3>
+      <h3 class="im-h"><span class="im-h-no">01</span> ${claimed ? "switch to another record" : "find yourself"}</h3>
       ${selectRows("im-row")}
     </section>
 
     <section class="im-section">
-      <h3 class="im-h"><span class="im-h-no">02</span> ${claimed ? "or strike a new shape" : "not on the rolls yet"}</h3>
-      <p class="im-sub" style="margin:0 0 12px 0">opens the editor with a blank shape — submit a PR to join.</p>
+      <h3 class="im-h"><span class="im-h-no">02</span> ${claimed ? "or create a new record" : "not listed yet?"}</h3>
+      <p class="im-sub" style="margin:0 0 12px 0">opens the editor with a blank record — submit a PR to join.</p>
       <div class="im-create-row">
         <button class="im-btn im-create" data-create="person"  type="button">+ new person</button>
         <button class="im-btn im-create" data-create="team"    type="button">+ new team</button>
@@ -544,7 +544,7 @@ async function renderResealCard(host, { variant, cohortHint, close, repaint, sea
     <footer class="im-foot">
       <button class="im-resync" data-im-resync type="button"
               title="re-pull cohort-data/*.md from github. background pulls run hourly; click to refresh now.">
-        <span class="im-resync-label">re-sync the rolls</span>
+        <span class="im-resync-label">refresh the roster</span>
       </button>
       <button class="im-skip" data-im-skip type="button">${claimed ? "close" : "not yet →"}</button>
     </footer>

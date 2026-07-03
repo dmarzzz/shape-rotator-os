@@ -257,9 +257,13 @@ function evidenceCardLine(c) {
     evidenceConfidence(c) && `confidence ${evidenceConfidence(c)}`,
     c?.attribution_scope && `scope ${c.attribution_scope}`,
   ].filter(Boolean).join("; ");
+  // Inferred team attributions (text-matched by the app, not declared by the
+  // engine) are labelled so the model treats them as "probably about", never
+  // as a declared fact — a card that merely MENTIONS a team lands on it.
+  const inferred = cj.teams_basis === "inferred";
   const bits = [
     `- ${wk ? `[${wk}] ` : ""}${shortText(text, 260)}`,
-    teams && `teams: ${teams}`,
+    teams && `teams${inferred ? " (inferred from content — may only mention them)" : ""}: ${teams}`,
     people && `people: ${people}`,
     themes && `themes: ${themes}`,
     claims && `claims: ${claims}`,
@@ -532,7 +536,36 @@ function dataQualityBlock(s, { focusId = "", topTeamIds = new Set() } = {}) {
 
 // Build the grounded context block, retrieval-ranked against the question and
 // bounded to ~maxChars. Returns a string.
-export function buildCohortContext(surface, { question = "", maxChars = 22000, fullTeams = 8, fullPeople = 6, focus = null } = {}) {
+// Compact catalog of the DISTILLED transcript readouts (live Supabase rows from
+// supabase-distillations.mjs) so "which transcripts are relevant to X?" answers
+// from distilled data instead of "none available". Titles + metadata only —
+// bodies stay out of the prompt budget; raw/source transcripts never enter here.
+export function distilledTranscriptsBlock(artifacts, qset) {
+  const rows = (Array.isArray(artifacts) ? artifacts : []).filter((a) => a && (a.title || a.session_type));
+  if (!rows.length) return "";
+  const score = (a) => {
+    const text = [a.title, a.session_type, a.summary, ...(a.themes || []), ...(a.teams || []), ...(a.people || [])]
+      .filter(Boolean).join(" ").toLowerCase();
+    const queryScore = qset && qset.size ? [...qset].filter((t) => text.includes(t)).length * 10 : 0;
+    const date = String(a.date || a.created_at || "").slice(0, 10).replaceAll("-", "");
+    const recency = /^\d{8}$/.test(date) ? Number(date) / 100000000 : 0;
+    return queryScore + recency;
+  };
+  const line = (a) => {
+    const date = String(a.date || a.created_at || "").slice(0, 10);
+    const bits = [
+      `- [${date || "undated"}] ${a.title || a.session_type}`,
+      a.session_type && a.title ? `(${String(a.session_type).replace(/_/g, " ")})` : "",
+      a.teams && a.teams.length ? `· teams: ${a.teams.slice(0, 4).join(", ")}` : "",
+      a.themes && a.themes.length ? `· themes: ${a.themes.slice(0, 4).join(", ")}` : "",
+    ].filter(Boolean).join(" ");
+    return bits;
+  };
+  const ranked = rows.map((a) => ({ a, s: score(a) })).sort((x, y) => y.s - x.s).slice(0, 12);
+  return `\n## Distilled transcripts on file (${rows.length} total; readouts live in the app's context tab)\n${ranked.map((x) => line(x.a)).join("\n")}`;
+}
+
+export function buildCohortContext(surface, { question = "", maxChars = 22000, fullTeams = 8, fullPeople = 6, focus = null, distillations = null } = {}) {
   const s = surface || {};
   const teams = Array.isArray(s.teams) ? s.teams : [];
   const people = Array.isArray(s.people) ? s.people : [];
@@ -606,6 +639,11 @@ export function buildCohortContext(surface, { question = "", maxChars = 22000, f
     }
   }
 
+  // Catalog of distilled readouts (passed in live by the chat panel) — the
+  // grounded answer to "what transcripts do we have / which are relevant?".
+  const distillBlock = distilledTranscriptsBlock(distillations, qset);
+  if (distillBlock) parts.push(distillBlock);
+
   // Recent activity feed ("what's new").
   const wn = Array.isArray(s.whats_new) ? s.whats_new.slice(0, 12) : [];
   if (wn.length) {
@@ -651,8 +689,12 @@ export function needsProjectConfirmation(route, focusResolution) {
     && focusResolution.candidates.length > 1;
 }
 
-function routingBlock({ route, focus, focusResolution } = {}) {
+function routingBlock({ route, focus, focusResolution, page } = {}) {
   const lines = [`intent: ${route || "answer"}`];
+  if (page && page.label) {
+    lines.push(`current_page: ${page.label}${page.detail ? ` — ${page.detail}` : ""}`);
+    lines.push("instruction: The member is looking at this page right now. Assume an ambiguous question ('what is this?', 'how does this work?') refers to it, and ground the answer in that page's purpose before anything else. Don't dump everything about the page unprompted — answer the question, briefly.");
+  }
   if (focusResolution) {
     lines.push(`focus_reason: ${focusResolution.reason || "unknown"}`);
     if (Array.isArray(focusResolution.candidates) && focusResolution.candidates.length) {
@@ -681,6 +723,7 @@ const SYSTEM = [
   "When describing a project, prefer this shape: what it is, who it serves, what it is doing now, strongest evidence, current bottleneck/gap, and next useful check. Skip generic praise unless the context names the evidence.",
   "When asked who to connect with / who to talk to, use each team's `seeking`/`offering` and its `suggested connections`, and explain the specific reason for each suggestion (the need met, the shared problem, the dependency).",
   "When asked what's happening or how something is progressing, ground it in the distilled session insights, recent activity, and each team's progress (stage / bottleneck / next milestone).",
+  "When asked about transcripts (which exist, which are relevant to a team or topic), answer from the 'Distilled transcripts on file' list — those distilled readouts ARE the transcripts available to you; raw recordings never enter this context. Only say none are available if that list is absent or empty.",
   "When the weekly say/did trajectory block appears, use it to compare what people or teams declared against dated observed activity. It is a gap checklist: surface missing weekly intentions/goals, thin follow-up evidence, and possible pivot cues; do not claim a pivot unless the context names the change and some supporting activity.",
   "The cohort's central lens is its two awards: Best Shape Rotation (a substantiated pivot toward product–market fit — a team that changed shape in response to real feedback and can SHOW it) and Best Team–Product Fit (the right team for this problem, evidenced by how they work, what they ship, and how they take feedback). Treat award help as an evidence dossier, not a pitch deck: identify supported evidence, missing evidence, and unrelated/out-of-scope signal; make the pivot, trigger, shipping, and team-fit evidence legible only when the grounded work supports it.",
 ].join("\n");
@@ -717,9 +760,9 @@ export const ACTION_CONTRACT = [
 // `agent:true` appends the ACTION_CONTRACT so the model may propose structured
 // changes; `toolResults` injects the output of a prior tool step (e.g. a scan
 // digest) for the next loop iteration.
-export function buildChatPrompt({ surface, history = [], question, maxChars = 22000, agent = false, toolResults = "", focus = null, focusResolution = null, route = null } = {}) {
+export function buildChatPrompt({ surface, history = [], question, maxChars = 22000, agent = false, toolResults = "", focus = null, focusResolution = null, route = null, distillations = null, page = null } = {}) {
   const activeRoute = route || classifyChatIntent(question);
-  const context = buildCohortContext(surface, { question, maxChars, focus });
+  const context = buildCohortContext(surface, { question, maxChars, focus, distillations });
   const convo = (Array.isArray(history) ? history : [])
     .filter((m) => m && m.content)
     .slice(-6)
@@ -734,7 +777,7 @@ export function buildChatPrompt({ surface, history = [], question, maxChars = 22
   return [
     SYSTEM,
     agent ? ACTION_CONTRACT : "",
-    routingBlock({ route: activeRoute, focus, focusResolution }),
+    routingBlock({ route: activeRoute, focus, focusResolution, page }),
     focusBlock,
     "\n===== COHORT CONTEXT =====",
     context,

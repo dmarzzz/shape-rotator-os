@@ -61,8 +61,10 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
 function friendlyDay(d, nowMs) {
   const today = new Date(nowMs); today.setHours(0, 0, 0, 0);
   const off = Math.round((d.getTime() - today.getTime()) / 86400000);
-  if (off <= 0) return 'today';
+  if (off === 0) return 'today';
   if (off === 1) return 'tomorrow';
+  // Past dates fall through to the explicit day label — never claim "today"
+  // for a date that isn't.
   return `${WD[d.getDay()]} ${MO[d.getMonth()]} ${d.getDate()}`;
 }
 function fmtClock(min) {
@@ -163,10 +165,12 @@ function diffCards(identities, nowMs) {
         nav: { mode: 'calendar' }, seenKey: full, sortAt: 1,
       });
     } else {
-      const d = parseYmd(id.date) || new Date(nowMs);
+      // An unparseable date must not fall back to "today" — omit the day
+      // instead of mislabeling a future event as happening now.
+      const d = parseYmd(id.date);
       cards.push({
         kind: 'event-new', icon: 'plus', title: id.title,
-        detail: `new · ${friendlyDay(d, nowMs)}${id.time ? ' · ' + id.time : ''}`,
+        detail: `new${d ? ' · ' + friendlyDay(d, nowMs) : ''}${id.time ? ' · ' + id.time : ''}`,
         nav: { mode: 'calendar' }, seenKey: full, sortAt: 2,
       });
     }

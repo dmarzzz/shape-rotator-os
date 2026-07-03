@@ -66,7 +66,7 @@ html, body {
   --nav-w: 280px;
   --nav-hot-w: 28px;
   --nav-radius: 28px;
-  --nav-handle-w: 9px;
+  --nav-handle-w: 4px;
   --nav-closed-x: calc(var(--nav-hot-w) - var(--nav-w));
   --content-top-h: 35px;
   --window-controls-left-w: max(var(--nav-hot-w), env(titlebar-area-x, 0px));
@@ -6433,6 +6433,15 @@ html[data-ds] .alch-zoom-ctl .azc-btn { height: 24px !important; min-height: 24p
   color: var(--alchemy-ink-mute);
   font-size: 11.5px;
   line-height: 1.48;
+}
+/* Sparse-record note — a bordered aside so "nothing here yet" reads as a
+   state, not a rendering failure. Placed AFTER the shared note rule so it
+   augments .ac-inspector-note instead of splitting its selector list. */
+.ac-inspector-sparse {
+  margin-top: 8px !important;
+  padding: 8px 10px;
+  border: 1px dashed rgba(var(--ink-rgb), 0.22);
+  border-radius: 8px;
 }
 .ac-inspector-hero code { color: var(--alchemy-paper-warm); font-family: var(--font-mono); font-size: 10px; }
 .ac-inspector-pills {
@@ -17034,20 +17043,21 @@ textarea.alch-cv-compose-body-input { min-height: 150px; line-height: 1.6; }
 }
 .primary-nav::-webkit-scrollbar { display: none; }
 .primary-nav::before {
+  /* Closed-state affordance. Was a 9px glowing bar mid-strip (x 11–20px) with an
+     18–24px shadow bleeding onto content — users read it as the menu overlapping
+     the app (2026-07-02 feedback). Now a slim 4px line hugging the window edge
+     (x 3–7px when closed), no glow. */
   content: "";
   position: absolute;
   top: calc(var(--content-top-h) + 14px);
-  right: 8px;
+  right: 21px;
   bottom: 22px;
   width: var(--nav-handle-w);
   border-radius: 999px;
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--page-accent) 62%, transparent), color-mix(in srgb, var(--page-accent) 24%, transparent) 46%, color-mix(in srgb, var(--page-accent) 50%, transparent));
-  box-shadow:
-    inset 0 0 0 1px rgba(var(--ink-rgb), 0.11),
-    0 0 18px color-mix(in srgb, var(--page-accent) 18%, transparent),
-    0 4px 24px rgba(0, 0, 0, 0.30);
-  opacity: 0.82;
+  box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb), 0.11);
+  opacity: 0.72;
   transform: scaleY(1);
   z-index: 2;
   pointer-events: none;
@@ -17288,6 +17298,34 @@ body[data-blank] .blank-tab { display: flex; }
   color: rgba(var(--ink-rgb), 0.50);
 }
 .primary-nav .nav-cat--eyebrow:hover { color: rgba(var(--ink-rgb), 0.66); }
+/* Pin toggle — keep the drawer open permanently (2026-07-02 feedback). Lives in
+ * the drawer FOOTER row beside the version cluster (boot.js moves it there):
+ * its first home, the eyebrow row, sits inside the top tab-strip band
+ * (--content-top-h) and the button visually overlapped it. */
+.nav-pin {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: rgba(var(--ink-rgb), 0.45);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+.nav-pin svg { width: 14px; height: 14px; }
+.nav-pin:hover { color: rgba(var(--ink-rgb), 0.85); border-color: rgba(var(--ink-rgb), 0.14); }
+.nav-pin:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 1px; }
+.primary-nav.is-user-pinned .nav-pin {
+  color: var(--page-accent, var(--ds-accent));
+  border-color: color-mix(in srgb, var(--page-accent, var(--ds-accent)) 45%, transparent);
+  background: color-mix(in srgb, var(--page-accent, var(--ds-accent)) 12%, transparent);
+}
 /* "operating system" glyphs hidden — the eyebrow sits in the top-left where
  * macOS draws the traffic-light window buttons, and the text overlapped them.
  * visibility:hidden (not display:none) keeps the button's reserved height so
@@ -20074,6 +20112,35 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   text-transform: uppercase;
 }
 
+/* Distilled-transcript list grouping (by session type) + confidence badges. */
+.alch-cv-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 12px 2px 4px;
+  font: var(--ds-weight-med, 500) var(--ds-text-2xs, 10px)/1.3 var(--ds-font-mono, monospace);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ds-ink-3, rgba(241, 236, 231, 0.5));
+}
+.alch-cv-group-head:first-child { margin-top: 2px; }
+.alch-cv-group-head span { color: var(--ds-ink-4, rgba(241, 236, 231, 0.32)); }
+.alch-cv-conf {
+  /* the source row is a flex COLUMN — the badge is its own compact row,
+     never floated (float is ignored in flex and stretched full-width). */
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--ds-border, rgba(241, 236, 231, 0.14));
+  font: var(--ds-weight-med, 500) var(--ds-text-2xs, 10px)/1.4 var(--ds-font-mono, monospace);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ds-ink-3, rgba(241, 236, 231, 0.5));
+}
+.alch-cv-conf.is-sure { border-color: color-mix(in srgb, var(--ds-accent) 45%, transparent); color: var(--ds-accent); }
+.alch-cv-conf.is-needs-review { border-color: color-mix(in srgb, var(--ds-danger, #e5484d) 45%, transparent); color: var(--ds-danger, #e5484d); }
+
 
 
 
@@ -20180,6 +20247,23 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   font-size: 15px;
   line-height: 1.72;
 }
+
+/* Explicit heading hierarchy — unstyled, headings sat at browser defaults and
+   read as merged with the body ("headings are clear" feedback, 2026-07-02). */
+.alch-cv-article-md .alch-prog-h1,
+.alch-cv-article-md .alch-prog-h2,
+.alch-cv-article-md .alch-prog-h3,
+.alch-cv-article-md .alch-prog-h4 {
+  font-family: var(--ds-font-ui, system-ui, sans-serif);
+  color: var(--ds-ink-1, rgba(241, 236, 231, 0.94));
+  font-weight: var(--ds-weight-semi, 600);
+  line-height: 1.25;
+  margin: 26px 0 10px;
+}
+.alch-cv-article-md .alch-prog-h1 { font-size: var(--ds-text-2xl, 24px); }
+.alch-cv-article-md .alch-prog-h2 { font-size: var(--ds-text-xl, 20px); }
+.alch-cv-article-md .alch-prog-h3,
+.alch-cv-article-md .alch-prog-h4 { font-size: var(--ds-text-lg, 16px); }
 
 .alch-cv-article-md .alch-prog-p {
   margin: 0 0 15px;

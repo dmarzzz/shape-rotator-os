@@ -1574,6 +1574,11 @@ function render(opts = {}) {
   // ~16. Leaving them alive across renders would silently exhaust the
   // budget after a few mode switches.
   destroyAllShapes();
+  // Close any open sentence-bar dropdown before the canvas rewrite — a menu
+  // opened from the outgoing view (z-index 80, absolutely positioned) could
+  // otherwise survive the switch and sit over the new view eating clicks
+  // (2026-07-02 feedback: "switching between teams… stops clicking").
+  closeConstSentenceMenus();
   // Tear down the membrane scene when leaving membrane mode — same WebGL
   // budget concern, plus the RAF loop should stop.
   if (state.mode !== "membrane" && state.membraneController) {
@@ -1632,16 +1637,22 @@ function renderActivityMode() {
       <span class="alch-activity-label">${escHtml(feedItemLabel(ev, nameOf))}</span>
       <time class="alch-activity-time">${escHtml(activityRelTime(ev.created_at))}</time>
     </li>`;
-  const feedItem = (it) => it && it._feedKind === "ask"
-    ? `<li class="alch-activity-ask${it._isNew ? " is-new" : ""}">${renderAskCard(it._ask, ctx)}</li>`
-    : eventRow(it);
+  // Post-it board first (2026-07-02 feedback: "keep it very just asks —
+  // anything, official or unofficial"): open asks lead the page as a board;
+  // the event feed demotes to a "cohort activity" section below. Both keep
+  // the blended ranking within their own group.
+  const askItems = view.items.filter((it) => it && it._feedKind === "ask");
+  const eventItems = view.items.filter((it) => !(it && it._feedKind === "ask"));
   const newBadge = view.newCount ? ` · <strong>${view.newCount} new</strong>` : "";
-  const feedBody = view.items.length
+  const boardBody = askItems.length
+    ? `<div class="alch-asks-list">${askItems.map((it) => `<div class="alch-activity-ask${it._isNew ? " is-new" : ""}">${renderAskCard(it._ask, ctx)}</div>`).join("")}</div>`
+    : `<div class="alch-activity-empty">No open asks. Post one — anything goes, official or not: an intro, a teammate, a running buddy, a couch.</div>`;
+  const feedBody = eventItems.length
     ? `<ul class="alch-activity-list">
-        ${view.items.map(feedItem).join("")}
+        ${eventItems.map(eventRow).join("")}
         ${view.quietCount ? `<li class="alch-activity-quiet">+ ${view.quietCount} quiet profile ${view.quietCount === 1 ? "tidy" : "tidies"}</li>` : ""}
       </ul>`
-    : `<div class="alch-activity-empty">Nothing here yet. Post an ask, edit your profile, or share a transcript — it shows up here for the whole cohort.</div>`;
+    : "";
   const closedBody = view.closed.length
     ? `<details class="alch-asks-section alch-activity-closed">
         <summary class="alch-asks-section-head">
@@ -1662,8 +1673,8 @@ function renderActivityMode() {
     <section class="alch-activity alch-asks-activity" data-activity>
       <header class="alch-activity-head">
         <div>
-          <h2 class="alch-activity-title">asks &amp; activity</h2>
-          <p class="alch-activity-sub">open asks and cohort updates${newBadge}</p>
+          <h2 class="alch-activity-title">asks</h2>
+          <p class="alch-activity-sub">the cohort's post-it board — ask for anything, official or unofficial${newBadge}</p>
         </div>
         <div class="alch-activity-modes" role="group" aria-label="feed mode">
           <button type="button" class="alch-activity-mode${view.mode === "for_you" ? " is-on" : ""}" data-activity-mode="for_you">for you</button>
@@ -1671,10 +1682,14 @@ function renderActivityMode() {
         </div>
       </header>
       ${renderAskComposer()}
-      <div class="alch-activity-feed">
-        ${feedBody}
+      <div class="alch-activity-board">
+        ${boardBody}
       </div>
       ${closedBody}
+      ${feedBody ? `<div class="alch-activity-feed">
+        <h3 class="alch-activity-yours-title">cohort activity</h3>
+        ${feedBody}
+      </div>` : ""}
       ${mineBody}
     </section>`;
   markSeen(Date.now());
@@ -5925,10 +5940,19 @@ function constTeamInspectorHtml(team, ctx) {
     stageNum == null ? "" : `stage ${stageNum}${matWord ? ` · ${matWord}` : ""}`,
     indeg ? `${indeg} team${indeg === 1 ? "" : "s"} depend on it` : "",
   ].filter(Boolean) : [];
+  // A just-arrived record can be almost empty; say so plainly and point at the
+  // fix instead of rendering a hero over nothing (2026-07-02: clicking a new
+  // member's team showed "nothing").
+  const isSparse = !constText(currentRole) && !success.length && !assessed
+    && !sourceProofParts.length && !inboundEdges.length && !outboundEdges.length;
+  const sparseNote = isSparse
+    ? `<p class="ac-inspector-note ac-inspector-sparse">Nothing declared yet — this record is new or hasn't synced. Once they claim their profile and run sync, their focus, evidence, and connections land here.</p>`
+    : "";
   return `
     <div class="ac-inspector-hero" data-const-team="${escAttr(team.record_id)}">
       <h3><button type="button" class="ac-inspector-name-link" data-const-open-record="${escAttr(team.record_id)}">${escHtml(team.name || team.record_id)}</button></h3>
       <p>${escHtml(constShortText(currentRole, 150) || "No current focus in profile.")}</p>
+      ${sparseNote}
       <div class="ac-inspector-pills">
         <span>${escHtml(CONST_DOMAIN_LABEL[constDomainClass(team.domain)] || "other")}</span>
         ${success.map(s => `<span>${escHtml(s)}</span>`).join("")}
@@ -12144,9 +12168,12 @@ function renderProgramMarkdown(md) {
     t = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
     t = t.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
     t = t.replace(/_([^_\n]+)_/g, "<em>$1</em>");
-    // [label](url)
+    // [label](url) — encode quotes so a URL can never break out of the href
+    // attribute (escHtmlPreserve leaves `"` alone, and model/transcript-derived
+    // markdown flows through here via the distill/restyle previews).
     t = t.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, url) => {
-      const safe = url.startsWith("http") || url.startsWith("/") || url.startsWith("#") ? url : "#";
+      const safe = (url.startsWith("http") || url.startsWith("/") || url.startsWith("#") ? url : "#")
+        .replace(/"/g, "%22").replace(/'/g, "%27");
       return `<a href="${safe}" data-external>${label}</a>`;
     });
     return t;
@@ -13649,58 +13676,11 @@ function renderCollab() {
       <div class="cb-scroll">${matrixBody}</div>
       ${matrixNote}
     </section>`;
-  const latentSection = collabLatentOverlapSectionHtml();
-
-  // underused offers — declared help with the lowest routed demand
-  const underused = (m.underusedOffers || []).slice(0, 12);
-  const underusedCards = underused.map(item => {
-    const chips = item.skills.slice(0, 5).map(c => `<span class="cb-chip">${escHtml(c)}</span>`).join("");
-    const matchLabel = item.matchCount === 1 ? "1 matched ask" : `${item.matchCount} matched asks`;
-    const teamMeta = [domainLabel(item.team?.domain), item.team?.geo].filter(Boolean).join(" · ");
-    return `<article class="cb-intro cb-underused-offer" data-collab-cohort-open="${escAttr(item.rid)}" role="link" tabindex="0" title="${escAttr(`show ${item.teamName} in directory`)}">
-      <div class="cb-intro-flow cb-underused-flow">
-        <div class="cb-intro-side">
-          <span class="cb-intro-role">available offer</span>
-          <span class="cb-intro-team">${escHtml(item.teamName)}</span>
-          ${teamMeta ? `<span class="cb-intro-meta">${escHtml(teamMeta)}</span>` : ""}
-          ${item.offering ? `<span class="cb-intro-text">${escHtml(item.offering)}</span>` : ""}
-        </div>
-        <span class="cb-underused-count">${escHtml(matchLabel)}</span>
-      </div>${chips ? `<div class="cb-intro-chips">${chips}</div>` : ""}
-    </article>`;
-  }).join("");
-  const underusedSection = `
-    <section class="alch-cb-section" data-cb-section="offers">
-      <div class="alch-cb-sechead"><h3>Unmatched offers</h3><span class="cb-sub">no team matched yet</span></div>
-      <div class="cb-intro-grid">${underusedCards || '<p class="cb-empty">no underused offers found.</p>'}</div>
-    </section>`;
-
-  // convergence — skill areas shared by 3+ teams
-  const maxConv = m.convergence.reduce((mx, c) => Math.max(mx, c.count), 1);
-  // Resolve shared-focus team NAMES → record_ids so each chip can open that team
-  // in the directory (m.convergence carries names; m.ordered has the rid map).
-  // Non-resolving names fall back to a plain, non-clickable span.
-  const convRidByName = new Map(m.ordered.map(o => [o.team?.name, o.rid]));
-  const convRows = m.convergence.map(c => {
-    const pct = Math.round((c.count / maxConv) * 100);
-    const weight = c.count >= 8 ? " heavy" : c.count >= 5 ? " mid" : "";
-    const teamChips = c.teams.map(t => {
-      const rid = convRidByName.get(t);
-      return rid
-        ? `<button type="button" class="cb-cv-team" data-collab-cohort-open="${escAttr(rid)}" title="${escAttr("open " + t + " in the directory")}">${escHtml(t)}</button>`
-        : `<span class="cb-cv-team">${escHtml(t)}</span>`;
-    }).join("");
-    return `<article class="cb-cv${weight}">
-      <div class="cb-cv-head"><span class="cb-cv-skill">${escHtml(c.skill)}</span><span class="cb-cv-count">${c.count} teams</span></div>
-      <div class="cb-cv-bar"><i style="width:${pct}%"></i></div>
-      <div class="cb-cv-teams">${teamChips}</div>
-    </article>`;
-  }).join("");
-  const convSection = `
-    <section class="alch-cb-section" data-cb-section="convergence">
-      <div class="alch-cb-sechead"><h3>Shared focus areas</h3><span class="cb-sub">shared by 3+ teams</span></div>
-      <div class="cb-cv-list">${convRows || '<p class="cb-empty">no shared areas.</p>'}</div>
-    </section>`;
+  // The under-board extras (latent overlaps, unmatched offers, shared focus
+  // areas) were removed on direct user feedback (2026-07-02 session): "beneath
+  // the actual board, all that extra information is useless. Remove it." The
+  // model still computes underusedOffers/convergence — the chat context and
+  // rail nudges read them — only the page sections are gone.
 
   // The header stays calm: title + a static lead line. The team picker + intake
   // moved into the filter row (cb-maphead-left); the *adaptive* "what to do next"
@@ -13723,14 +13703,7 @@ function renderCollab() {
           ${collabRouteSheetHtml(m, focusRid)}
         </aside>
       </div>
-      <div class="cb-cohort-extras">
-        ${latentSection}
-        <div class="cb-cohort-shape">
-          ${convSection}
-          ${underusedSection}
-        </div>
-        <p class="alch-callout">Matches, intros, and offers are self-declared by teams. Latent overlaps are public prompts to verify before routing; no private scoring is shown.</p>
-      </div>
+      <p class="alch-callout">Matches, intros, and offers are self-declared by teams.</p>
     </div>
     </div>`;
 }
@@ -15105,12 +15078,12 @@ function renderContextVaultDetail(selected) {
     <article class="alch-cv-detail">
       <header class="alch-cv-detail-head">
         <div>
-          <span class="alch-cv-eyebrow">reader draft · markdown</span>
+          <span class="alch-cv-eyebrow" title="an in-app reading copy of this article — it isn't published anywhere until someone opens an ask/program PR">draft — in-app copy, not published</span>
         </div>
         <div class="alch-cv-detail-actions">
           <div class="alch-cv-restyle-wrap">
-            <button class="alch-cv-md-action" type="button" data-cv-restyle-toggle aria-expanded="false" title="ask the corner bot to restyle this — preview only, not saved">
-              <span class="alch-cv-md-action-label">restyle</span>
+            <button class="alch-cv-md-action" type="button" data-cv-restyle-toggle aria-expanded="false" title="your own local AI rewrites this article for you — preview only, not saved">
+              <span class="alch-cv-md-action-label">rewrite with your AI</span>
               <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
             </button>
             <div class="alch-cv-restyle-menu" data-cv-restyle-menu>
@@ -15123,16 +15096,17 @@ function renderContextVaultDetail(selected) {
               <button class="alch-cv-restyle-opt is-all" type="button" data-cv-restyle-all>Rewrite all articles</button>
             </div>
           </div>
-          <button class="alch-cv-md-action" type="button" data-cv-copy-article="${escAttr(selected.id)}" title="copy ${escAttr(selectedMdFile)}">
-            <span class="alch-cv-md-action-label">copy .md</span>
-            <span class="alch-cv-md-action-file">${escHtml(selectedMdFile)}</span>
-          </button>
-          <button class="alch-cv-md-action" type="button" data-cv-promote="ask" data-cv-source-id="${escAttr(selected.id)}" title="open an ask PR for this article">
-            <span class="alch-cv-md-action-label">ask PR</span>
-          </button>
-          <button class="alch-cv-md-action" type="button" data-cv-promote="program" data-cv-source-id="${escAttr(selected.id)}" title="open a program PR for this article">
-            <span class="alch-cv-md-action-label">program PR</span>
-          </button>
+          <div class="alch-cv-restyle-wrap">
+            <button class="alch-cv-md-action" type="button" data-cv-more-toggle aria-expanded="false" title="more actions">
+              <span class="alch-cv-md-action-label">more</span>
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="alch-cv-restyle-menu" data-cv-more-menu>
+              <button class="alch-cv-restyle-opt" type="button" data-cv-copy-article="${escAttr(selected.id)}" title="copy ${escAttr(selectedMdFile)}">Copy markdown</button>
+              <button class="alch-cv-restyle-opt" type="button" data-cv-promote="ask" data-cv-source-id="${escAttr(selected.id)}">Open an ask PR</button>
+              <button class="alch-cv-restyle-opt" type="button" data-cv-promote="program" data-cv-source-id="${escAttr(selected.id)}">Open a program PR</button>
+            </div>
+          </div>
         </div>
       </header>
       ${renderContextReaderHtml(selected)}
@@ -15351,6 +15325,9 @@ function renderContextVaultRawDetail(selected) {
           <span class="alch-cv-eyebrow">transcript · txt</span>
         </div>
         <div class="alch-cv-detail-actions">
+          <button class="alch-cv-md-action" type="button" data-cv-distill-raw="${escAttr(selected.id)}" title="your own local AI writes a distilled readout of this raw transcript — preview only, nothing saved or published">
+            <span class="alch-cv-md-action-label">distill with your AI</span>
+          </button>
           <button class="alch-cv-md-action" type="button" data-cv-copy-raw-bundle title="copy all transcripts">
             <span class="alch-cv-md-action-label">copy all</span>
           </button>
@@ -15760,6 +15737,9 @@ function renderDistilledTranscriptDetail(selected) {
           <button class="alch-cv-md-action" type="button" data-cv-copy-distilled="${escAttr(selected.id)}" title="copy this readout">
             <span class="alch-cv-md-action-label">copy .md</span>
           </button>
+          <button class="alch-cv-md-action" type="button" data-cv-email-distilled="${escAttr(selected.id)}" title="open a prefilled email draft in your own mail client — nothing sends until you hit send there">
+            <span class="alch-cv-md-action-label">email me</span>
+          </button>
         </div>
       </header>
       <article class="alch-cv-reader">
@@ -15931,6 +15911,20 @@ function contextSourceTagsAttr(source) {
   const tags = Array.isArray(source && source.skill_areas) ? source.skill_areas : [];
   const bits = [...tags, source && source.article_section].map((t) => String(t || "").trim()).filter(Boolean);
   return escAttr(bits.join(" "));
+}
+
+// Ephemeral raw-transcript distillation prompt (preview-only companion to the
+// engine's real distillation pipeline; nothing this produces is stored).
+function contextRawDistillPrompt(title, text) {
+  return [
+    "You are the member's own local AI. Distill the RAW session transcript below into a readout.",
+    "Output MARKDOWN only: a `# title` line, `## Summary` (3–5 bullets), `## Themes` (one comma-separated line), `## Open questions` (bullets).",
+    "Paraphrase — never quote a speaker verbatim. Drop small talk. Name people only when essential to the point.",
+    "This is a PREVIEW for the member's own reading; it is not saved or published anywhere.",
+    "",
+    `TRANSCRIPT — ${title}:`,
+    String(text || "").slice(0, 24000),
+  ].join("\n");
 }
 
 // ── Bot restyle (ephemeral, never saved) ────────────────────────────────
@@ -16167,15 +16161,32 @@ function renderContextVault() {
     }).join("");
     detail = renderContextVaultDetail(selected);
   } else if (tsource === "distilled") {
-    sourceRows = distilled.map(s => {
-      const selectedCls = selectedDistilled && selectedDistilled.id === s.id ? " is-selected" : "";
-      return `
+    // Grouped by session type with a per-readout confidence badge (2026-07-02
+    // feedback: "there needs to be grouping for the transcript page — type,
+    // confidence"). Groups keep the list's recency order internally.
+    const groups = new Map();
+    for (const s of distilled) {
+      const label = String(s.session_type || s.kind || "session").replace(/_/g, " ");
+      if (!groups.has(label)) groups.set(label, []);
+      groups.get(label).push(s);
+    }
+    const confBadge = (s) => {
+      if (!Number.isFinite(s.confidence)) return "";
+      const tier = s.confidence >= 0.8 ? "sure" : s.confidence >= 0.5 ? "best guess" : "needs review";
+      return `<span class="alch-cv-conf is-${tier.replace(/\s+/g, "-")}" title="type confidence ${Math.round(s.confidence * 100)}%">${escHtml(tier)}</span>`;
+    };
+    sourceRows = [...groups.entries()].map(([label, items]) => `
+      <div class="alch-cv-group-head">${escHtml(label)}<span>${items.length}</span></div>
+      ${items.map(s => {
+        const selectedCls = selectedDistilled && selectedDistilled.id === s.id ? " is-selected" : "";
+        return `
         <button class="alch-cv-source alch-cv-transcript-source${selectedCls}" type="button" data-cv-distilled-source="${escAttr(s.id)}" data-cv-tags="${escAttr((Array.isArray(s.themes) ? s.themes : []).join(" "))}">
           <strong>${escHtml(distilledTranscriptTitle(s))}</strong>
           <span class="alch-cv-source-meta">${escHtml(distilledTranscriptMeta(s))}</span>
-        </button>
-      `;
-    }).join("");
+          ${confBadge(s)}
+        </button>`;
+      }).join("")}
+    `).join("");
     detail = renderDistilledTranscriptDetail(selectedDistilled);
   } else {
     sourceRows = rawScripts.map(s => {
@@ -16260,6 +16271,29 @@ function wireContextVault() {
       if (!d) return;
       const ok = await copyTextToClipboard(d.body_md || "");
       flashCopyButton(btn, ok);
+    });
+  }
+  // "Send it to me" (2026-07-02 feedback), scoped safe: prefill a mailto draft
+  // in the member's OWN mail client — no server-side send, no admin queue, and
+  // the member is the only trigger. mailto bodies have practical length limits,
+  // so the full markdown goes to the clipboard and the draft carries the
+  // summary + the head of the readout with a paste note.
+  for (const btn of state.canvas.querySelectorAll("[data-cv-email-distilled]")) {
+    btn.addEventListener("click", async () => {
+      const d = contextDistilledById(btn.dataset.cvEmailDistilled);
+      if (!d || !window.api?.openExternal) return;
+      const md = String(d.body_md || "");
+      await copyTextToClipboard(md);
+      const subject = `Distilled readout: ${distilledTranscriptTitle(d)}`;
+      const body = [
+        distilledTranscriptMeta(d),
+        d.summary || "",
+        Array.isArray(d.themes) && d.themes.length ? `themes: ${d.themes.join(", ")}` : "",
+        "",
+        md.slice(0, 1400),
+        md.length > 1400 ? "\n[truncated — the full readout is on your clipboard, paste it here]" : "",
+      ].filter(Boolean).join("\n");
+      window.api.openExternal(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
     });
   }
   const keyForm = state.canvas.querySelector("[data-cv-cohort-key-form]");
@@ -16414,6 +16448,83 @@ function wireContextVaultResize() {
 function wireContextVaultDetailActions(root = state.canvas) {
   if (!root) return;
   setupContextReadingSpine(root);
+  // Header dropdowns (rewrite-with-your-AI + the "more" overflow). These menus
+  // shipped with NO handlers — the rewrite feature was unreachable from the
+  // header (2026-07-02: "it's not clear where that comes up"). One toggle per
+  // wrap; a single document-level dismiss closes any open menu.
+  const closeCvMenus = () => {
+    for (const m of document.querySelectorAll(".alch-cv-restyle-menu.is-open")) m.classList.remove("is-open");
+    for (const t of document.querySelectorAll('[data-cv-restyle-toggle][aria-expanded="true"], [data-cv-more-toggle][aria-expanded="true"]')) {
+      t.setAttribute("aria-expanded", "false");
+    }
+  };
+  for (const wrap of root.querySelectorAll(".alch-cv-restyle-wrap")) {
+    const toggle = wrap.querySelector("[data-cv-restyle-toggle], [data-cv-more-toggle]");
+    const menu = wrap.querySelector(".alch-cv-restyle-menu");
+    if (!toggle || !menu || toggle.dataset.cvMenuWired === "1") continue;
+    toggle.dataset.cvMenuWired = "1";
+    toggle.addEventListener("click", () => {
+      const open = !menu.classList.contains("is-open");
+      closeCvMenus();
+      menu.classList.toggle("is-open", open);
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+  }
+  if (!state.contextVault._cvMenuDismissBound) {
+    state.contextVault._cvMenuDismissBound = true;
+    document.addEventListener("mousedown", (e) => {
+      if (e.target instanceof Element && e.target.closest(".alch-cv-restyle-wrap")) return;
+      closeCvMenus();
+    });
+  }
+  for (const opt of root.querySelectorAll("[data-cv-restyle]")) {
+    opt.addEventListener("click", () => { closeCvMenus(); void restyleOneArticle(opt.dataset.cvRestyle); });
+  }
+  for (const opt of root.querySelectorAll("[data-cv-restyle-all]")) {
+    opt.addEventListener("click", () => { closeCvMenus(); void rewriteAllArticles(state.contextVault.lastStyle || "plainer"); });
+  }
+  for (const btn of root.querySelectorAll("[data-cv-revert]")) {
+    btn.addEventListener("click", clearContextPreview);
+  }
+  // "If I see raw transcripts and it's not distilled, maybe someone can do it
+  // using their own [AI]" (2026-07-02) — distill a RAW transcript into an
+  // ephemeral preview readout with the member's own local AI. Never saved,
+  // never published; same machinery as the article restyle.
+  for (const btn of root.querySelectorAll("[data-cv-distill-raw]")) {
+    btn.addEventListener("click", async () => {
+      const sourceId = btn.dataset.cvDistillRaw;
+      const result = root.querySelector("[data-cv-result]");
+      const say = (html) => { if (result) { result.hidden = false; result.innerHTML = html; } };
+      let text = state.contextVault.rawTextById?.[sourceId] || "";
+      if (!text && window.api?.readContextVaultSource) {
+        const res = await window.api.readContextVaultSource(sourceId);
+        if (res?.ok) {
+          text = res.text || "";
+          state.contextVault.rawTextById = { ...(state.contextVault.rawTextById || {}), [sourceId]: text };
+        }
+      }
+      if (!text) { say(`<p class="alch-onb-inline-line alch-onb-inline-err">couldn't read this transcript's text.</p>`); return; }
+      btn.disabled = true;
+      say(`<p class="alch-onb-inline-line">your local AI is distilling this transcript — preview only, nothing is saved…</p>`);
+      let r;
+      try {
+        const mod = await import("./cohort-chat.js");
+        const rawTitle = contextRawScriptTitle(state.contextVault.manifest?.raw_scripts?.find((s) => s.id === sourceId) || {});
+        r = await mod.runCohortEphemeralPrompt(contextRawDistillPrompt(rawTitle, text), {
+          userLabel: `Distill “${rawTitle}” (preview only, not saved)`,
+        });
+      } catch (e) { r = { ok: false, error: (e && e.message) || "chat unavailable" }; }
+      btn.disabled = false;
+      if (r && r.ok && r.text) {
+        say(`
+          <div class="alch-cv-pvbanner"><span class="alch-cv-pvdot"></span><b>preview</b> distilled by your AI · not saved</div>
+          <article class="alch-cv-reader alch-cv-article-md">${renderProgramMarkdown(contextCleanRewrite(r.text))}</article>`);
+        if (result) wireExternalLinks(result);   // markdown links → default browser, never a window navigation
+      } else {
+        say(`<p class="alch-onb-inline-line alch-onb-inline-err">couldn't distill: ${escHtml((r && r.error) === "busy" ? "the bot is busy right now — try again in a moment" : (r && r.error) || "no reply")}</p>`);
+      }
+    });
+  }
   for (const btn of root.querySelectorAll("[data-cv-reveal-corpus]")) {
     btn.addEventListener("click", async () => {
       if (window.api?.revealContextVaultCorpus) await window.api.revealContextVaultCorpus();

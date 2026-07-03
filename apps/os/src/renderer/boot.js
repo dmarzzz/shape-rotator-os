@@ -658,6 +658,11 @@ async function boot() {
       // profile page now.)
       const cluster = document.createElement("div");
       cluster.className = "fg-footer-vcluster";
+      // The nav pin lives with the version cluster in the footer — its original
+      // eyebrow-row spot sat inside the top tab-strip band (--content-top-h) and
+      // visually overlapped it (2026-07-03 feedback: "pin button overlapping").
+      const navPin = document.getElementById("nav-pin-btn");
+      if (navPin) cluster.appendChild(navPin);
       cluster.appendChild(ver);
       cluster.appendChild(updIcon);
       row.appendChild(cluster);
@@ -4398,6 +4403,30 @@ function wirePrimaryNavIntent(primaryNav) {
     try { localStorage.setItem(NAV_DISCOVERED_KEY, "1"); } catch {}
   };
 
+  // USER pin (feedback 2026-07-02: "can we open it permanently? like browsers") —
+  // a persistent lock, separate from the one-time first-run pin above. While on,
+  // hover-away/focus-out closes are suppressed; Escape still closes (and unpins).
+  const NAV_USER_PIN_KEY = "srwk:nav_pinned_v1";
+  let userPinned = false;
+  try { userPinned = localStorage.getItem(NAV_USER_PIN_KEY) === "1"; } catch {}
+  const pinBtn = document.getElementById("nav-pin-btn");
+  const syncUserPin = () => {
+    primaryNav.classList.toggle("is-user-pinned", userPinned);
+    if (pinBtn) {
+      pinBtn.setAttribute("aria-pressed", userPinned ? "true" : "false");
+      pinBtn.title = userPinned ? "unpin the menu (Esc also unpins)" : "keep the menu open";
+    }
+  };
+  const setUserPinned = (on) => {
+    userPinned = on;
+    try { localStorage.setItem(NAV_USER_PIN_KEY, on ? "1" : "0"); } catch {}
+    syncUserPin();
+  };
+  if (pinBtn) pinBtn.addEventListener("click", () => {
+    setUserPinned(!userPinned);
+    if (userPinned) setOpen(true, "user-pin", 160);
+  });
+
   const numberVar = (name, fallback) => {
     const raw = getComputedStyle(document.documentElement).getPropertyValue(name);
     const n = Number.parseFloat(raw);
@@ -4479,7 +4508,7 @@ function wirePrimaryNavIntent(primaryNav) {
   };
   const scheduleClose = (motion, reason = "page") => {
     clearOpen();
-    if (navPinned) return;   // first-session pin: stay open until the drawer is used once
+    if (navPinned || userPinned) return;   // pinned (first-session or by the user): stay open
     if (!isOpen || closeTimer) return;
     const fastExit = motion.speed >= 0.64;
     const delay = fastExit ? 58 : 118;
@@ -4528,12 +4557,13 @@ function wirePrimaryNavIntent(primaryNav) {
   primaryNav.addEventListener("click", (event) => {
     if (event.target instanceof Element && event.target.closest("button, a")) dismissNavPin();
   }, { capture: true, passive: true });
-  if (navPinned) setOpen(true, "first-run", 0);
+  syncUserPin();
+  if (navPinned || userPinned) setOpen(true, userPinned ? "user-pin" : "first-run", 0);
 
   primaryNav.addEventListener("focusin", () => setOpen(true, "focus", 160));
   primaryNav.addEventListener("focusout", () => {
     setTimeout(() => {
-      if (navPinned) return;
+      if (navPinned || userPinned) return;
       const active = document.activeElement;
       if (active instanceof HTMLElement && primaryNav.contains(active)) return;
       if (!primaryNav.matches(":hover")) setOpen(false, "focusout", 140);
@@ -4546,6 +4576,7 @@ function wirePrimaryNavIntent(primaryNav) {
     pointerHeldNavFocus = false;
     if (event.key === "Escape") {
       dismissNavPin();   // an explicit dismissal counts as "discovered" too
+      if (userPinned) setUserPinned(false);  // Escape always closes — unpin first
       setOpen(false, "escape", 120);
     }
   }, true);

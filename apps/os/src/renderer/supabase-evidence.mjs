@@ -24,6 +24,7 @@ import {
   readSupabaseConfig,
   persistCohortKeyOverride,
   resolveDefaultCohortKey,
+  resolveGatedBearer,
   DEFAULT_PUBLIC_ANON_KEY,
   DEFAULT_COHORT_KEY,
 } from "./supabase-config.mjs";
@@ -31,6 +32,7 @@ export {
   readSupabaseConfig,
   persistCohortKeyOverride,
   resolveDefaultCohortKey,
+  resolveGatedBearer,
   DEFAULT_PUBLIC_ANON_KEY,
   DEFAULT_COHORT_KEY,
 };
@@ -75,11 +77,14 @@ export function cohortEvidenceCardsUrl(baseUrl) {
 // Bearer token (fetchAnon's bearer override) for SET ROLE.
 export async function fetchCohortEvidenceCards(opts = {}) {
   const doFetch = opts.fetchImpl || globalThis.fetch;
-  const { url, anonKey, cohortKey } = opts.config || readSupabaseConfig(opts.storage);
-  if (!url || !anonKey || !cohortKey || typeof doFetch !== "function") {
+  const cfg = opts.config || readSupabaseConfig(opts.storage);
+  // cohort key when provisioned, else the signed-in session token — the view
+  // grants SELECT to both roles (see resolveGatedBearer).
+  const bearer = await resolveGatedBearer(cfg, opts);
+  if (!cfg.url || !cfg.anonKey || !bearer || typeof doFetch !== "function") {
     return { cards: [], source: "unconfigured" };
   }
-  const { rows, source, error } = await fetchAnon(COHORT_EVIDENCE_PATH, { ...opts, bearer: cohortKey });
+  const { rows, source, error } = await fetchAnon(COHORT_EVIDENCE_PATH, { ...opts, bearer });
   if (source !== "supabase") return { cards: [], source, error };
   const cards = rows.map(normalizeCard).filter(Boolean).map((c) => ({ ...c, surface_tier: "T2", source: "supabase-cohort" }));
   return { cards, source: "supabase-cohort" };
@@ -106,11 +111,12 @@ export function cohortInsightCardsUrl(baseUrl) {
 // Supabase outage degrades to "no collaboration edges".
 export async function fetchCohortInsightCards(opts = {}) {
   const doFetch = opts.fetchImpl || globalThis.fetch;
-  const { url, anonKey, cohortKey } = opts.config || readSupabaseConfig(opts.storage);
-  if (!url || !anonKey || !cohortKey || typeof doFetch !== "function") {
+  const cfg = opts.config || readSupabaseConfig(opts.storage);
+  const bearer = await resolveGatedBearer(cfg, opts);
+  if (!cfg.url || !cfg.anonKey || !bearer || typeof doFetch !== "function") {
     return { cards: [], source: "unconfigured" };
   }
-  const { rows, source, error } = await fetchAnon(COHORT_INSIGHT_PATH, { ...opts, bearer: cohortKey });
+  const { rows, source, error } = await fetchAnon(COHORT_INSIGHT_PATH, { ...opts, bearer });
   if (source !== "supabase") return { cards: [], source, error };
   const cards = rows.filter((r) => r && r.id).map((r) => ({
     id: String(r.id),

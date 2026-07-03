@@ -1193,6 +1193,27 @@ export function mountMembrane(container, opts = {}) {
 
     const todayEmpty = timed.length === 0;
     let html = '';
+    // "Next up" leads the rail — the single most imminent thing with a live
+    // countdown (today's next timed event, else the first look-ahead item), so
+    // the right side answers "what's next?" before it shows the snapshot
+    // (2026-07-02 feedback: focus on what's next, not just a snapshot).
+    const nextTimed = timed.find((t) => t.start >= nowMin);
+    let nextUp = null;
+    if (nextTimed) {
+      const mins = nextTimed.start - nowMin;
+      const when = mins < 1 ? 'now' : mins < 60 ? `in ${mins} min` : `in ${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, '0')}m`;
+      nextUp = { title: nextTimed.e.title, sub: `today ${nextTimed.e.time} · ${when}` };
+    } else if (groups.length && groups[0].items.length) {
+      const it = groups[0].items[0];
+      nextUp = { title: it.title, sub: `${dayLabel(groups[0].date)}${it.time ? ' · ' + it.time : ''}` };
+    }
+    if (nextUp) {
+      html += `<button type="button" class="magenda-next" data-cat="${agendaCat(nextUp.title)}" title="${escHtml(`${nextUp.title || 'untitled'} — open calendar`)}">
+        <span class="magenda-next-eyebrow">next up</span>
+        <span class="magenda-event-title">${escHtml(nextUp.title || 'untitled')}</span>
+        <span class="magenda-event-time">${escHtml(nextUp.sub)}</span>
+      </button>`;
+    }
     // Today header — same chrome as the day headers below, with a "today"
     // prefix (from main). Keep the per-occurrence dateStr key on the card call
     // so same-day duplicate titles stay individually dismissable.
@@ -1242,7 +1263,7 @@ export function mountMembrane(container, opts = {}) {
       dismissCard(x.closest('.magenda-up'), () => renderAgenda());
       return;
     }
-    if (!ev.target.closest('.magenda-up-event, .magenda-event')) return;
+    if (!ev.target.closest('.magenda-up-event, .magenda-event, .magenda-next')) return;
     if (typeof window.__srwkOpenInNewTab === 'function') {
       window.__srwkOpenInNewTab({ tab: 'alchemy', mode: 'calendar' });
     }
@@ -1264,7 +1285,14 @@ export function mountMembrane(container, opts = {}) {
     const then = Date.parse(date);
     if (!Number.isFinite(then)) return '';
     const days = Math.floor((Date.now() - then) / 86400000);
-    if (days <= 0) return 'today';
+    if (days < 0) {
+      // Future-dated items (program events land in the feed ahead of time)
+      // must read forward — "today" here made a July 22 demo day look live.
+      const ahead = -days;
+      if (ahead < 7) return `in ${ahead}d`;
+      return `in ${Math.floor(ahead / 7)}w`;
+    }
+    if (days === 0) return 'today';
     if (days === 1) return '1d';
     if (days < 7) return `${days}d`;
     return `${Math.floor(days / 7)}w`;

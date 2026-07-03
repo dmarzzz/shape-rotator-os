@@ -266,3 +266,16 @@ test("the self-report whitelist agrees across SELF_REPORT_FIELDS, the latest mig
   const schema = fs.readFileSync(path.join(root, "cohort-data/schema.yml"), "utf8");
   for (const f of fields) assert.ok(schema.includes(f), `${f} missing from schema.yml`);
 });
+
+test("buildSelfReportPrompt folds pre-run guidance in ahead of inference", () => {
+  const prompt = buildSelfReportPrompt({
+    person: { record_id: "p1", name: "Kinoo" },
+    sessionDigest: "worked on diarization",
+    guidance: "we pivoted from NDI to transcripts",
+  });
+  assert.match(prompt, /MEMBER GUIDANCE/);
+  assert.match(prompt, /we pivoted from NDI to transcripts/);
+  // and stays absent when not given
+  const bare = buildSelfReportPrompt({ person: { record_id: "p1" } });
+  assert.doesNotMatch(bare, /MEMBER GUIDANCE/);
+});

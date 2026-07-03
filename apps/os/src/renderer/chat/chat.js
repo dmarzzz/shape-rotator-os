@@ -370,6 +370,7 @@ export function mountChat(host) {
             <span class="chat-rooms-title">channels</span>
             <button class="chat-signout" type="button" title="sign out">sign out</button>
           </header>
+          <input class="chat-room-filter" type="search" placeholder="filter channels…" spellcheck="false" aria-label="filter channels" />
           <ul class="chat-room-list" role="list"></ul>
         </aside>
         <section class="chat-room">
@@ -380,6 +381,7 @@ export function mountChat(host) {
           <div class="chat-timeline" role="log" aria-live="polite">
             <div class="chat-empty">pick a channel to read it.</div>
           </div>
+          <button class="chat-newmsg" type="button" hidden>new messages ↓</button>
           <form class="chat-composer">
             <textarea class="chat-compose-input" rows="1" placeholder="message…" maxlength="4000"></textarea>
             <button class="chat-btn chat-send" type="submit" title="send (Enter)">send</button>
@@ -388,18 +390,33 @@ export function mountChat(host) {
       </div>`;
 
     host.querySelector(".chat-signout").addEventListener("click", () => api.logout());
+    // The filter lives OUTSIDE the re-rendered <ul>, so typing keeps focus/caret.
+    host.querySelector(".chat-room-filter").addEventListener("input", () => renderRoomList());
+
+    // The way back down: click the chip, or just reach the bottom yourself.
+    const tl = host.querySelector(".chat-timeline");
+    host.querySelector(".chat-newmsg").addEventListener("click", () => {
+      tl.scrollTo({ top: tl.scrollHeight, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+      hideNewMsgChip();
+    });
+    tl.addEventListener("scroll", () => {
+      if (tl.scrollHeight - tl.scrollTop - tl.clientHeight < 80) hideNewMsgChip();
+    }, { passive: true });
 
     const form = host.querySelector(".chat-composer");
     const input = host.querySelector(".chat-compose-input");
+    const sendBtn = host.querySelector(".chat-send");
     form.addEventListener("submit", (e) => { e.preventDefault(); doSend(); });
     // Enter sends; Shift+Enter inserts a newline.
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); doSend(); }
     });
-    // Grow the textarea up to a few lines as you type.
+    // Grow the textarea up to a few lines as you type; light the send button
+    // the moment there's something to send.
     input.addEventListener("input", () => {
       input.style.height = "auto";
       input.style.height = Math.min(input.scrollHeight, 120) + "px";
+      sendBtn.classList.toggle("is-ready", !!input.value.trim());
     });
 
     renderRoomList();
@@ -414,6 +431,7 @@ export function mountChat(host) {
     const replying = replyTarget;
     input.value = "";
     input.style.height = "auto";
+    host.querySelector(".chat-send")?.classList.remove("is-ready");
     clearComposeContext();
     let res;
     if (editing) res = await api.edit(activeRoomId, editing.eventId, text);
@@ -501,7 +519,9 @@ export function mountChat(host) {
       ul.innerHTML = `<li class="chat-room-empty">${status.state === "syncing" ? "no channels yet." : "connecting…"}</li>`;
       return;
     }
-    ul.innerHTML = rooms.map((r) => `
+    // Readable channels lead; encrypted rooms this session can't decrypt yet sit
+    // under a labelled divider instead of interleaving with the live ones.
+    const roomLi = (r) => `
       <li>
         <button class="chat-room-btn${r.roomId === activeRoomId ? " is-active" : ""}" type="button" data-room="${esc(r.roomId)}">
           <span class="chat-room-row">
@@ -510,7 +530,19 @@ export function mountChat(host) {
           </span>
           ${r.lastPreview ? `<span class="chat-room-preview"><span class="chat-room-preview-who">${esc(r.lastMine ? "you" : senderName(r.lastSender))}</span><span class="chat-room-preview-msg">${esc(r.lastPreview)}</span></span>` : ""}
         </button>
-      </li>`).join("");
+      </li>`;
+    // Live name filter (2026-07-02 feedback: "there should be some sort of
+    // filter option") — filters in place; the readable/locked grouping holds.
+    const q = String(host.querySelector(".chat-room-filter")?.value || "").trim().toLowerCase();
+    const visible = q ? rooms.filter((r) => String(r.name || "").toLowerCase().includes(q)) : rooms;
+    const readable = visible.filter((r) => !r.encrypted || status.cryptoReady);
+    const locked = visible.filter((r) => !readable.includes(r));
+    if (!visible.length) {
+      ul.innerHTML = `<li class="chat-room-empty">no channels match “${esc(q)}”.</li>`;
+      return;
+    }
+    ul.innerHTML = readable.map(roomLi).join("")
+      + (locked.length ? `<li class="chat-room-sep" aria-hidden="true">🔒 encrypted — verify this session to read</li>${locked.map(roomLi).join("")}` : "");
     ul.querySelectorAll("[data-room]").forEach((btn) => {
       btn.addEventListener("click", () => selectRoom(btn.dataset.room));
     });
@@ -519,6 +551,7 @@ export function mountChat(host) {
   async function selectRoom(roomId) {
     activeRoomId = roomId;
     clearComposeContext();            // a pending reply/edit belongs to the room we're leaving
+    hideNewMsgChip();                 // the chip counts the room we're leaving
     renderRoomList(); // refresh active highlight
     const room = rooms.find((r) => r.roomId === roomId);
     const nameEl = host.querySelector(".chat-room-name");
@@ -566,12 +599,12 @@ export function mountChat(host) {
     const tl = host.querySelector(".chat-timeline");
     if (!tl) return;
     if (encrypted && !cryptoReady) {
-      tl.innerHTML = `<div class="chat-locked"><div class="chat-locked-glyph">🔒</div><div class="chat-locked-title">end-to-end encrypted</div><div class="chat-locked-sub">Encryption couldn't start on this device yet. Try reopening the app, or open this room in Element.</div></div>`;
+      tl.innerHTML = `<div class="chat-locked"><div class="chat-locked-glyph">🔒</div><div class="chat-locked-title">end-to-end encrypted</div><div class="chat-locked-sub">Encryption couldn't start on this device yet. Try reopening the app, or open this room in Element.</div>${verifyHintHtml()}</div>`;
       return;
     }
     const msgs = messagesByRoom.get(roomId) || [];
     if (!msgs.length) {
-      tl.innerHTML = `<div class="chat-empty">no messages yet.</div>`;
+      tl.innerHTML = `<div class="chat-empty">nothing here yet — say hi 👋</div>`;
       return;
     }
     tl.innerHTML = renderTimelineMsgs(msgs);
@@ -579,21 +612,56 @@ export function mountChat(host) {
     tl.scrollTop = tl.scrollHeight;
   }
 
+  // The concrete way out of "I can't decrypt anything": verify THIS session
+  // from another Matrix client. Names the exact session so it's findable in
+  // Element's list instead of leaving the member with no path at all.
+  function verifyHintHtml() {
+    if (!status.deviceId) return "";
+    return `<div class="chat-verify-hint">To read encrypted history here, verify this session from a device that has the keys: in Element, open <b>Settings → Sessions</b>, find session <code>${esc(status.deviceId)}</code>, and verify it.</div>`;
+  }
+
+  // "today" / "yesterday" / "wed jul 2" — the label between day groups.
+  function dayKey(ts) { const d = new Date(ts); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; }
+  function dayLabel(ts) {
+    const d = new Date(ts);
+    const now = new Date();
+    if (dayKey(ts) === dayKey(now.getTime())) return "today";
+    const yd = new Date(now.getTime() - 86400000);
+    if (dayKey(ts) === dayKey(yd.getTime())) return "yesterday";
+    const WD = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+    const MO = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+    return `${WD[d.getDay()]} ${MO[d.getMonth()]} ${d.getDate()}`;
+  }
+
   // Render messages. Undecryptable ones (the pre-login backlog we have no key
   // for) collapse into a single explanatory line — they're still readable in
-  // Element on a device that holds the keys.
+  // Element on a device that holds the keys. Day dividers break the scroll into
+  // days, and runs from the same sender within 5 minutes render compact (no
+  // repeated avatar/name) so a burst reads as one thought.
   function renderTimelineMsgs(msgs) {
     const out = [];
     let hadUtd = false;
+    let hintShown = false;
+    let prev = null;
     const flush = () => {
       if (!hadUtd) return;
-      out.push(`<div class="chat-utd">🔒 Messages sent before this device signed in can't be decrypted</div>`);
+      out.push(`<div class="chat-utd">🔒 Messages sent before this device signed in can't be decrypted${hintShown ? "" : verifyHintHtml()}</div>`);
+      hintShown = true;
       hadUtd = false;
     };
     for (const m of msgs) {
       if (m.utd) { hadUtd = true; continue; }
       flush();
-      out.push(renderMsg(m));
+      if (!prev || dayKey(prev.ts) !== dayKey(m.ts)) {
+        out.push(`<div class="chat-day-sep" aria-hidden="true"><span>${esc(dayLabel(m.ts))}</span></div>`);
+      }
+      const compact = !!prev
+        && prev.sender === m.sender
+        && dayKey(prev.ts) === dayKey(m.ts)
+        && (m.ts - prev.ts) < 5 * 60 * 1000
+        && !m.replyToId;
+      out.push(renderMsg(m, compact));
+      prev = m;
     }
     flush();
     return out.join("");
@@ -621,7 +689,7 @@ export function mountChat(host) {
     return `<div class="chat-reacts">${pills}</div>`;
   }
 
-  function renderMsg(m) {
+  function renderMsg(m, compact = false) {
     if (m.utd) return "";
     const name = senderName(m.sender);
     const initial = esc((name || "?").trim().charAt(0).toUpperCase() || "?");
@@ -633,17 +701,28 @@ export function mountChat(host) {
     // color) so the CSS can pick a light-on-dark or dark-on-light shade per theme.
     const hue = senderHue(m.sender);
     const avatar = `<span class="chat-avatar" style="--sender-hue:${hue}" data-user="${esc(m.sender)}" aria-hidden="true">${initial}</span>`;
+    // Hover action bar — react/reply used to hide behind right-click only.
+    // Quick reactions + reply up front; ⋯ opens the full context menu.
+    const hoverbar = `
+      <div class="chat-msg-hoverbar" aria-hidden="true">
+        ${["👍", "❤️", "😂"].map((em) => `<button class="chat-hb-btn" type="button" data-hb-react="${em}" title="react ${em}" tabindex="-1">${em}</button>`).join("")}
+        <button class="chat-hb-btn" type="button" data-hb-reply title="reply" tabindex="-1">↩</button>
+        <button class="chat-hb-btn" type="button" data-hb-more title="more" tabindex="-1">⋯</button>
+      </div>`;
     // Layout: a bordered card per message — header row (avatar + name on the
     // left, time on the right) above the message body. data-event carries the
-    // id for the context menu + reactions.
+    // id for the context menu + reactions. Compact rows (same sender, <5 min)
+    // drop the header; the time surfaces on hover instead.
     return `
-      <div class="chat-msg${m.mine ? " is-mine" : ""}" data-event="${esc(m.eventId)}" data-sender="${esc(m.sender)}"${m.mine ? ' data-mine="1"' : ""}>
+      <div class="chat-msg${m.mine ? " is-mine" : ""}${compact ? " is-compact" : ""}" style="--sender-hue:${hue}" data-event="${esc(m.eventId)}" data-sender="${esc(m.sender)}"${m.mine ? ' data-mine="1"' : ""}>
+        ${hoverbar}
+        ${compact ? `<span class="chat-msg-time chat-msg-time-ghost">${fmtTime(m.ts)}${m.edited ? " · edited" : ""}</span>` : `
         <div class="chat-msg-head">
           ${avatar}
           <span class="chat-msg-sender" style="--sender-hue:${hue}" title="${esc(m.sender)}">${esc(name)}</span>
           ${m.edited ? '<span class="chat-msg-edited">(edited)</span>' : ""}
           <span class="chat-msg-time">${fmtTime(m.ts)}</span>
-        </div>
+        </div>`}
         ${renderReplyQuote(m)}
         <div class="chat-msg-body">${linkify(m.body)}</div>
         ${renderReactions(m.eventId)}
@@ -681,10 +760,11 @@ export function mountChat(host) {
   function appendMessages(roomId, msgs) {
     const cache = messagesByRoom.get(roomId) || [];
     const byId = new Map(cache.map((m) => [m.eventId, m]));
+    const freshIds = [];   // genuinely new events → entrance animation
     let changed = false;
     for (const m of msgs) {
       const existing = byId.get(m.eventId);
-      if (!existing) { cache.push(m); byId.set(m.eventId, m); changed = true; }
+      if (!existing) { cache.push(m); byId.set(m.eventId, m); changed = true; if (!m.utd) freshIds.push(m.eventId); }
       else if ((existing.utd && !m.utd) || m.edited || existing.body !== m.body) {
         const idx = cache.findIndex((x) => x.eventId === m.eventId);
         if (idx >= 0) cache[idx] = m;
@@ -703,7 +783,35 @@ export function mountChat(host) {
     const nearBottom = tl.scrollHeight - tl.scrollTop - tl.clientHeight < 80;
     tl.innerHTML = renderTimelineMsgs(cache);
     resolveAvatars(tl);
-    if (nearBottom) tl.scrollTop = tl.scrollHeight;
+    for (const id of freshIds) tl.querySelector(`.chat-msg[data-event="${cssEsc(id)}"]`)?.classList.add("is-enter");
+    if (nearBottom) {
+      tl.scrollTop = tl.scrollHeight;
+      hideNewMsgChip();
+    } else {
+      // Reading history while others talk below — offer the way down instead
+      // of yanking the scroll. Count only OTHER people's messages: your own
+      // echoes arriving in the same batch aren't "new" to you.
+      const foreign = freshIds.filter((id) => !byId.get(id)?.mine);
+      if (foreign.length) bumpNewMsgChip(foreign.length);
+    }
+  }
+
+  // "new messages ↓" chip — floats over the timeline while the user is scrolled
+  // up and fresh messages land below. Click (or reaching the bottom) clears it.
+  let newMsgCount = 0;
+  function chipEl() { return host.querySelector(".chat-newmsg"); }
+  function bumpNewMsgChip(n) {
+    const el = chipEl();
+    if (!el) return;
+    newMsgCount += n;
+    el.textContent = `${newMsgCount} new message${newMsgCount === 1 ? "" : "s"} ↓`;
+    el.hidden = false;
+    el.classList.remove("is-pop"); void el.offsetWidth; el.classList.add("is-pop");
+  }
+  function hideNewMsgChip() {
+    newMsgCount = 0;
+    const el = chipEl();
+    if (el) el.hidden = true;
   }
 
   // Repaint the active timeline in place (used when reactions/edits arrive
@@ -758,8 +866,40 @@ export function mountChat(host) {
       const eventId = pill.getAttribute("data-react-event");
       const key = pill.getAttribute("data-react-key");
       if (eventId && key && activeRoomId) api.react?.(activeRoomId, eventId, key);
+      pill.classList.remove("is-pop"); void pill.offsetWidth; pill.classList.add("is-pop");
+      return;
+    }
+    // Hover-bar actions: quick react / reply / full menu (⋯).
+    const hb = e.target.closest?.(".chat-hb-btn");
+    if (hb) {
+      const msg = hb.closest(".chat-msg[data-event]");
+      const eventId = msg?.getAttribute("data-event");
+      if (!eventId) return;
+      if (hb.hasAttribute("data-hb-react")) {
+        if (activeRoomId) api.react?.(activeRoomId, eventId, hb.getAttribute("data-hb-react"));
+        hb.classList.remove("is-pop"); void hb.offsetWidth; hb.classList.add("is-pop");
+      } else if (hb.hasAttribute("data-hb-reply")) {
+        startReply(eventId);
+      } else if (hb.hasAttribute("data-hb-more")) {
+        const r = hb.getBoundingClientRect();
+        showContextMenu(r.left, r.bottom + 4, eventId, msg.hasAttribute("data-mine"));
+      }
+      return;
+    }
+    // Reply quote → jump to the parent message and flash it.
+    const quote = e.target.closest?.(".chat-msg-reply[data-jump]");
+    if (quote) {
+      const target = host.querySelector(`.chat-msg[data-event="${cssEsc(quote.getAttribute("data-jump"))}"]`);
+      if (target) {
+        target.scrollIntoView({ block: "center", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+        target.classList.remove("is-flash"); void target.offsetWidth; target.classList.add("is-flash");
+      }
     }
   });
+  function cssEsc(s) { return String(s || "").replace(/["\\]/g, "\\$&"); }
+  function prefersReducedMotion() {
+    try { return document.documentElement.dataset.reduceMotion === "1" || window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return false; }
+  }
 
   // ── right-click context menu: react · reply · edit (own) · copy link ──
   const REACT_EMOJI = ["👍", "❤️", "😂", "🎉", "😮", "👀"];
