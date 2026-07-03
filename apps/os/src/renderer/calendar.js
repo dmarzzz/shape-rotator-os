@@ -21,6 +21,7 @@ import {
 // Previously consumed only by build-bundles for dossier timelines; surfacing it here
 // makes the calendar tell you which sessions were recorded, instead of being silent.
 import { CALENDAR_TRANSCRIPT_MATCHES } from "../content/context/calendar-transcript-matches.js";
+import { submitEventSuggestion } from "./calendar-suggest.mjs";
 
 const PRIMARY_TAB = "May 18 Start";
 const WEEK_COUNT  = 10;
@@ -341,56 +342,12 @@ function layoutTimed(items) {
 // repaints on every state change), so one slot is enough.
 let _model = null;
 
-// ── timeline bridge ───────────────────────────────────────────────────
-// Flatten the parsed program calendar into lightweight schedule items for the
-// calendar→agenda view, so it reads the SAME live source as the grid (cal.data)
-// instead of the stale build-baked whats_new feed. Each item carries its day
-// (ms), display title (day-name prefix stripped), start time ("" = all-day),
-// category, and an allDay flag. Multi-day items ("Mon–Tue: X" — stored in the
-// spreadsheet only in their FIRST day's cell) are mirrored onto every covered
-// day so the agenda shows them across the span. The grid's overlap/layout
-// machinery is skipped — the agenda lists events per day.
-export function flattenScheduleEvents(data) {
-  const tab = data?.tabs?.[PRIMARY_TAB] || [];
-  const dayName = "(mon|tue|wed|thu|fri|sat|sun)(?:day)?";
-  const rangeRe = new RegExp(`^${dayName}\\s*[-–—]\\s*${dayName}\\s*[:.\\-–—]?\\s*`, "i");
-  const singleRe = new RegExp(`^${dayName}\\s*[:\\-–—]\\s*`, "i");
-  const clean = (t) => String(t || "").replace(rangeRe, "").replace(singleRe, "").trim();
-  const DAY_IDX = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5, sun: 6 };
-  const DAY_MS = 86400000;
-  const out = [];
-  for (let wi = 0; wi < WEEK_COUNT; wi++) {
-    const week = parseWeekRow(tab[2 + wi] || [], wi);
-    const days = week?.days || [];
-    for (let di = 0; di < days.length; di++) {
-      const d = days[di];
-      if (!Number.isFinite(d?.dayMs)) continue;
-      const mondayMs = d.dayMs - di * DAY_MS;
-      // catSrc = full source text (best category signal); rawTitle = pre-clean
-      // title (carries any "Mon–Tue:" range); time "" ⇒ all-day.
-      const emit = (catSrc, rawTitle, time) => {
-        const title = clean(rawTitle);
-        if (!title) return;
-        const cat = c2Category(catSrc).key;
-        const allDay = !time;
-        const range = String(rawTitle).match(rangeRe);
-        const a = range && DAY_IDX[range[1].toLowerCase()];
-        const b = range && DAY_IDX[range[2].toLowerCase()];
-        if (range && a != null && b != null) {
-          const lo = Math.min(a, b), hi = Math.max(a, b);
-          for (let dj = lo; dj <= hi; dj++) {
-            out.push({ ms: mondayMs + dj * DAY_MS, title, time, cat, allDay, weekIdx: wi, span: hi - lo + 1 });
-          }
-        } else {
-          out.push({ ms: d.dayMs, title, time, cat, allDay, weekIdx: wi, span: 1 });
-        }
-      };
-      for (const a of (d.anchors || [])) emit(a.title, a.title, "");
-      for (const block of (d.blocks || [])) { const p = c2ParseBlock(block); emit(block, p.title, p.time || ""); }
-    }
-  }
-  return out;
-}
+// Day-name prefixes in cell text ("Mon–Tue: X", "Wed: Y") — multi-day items
+// are stored only in their FIRST day's cell with the range encoded in text.
+const DAY_IDX = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5, sun: 6 };
+const DAY_NAME_SRC = "(mon|tue|wed|thu|fri|sat|sun)(?:day)?";
+const DAY_RANGE_RE = new RegExp(`^${DAY_NAME_SRC}\\s*[-–—]\\s*${DAY_NAME_SRC}\\s*[:.\\-–—]?\\s*`, "i");
+const DAY_SINGLE_RE = new RegExp(`^${DAY_NAME_SRC}\\s*[:\\-–—]\\s*`, "i");
 
 // ── render ───────────────────────────────────────────────────────────
 // view: "cal" (the timeline grid) | "presence" (caller-supplied availability
@@ -399,32 +356,17 @@ export function flattenScheduleEvents(data) {
 //
 // catHidden: category keys the legend-filter has switched off (events of those
 // types are dropped and the board reflows around them).
-// signals: caller-computed daily context that rides under the day headers —
-//   { rowsHidden:[], scope:{id,name,teams:[{id,name}]}, perDay:[{inTown,inTownNames[]}], standing:{stage,label}|null }
-// People presence + per-week PMF live outside this module's data, so the host
-// (alchemy.js) computes them and passes the shaped result in; this module stays
-// presentation-only.
 //
 // The page is the week grid alone: an editorial masthead, the filmstrip week
-// navigator, and the Google-Calendar-shaped week. (A follow board once rode under
-// the grid — the user's followed lanes on the shared program axis plus a "+ add a
-// lane" picker — but it was removed so the calendar stands on its own as a calendar
-// page; the host no longer builds or passes the timeline lanes.)
-export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 0, source = null, view = "cal", presenceHtml = "", activity = [], catHidden = [], signals = null } = {}) {
+// navigator, and the Google-Calendar-shaped week. (The follow board / signal
+// lanes that once rode under the grid were removed with their whole stack, so
+// the calendar stands on its own as a calendar page.)
+export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 0, source = null, view = "cal", presenceHtml = "", catHidden = [] } = {}) {
   const tab = data?.tabs?.[PRIMARY_TAB] || [];
   const safeWeekIdx = Math.max(0, Math.min(WEEK_COUNT - 1, weekIdx | 0));
   const week = parseWeekRow(tab[2 + safeWeekIdx] || [], safeWeekIdx);
   const phase = phaseFor(safeWeekIdx + 1);
   const catHide = new Set(Array.isArray(catHidden) ? catHidden : []);
-
-  // ── daily-signal state (computed by the host; see signals contract above) ──
-  // who's in town (real presence) + what shipped (real activity); scope focuses
-  // both on one workstream. Standing is NOT ported — seed data lives in the
-  // standing views where its provenance is explained.
-  const scopeTeams = Array.isArray(signals?.scope?.teams) ? signals.scope.teams : [];
-  const scopeId = signals?.scope?.id && scopeTeams.some(t => t.id === signals.scope.id) ? signals.scope.id : null;
-  const scopeName = scopeId ? (scopeTeams.find(t => t.id === scopeId)?.name || scopeId) : "all cohort";
-  const perDaySig = Array.isArray(signals?.perDay) ? signals.perDay : [];
 
   // ── per-day model: split timed vs all-day, classify, layout overlaps ─
   const seenShapeKeys = new Set();
@@ -465,16 +407,12 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
   // with the range encoded in text ("Mon-Tue: TEE Technical…"). Mirror
   // such items onto every covered day, and strip day-name prefixes from
   // titles either way — the column header already names the day.
-  const DAY_IDX = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5, sun: 6 };
-  const dayName = "(mon|tue|wed|thu|fri|sat|sun)(?:day)?";
-  const rangeRe = new RegExp(`^${dayName}\\s*[-–—]\\s*${dayName}\\s*[:.\\-–—]?\\s*`, "i");
-  const singleRe = new RegExp(`^${dayName}\\s*[:\\-–—]\\s*`, "i");
   const itemTitle = (item) => item.kind === "anchor" ? item.title : item.content.title;
   const setItemTitle = (item, t) => { if (item.kind === "anchor") item.title = t; else item.content.title = t; };
   for (let di = 0; di < days.length; di++) {
     for (const item of [...days[di].allday]) {
       const title = itemTitle(item);
-      const range = title.match(rangeRe);
+      const range = title.match(DAY_RANGE_RE);
       if (range) {
         const rest = title.slice(range[0].length).trim();
         if (rest) setItemTitle(item, rest);
@@ -487,7 +425,7 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
         }
         continue;
       }
-      const single = title.match(singleRe);
+      const single = title.match(DAY_SINGLE_RE);
       if (single) {
         const rest = title.slice(single[0].length).trim();
         if (rest) setItemTitle(item, rest);
@@ -497,36 +435,11 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
 
   addGoogleOnlyManagedEvents(days, calendarGoogleEvents, seenShapeKeys, catHide);
 
-  // ── cohort activity lane ("shipped") ─────────────────────────────────
-  // Releases + commits land on their day as clickable blocks — the calendar
-  // becomes "what the cohort shipped this week", not just the schedule. A click
-  // now REVEALS the ship in place (with a secondary "open team →"), instead of
-  // teleporting straight to the team dossier. Scoped to one workstream when the
-  // scope chip picks one.
-  const ACT_KINDS = new Set(["release", "commit"]);
-  const activityList = Array.isArray(activity) ? activity : [];
-  for (const day of days) {
-    const iso = isoDay(day.dayMs);
-    day.activity = activityList
-      .filter(a => a && a.date === iso && ACT_KINDS.has(a.kind) && a.nav && a.nav.recordId
-        && (!scopeId || a.nav.recordId === scopeId))
-      .map(a => ({ kind: a.kind, label: a.label || "", team: a.meta || "", recordId: a.nav.recordId, date: iso }));
-  }
-
   for (const day of days) layoutTimed(day.timed);
 
-  // The reveal popovers (events, activity chips, in-town signal) read from the
-  // last-rendered model rather than re-parsing the DOM — render + wire share it.
-  _model = {
-    days, weekIdx: safeWeekIdx, calendarGoogleEvents,
-    inTown: {
-      perDay: perDaySig,
-      weekly: Array.isArray(signals?.weeklyOccupancy) ? signals.weeklyOccupancy : [],
-      rosterTotal: Math.max(1, Number(signals?.rosterTotal) || 0),
-      scopeName,
-      days: days.map(d => ({ name: d.name, date: d.date })),
-    },
-  };
+  // The event-detail modal reads from the last-rendered model rather than
+  // re-parsing the DOM — render + wire share it.
+  _model = { days, weekIdx: safeWeekIdx, calendarGoogleEvents };
 
   // ── time window for the build field ─────────────────────────────────
   // Scan the WHOLE program (every week), not just the viewed week, for the
@@ -546,13 +459,17 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
   }
 
   const isPresence = view === "presence";
-  // Same shared view-nav component as the cohort / context / program pages
-  // (.alch-page-views) — one visual language for in-page tabs everywhere. The
-  // agenda tab is gone: the grid below now carries its filter + signals, so the
-  // two views are one.
-  // Calendar views (calendar grid | presence) moved to the rail sub-nav (left
-  // panel), so the page no longer renders its own in-page tab strip.
-  const viewTabs = "";
+  // Calendar views (calendar grid | presence) live in the rail sub-nav (left
+  // panel), so the page renders no in-page tab strip of its own.
+  // "suggest" opens the event-suggestion form (routes to the program admins
+  // through the anon Supabase inbox — see calendar-suggest.mjs).
+  const suggestAction = `
+    <button class="c2-subscribe c2-suggest" type="button" data-c2-suggest
+            aria-label="Suggest an event to the program admins"
+            title="Suggest an event — goes to the program admins">
+      <svg class="c2-subscribe-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M12 13v6"/><path d="M9 16h6"/></svg>
+      <span class="c2-subscribe-label">suggest</span>
+    </button>`;
   const subscribeAction = `
     <a class="c2-subscribe" href="${escAttr(managedGoogleCalendarUrl(SHARED_GOOGLE_CALENDAR_ID))}" data-external
        aria-label="Subscribe to the Shape Rotator Google Calendar"
@@ -561,10 +478,9 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       <span class="c2-subscribe-label">subscribe</span>
       <svg class="c2-subscribe-hook" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8"/></svg>
     </a>`;
-  // The masthead is just the view tabs + subscribe; the arc navigates weeks.
+  // The masthead is just the subscribe action; the arc navigates weeks.
   const masthead = `
     <div class="c2-toolbar">
-      ${viewTabs}
       ${subscribeAction}
     </div>`;
 
@@ -578,22 +494,6 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       </section>`;
   }
 
-  // Controls folded INTO B's frame: scope (focuses presence + shipping on one
-  // workstream) sits by the week facts; the category filter doubles as the
-  // "this week" legend (drops a gathering type from the panel). Both reuse the
-  // existing .c2-scope / .c2-filter markup, so their wiring carries over.
-  const scopeChip = scopeTeams.length ? `
-    <div class="c2-scope rr-scope" data-c2-scope-ctl>
-      <button class="c2-scope-btn${scopeId ? " is-on" : ""}" data-c2-scope-toggle aria-haspopup="listbox" aria-expanded="false"
-              aria-label="focus presence + shipping on one workstream" type="button">
-        <span class="c2-scope-k">scope</span><span class="c2-scope-v">${escHtml(scopeName)}</span><i class="c2-chev" aria-hidden="true"></i>
-      </button>
-      <div class="c2-scope-menu" role="listbox" aria-label="workstream" hidden>
-        ${[{ id: "", name: "all cohort" }, ...scopeTeams].map(o => `
-          <button class="c2-scope-opt" role="option" data-c2-scope="${escAttr(o.id)}"
-                  aria-selected="${(o.id || null) === scopeId ? "true" : "false"}" type="button">${escHtml(o.name)}</button>`).join("")}
-      </div>
-    </div>` : "";
   // The legend doubles as the filter but stays decluttered: it lists only the
   // gathering types actually IN this week (plus any you've switched off, so you
   // can turn them back on) — not all seven categories every week.
@@ -628,12 +528,10 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
   }
 
   // ── residency-rhythm composition (Direction B) ───────────────────────
-  // Designed from the residency's truth: the 10-week ARC is the navigator AND a
-  // sparkline (presence height · ship marks); the focused week is a panel where
-  // build-time is the GROUND and the few gatherings are punctuation at their
-  // real time; presence is one honest near-full ribbon; shipping is a row of
-  // pulses. Reuses the data attributes (data-c2-ev / -intown / -act / -week /
-  // -nav) so the modal, reveals and week-nav wiring carry over unchanged.
+  // Designed from the residency's truth: the 10-week ARC is the navigator; the
+  // focused week is a panel where build-time is the GROUND and the few
+  // gatherings are punctuation at their real time. Reuses the data attributes
+  // (data-c2-ev / -week / -nav) so the modal and week-nav wiring carry over.
   const cap = (x) => String(x || "").charAt(0).toUpperCase() + String(x || "").slice(1);
   const isWeekend = (name) => name === "sat" || name === "sun";
   const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -647,18 +545,12 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
   const WEEK_TITLES = ["First light", "Settling in", "Finding the shape", "Into the work", "The middle weeks", "Past the midpoint", "Pushing to fit", "Sharpening the pitch", "The final stretch", "Toward demo night"];
   const weekTitle = WEEK_TITLES[safeWeekIdx] || `Week ${safeWeekIdx + 1}`;
 
-  const rosterTotal = Math.max(1, Number(signals?.rosterTotal) || perDaySig.reduce((m, s) => Math.max(m, Number(s?.inTown) || 0), 1));
-
-  // The subtitle still reads the week's rhythm (how gathered vs build-heavy it is)
-  // — a one-line descriptor next to the date range. The numeric in-town/shipped/
-  // gathered stat cards were removed (the follow board below carries those signals
-  // now), so only this descriptor's gatherCount survives.
+  // The subtitle reads the week's rhythm (how gathered vs build-heavy it is)
+  // — a one-line descriptor next to the date range.
   const gatherCount = days.reduce((n, d) => n + d.timed.length, 0);
   const descriptor = gatherCount === 0 ? "a pure build week" : gatherCount <= 6 ? "mostly building, lightly gathered" : "a gathering-heavy week";
 
-  // Header — title + subtitle on the left, controls (scope + subscribe) on the
-  // right. No stat cards: the follow board is where in-town / shipped / gathered
-  // live now, as followable lanes rather than fixed numbers.
+  // Header — title + subtitle on the left, suggest + subscribe on the right.
   const headHtml = `
     <header class="rr-head">
       <div class="rr-head-l">
@@ -667,7 +559,7 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
       </div>
       <div class="rr-head-r">
         <div class="rr-controls">
-          ${scopeChip}
+          ${suggestAction}
           ${subscribeAction}
         </div>
       </div>
@@ -1044,55 +936,56 @@ export function openCalendarEvent(ref, { anchor = null, anchorRect = null } = {}
   overlay.querySelector(".c2-modal-close")?.focus?.({ preventScroll: true });
 }
 
-// ── shipped-chip reveal ──────────────────────────────────────────────
-// ref = "<dayIdx>:<activityIdx>" from a shipped chip's data-c2-act. Shows WHAT
-// shipped, in place (same overlay as an event) — a single click no longer
-// teleports off the calendar. The drill to the team dossier is now an explicit,
-// secondary button (onOpenTeam callback), so the team page is one deliberate
-// click away rather than the unavoidable consequence of touching the chip.
-export function openCalendarActivity(ref, { anchor = null, anchorRect = null, onOpenTeam = null } = {}) {
-  if (!_model || typeof document === "undefined") return;
-  const m = String(ref || "").match(/^(\d+):(\d+)$/);
-  if (!m) return;
-  const day = _model.days[+m[1]];
-  if (!day) return;
-  const item = (day.activity || [])[+m[2]];
-  if (!item) return;
-
-  const weekday = DAY_NAMES_FULL[day.name] || day.name;
-  const VERB = { release: "shipped", commit: "committed" };
-  const verb = VERB[item.kind] || item.kind;
-  const eventAnchor = anchor || null;
-  const eventAnchorRect = anchorRect || rectFromAnchor(eventAnchor);
+// ── suggest an event ─────────────────────────────────────────────────
+// A member's event idea, routed to the program admins through the anon
+// Supabase inbox (calendar-suggest.mjs). Same centered modal shell as the
+// event detail; native controls (the design system styles them); the send
+// path never throws — failure keeps the form intact with an inline reason.
+export function openCalendarSuggest() {
+  if (typeof document === "undefined") return;
+  // Default the date to today when the viewed week contains it, else the
+  // viewed week's Monday — the suggestion usually concerns the week on screen.
+  const days = _model?.days || [];
+  const dayFor = days.find(d => d.isToday) || days[0] || null;
+  const defaultDate = dayFor && Number.isFinite(dayFor.dayMs) ? isoDay(dayFor.dayMs) : "";
+  const typeOptions = ['<option value="">any type</option>']
+    .concat(C2_LEGEND.map(c => `<option value="${escAttr(c.label)}">${escHtml(c.label)}</option>`))
+    .join("");
 
   document.querySelector(".c2-modal")?.remove();
-  clearCalendarEventSelection();
-  eventAnchor?.classList?.add?.("is-selected");
   const overlay = document.createElement("div");
-  overlay.className = "c2-modal";
+  overlay.className = "c2-modal is-centered";
   overlay.innerHTML = `
-    <div class="c2-modal-panel c2-modal-panel--act" data-act-kind="${escAttr(item.kind)}" role="dialog" aria-modal="true" aria-label="activity details">
+    <div class="c2-modal-panel c2-sg" role="dialog" aria-modal="true" aria-label="suggest an event">
       <button class="c2-modal-close" type="button" aria-label="close">×</button>
-      <div class="c2-modal-meta">
-        <div class="c2-modal-when">${escHtml(weekday)} · ${escHtml(day.date)}</div>
-        <div class="c2-modal-cat"><i class="c2-act-dot" aria-hidden="true"></i>${escHtml(verb)}</div>
-      </div>
-      <h3 class="c2-modal-title"><em>${escHtml(item.team || "a team")}</em></h3>
-      ${item.label ? `<p class="c2-modal-actlabel">${escHtml(item.label)}</p>` : ""}
-      ${item.recordId && typeof onOpenTeam === "function" ? `
-        <div class="c2-modal-actions">
-          <button class="c2-modal-team" type="button" data-open-team="${escAttr(item.recordId)}">
-            <span class="c2-action-glyph" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
-              </svg>
-            </span>
-            <span class="c2-action-copy"><strong>open ${escHtml(item.team || "team")}</strong><small>team dossier</small></span>
-          </button>
-        </div>` : ""}
+      <div class="c2-modal-meta"><div class="c2-modal-when">suggest an event</div></div>
+      <p class="c2-sg-lede">Goes straight to the program admins — they review and put it on the shared calendar.</p>
+      <form class="c2-sg-form" novalidate>
+        <label class="c2-sg-field"><span>what</span>
+          <input name="title" type="text" required maxlength="200" placeholder="e.g. zk-proofs reading circle" />
+        </label>
+        <div class="c2-sg-row">
+          <label class="c2-sg-field"><span>day</span><input name="date" type="date" value="${escAttr(defaultDate)}" /></label>
+          <label class="c2-sg-field"><span>from</span><input name="start" type="time" /></label>
+          <label class="c2-sg-field"><span>to</span><input name="end" type="time" /></label>
+        </div>
+        <div class="c2-sg-row c2-sg-row--2">
+          <label class="c2-sg-field"><span>type</span><select name="category">${typeOptions}</select></label>
+          <label class="c2-sg-field"><span>reach you at <em>optional</em></span>
+            <input name="contact" type="text" maxlength="200" placeholder="telegram / email" />
+          </label>
+        </div>
+        <label class="c2-sg-field"><span>why / details <em>optional</em></span>
+          <textarea name="details" rows="3" maxlength="2000" placeholder="who it's for, what happens, anything the admins should know"></textarea>
+        </label>
+        <div class="c2-sg-foot">
+          <span class="c2-sg-status" role="status" aria-live="polite"></span>
+          <button class="c2-sg-send" type="submit">send to admins</button>
+        </div>
+      </form>
     </div>`;
+
   const close = () => {
-    clearCalendarEventSelection();
     document.removeEventListener("keydown", onKey);
     if (overlay.dataset.closing === "1") return;
     overlay.dataset.closing = "1";
@@ -1108,90 +1001,38 @@ export function openCalendarActivity(ref, { anchor = null, anchorRect = null, on
     setTimeout(done, 180);
   };
   function onKey(e) { if (e.key === "Escape") close(); }
-  overlay.addEventListener("click", (e) => {
-    const openTeam = e.target?.closest?.("[data-open-team]");
-    if (openTeam) {
-      e.preventDefault();
-      const rid = openTeam.getAttribute("data-open-team");
-      close();
-      if (rid) { try { onOpenTeam(rid); } catch {} }
-      return;
-    }
-    if (e.target === overlay) close();
-  });
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
   overlay.querySelector(".c2-modal-close")?.addEventListener("click", close);
   document.addEventListener("keydown", onKey);
-  document.body.appendChild(overlay);
-  positionEventPanel(overlay, eventAnchorRect);
-  overlay.querySelector(".c2-modal-close")?.focus?.({ preventScroll: true });
-}
 
-// ── in-town hover/focus reveal ────────────────────────────────────────
-// The third layer for the presence signal: glance reads the bar + count, this
-// reveal names WHO is in town that day and places the week in the residency's
-// occupancy arc (a week-by-week sparkline). Display-only (pointer-events:none),
-// so it never traps the pointer; click on the cell commits to the presence view.
-let _inTownPop = null;
-export function closeCalendarInTown() {
-  if (_inTownPop) { try { _inTownPop.remove(); } catch {} _inTownPop = null; }
-}
-export function openCalendarInTown(ref, { anchor = null } = {}) {
-  if (!_model || !_model.inTown || typeof document === "undefined") return;
-  const di = Number(ref);
-  const it = _model.inTown;
-  const day = it.days[di];
-  if (!day) return;
-  const s = (it.perDay || [])[di] || {};
-  const n = Number(s.inTown) || 0;
-  const names = Array.isArray(s.inTownNames) ? s.inTownNames : [];
-  const total = it.rosterTotal || Math.max(1, n);
-  const weekday = DAY_NAMES_FULL[day.name] || day.name;
-  const dateNum = String(day.date).replace(/^[a-z]+\s+/, "");
-
-  // sparkline — weekly occupancy across the residency, current week accented.
-  const weekly = Array.isArray(it.weekly) ? it.weekly : [];
-  let spark = "";
-  if (weekly.length) {
-    const W = 132, H = 26, gap = 2;
-    const bw = (W - gap * (weekly.length - 1)) / weekly.length;
-    const maxFrac = Math.max(0.001, ...weekly.map(w => w.frac || 0));
-    const bars = weekly.map((w, i) => {
-      const h = Math.max(1.5, (Math.max(0, w.frac || 0) / maxFrac) * (H - 2));
-      const x = i * (bw + gap);
-      return `<rect class="c2-spark-bar${w.isCurrent ? " is-current" : ""}" x="${x.toFixed(1)}" y="${(H - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="1"></rect>`;
-    }).join("");
-    spark = `<div class="c2-pop-spark"><svg class="c2-spark" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">${bars}</svg><span class="c2-pop-sparklabel">in town · weeks 1–${weekly.length}</span></div>`;
-  }
-
-  const CAP = 24;
-  const shown = names.slice(0, CAP);
-  const moreCount = names.length - shown.length;
-  const nameCloud = names.length
-    ? `<div class="c2-pop-names">${shown.map(x => `<span>${escHtml(x)}</span>`).join("")}${moreCount > 0 ? `<span class="c2-pop-more">+${moreCount} more</span>` : ""}</div>`
-    : `<div class="c2-pop-empty">nobody in town this day</div>`;
-
-  closeCalendarInTown();
-  const pop = document.createElement("div");
-  pop.className = "c2-sig-pop";
-  pop.innerHTML = `
-    <div class="c2-pop-head"><em>${escHtml(weekday)} ${escHtml(dateNum)}</em> · <strong>${n}</strong> of ${total} in town${it.scopeName && it.scopeName !== "all cohort" ? ` · ${escHtml(it.scopeName)}` : ""}</div>
-    ${spark}
-    ${nameCloud}`;
-  document.body.appendChild(pop);
-  _inTownPop = pop;
-
-  // Position below the anchor, clamped to the viewport; flip above if it'd clip.
-  try {
-    const r = anchor?.getBoundingClientRect?.();
-    if (r) {
-      const vw = window.innerWidth || 1024, vh = window.innerHeight || 768, margin = 10;
-      const pr = pop.getBoundingClientRect();
-      let x = r.left + r.width / 2 - pr.width / 2;
-      x = Math.max(margin, Math.min(x, vw - pr.width - margin));
-      let y = r.bottom + 8;
-      if (y + pr.height > vh - margin) y = r.top - pr.height - 8;
-      pop.style.left = `${Math.round(x)}px`;
-      pop.style.top = `${Math.round(Math.max(margin, y))}px`;
+  const form = overlay.querySelector(".c2-sg-form");
+  const status = overlay.querySelector(".c2-sg-status");
+  const send = overlay.querySelector(".c2-sg-send");
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const input = {
+      title: fd.get("title"), date: fd.get("date"),
+      start: fd.get("start"), end: fd.get("end"),
+      category: fd.get("category"), details: fd.get("details"),
+      contact: fd.get("contact"),
+    };
+    send.disabled = true;
+    status.textContent = "sending…";
+    status.dataset.tone = "";
+    const res = await submitEventSuggestion(input);
+    if (res.ok) {
+      // Swap to a quiet confirmation, then let it close itself.
+      form.innerHTML = `<p class="c2-sg-sent">Sent — the admins review suggestions and schedule what fits.</p>`;
+      setTimeout(close, 2200);
+      return;
     }
-  } catch {}
+    send.disabled = false;
+    status.dataset.tone = "err";
+    status.textContent = res.error || "couldn't send — try again.";
+  });
+
+  document.body.appendChild(overlay);
+  overlay.querySelector('input[name="title"]')?.focus?.({ preventScroll: true });
 }
+

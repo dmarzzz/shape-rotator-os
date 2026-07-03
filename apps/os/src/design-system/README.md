@@ -44,15 +44,17 @@ Use any existing action-button class, or `.btn`, plus an intent modifier:
 - `.ds-icon-btn` → square, icon-only
 - `.ds-ghost` → quiet / borderless
 
-All share `--ds-control-h` (30px), `--ds-radius`, the mono label, and one focus ring.
+All share `--ds-control-h` (30px), `--ds-radius`, the mono label, and one focus
+ring — plus a press dip (`:active`, reduced-motion-guarded) and a dimmed
+`:disabled` state, so a click registers and a JS-disabled CTA no longer looks live.
 
 ### Inputs & dropdowns
 Native `<input>/<textarea>/<select>` are styled automatically under the system.
 Custom dropdown menus are unified end-to-end: the floating panel (one surface +
 border + radius + `--ds-shadow-menu`), the option rows, and a single oxide-tint
 selected wash (`--ds-accent-soft`, covering `aria-selected`/`aria-checked`/
-`.is-active`/`.is-selected`). Covered families: `.c2-scope-*`, `.cw-scope-*`,
-`.ac-sent-*`, `.c2-rowsctl-*`, `.cb-intake-intent-*`. New dropdowns should reuse
+`.is-active`/`.is-selected`). Covered families: `.ac-sent-*`,
+`.cb-intake-intent-*`. New dropdowns should reuse
 these tokens. Info popovers (`.anon-popover`, etc.) are tooltips, not dropdowns —
 keep them out of the dropdown group.
 
