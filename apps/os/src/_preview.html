@@ -174,7 +174,11 @@
         const btn = sel
           ? document.querySelector('[data-cv-stream="' + sel + '"]')
           : document.querySelector('[data-cv-lib-open="' + open + '"]');
-        if (btn) { btn.click(); clearInterval(timer); }
+        if (btn) {
+          btn.click();
+          clearInterval(timer);
+          if (qs.get("openmore")) setTimeout(() => document.querySelector("[data-cv-more-toggle]")?.click(), 500);
+        }
         else if (tries > 30) clearInterval(timer);
       }, 300);
     });
