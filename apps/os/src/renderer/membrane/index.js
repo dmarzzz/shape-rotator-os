@@ -1302,7 +1302,7 @@ export function mountMembrane(container, opts = {}) {
   const feedKey = (it) => `${it.kind || ''}|${it.date || ''}|${it.label || ''}|${it.meta || ''}`;
   function openContextTranscripts() {
     if (typeof window.__srwkOpenInNewTab === 'function') {
-      window.__srwkOpenInNewTab({ tab: 'alchemy', mode: 'context', contextView: 'raw' });
+      window.__srwkOpenInNewTab({ tab: 'alchemy', mode: 'context', contextView: 'stream' });
     }
   }
   // Forward-looking "incoming" band atop the same left rail as "what's new".
@@ -1439,7 +1439,7 @@ export function mountMembrane(container, opts = {}) {
         unit: 'readout',
         plural: 'readouts',
         cta: 'open raw',
-        defaultNav: { mode: 'context', contextView: 'raw' },
+        defaultNav: { mode: 'context', contextView: 'stream' },
         members: byKind('transcript'),
       },
       {

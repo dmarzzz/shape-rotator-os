@@ -107,9 +107,8 @@ function buildCatalog() {
     { title: "pmf evidence", sub: "cohort · journey view", hay: "journey pmf evidence product market fit cohort", jump: ["constellation", { constellationMode: "journey" }] },
     { title: "product layer", sub: "cohort · stack view", hay: "stack product layer cohort", jump: ["constellation", { constellationMode: "stack" }] },
     { title: "collab board", sub: "cohort · seek ↔ offer · intros", hay: "collab board collaboration intros seek offer matrix cohort", jump: ["constellation", { constellationMode: "collab" }] },
-    { title: "context articles", sub: "context · article drafts", hay: "context articles drafts reader vault", jump: ["context", { contextView: "articles" }] },
-    { title: "context transcripts", sub: "context · transcripts", hay: "context transcripts raw vault distilled readouts", jump: ["context", { contextView: "raw" }] },
-    { title: "context evidence", sub: "context · evidence cards", hay: "context evidence cards reviewed published transcript evidence signals data intel", jump: ["context", { contextView: "evidence" }] },
+    { title: "context stream", sub: "context · everything chronological", hay: "context stream transcripts raw distilled readouts articles chronological newest", jump: ["context", { contextView: "stream" }] },
+    { title: "context library", sub: "context · by topic", hay: "context library topics articles drafts reader vault evidence cards claims hints signals data intel", jump: ["context", { contextView: "library" }] },
     { title: "context asks & activity", sub: "context · asks · cohort updates", hay: "context asks activity cohort updates feed requests come join", jump: ["activity"] },
   ];
   for (const v of FOLDED_VIEWS) {

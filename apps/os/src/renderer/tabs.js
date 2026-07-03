@@ -57,7 +57,7 @@ const MODE_LABEL = {
 // Short suffixes for the cohort page's constellation views and the context
 // page's views — tab titles read "cohort · map", "context · evidence", etc.
 const CONST_VIEW_LABEL = { map: "map", ring: "map", journey: "journey", stack: "stack", collab: "collab" };
-const CONTEXT_VIEW_LABEL = { articles: "articles", raw: "transcripts", evidence: "evidence", activity: "activity" };
+const CONTEXT_VIEW_LABEL = { stream: "stream", library: "library", activity: "activity" };
 
 const APP_CARD_TARGETS = {
   atlas: { tab: "apps", appsView: "atlas" },
@@ -72,11 +72,12 @@ function appCardLocation(key) {
 
 function normalizeContextView(view) {
   const v = String(view || "").toLowerCase();
-  if (v === "article") return "articles";
-  if (v === "transcript" || v === "transcripts") return "raw";
-  if (v === "card" || v === "cards" || v === "intel" || v === "signals" || v === "data") return "evidence";
   if (v === "ask" || v === "asks" || v === "activity") return "activity";
-  return v === "articles" || v === "raw" || v === "evidence" ? v : "";
+  if (v === "stream" || v === "library") return v;
+  // legacy type-based views (pre-2026-07 two-lens page) reopen on the stream
+  if (v === "article" || v === "articles" || v === "transcript" || v === "transcripts" || v === "raw"
+    || v === "card" || v === "cards" || v === "evidence" || v === "intel" || v === "signals" || v === "data") return "stream";
+  return "";
 }
 
 // Inner SVG markup for each page's Lucide icon (matches the left-nav rail).
@@ -148,13 +149,13 @@ function normalizeLocation(loc) {
     return { ...rest, mode: "shapes" };
   }
   // Intel folded into the context page (2026-06), then removed from the context
-  // nav (2026-06-28): old intel tabs reopen on evidence.
+  // nav (2026-06-28): old intel tabs reopen on the stream.
   if (loc.tab === "alchemy" && loc.mode === "intel") {
-    return { ...loc, mode: "context", contextView: "evidence" };
+    return { ...loc, mode: "context", contextView: "stream" };
   }
   if (loc.tab === "alchemy" && loc.mode === "context") {
     const hasContextView = loc.contextView != null && String(loc.contextView) !== "";
-    const contextView = hasContextView ? (normalizeContextView(loc.contextView) || "articles") : "";
+    const contextView = hasContextView ? (normalizeContextView(loc.contextView) || "stream") : "";
     if (contextView === "activity") {
       const { contextView: _contextView, ...rest } = loc;
       return { ...rest, mode: "activity" };
