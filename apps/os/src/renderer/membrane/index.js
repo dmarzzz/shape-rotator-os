@@ -1284,10 +1284,12 @@ export function mountMembrane(container, opts = {}) {
   function feedAge(date) {
     const then = Date.parse(date);
     if (!Number.isFinite(then)) return '';
-    const days = Math.floor((Date.now() - then) / 86400000);
+    // Calendar-day difference (not 24h buckets): an item later TODAY reads
+    // "today", not "in 1d"; future items read forward ("today" for a July 22
+    // event was the original bug).
+    const day = (ms) => { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); };
+    const days = Math.round((day(Date.now()) - day(then)) / 86400000);
     if (days < 0) {
-      // Future-dated items (program events land in the feed ahead of time)
-      // must read forward — "today" here made a July 22 demo day look live.
       const ahead = -days;
       if (ahead < 7) return `in ${ahead}d`;
       return `in ${Math.floor(ahead / 7)}w`;
