@@ -145,10 +145,10 @@ export async function fetchMyMembership(session) {
   return parseMembership(rows);
 }
 
-// Keep the shared write bearer (supabase-anon-write) in lockstep with the current
-// session, so every Supabase write authenticates as the signed-in member the moment
-// they're in, and reverts to the anon key on sign-out/expiry. Idempotent — safe to
-// call once at boot regardless of whether the gate is enabled. Returns an unsubscribe.
+// Keep the shared write bearer (supabase-anon-write) in lockstep with the
+// current session. Supabase writes use the Google sign-in app session while the
+// user is signed in, then revert to the anon key on sign-out/expiry. Idempotent:
+// safe to call once at boot regardless of whether the gate is enabled.
 let _bearerSyncInstalled = false;
 export async function installAuthBearerSync() {
   if (_bearerSyncInstalled) return () => {};

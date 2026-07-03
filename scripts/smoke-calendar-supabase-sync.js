@@ -21,7 +21,7 @@ function usage() {
     "Options:",
     "  --timeout-ms N       Poll timeout. Default: 90000",
     "  --poll-ms N          Poll interval. Default: 5000",
-    "  --keep               Leave the Google/Supabase smoke event in place",
+    "  --keep               Leave the Google event and Supabase smoke rows in place",
     "  --json               Print JSON only",
     "  --env-file FILE      Load local KEY=value secrets before env fallbacks",
     "",

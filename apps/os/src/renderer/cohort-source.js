@@ -763,7 +763,7 @@ async function mergeSyncOverBaseline(baseline, overlay) {
 // by the refresh loop to skip re-render when GitHub returned identical
 // data (the usual case between merges).
 // Apply the live Supabase evidence overlay on top of a merged surface.
-// Builds with a gated bearer (cohort key or Google sign-in app session) read the
+// Builds with a gated bearer (Google sign-in app session or cohort key) read the
 // GATED T2 cohort evidence (cohort_app_transcript_evidence_cards) AND the anon T3 public set, and
 // merge them (T2 + T3, deduped). Builds with no gated bearer (public web /
 // signed-out build) read only the anon T3 public set. On a Supabase outage, the
@@ -877,7 +877,7 @@ async function applyArticleOverlay(surface) {
 }
 
 // Apply the live Supabase distilled-readout overlay. A build with a gated bearer
-// (cohort key or Google sign-in app session) reads the GATED cohort distillations
+// (Google sign-in app session or cohort key) reads the GATED cohort distillations
 // (the role-gated cohort_app_transcript_distillations view) and hangs them on
 // surface.transcript_distillations.artifacts so the transcripts tab can show the
 // cleaned readouts into the transcripts tab without requiring local raw files.

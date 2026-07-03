@@ -409,10 +409,11 @@ directly for review state.
 Supabase app clients should not read `source_artifacts`, `processing_jobs`, or
 raw `derived_artifacts` directly. Those tables are coordinator/operator
 surfaces. Cohort members should read the reviewed, column-limited
-`app_transcript_distillations` view or the generated app bundles only. That view
-omits source artifact IDs, processing job IDs, storage refs, source hashes, and
-raw availability fields; it exposes T2 reviewed/published distillations and T3
-published artifacts only when the caller is an org member.
+`cohort_app_transcript_distillations` view through the Google-backed app session
+or cohort-app JWT fallback, or the generated app bundles only. That view omits
+source artifact IDs, processing job IDs, storage refs, source hashes, and raw
+availability fields; it exposes reviewed/published T2 distillations only to the
+gated app roles.
 
 T3 is not a license to publish named transcript recap material. Public articles
 should be generalized insight pieces, matching the existing journal style:

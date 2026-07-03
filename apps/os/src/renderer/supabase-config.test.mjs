@@ -5,19 +5,27 @@ import { fetchCohortDistillations } from "./supabase-distillations.mjs";
 
 const CFG = { url: "https://x.supabase.co", anonKey: "anon", cohortKey: "" };
 
-test("resolveGatedBearer: cohort key wins outright", async () => {
+test("resolveGatedBearer: Google sign-in app session wins over cohort fallback", async () => {
   const bearer = await resolveGatedBearer(
     { ...CFG, cohortKey: "cohort-jwt" },
     { auth: { getSession: async () => ({ access_token: "session-jwt" }) } },
   );
-  assert.equal(bearer, "cohort-jwt");
+  assert.equal(bearer, "session-jwt");
 });
 
-test("resolveGatedBearer: falls back to the signed-in session token", async () => {
+test("resolveGatedBearer: reads the signed-in session token with no cohort key", async () => {
   const bearer = await resolveGatedBearer(CFG, {
     auth: { getSession: async () => ({ access_token: "session-jwt" }) },
   });
   assert.equal(bearer, "session-jwt");
+});
+
+test("resolveGatedBearer: falls back to the cohort key when signed out", async () => {
+  const bearer = await resolveGatedBearer(
+    { ...CFG, cohortKey: "cohort-jwt" },
+    { auth: { getSession: async () => null } },
+  );
+  assert.equal(bearer, "cohort-jwt");
 });
 
 test("resolveGatedBearer: signed out / no auth bridge → empty (reader no-ops)", async () => {

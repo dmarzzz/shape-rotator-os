@@ -8086,7 +8086,7 @@ function renderSayDidShipped() {
     // showing both side by side reads as a contradiction. The dossier "releases · N"
     // keeps the full total.)
     const releasedHtml = sdsShippedReleasesHtml(team.record_id);
-    // DID: prefer the richer dated session overlay when present (cohort key), else the
+    // DID: prefer the richer dated session overlay when present (Google session or cohort key), else the
     // build-baked activity mix — never stack both under the prose, which would unbalance
     // the 3-across proof strip.
     const didSessionsHtml = sdsEvidenceDidHtml(team.record_id);
@@ -15421,7 +15421,7 @@ const EVIDENCE_TIER_LS_KEY = "srfg:evidence_tier";
 
 // Split the live evidence read into its two tiers. transcript_evidence_cards
 // carries BOTH the gated named cohort cards (surface_tier "T2", read with the
-// cohort key) and the public anonymized cards ("T3", read with the anon key) —
+// Google session or cohort key) and the public anonymized cards ("T3", read with the anon key) —
 // see supabase-evidence.mjs + applyEvidenceOverlay, which merge both reads into
 // one array. The named tier also folds in any legacy session_insights readouts
 // (bundle-baked, now usually empty). Both tiers are meant to be read off the app.
@@ -15435,11 +15435,11 @@ function contextEvidenceData() {
 
 // Detail tier for the Context > evidence view.
 //   T2 "named"       = team- and person-attributed cohort cards (gated Supabase
-//                      view, read with the cohort key) + legacy session_insights.
+//                      view, read with the Google session or cohort key) + legacy session_insights.
 //   T3 "generalized" = the person-anonymized public cards (anon Supabase view).
 // Both render off the live transcript_evidence_cards read, split by surface_tier.
 // With no explicit choice: prefer the richer NAMED tier when the app actually
-// read it (cohort key present), else fall back to the generalized tier so the
+// read it (Google session/key present), else fall back to the generalized tier so the
 // live public cards still show — never land on an empty tab. An explicit choice
 // (set via the in-view toggle) is always honored.
 function contextEvidenceTier() {
@@ -15539,7 +15539,7 @@ function transcriptsSourceToggleHtml(source, rawCount, distilledCount) {
     `<button class="alch-ev-tier-btn${source === s ? " is-on" : ""}" data-cv-tsource="${s}" type="button" aria-pressed="${source === s}" title="${escAttr(hint)}">${label}${Number.isFinite(count) ? ` ${count}` : ""}</button>`;
   return `<div class="alch-ev-tier alch-cv-tsource" role="group" aria-label="transcripts source">
     ${opt("raw", "raw", rawCount, "optional raw source files on this device")}
-    ${opt("distilled", "distilled", distilledCount, "cohort tier — cleaned, paraphrased session readouts, read live from Supabase")}
+    ${opt("distilled", "distilled", distilledCount, "cohort tier - cleaned, paraphrased session readouts from the transcript tier")}
   </div>`;
 }
 
@@ -15578,7 +15578,7 @@ function cohortKeyFormHtml(configured) {
         <input id="alch-cv-cohort-key" class="alch-cv-keyform-input" name="cohortKey" type="password" inputmode="text" autocomplete="off" spellcheck="false" placeholder="eyJhbGciOi…" aria-label="cohort key JWT" />
         <button type="submit" class="alch-cv-keyform-save">use key</button>
       </div>
-      <p class="alch-cv-keyform-note">Stored only in this app's local storage, on this machine — never committed or sent anywhere but Supabase. Save an empty value to clear it.</p>
+      <p class="alch-cv-keyform-note">Stored only in this app's local storage, on this machine - never committed or sent anywhere except the transcript database. Save an empty value to clear it.</p>
     </form>
   `;
 }
@@ -15588,7 +15588,7 @@ function renderDistilledTranscriptDetail(selected) {
     const configured = cohortKeyConfigured();
     const lede = configured
       ? `A cohort key is set, but no distilled readouts came back — the key may be wrong/expired, or no sessions are distilled, reviewed &amp; published yet. Re-enter a key below, or check raw only if this device has source files.`
-      : `The cohort's distilled readouts load live from Supabase once a cohort key is provisioned. Public builds can still use the generalized evidence tab without any local files.`;
+      : `The cohort's distilled readouts unlock after Google sign-in, with the cohort key only as backup. Public builds can still use the generalized evidence tab without any local files.`;
     return `
       <article class="alch-cv-detail alch-cv-empty-detail">
         <h3>no distilled transcripts yet</h3>
@@ -15666,17 +15666,17 @@ function renderContextEvidence(tier, t3cards, t2cards, insights) {
     const total = named.length + readouts.length;
     const moves = contextEvidenceMovesHtml(named);
     const body = total
-      ? `${moves}<p class="alch-ev-lede">${total} named cohort evidence ${total === 1 ? "card" : "cards"} — team- and person-attributed, read live from Supabase. Switch to <em>generalized</em> for the person-anonymized public view.</p>
+      ? `${moves}<p class="alch-ev-lede">${total} named cohort evidence ${total === 1 ? "card" : "cards"} - team- and person-attributed, read live through the gated transcript tier. Switch to <em>generalized</em> for the person-anonymized public view.</p>
          <div class="alch-ev-grid">${named.map(contextEvidenceCardHtml).join("")}${readouts.map(contextSessionSummaryHtml).join("")}</div>`
-      : `<p class="alch-cv-muted alch-ev-empty">No named cohort evidence in this build. The named tier reads the gated Supabase view (cohort_app_transcript_evidence_cards), which needs the cohort key — without it the app shows the <em>generalized</em> public tier only.</p>`;
+      : `<p class="alch-cv-muted alch-ev-empty">No named cohort evidence in this session. The named tier needs Google sign-in or the cohort key; without either, the app shows the <em>generalized</em> public tier only.</p>`;
     return `${toggle}${body}`;
   }
   const cards = Array.isArray(t3cards) ? t3cards : [];
   const moves = contextEvidenceMovesHtml(cards);
   const body = cards.length
-    ? `${moves}<p class="alch-ev-lede">${cards.length} distilled evidence card${cards.length === 1 ? "" : "s"}, read live from Supabase — person-anonymized, team-attributed, published.</p>
+    ? `${moves}<p class="alch-ev-lede">${cards.length} distilled evidence card${cards.length === 1 ? "" : "s"}, read live from the public transcript tier - person-anonymized, team-attributed, published.</p>
        <div class="alch-ev-grid">${cards.map(contextEvidenceCardHtml).join("")}</div>`
-    : `<p class="alch-cv-muted alch-ev-empty">No distilled evidence cards yet. These load live from Supabase once cohort sessions are distilled, reviewed, and published.</p>`;
+    : `<p class="alch-cv-muted alch-ev-empty">No distilled evidence cards yet. These appear once cohort sessions are distilled, reviewed, and published.</p>`;
   return `${toggle}${body}`;
 }
 

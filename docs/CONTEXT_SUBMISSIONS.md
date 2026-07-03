@@ -73,5 +73,6 @@ this repo. This feature only lands the raw submission safely in the gated queue.
 - Anon rate-limiting is not enforced in Postgres RLS (only a length cap). Add a
   per-`client_id` / per-IP throttle at the gateway or a `pg_cron` sweep if abuse
   appears.
-- When a real member auth session lands, switch the insert to the signed-in token
-  for attribution (the table already carries `client_id` for anon dedup/triage).
+- When a Google-backed app session is available, switch the insert to that
+  signed-in token for attribution (the table already carries `client_id` for
+  anon dedup/triage).
