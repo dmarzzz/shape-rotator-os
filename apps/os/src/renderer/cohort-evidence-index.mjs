@@ -138,10 +138,40 @@ function cardSearchText(card) {
   ].filter(Boolean).join(" ");
 }
 
+// Signature separators: control chars that cannot appear in record fields,
+// so adjacent values can never collide into the same signature.
+const SIG_FIELD_SEP = String.fromCharCode(1);
+const SIG_TEAM_SEP = String.fromCharCode(2);
+
+// Cheap content signature over exactly the team fields the matchers read
+// (record_id, name, skill_areas, focus, domain). Exported so cohort-source
+// can key its attributed-evidence memo on the same notion of "teams changed".
+export function teamMatcherSignature(teams = []) {
+  const parts = [];
+  for (const t of Array.isArray(teams) ? teams : []) {
+    if (!t || !t.record_id) continue;
+    parts.push([
+      t.record_id, t.name,
+      Array.isArray(t.skill_areas) ? t.skill_areas.join(",") : t.skill_areas,
+      t.focus, t.domain,
+    ].map((v) => String(v ?? "")).join(SIG_FIELD_SEP));
+  }
+  return parts.join(SIG_TEAM_SEP);
+}
+
+// buildTeamMatchers re-tokenized every team on every attribution pass — once
+// per refresh tick — but the token sets only change when a team's vocab
+// fields do, so memoize on the field signature. Single entry: one cohort per
+// app. The memoized value is shared; callers must treat it as read-only
+// (attributeInsightCards only reads it).
+let _matchersMemo = null; // { sig, value }
+
 // Per-team match vocabulary + the cohort-wide inverse-document-frequency weights.
 // Exposed for tests. `nameTokens`/`idTokens` drive the strong "named" hit; the
 // merged `tokens` (skills/focus/domain) drive the distinctive-token score.
 export function buildTeamMatchers(teams = []) {
+  const sig = teamMatcherSignature(teams);
+  if (_matchersMemo && _matchersMemo.sig === sig) return _matchersMemo.value;
   const matchers = (Array.isArray(teams) ? teams : [])
     .filter((t) => t && t.record_id)
     .map((t) => {
@@ -157,7 +187,8 @@ export function buildTeamMatchers(teams = []) {
   for (const m of matchers) for (const tok of m.tokens) df.set(tok, (df.get(tok) || 0) + 1);
   const idf = new Map();
   for (const [tok, n] of df) idf.set(tok, 1 / n);
-  return { matchers, idf };
+  _matchersMemo = { sig, value: { matchers, idf } };
+  return _matchersMemo.value;
 }
 
 function everyIn(needles, haySet) {

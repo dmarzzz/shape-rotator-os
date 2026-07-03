@@ -22,18 +22,18 @@ test("parseGhEvents tolerates empty / non-JSON / arrays", () => {
   assert.deepEqual(parseGhEvents('{"not":"array"}'), []);
 });
 
-test("ghStatus reports installed + authed from gh probes", () => {
-  const ok = ghStatus({ runner: fakeRunner({ "--version": {}, "auth status": {} }) });
+test("ghStatus reports installed + authed from gh probes", async () => {
+  const ok = await ghStatus({ runner: fakeRunner({ "--version": {}, "auth status": {} }) });
   assert.deepEqual(ok, { installed: true, authed: true });
-  const noTool = ghStatus({ runner: () => ({ status: 127, error: new Error("ENOENT") }) });
+  const noTool = await ghStatus({ runner: () => ({ status: 127, error: new Error("ENOENT") }) });
   assert.equal(noTool.installed, false);
-  const unauthed = ghStatus({ runner: fakeRunner({ "--version": {}, "auth status": { status: 1 } }) });
+  const unauthed = await ghStatus({ runner: fakeRunner({ "--version": {}, "auth status": { status: 1 } }) });
   assert.deepEqual(unauthed, { installed: true, authed: false });
 });
 
-test("scanPrivateGithub resolves login then fetches that user's events (incl. private)", () => {
+test("scanPrivateGithub resolves login then fetches that user's events (incl. private)", async () => {
   const events = [{ type: "PushEvent", repo: { name: "lsdan/secret-repo" }, payload: { commits: [{ message: "wip" }] } }];
-  const r = scanPrivateGithub({
+  const r = await scanPrivateGithub({
     runner: fakeRunner({
       "--version": {}, "auth status": {},
       "api user --jq .login": { stdout: "lsdan\n" },
@@ -45,13 +45,13 @@ test("scanPrivateGithub resolves login then fetches that user's events (incl. pr
   assert.equal(r.events[0].repo.name, "lsdan/secret-repo");
 });
 
-test("scanPrivateGithub fails closed when gh is missing or unauthed", () => {
-  assert.equal(scanPrivateGithub({ runner: () => ({ status: 127, error: new Error("x") }) }).reason, "gh_not_installed");
-  assert.equal(scanPrivateGithub({ runner: fakeRunner({ "--version": {}, "auth status": { status: 1 } }) }).reason, "gh_not_authed");
+test("scanPrivateGithub fails closed when gh is missing or unauthed", async () => {
+  assert.equal((await scanPrivateGithub({ runner: () => ({ status: 127, error: new Error("x") }) })).reason, "gh_not_installed");
+  assert.equal((await scanPrivateGithub({ runner: fakeRunner({ "--version": {}, "auth status": { status: 1 } }) })).reason, "gh_not_authed");
 });
 
-test("scanPrivateGithub surfaces an api failure rather than pretending success", () => {
-  const r = scanPrivateGithub({
+test("scanPrivateGithub surfaces an api failure rather than pretending success", async () => {
+  const r = await scanPrivateGithub({
     runner: fakeRunner({
       "--version": {}, "auth status": {},
       "api user --jq .login": { stdout: "lsdan" },
@@ -60,4 +60,18 @@ test("scanPrivateGithub surfaces an api failure rather than pretending success",
   });
   assert.equal(r.ok, false);
   assert.equal(r.reason, "gh_api_failed");
+});
+
+test("scanPrivateGithub accepts an async runner (real spawn path is async)", async () => {
+  const events = [{ type: "PushEvent" }];
+  const r = await scanPrivateGithub({
+    runner: async (_bin, args) => {
+      const key = args.join(" ");
+      if (key.startsWith("api user --jq .login")) return { status: 0, stdout: "lsdan", stderr: "" };
+      if (key.startsWith("api users/lsdan/events")) return { status: 0, stdout: JSON.stringify(events), stderr: "" };
+      return { status: 0, stdout: "", stderr: "" };
+    },
+  });
+  assert.equal(r.ok, true);
+  assert.equal(r.events.length, 1);
 });

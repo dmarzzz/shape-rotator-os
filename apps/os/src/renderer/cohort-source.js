@@ -26,7 +26,7 @@
 import yaml from "js-yaml";
 import { getManifest, getRecord } from "./sync-client.js";
 import { fetchPublicEvidenceCards, fetchCohortEvidenceCards, COHORT_APP_READER_ENABLED, fetchCohortInsightCards } from "./supabase-evidence.mjs";
-import { evidenceDependencyRecords, insightCollaborationDependencyRecords, collaborationContributionDependencyRecords, attributeInsightCards, dedupeDependencyEdges, connectionEdgesFromInsightCards, frozenAttributionFromInsightCards } from "./cohort-evidence-index.mjs";
+import { evidenceDependencyRecords, insightCollaborationDependencyRecords, collaborationContributionDependencyRecords, attributeInsightCards, dedupeDependencyEdges, connectionEdgesFromInsightCards, frozenAttributionFromInsightCards, teamMatcherSignature } from "./cohort-evidence-index.mjs";
 import { fetchCohortArticles } from "./supabase-articles.mjs";
 import { fetchCohortDistillations } from "./supabase-distillations.mjs";
 import { fetchAllSpheres } from "./supabase-sphere.mjs";
@@ -43,6 +43,11 @@ const GH_BRANCH   = "main";
 const GH_RAW_BASE = `https://raw.githubusercontent.com/${GH_REPO}/${GH_BRANCH}`;
 const GH_TREE_API = `https://api.github.com/repos/${GH_REPO}/git/trees/${GH_BRANCH}?recursive=1`;
 const GH_COMMITS_API = `https://api.github.com/repos/${GH_REPO}/commits`;
+// TODO(perf): the cold GitHub baseline is one tree fetch + one raw fetch per
+// cohort-data file + up to ~50 commits-API tiebreaker lookups, all against the
+// 60 req/hr unauthenticated budget. Long-term, move the baseline to a published
+// service/snapshot (one signed JSON artifact per merge) so a fresh boot is a
+// single fetch and the commits-API tiebreaker disappears.
 // Renderer tick cadence for the swf-node sync overlay. swf-node is on
 // localhost and carries the live signal — keep this at 30s so a peer's
 // edit shows up within one tick.
@@ -759,46 +764,114 @@ async function mergeSyncOverBaseline(baseline, overlay) {
   return out;
 }
 
-// Cheap change signature: counts + sorted record_ids per bucket. Used
-// by the refresh loop to skip re-render when GitHub returned identical
-// data (the usual case between merges).
+// ─── overlay prefetch cache + TTL tiers ──────────────────────────────
+//
+// The background refresh used to re-fetch every Supabase overlay
+// sequentially on every tick — eight network round-trips in series, every
+// 30s while sync is live. Two changes, same apply semantics:
+//
+//   1. All overlay payloads PREFETCH in parallel; the apply steps then run
+//      in the original sequential order (they mutate one surface object,
+//      and later applies read fields earlier ones set — connections after
+//      evidence, for example).
+//   2. Each overlay fetch has a TTL tier. Between fetches the last-good
+//      payload is re-applied so every rebuilt surface stays complete:
+//      fast (ttl 0 — sync manifest, cohort feed, profile updates) every
+//      tick; medium (evidence trio, connections) ~2 min; slow (articles,
+//      distillations, spheres, releases) ~10 min. A user-forced resync
+//      (forceGithub) bypasses every TTL.
+const OVERLAY_TTL_MEDIUM_MS = 2 * 60 * 1000;
+const OVERLAY_TTL_SLOW_MS = 10 * 60 * 1000;
+const _overlayCache = new Map(); // name → { data, at }
+
+// Fetch one overlay's payload through its TTL gate. `usable` marks a result
+// worth caching (a live read, not an outage/unconfigured no-op). Failures
+// reuse the last usable payload — the surface is rebuilt from the baseline
+// every tick, so re-applying slightly-stale data beats losing the overlay —
+// and fall through to the raw result (or undefined on a throw) when nothing
+// is cached, which hands the apply step its pre-existing degrade path.
+// Never rejects. A skipped/failed fetch does not bump `at`, so the next
+// tick past the TTL retries.
+async function _overlayData(name, ttlMs, force, fetcher, usable) {
+  const hit = _overlayCache.get(name);
+  if (!force && hit && ttlMs > 0 && (Date.now() - hit.at) < ttlMs) return hit.data;
+  try {
+    const data = await fetcher();
+    if (usable(data)) {
+      _overlayCache.set(name, { data, at: Date.now() });
+      return data;
+    }
+    return hit ? hit.data : data;
+  } catch {
+    return hit ? hit.data : undefined;
+  }
+}
+
+// Prefetch half of applyEvidenceOverlay. The gated T2 cohort read is ENABLED
+// (see COHORT_APP_READER_ENABLED): when a gated bearer exists the named/
+// cohort-internal T2 cards load live; with none it no-ops gracefully and we
+// serve the committed bundle + the anon T3 read. The 3rd read pulls gated
+// cohort-insight cards (collaboration_contribution) for the live clique-edge
+// path. All reads run in parallel and never throw.
+function fetchEvidenceOverlayData() {
+  return Promise.all([
+    COHORT_APP_READER_ENABLED ? fetchCohortEvidenceCards() : Promise.resolve({ cards: [], source: "disabled" }),
+    fetchPublicEvidenceCards(),
+    fetchCohortInsightCards(),
+  ]).then(([cohort, pub, insight]) => ({ cohort, pub, insight }));
+}
+
+// Memo for the expensive evidence reduction (card dedupe + team attribution —
+// hundreds of thousands of token comparisons against the full card set). The
+// card arrays are stable references while the overlay TTL cache holds one
+// payload and teams change rarely, so between refetches the whole reduction
+// collapses to reference checks + one teams-signature compare.
+let _attributedMemo = null; // { cohortCards, pubCards, insightCards, teamsSig, attributed }
+
 // Apply the live Supabase evidence overlay on top of a merged surface.
 // Builds with a gated bearer (Google sign-in app session or cohort key) read the
 // GATED T2 cohort evidence (cohort_app_transcript_evidence_cards) AND the anon T3 public set, and
 // merge them (T2 + T3, deduped). Builds with no gated bearer (public web /
 // signed-out build) read only the anon T3 public set. On a Supabase outage, the
 // surface keeps whatever cards it already carries, so the app degrades gracefully.
-async function applyEvidenceOverlay(surface) {
+async function applyEvidenceOverlay(surface, data) {
+  if (data == null) return surface; // fetch threw with nothing cached — keep what the surface carries
   try {
-    // The gated T2 cohort read is ENABLED (see COHORT_APP_READER_ENABLED): when a
-    // gated bearer exists the named/cohort-internal T2 cards load live; with none it
-    // no-ops gracefully and we serve the committed bundle + the anon T3 read. The 3rd
-    // read pulls gated cohort-insight cards (collaboration_contribution)
-    // for the live clique-edge path. All reads run in parallel and never throw.
-    const [cohort, pub, insight] = await Promise.all([
-      COHORT_APP_READER_ENABLED ? fetchCohortEvidenceCards() : Promise.resolve({ cards: [], source: "disabled" }),
-      fetchPublicEvidenceCards(),
-      fetchCohortInsightCards(),
-    ]);
+    const { cohort, pub, insight } = data;
     const gotCohort = cohort.source === "supabase-cohort";
     const gotPublic = pub.source === "supabase";
+    const insightCards = (insight && insight.source === "supabase-cohort" && Array.isArray(insight.cards))
+      ? insight.cards : null;
     if (gotCohort || gotPublic) {
-      const seen = new Set();
-      const merged = [];
-      for (const card of [...(gotCohort ? cohort.cards : []), ...(gotPublic ? pub.cards : [])]) {
-        if (card && card.id && !seen.has(card.id)) { seen.add(card.id); merged.push(card); }
+      const cohortCards = gotCohort ? cohort.cards : null;
+      const pubCards = gotPublic ? pub.cards : null;
+      const teams = Array.isArray(surface.teams) ? surface.teams : [];
+      const teamsSig = teamMatcherSignature(teams);
+      let attributed;
+      if (_attributedMemo
+          && _attributedMemo.cohortCards === cohortCards
+          && _attributedMemo.pubCards === pubCards
+          && _attributedMemo.insightCards === insightCards
+          && _attributedMemo.teamsSig === teamsSig) {
+        attributed = _attributedMemo.attributed;
+      } else {
+        const seen = new Set();
+        const merged = [];
+        for (const card of [...(cohortCards || []), ...(pubCards || [])]) {
+          if (card && card.id && !seen.has(card.id)) { seen.add(card.id); merged.push(card); }
+        }
+        // Re-attach a best-effort team to the anonymized public insight cards
+        // (claim_type "insight", no declared content_json.teams) by matching their
+        // text to each team's distinctive vocabulary. Without this the live cards —
+        // the real distilled session content — feed NONE of the per-team views.
+        // Inferred teams are tagged teams_basis:"inferred"; declared cards untouched.
+        // Prefer the FROZEN attribution snapshot (card_attribution cohort-insight
+        // cards from the daily local-AI routine) when present, so the inference is
+        // read, not recomputed every refresh; fall back to the live match otherwise.
+        const frozenAttr = insightCards ? frozenAttributionFromInsightCards(insightCards) : null;
+        attributed = attributeInsightCards(merged, teams, { frozen: frozenAttr });
+        _attributedMemo = { cohortCards, pubCards, insightCards, teamsSig, attributed };
       }
-      // Re-attach a best-effort team to the anonymized public insight cards
-      // (claim_type "insight", no declared content_json.teams) by matching their
-      // text to each team's distinctive vocabulary. Without this the live cards —
-      // the real distilled session content — feed NONE of the per-team views.
-      // Inferred teams are tagged teams_basis:"inferred"; declared cards untouched.
-      // Prefer the FROZEN attribution snapshot (card_attribution cohort-insight
-      // cards from the daily local-AI routine) when present, so the inference is
-      // read, not recomputed every refresh; fall back to the live match otherwise.
-      const frozenAttr = (insight && insight.source === "supabase-cohort" && Array.isArray(insight.cards))
-        ? frozenAttributionFromInsightCards(insight.cards) : null;
-      const attributed = attributeInsightCards(merged, Array.isArray(surface.teams) ? surface.teams : [], { frozen: frozenAttr });
       surface.transcript_evidence_cards = attributed;
       surface._evidenceSource = gotCohort ? (gotPublic ? "supabase-cohort+public" : "supabase-cohort") : "supabase-live";
 
@@ -816,8 +889,8 @@ async function applyEvidenceOverlay(surface) {
     // GATED cohort-insight cards (collaboration_contribution) — kept independent of the
     // evidence read above so collaboration edges light up even if only the insight view
     // returned. No cards (no key / outage) ⇒ surface keeps whatever it already carries.
-    if (insight && insight.source === "supabase-cohort" && Array.isArray(insight.cards)) {
-      surface._cohortInsightCards = insight.cards;
+    if (insightCards) {
+      surface._cohortInsightCards = insightCards;
       // Fold the frozen connection-edge snapshot (connection_edge cohort-insight
       // cards) onto records as `record.connections` — the per-team "who to talk
       // to" inspector source. This is the cohort-insight-card CONSOLIDATION of the
@@ -827,7 +900,7 @@ async function applyEvidenceOverlay(surface) {
       for (const r of [...(surface.teams || []), ...(surface.people || [])]) {
         if (r && r.record_id) nameById.set(r.record_id, r.name || r.record_id);
       }
-      const connByRecord = connectionEdgesFromInsightCards(insight.cards, nameById);
+      const connByRecord = connectionEdgesFromInsightCards(insightCards, nameById);
       if (connByRecord.size) {
         for (const r of [...(surface.teams || []), ...(surface.people || [])]) {
           if (r && r.record_id && connByRecord.has(r.record_id)) r.connections = connByRecord.get(r.record_id);
@@ -863,9 +936,10 @@ function applyCollaborationEdges(surface) {
   return surface;
 }
 
-async function applyArticleOverlay(surface) {
+async function applyArticleOverlay(surface, data) {
+  if (data == null) return surface; // fetch threw with nothing cached — keep what the surface carries
   try {
-    const { articles, source } = await fetchCohortArticles();
+    const { articles, source } = data;
     if (source === "supabase-app" || source === "supabase-public") {
       surface.cohort_articles = articles;
       surface._articleSource = source;
@@ -883,13 +957,13 @@ async function applyArticleOverlay(surface) {
 // cleaned readouts into the transcripts tab without requiring local raw files.
 // No gated bearer (public web / signed-out build) or a Supabase outage leaves
 // whatever the surface carries; the generalized evidence tab remains usable.
-async function applyDistillationOverlay(surface) {
-  // The cohort_app distillation view is live (see COHORT_APP_READER_ENABLED). With a
-  // gated bearer the distilled readouts load into the transcripts tab; with none
-  // the fetch no-ops and the public/browser app keeps its normal empty state.
-  if (!COHORT_APP_READER_ENABLED) return surface;
+async function applyDistillationOverlay(surface, data) {
+  // The cohort_app distillation view is live (see COHORT_APP_READER_ENABLED). With
+  // a gated bearer the distilled readouts load into the transcripts tab; with none
+  // the prefetch resolves null and the public/browser app keeps its empty state.
+  if (data == null) return surface;
   try {
-    const { artifacts, source } = await fetchCohortDistillations();
+    const { artifacts, source } = data;
     if (source === "supabase-cohort") {
       const existing = (surface.transcript_distillations && typeof surface.transcript_distillations === "object")
         ? surface.transcript_distillations : {};
@@ -908,9 +982,10 @@ async function applyDistillationOverlay(surface) {
 // the override as data-shape-* attributes. On a Supabase outage — or before the
 // table exists — the surface keeps whatever it already carries (LS-cached or
 // empty), and spheres just fall back to their hash-derived defaults.
-async function applySphereOverlay(surface) {
+async function applySphereOverlay(surface, data) {
+  if (data == null) return surface; // fetch threw with nothing cached — keep what the surface carries
   try {
-    const { spheres, source } = await fetchAllSpheres();
+    const { spheres, source } = data;
     if (source === "supabase") {
       surface.person_spheres = spheres;
       surface._sphereSource = "supabase-live";
@@ -928,9 +1003,10 @@ async function applySphereOverlay(surface) {
 // record object itself because card/detail/editor renderers read those fields
 // directly. Approved-only by design (the raw inbox is anon write-only); on a
 // Supabase outage the surface keeps its committed/synced baseline.
-async function applyProfileUpdateOverlay(surface) {
+async function applyProfileUpdateOverlay(surface, data) {
+  if (data == null) return surface; // fetch threw with nothing cached — keep what the surface carries
   try {
-    const { updates, teamUpdates, source } = await fetchApprovedProfileUpdates();
+    const { updates, teamUpdates, source } = data;
     if (source !== "supabase") return surface;
     const people = Array.isArray(surface.people) ? surface.people : [];
     const teams = Array.isArray(surface.teams) ? surface.teams : [];
@@ -986,9 +1062,16 @@ async function applyProfileUpdateOverlay(surface) {
 // signal of a change a member made through the normal save path, not the value.
 // On a Supabase outage — or before the table exists — the surface keeps whatever
 // it already carries (an LS-cached set, or empty), so the feed degrades gracefully.
-async function applyCohortEventsOverlay(surface) {
+// reduceAsks re-sorts and folds the full ask-event slice (~500 rows) on every
+// apply; the feed is append-only, so between feed changes the fold is
+// identical. Cheap memo keyed on the ask-event id list + the baseline asks
+// array identity (stable between GitHub baseline refreshes).
+let _asksMemo = null; // { eventsKey, baseAsks, asks }
+
+async function applyCohortEventsOverlay(surface, data) {
+  if (data == null) return surface; // fetch threw with nothing cached — keep what the surface carries
   try {
-    const { events, source } = await fetchCohortFeed();
+    const { events, source } = data;
     if (source === "supabase") {
       // Asks now ride the same spine (event_type 'ask'). Split them out: ask events
       // fold into the ask BOARD (asks-events.reduceAsks, over the committed markdown
@@ -1002,7 +1085,12 @@ async function applyCohortEventsOverlay(surface) {
         else otherEvents.push(ev);
       }
       surface.cohort_events = otherEvents;
-      surface.asks = reduceAsks(askEvents, Array.isArray(surface.asks) ? surface.asks : []);
+      const baseAsks = Array.isArray(surface.asks) ? surface.asks : [];
+      const eventsKey = askEvents.map((ev) => `${ev.id || ""}:${ev.created_at || ""}`).join("|");
+      if (!(_asksMemo && _asksMemo.eventsKey === eventsKey && _asksMemo.baseAsks === baseAsks)) {
+        _asksMemo = { eventsKey, baseAsks, asks: reduceAsks(askEvents, baseAsks) };
+      }
+      surface.asks = _asksMemo.asks;
       surface._cohortEventsSource = "supabase-live";
       surface._asksSource = askEvents.length ? "supabase-live" : (surface._asksSource || "baseline");
     }
@@ -1022,9 +1110,10 @@ async function applyCohortEventsOverlay(surface) {
 // degrades gracefully instead of going stale-forever. We only overwrite when the
 // live row actually carries items, so an empty/missing row never blanks a feed
 // the committed bundle could still render.
-async function applyReleaseOverlay(surface) {
+async function applyReleaseOverlay(surface, data) {
+  if (data == null) return surface; // fetch threw with nothing cached — keep what the surface carries
   try {
-    const { whatsNew, githubReleases, source } = await fetchReleasesFeed();
+    const { whatsNew, githubReleases, source } = data;
     if (source === "supabase") {
       if (Array.isArray(whatsNew) && whatsNew.length) surface.whats_new = whatsNew;
       if (Array.isArray(githubReleases) && githubReleases.length) surface.github_releases = githubReleases;
@@ -1047,11 +1136,12 @@ async function applyReleaseOverlay(surface) {
 // back to the committed `surface.cohort_connections` bundle (offline / first
 // paint), and if neither has edges every record just carries connections:[] and
 // the "who to talk to" block hides itself. Never throws.
-async function applyConnectionsOverlay(surface) {
+async function applyConnectionsOverlay(surface, data) {
+  if (data == null) return surface; // fetch threw with nothing cached — keep what the surface carries
   try {
     let edges = [];
     let source = "";
-    const live = await fetchConnections();
+    const live = data;
     if (live.source === "supabase" && Array.isArray(live.edges) && live.edges.length) {
       edges = live.edges;
       source = "supabase-live";
@@ -1256,21 +1346,50 @@ function _startBackgroundRefresh({ forceGithub = false } = {}) {
       }
       if (!baseline) return; // nothing to merge against
 
-      const merged = await applySyncOverlayCached(baseline);
-      await applyEvidenceOverlay(merged);
-      await applyArticleOverlay(merged);
-      await applyDistillationOverlay(merged);
-      await applySphereOverlay(merged);
-      await applyProfileUpdateOverlay(merged);
-      await applyCohortEventsOverlay(merged);
-      await applyReleaseOverlay(merged);
-      await applyConnectionsOverlay(merged);
+      // Prefetch every overlay payload in parallel (the network half), then
+      // APPLY in the original sequential order (the mutation half — later
+      // applies read fields earlier ones set). The sync manifest sits
+      // outside the TTL cache deliberately: reusing a stale overlay on
+      // failure would mis-report _syncAvailable and hold the 30s cadence
+      // with swf-node down.
+      const [overlay, evidenceData, articleData, distillationData, sphereData, profileData, eventsData, releaseData, connectionsData] = await Promise.all([
+        loadSyncOverlay().catch(() => null),
+        _overlayData("evidence", OVERLAY_TTL_MEDIUM_MS, forceGithub, fetchEvidenceOverlayData,
+          (d) => d.cohort.source === "supabase-cohort" || d.pub.source === "supabase" || (d.insight && d.insight.source === "supabase-cohort")),
+        _overlayData("articles", OVERLAY_TTL_SLOW_MS, forceGithub, fetchCohortArticles,
+          (d) => d && (d.source === "supabase-app" || d.source === "supabase-public")),
+        _overlayData("distillations", OVERLAY_TTL_SLOW_MS, forceGithub,
+          () => (COHORT_APP_READER_ENABLED ? fetchCohortDistillations() : null),
+          (d) => !!d && d.source === "supabase-cohort"),
+        _overlayData("spheres", OVERLAY_TTL_SLOW_MS, forceGithub, fetchAllSpheres,
+          (d) => d && d.source === "supabase"),
+        _overlayData("profile-updates", 0, forceGithub, fetchApprovedProfileUpdates,
+          (d) => d && d.source === "supabase"),
+        _overlayData("cohort-events", 0, forceGithub, fetchCohortFeed,
+          (d) => d && d.source === "supabase"),
+        _overlayData("releases", OVERLAY_TTL_SLOW_MS, forceGithub, fetchReleasesFeed,
+          (d) => d && d.source === "supabase"),
+        _overlayData("connections", OVERLAY_TTL_MEDIUM_MS, forceGithub, fetchConnections,
+          (d) => d && d.source === "supabase"),
+      ]);
+
+      const merged = await applySyncOverlayCached(baseline, overlay);
+      await applyEvidenceOverlay(merged, evidenceData);
+      await applyArticleOverlay(merged, articleData);
+      await applyDistillationOverlay(merged, distillationData);
+      await applySphereOverlay(merged, sphereData);
+      await applyProfileUpdateOverlay(merged, profileData);
+      await applyCohortEventsOverlay(merged, eventsData);
+      await applyReleaseOverlay(merged, releaseData);
+      await applyConnectionsOverlay(merged, connectionsData);
       merged._sig = signatureOf(merged);
-      // Did anything actually change? If not, no subscriber notify.
+      // Did anything actually change? If not, no LS write, no subscriber
+      // notify — the ~200KB stringify + disk write only pays for itself
+      // when the surface content moved.
       const prevSig = _cache?._sig;
       _cache = merged;
-      _writeSurfaceLs(_cache);
       if (prevSig !== merged._sig) {
+        _writeSurfaceLs(_cache);
         for (const cb of _subscribers) {
           try { cb({ type: "refresh" }); } catch {}
         }
@@ -1297,13 +1416,12 @@ export function refreshCohortFromGithub() {
 }
 
 // Apply the swf-node overlay to a baseline cache. Stamps `_source` so
-// the UI can show "live · syncing" vs "baseline only." If sync is
-// unreachable, returns the baseline untouched (the github PR fallback
-// keeps the app usable).
-async function applySyncOverlayCached(baseline) {
-  let overlay = null;
-  try { overlay = await loadSyncOverlay(); }
-  catch (e) { overlay = null; }
+// the UI can show "live · syncing" vs "baseline only." The overlay is
+// PREFETCHED by _startBackgroundRefresh (in parallel with the Supabase
+// overlay payloads) and passed in; a null overlay (sync unreachable)
+// returns the baseline untouched (the github PR fallback keeps the app
+// usable).
+async function applySyncOverlayCached(baseline, overlay) {
   if (!overlay) {
     baseline._syncAvailable = false;
     return baseline;
@@ -1398,6 +1516,9 @@ export function _resetCohortSource() {
   _baselineFetchedAt = 0;
   _baselineLastAttemptAt = 0;
   _bgRefreshInFlight = null;
+  _overlayCache.clear();
+  _attributedMemo = null;
+  _asksMemo = null;
   _subscribers.clear();
   if (_refreshTimer) { clearInterval(_refreshTimer); _refreshTimer = null; }
   if (_refreshVisibilityTarget && _refreshVisibilityHandler) {

@@ -539,6 +539,14 @@ async function boot() {
   cp("boot:after-env");
   if (env?.serverUrl) srwk.serverUrl = env.serverUrl;
 
+  // Operator proof mode: `electron . --transcript-auth-proof` opens the normal
+  // app with the Google gate visible, so an operator can complete sign-in and
+  // then rerun the hidden transcript receive self-test against the saved session.
+  try {
+    const params = new URLSearchParams(location.search || "");
+    if (params.get("authProof") === "1") localStorage.setItem("srwk:auth_gate_enabled", "1");
+  } catch {}
+
   // Auth gate (flag-gated via srwk:auth_gate_enabled, OFF by default). When on,
   // mounts a full-screen Google sign-in / request-access overlay above everything;
   // a no-op otherwise. Non-blocking on purpose — boot proceeds behind the overlay
