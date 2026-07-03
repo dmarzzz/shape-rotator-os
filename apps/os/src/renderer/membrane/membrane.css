@@ -122,6 +122,7 @@ html[data-theme="light"] .mfeed-event-changed { --mfeed-color: #b9821f; }  /* am
    (so a [data-cat] override wins and the card inherits it). */
 html[data-theme="light"] .magenda-event { --c2-acc: #6f655e; }
 html[data-theme="light"] .magenda-up    { --c2-acc: #6f655e; }
+html[data-theme="light"] .magenda-later { --c2-acc: #6f655e; }
 html[data-theme="light"] .magenda-event,
 html[data-theme="light"] .magenda-up-event {
   background: color-mix(in srgb, var(--c2-acc) 28%, #ffffff);
@@ -756,6 +757,47 @@ html[data-theme="light"] .membrane-agenda .magenda-next {
   overflow-wrap: anywhere;
   color: rgba(var(--mem-ink-rgb), 0.85);
 }
+/* ── agenda "later" fold ── far-future events as one-line rows under a single
+   quiet head, instead of full cards under far-off day heads. Same grammar as
+   the up-event cards (right-aligned, category edge-tick on the screen-edge
+   side) at the mono 2xs tier. Declared ABOVE the [data-cat] colour tier so a
+   category hue on the row wins over this default (same pattern as
+   .magenda-up / .magenda-next). */
+.membrane-agenda .magenda-later {
+  --c2-acc: #8f817a;          /* default tier; [data-cat] overrides below win */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  width: 100%;
+  padding: 5px 8px;
+  border: 0;
+  border-right: 2px solid color-mix(in srgb, var(--c2-acc) 55%, transparent);
+  border-radius: 5px 0 0 5px;
+  background: transparent;
+  color: rgba(var(--mem-ink-rgb), 0.6);
+  font: inherit;
+  text-align: right;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+.membrane-agenda .magenda-later:hover {
+  background: color-mix(in srgb, var(--c2-acc) 18%, transparent);
+  color: rgba(var(--mem-ink-rgb), 0.88);
+}
+.membrane-agenda .magenda-later:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--membrane-ember) 45%, transparent);
+  outline-offset: 1px;
+}
+.magenda-later .magenda-event-title {
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+}
+.magenda-later .magenda-event-time {
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+}
+
 /* Category colours — same hexes as calendar.css so the two surfaces match.
    'default' is the inherited --c2-acc above. */
 /* Category accents — one hue step per category (was: three near-identical
@@ -3488,36 +3530,8 @@ html[data-theme="light"] .mcap-verbs { background: rgba(255, 255, 255, 0.5); }
 .mcap-send:hover:not(:disabled) { background: rgba(255, 122, 61, 0.18); }
 .mcap-send:disabled { opacity: 0.35; cursor: default; }
 
-/* ── agenda "later" fold ── far-future events as one-line rows under a single
-   quiet head, instead of full cards under far-off day heads. */
-.membrane-agenda .magenda-later {
-  --c2-acc: #8f817a;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 1px;
-  width: 100%;
-  padding: 5px 8px;
-  border: 0;
-  border-right: 2px solid color-mix(in srgb, var(--c2-acc) 55%, transparent);
-  border-radius: 5px 0 0 5px;
-  background: transparent;
-  color: rgba(var(--mem-ink-rgb), 0.6);
-  font: inherit;
-  text-align: right;
-  cursor: pointer;
-  transition: background 150ms ease, color 150ms ease;
-}
-.membrane-agenda .magenda-later:hover {
-  background: color-mix(in srgb, var(--c2-acc) 18%, transparent);
-  color: rgba(var(--mem-ink-rgb), 0.88);
-}
-.membrane-agenda .magenda-later:focus-visible {
-  outline: 1px solid color-mix(in srgb, var(--membrane-ember) 45%, transparent);
-  outline-offset: 1px;
-}
-.magenda-later .magenda-event-title { font-size: 11px; }
-.magenda-later .magenda-event-time { font-size: 9px; }
+/* (the agenda "later" fold rules live with the agenda card vocabulary above,
+   before the [data-cat] colour tier — see "agenda later fold".) */
 
 /* ── center column eyebrow ── names the surface; the live dot says new posts
    arrive here on their own. */
