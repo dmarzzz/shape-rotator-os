@@ -1,0 +1,1273 @@
+<!doctype html>
+<html lang="en" data-ds="on">
+  <head>
+    <script>
+  // ── PREVIEW-ONLY scaffolding (not the app) ──────────────────────────────
+  // Renders the real renderer in plain Chrome: shims the Electron preload
+  // bridge, seeds identity + landing view, and overlays demo context records
+  // (distilled readouts / evidence cards / cohort articles use live Supabase
+  // reads that a keyless browser preview can't make).
+  (function () {
+    const qs = new URLSearchParams(location.search);
+    const lens = qs.get("lens") === "library" ? "library" : "stream";
+
+    const DEMO_MANIFEST = {
+      schema_version: 2,
+      roots: [],
+      totals: { articles: 0, sources: 0, raw_scripts: 2 },
+      sources: [],
+      raw_scripts: [
+        { id: "raw-walking-notes", title: "walking-notes", path: "vault/raw/walking-notes.txt", date: "2026-06-24", line_count: 61, source_kind: "voice-memo", excerpt: "walked the routing problem with D…" },
+        { id: "raw-may-huddle", title: "may-huddle", path: "vault/raw/may-huddle.txt", date: "2026-05-28", line_count: 142, source_kind: "meeting", excerpt: "huddle on the first distillation pass…" }
+      ]
+    };
+    const RAW_TEXT = {
+      "raw-walking-notes": "walked the routing problem with D.\n\n- context should default private, promote explicitly\n- a checkpoint needs: goal as written, decisions, open loops w/ owners\n- try: readouts carry a 'taken from this session' block\n",
+      "raw-may-huddle": "huddle on the first distillation pass.\n\nlong discussion about what survives the chat window closing — nothing does unless it is written down with an owner.\n"
+    };
+
+    window.api = new Proxy({
+      getAppInfo: () => Promise.resolve({ version: "preview", platform: "web", name: "Shape Rotator OS" }),
+      loadContextVault: () => Promise.resolve({ ok: true, manifest: DEMO_MANIFEST, roots: [] }),
+      scanContextVault: () => Promise.resolve({ ok: true, manifest: DEMO_MANIFEST, roots: [] }),
+      readContextVaultSource: (id) => Promise.resolve({ ok: true, text: RAW_TEXT[id] || "", truncated: false })
+    }, { get: (t, k) => (k in t ? t[k] : () => Promise.resolve(null)) });
+
+    try {
+      localStorage.setItem("srwk:identity_v1", JSON.stringify({ kind: "person", record_id: "albiona-hoti", display_name: "Albiona" }));
+      localStorage.setItem("srwk:identity_onboarding_skipped_v1", "1");
+      localStorage.setItem("srwk:membrane_seen_v1", "1");
+      localStorage.setItem("srwk:alchemy_mode", "context");
+      localStorage.setItem("srwk:context_view", lens);
+      // the tab strip restores the last session and would override the seeded
+      // mode — hand it a context tab instead
+      localStorage.setItem("srwk:tabs_v1", JSON.stringify({
+        tabs: [{ id: "t_preview", loc: { tab: "alchemy", mode: "context", contextView: lens } }],
+        activeId: "t_preview"
+      }));
+      // collapse the nav drawer (first-launch discovery pins it open,
+      // covering the list column in screenshots)
+      localStorage.setItem("srwk:nav_discovered_v1", "1");
+      localStorage.setItem("srwk:nav_pinned_v1", "0");
+      // deterministic surface: force the committed fixture (built-in dev
+      // override) and drop any cached surface from earlier visits
+      localStorage.setItem("srfg:cohort_source", "local");
+      localStorage.removeItem("srfg:cohort_surface_v5");
+      localStorage.removeItem("srfg:gh_commit_ts_cache_v1");
+    } catch (e) {}
+
+    // Demo overlay: merged into the committed cohort surface at fetch time,
+    // using two REAL team record_ids from the surface for attribution.
+    function demoOverlay(surface) {
+      const teams = (surface.teams || []).map((t) => t.record_id).filter(Boolean);
+      const t1 = teams[0] || "team-one";
+      const t2 = teams[1] || "team-two";
+      surface.transcript_distillations = { artifacts: [
+        {
+          id: "demo-oh-memory", kind: "readout", surface_tier: "T2",
+          title: "Office hours — memory checkpoints", session_type: "office_hours",
+          date: "2026-07-01", week_start: "2026-06-29",
+          summary: "Where long sessions lose their context, and what a checkpoint has to contain to survive a handoff.",
+          themes: ["memory", "handoffs", "agent infrastructure"], teams: [t1], people: [],
+          body_md: "## Summary\n\n- Three teams walked through where their agent sessions stall.\n- The common failure is not model quality — nothing survives the chat window closing.\n- The group converged on a checkpoint shape: the goal as written, decisions made, open loops with owners, and pointers to artifacts.\n\n## Open questions\n\n- Who owns a checkpoint after a handoff?\n- Do checkpoints belong in the repo or the transcript tier?",
+          confidence: 0.92, created_at: "2026-07-01T18:20:00Z"
+        },
+        {
+          id: "demo-dd-routing", kind: "readout", surface_tier: "T2",
+          title: "Deep dive — routing context between teams", session_type: "deep_dive",
+          date: "2026-06-30", week_start: "2026-06-29",
+          summary: "Routing is social, not just technical — some context belongs to the person, some to the team, some to the program.",
+          themes: ["social routing", "agent infrastructure"], teams: [t2], people: [],
+          body_md: "## Summary\n\n- Default-private with explicit promotion beat default-public in every scenario the group walked.\n- The routing decision is a judgment call the app should make legible, not automatic.",
+          confidence: 0.62, created_at: "2026-06-30T16:00:00Z"
+        },
+        {
+          id: "demo-sync-w4", kind: "readout", surface_tier: "T2",
+          title: "Cohort sync — week 4", session_type: "cohort_sync",
+          date: "2026-06-26", week_start: "2026-06-22",
+          summary: "Week-4 sync readout: traction evidence, memory hygiene, and two open asks.",
+          themes: ["memory", "traction evidence"], teams: [t1, t2], people: [],
+          body_md: "## Summary\n\n- Two teams presented traction evidence; both cited the same integration blocker.\n- Memory hygiene keeps coming up — third session in a row.",
+          confidence: 0.45, created_at: "2026-06-26T17:00:00Z"
+        },
+        {
+          id: "demo-dd-resumable", kind: "readout", surface_tier: "T2",
+          title: "Deep dive — resumable state", session_type: "deep_dive",
+          date: "2026-06-10", week_start: "2026-06-08",
+          summary: "Durable agent work needs named goals, resumable state, audit trails, and clear handoffs.",
+          themes: ["memory"], teams: [t1], people: [],
+          body_md: "## Summary\n\n- One timeout, one restart, or one missing file can erase a long-running thread.\n- Named goals + resumable state turned brittle tasks into recoverable ones.",
+          confidence: 0.9, created_at: "2026-06-10T15:00:00Z"
+        }
+      ]};
+      surface.transcript_evidence_cards = [
+        { id: "demo-ev-1", claim_type: "insight", title: "Named goals double reusable readouts",
+          claim_text: "Teams that name a session goal up front produce reusable readouts twice as often.",
+          summary: "", evidence_level: "observed", confidence: 0.92, attribution_scope: "team",
+          surface_tier: "T2", created_at: "2026-07-01T19:00:00Z",
+          content_json: { topic_label: "memory", week_start: "2026-06-29", date: "2026-07-01", teams: [t1] } },
+        { id: "demo-ev-2", claim_type: "pattern", title: "Checkpoints beat transcripts for handoffs",
+          claim_text: "Checkpoints beat raw transcripts for handoffs — decisions and open loops, not scrollback.",
+          summary: "", evidence_level: "repeated", confidence: 0.78, attribution_scope: "team",
+          surface_tier: "T2", created_at: "2026-07-01T19:05:00Z",
+          content_json: { topic_label: "memory", week_start: "2026-06-29", date: "2026-07-01", teams: [t1] } },
+        { id: "demo-ev-3", claim_type: "risk", title: "Unowned follow-ups decay",
+          claim_text: "Unowned follow-ups decay within a week.",
+          summary: "", evidence_level: "observed", confidence: 0.55, attribution_scope: "team",
+          surface_tier: "T2", created_at: "2026-06-30T18:00:00Z",
+          content_json: { topic_label: "social routing", week_start: "2026-06-29", date: "2026-06-30", teams: [t2] } },
+        { id: "demo-ev-4", claim_type: "insight", title: "Private scrollback loses the plot",
+          claim_text: "Private scrollback is where context dies; checkpoints carry it.",
+          summary: "", evidence_level: "repeated", confidence: 0.8, attribution_scope: "generalized",
+          surface_tier: "T3", created_at: "2026-06-26T18:00:00Z",
+          content_json: { topic_label: "memory", week_start: "2026-06-22", date: "2026-06-26", teams: [] } }
+      ];
+      surface.cohort_articles = [
+        { id: "supabase-article:demo-a1", entry_kind: "article", article_id: "demo-a1", corpus_id: "demo-a1",
+          article_title: "Memory, workflows, and social routing",
+          article_angle: "Durable agent work needs named goals, resumable state, and audit trails.",
+          article_dek: "Durable agent work needs named goals, resumable state, and audit trails.",
+          article_section: "agent infrastructure", article_slug: "memory-workflows-social-routing",
+          article_file: "memory-workflows-social-routing.md",
+          article_body_md: "# Memory, workflows, and social routing\n\nThe hard part of agent software is no longer getting one impressive answer. The hard part is preserving useful work after the chat window closes.\n\n## Private sessions lose the plot\n\nA good agent session contains decisions, partial research, tool traces, and useful taste. If that work stays trapped in a private scrollback, the next agent starts cold.\n\n## Routing is social\n\nSome context belongs to the individual, some to a team, and some should become public program knowledge. Shape Rotator should make those routing choices explicit.",
+          article_full_md: "", content_version: "demo", status: "published",
+          date: "2026-07-01T12:00:00Z", source_kind: "supabase-public", source_boundary: "public_bundle",
+          article_kind: "guide", article_mode: "editorial", surface_tier: "public", approval_state: "approved",
+          tags: ["memory", "social routing", "agent infrastructure"] },
+        { id: "supabase-article:demo-a2", entry_kind: "article", article_id: "demo-a2", corpus_id: "demo-a2",
+          article_title: "Privacy is not the product",
+          article_angle: "Tiered publishing — named for the cohort, generalized for the world — is the contract that makes sharing safe.",
+          article_dek: "Tiered publishing — named for the cohort, generalized for the world — is the contract that makes sharing safe.",
+          article_section: "program", article_slug: "privacy-is-not-the-product",
+          article_file: "privacy-is-not-the-product.md",
+          article_body_md: "# Privacy is not the product\n\nPrivacy is the boundary condition that makes the product possible.\n\n## Two tiers, one contract\n\nNamed evidence stays inside the cohort. Generalized claims travel. Every card carries its tier so nobody has to guess.",
+          article_full_md: "", content_version: "demo", status: "published",
+          date: "2026-06-24T12:00:00Z", source_kind: "supabase-public", source_boundary: "public_bundle",
+          article_kind: "essay", article_mode: "editorial", surface_tier: "public", approval_state: "approved",
+          tags: ["privacy tiers"] }
+      ];
+      return surface;
+    }
+
+    // Headless-screenshot driver: ?sel=<stream key> clicks a stream row,
+    // ?open=<key> opens a library item — retried until the async data paints.
+    window.addEventListener("load", () => {
+      const sel = qs.get("sel");
+      const open = qs.get("open");
+      if (!sel && !open) return;
+      let tries = 0;
+      const timer = setInterval(() => {
+        tries += 1;
+        const btn = sel
+          ? document.querySelector('[data-cv-stream="' + sel + '"]')
+          : document.querySelector('[data-cv-lib-open="' + open + '"]');
+        if (btn) { btn.click(); clearInterval(timer); }
+        else if (tries > 30) clearInterval(timer);
+      }, 300);
+    });
+
+    const realFetch = window.fetch.bind(window);
+    window.fetch = async function (input, init) {
+      const url = typeof input === "string" ? input : (input instanceof URL ? input.href : (input && input.url) || "");
+      // keep the preview deterministic: no live github/supabase/web-bundle
+      // overlays (they'd replace the demo records with gated/live reads)
+      if (/api\.github\.com|supabase\.co|shaperotator\.xyz|phala\.network/.test(url)) {
+        return new Response("preview: remote source blocked", { status: 503 });
+      }
+      const res = await realFetch(input, init);
+      if (/cohort-surface\.json/.test(url) && res.ok) {
+        try {
+          const data = demoOverlay(await res.json());
+          return new Response(JSON.stringify(data), { status: 200, headers: { "content-type": "application/json" } });
+        } catch (e) { return res; }
+      }
+      return res;
+    };
+  })();
+  </script>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://github.com https://avatars.githubusercontent.com; connect-src 'self' http://127.0.0.1:* http://localhost:* https://raw.githubusercontent.com https://api.github.com https://txjntzwksiluvqcpccpc.supabase.co https://*.shaperotator.xyz https://*.phala.network; font-src 'self' data: https://fonts.gstatic.com;" />
+    <title>Shape Rotator OS</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <!-- Canonical Shape Rotator font pair (matches shaperotator.xyz). -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="cohort-trace-view.css" />
+    <!-- Eager so the always-on corner chat dial is styled at first paint (its
+         glyph otherwise flashes huge + unstyled until cohort-chat.js lazy-loads
+         this). Href matches the lazy load in cohort-chat.js, so warmCohortChat()
+         no-ops (stylesheet-loader dedupes) — no double load. -->
+    <link rel="stylesheet" href="renderer/cohort-chat.css" />
+    <!-- Design system (unified type/color/buttons/dropdowns). The application
+         layer is scoped under html[data-ds], set permanently on <html> above.
+         Must load AFTER styles.css so its override layer wins. -->
+    <link rel="stylesheet" href="design-system/ds.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "../node_modules/three/build/three.module.js",
+          "three/": "../node_modules/three/",
+          "@shape-rotator/shape-ui": "./vendor/shape-ui/index.js",
+          "js-yaml": "./vendor/js-yaml.mjs"
+        }
+      }
+    </script>
+  </head>
+  <body data-active-tab="alchemy" data-net-sub="network">
+    <div id="chrome-staging" hidden>
+      <!-- Boot-only staging. The version chip is moved into the rail footer
+           once renderer boot finishes; visible tabs live in #content-top. -->
+      <button id="fg-version-chip" class="fg-version-chip" type="button" title="check for app updates">v—</button>
+    </div>
+
+    <!-- Primary navigation. Top-level categories (operating system / apps /
+         links) switch the active tab; the operating-system pages
+         are nested beneath it as an always-expanded sub-list (the rail,
+         relocated here 2026-06 from inside #alchemy-view). -->
+    <aside id="primary-nav" class="primary-nav" aria-label="primary navigation">
+      <div class="nav-cat nav-cat--eyebrow" aria-hidden="true">
+        <span class="nav-cat-label">operating system</span>
+      </div>
+      <nav class="alchemy-rail" role="tablist" aria-label="operating system pages">
+        <button class="alchemy-rail-btn" data-alch-mode="membrane" type="button" aria-selected="true">
+          <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.341 6.484A10 10 0 0 1 10.266 21.85"/><path d="M3.659 17.516A10 10 0 0 1 13.74 2.152"/><circle cx="12" cy="12" r="3"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="19" r="2"/></svg></span>
+          <span class="ar-label">membrane</span>
+          <span class="ar-hint">self · cohort · events · asks</span>
+        </button>
+        <!-- matrix is a routed app tab, but it belongs visually next to Membrane. -->
+        <button class="nav-cat nav-cat--rail-app" data-tab="matrix" type="button" aria-selected="false">
+          <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+          <span class="nav-cat-label ar-label">matrix</span>
+        </button>
+        <!-- profile removed from the rail 2026-06 — the page is reached via
+             the identity pill in the bottom-left footer (identity.js). -->
+        <button class="alchemy-rail-btn" data-alch-mode="shapes" type="button" aria-selected="false">
+          <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg></span>
+          <span class="ar-label">cohort</span>
+          <span class="ar-hint">roster · constellation · collab</span>
+        </button>
+        <!-- pulse retired 2026-05; renderer kept in alchemy.js until we have a real activity-over-time signal worth surfacing. -->
+        <!-- constellation is now a cohort sub-view; retired intel routes normalize to Context evidence. -->
+        <button class="alchemy-rail-btn" data-alch-mode="calendar" type="button" aria-selected="false">
+          <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></span>
+          <span class="ar-label">calendar</span>
+          <span class="ar-hint">who is here when</span>
+        </button>
+        <button class="alchemy-rail-btn" data-alch-mode="mirror" type="button" aria-selected="false">
+          <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+          <span class="ar-label">mirror</span>
+          <span class="ar-hint">say / did / shipped</span>
+        </button>
+        <button class="alchemy-rail-btn" data-alch-mode="program" type="button" aria-selected="false">
+          <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg></span>
+          <span class="ar-label">program info</span>
+          <span class="ar-hint">onboarding / handbook / rules</span>
+        </button>
+        <button class="alchemy-rail-btn" data-alch-mode="context" type="button" aria-selected="false">
+          <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg></span>
+          <span class="ar-label">context</span>
+          <span class="ar-hint">articles · transcripts · asks</span>
+        </button>
+      </nav>
+      <!-- apps — top-level destination. Network launches from the Apps grid,
+           not from an indented sidebar submenu. Destination rows use the rail's own row
+           grammar (icon · label · hint) so the column reads as one even list
+           instead of three orphaned headers. They keep class="nav-cat" +
+           data-tab (boot.js routing) and .nav-cat-label (find.js / tabs.js
+           label read); the --dest modifier re-skins them (styles.css).
+           `links` stays last because it is a static external bookmark grid,
+           not a peer of the OS pages. -->
+      <button class="nav-cat nav-cat--dest" data-tab="apps" type="button" aria-selected="false">
+        <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg></span>
+        <span class="nav-cat-label ar-label">apps</span>
+      </button>
+      <button class="nav-cat nav-cat--dest" data-tab="links" type="button" aria-selected="false">
+        <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></span>
+        <span class="nav-cat-label ar-label">links</span>
+      </button>
+      <!-- Pin toggle — boot.js moves it into the drawer footer row (#fg-footer-row)
+           next to the version cluster; it stays here as a fallback mount. -->
+      <button id="nav-pin-btn" class="nav-pin" type="button" aria-pressed="false" title="keep the menu open">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>
+      </button>
+    </aside>
+
+    <!-- Persistent top strip in the content column — the browser-style tab
+         bar (2026-06). #os-tabs is populated by renderer/tabs.js. -->
+    <div id="content-top" class="content-top">
+      <div id="os-tabs" class="os-tabs" role="tablist" aria-label="open tabs"></div>
+    </div>
+
+    <!-- Blank-tab overlay — covers the content column when the active tab is
+         a fresh empty tab (body[data-blank]). -->
+    <div id="blank-tab" class="blank-tab" aria-hidden="true">
+      <!-- new-tab search launcher is injected here by renderer/find.js -->
+    </div>
+
+    <!-- Apps tab: a grid of small tools. Most cards swap an Apps subview via
+         body[data-apps-view="<key>"]; Network opens its existing routed tab. -->
+    <section id="apps-grid" class="apps-grid apps-only" aria-label="apps">
+      <header class="apps-grid-head">
+        <h1 class="apps-grid-title">apps</h1>
+        <p class="apps-grid-sub">small tools running locally on your machine. tap one to open.</p>
+      </header>
+      <ul class="apps-grid-list" role="list">
+        <li>
+          <button class="app-card" type="button" data-app-key="atlas" aria-label="open atlas workspace">
+            <span class="app-card-icon" aria-hidden="true">
+              <svg viewBox="0 0 64 64" width="100%" height="100%">
+                <!-- compact icon — four clusters of dots arranged like a
+                     wall map. Reads down to ~48px. -->
+                <g fill="#EBEEFA" opacity="0.85">
+                  <circle cx="18" cy="20" r="1.6"/><circle cx="22" cy="24" r="1.4"/>
+                  <circle cx="26" cy="20" r="1.6"/><circle cx="20" cy="28" r="1.3"/>
+                  <circle cx="46" cy="18" r="1.6"/><circle cx="50" cy="22" r="1.4"/>
+                  <circle cx="44" cy="26" r="1.3"/>
+                  <circle cx="20" cy="46" r="1.5"/><circle cx="26" cy="48" r="1.4"/>
+                  <circle cx="22" cy="42" r="1.4"/>
+                  <circle cx="46" cy="46" r="1.6"/><circle cx="50" cy="42" r="1.4"/>
+                  <circle cx="44" cy="50" r="1.3"/>
+                </g>
+                <g style="fill:var(--page-accent)">
+                  <circle cx="22" cy="22" r="2.2"/>
+                  <circle cx="46" cy="22" r="2.0"/>
+                  <circle cx="22" cy="46" r="2.0"/>
+                  <circle cx="46" cy="46" r="2.2"/>
+                </g>
+              </svg>
+            </span>
+            <span class="app-card-label">atlas</span>
+            <span class="app-card-kind" aria-hidden="true">workspace</span>
+          </button>
+        </li>
+        <li>
+          <button class="app-card" type="button" data-app-key="network" aria-label="open network tab">
+            <span class="app-card-icon" aria-hidden="true">
+              <svg viewBox="0 0 64 64" width="100%" height="100%">
+                <circle cx="32" cy="32" r="4" style="fill:var(--page-accent)"/>
+                <g fill="none" stroke="#EBEEFA" stroke-width="2" stroke-linecap="round" opacity="0.82">
+                  <path d="M17 47 C8 38 8 26 17 17"/>
+                  <path d="M23 41 C17 35 17 29 23 23"/>
+                  <path d="M41 23 C47 29 47 35 41 41"/>
+                  <path d="M47 17 C56 26 56 38 47 47"/>
+                </g>
+                <g style="fill:var(--page-accent)">
+                  <circle cx="18" cy="18" r="2.4"/>
+                  <circle cx="46" cy="18" r="2.4"/>
+                  <circle cx="18" cy="46" r="2.4"/>
+                  <circle cx="46" cy="46" r="2.4"/>
+                </g>
+              </svg>
+            </span>
+            <span class="app-card-label">network</span>
+            <span class="app-card-kind" aria-hidden="true">tab</span>
+          </button>
+        </li>
+        <li>
+          <button class="app-card" type="button" data-app-key="easel" aria-label="open easel workspace">
+            <span class="app-card-icon" aria-hidden="true">
+              <svg viewBox="0 0 64 64" width="100%" height="100%">
+                <!-- a screen + NDI broadcast arcs -->
+                <rect x="13" y="16" width="34" height="23" rx="2.5" fill="none" stroke="#EBEEFA" stroke-width="2" opacity="0.85"/>
+                <path d="M24 45 h12 M30 39 v6" stroke="#EBEEFA" stroke-width="2" opacity="0.55" fill="none" stroke-linecap="round"/>
+                <g fill="none" style="stroke:var(--page-accent)" stroke-width="2" stroke-linecap="round">
+                  <path d="M44 21 a6.5 6.5 0 0 1 0 13"/>
+                  <path d="M48 16.5 a11.5 11.5 0 0 1 0 22"/>
+                </g>
+                <circle cx="40" cy="27.5" r="2.3" style="fill:var(--page-accent)"/>
+              </svg>
+            </span>
+            <span class="app-card-label">easel</span>
+            <span class="app-card-kind" aria-hidden="true">workspace</span>
+          </button>
+        </li>
+        <li>
+          <button class="app-card" type="button" data-app-key="daybook" aria-label="open router pop-out window">
+            <span class="app-card-icon" aria-hidden="true">
+              <svg viewBox="0 0 64 64" width="100%" height="100%">
+                <!-- an open notebook: two facing pages + ruled lines -->
+                <path d="M32 17 C26 13 19 13 14 15 v32 c5 -2 12 -2 18 2 c6 -4 13 -4 18 -2 V15 c-5 -2 -12 -2 -18 2 z"
+                      fill="none" stroke="#EBEEFA" stroke-width="2" opacity="0.85" stroke-linejoin="round"/>
+                <path d="M32 19 v32" stroke="#EBEEFA" stroke-width="2" opacity="0.5"/>
+                <g style="stroke:var(--page-accent)" stroke-width="1.6" stroke-linecap="round" opacity="0.9">
+                  <path d="M19 23 h9"/><path d="M19 29 h9"/><path d="M19 35 h7"/>
+                  <path d="M36 23 h9"/><path d="M36 29 h9"/><path d="M36 35 h7"/>
+                </g>
+              </svg>
+            </span>
+            <span class="app-card-label">router</span>
+            <span class="app-card-kind" aria-hidden="true">pop-out</span>
+          </button>
+        </li>
+      </ul>
+    </section>
+
+    <!-- ─── Swarm panel · overlay opened by ASK MY AGENT (search-view) ──
+         Fixed-position overlay on top of whatever tab is active. Hidden
+         by default; renderer/boot.js's wireSwarmPanel toggles `hidden`
+         and animates open/close. Two surfaces: the runner (query input +
+         live trace) and the settings modal (API key + Ollama URL), which
+         sits on top of the runner when its cog is clicked. -->
+    <section id="swarm-panel" class="swarm-panel" hidden aria-hidden="true"
+             role="dialog" aria-modal="true" aria-label="agent swarm">
+      <div class="swarm-panel-backdrop" data-swarm-close></div>
+      <div class="swarm-panel-card" role="document">
+        <header class="swarm-head">
+          <div class="swarm-mark">
+            <span class="swarm-mark-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg></span>
+            <span class="swarm-mark-text">SHAPE ROTATOR · agent swarm</span>
+          </div>
+          <div class="swarm-head-status">
+            <span class="swarm-status-dot" id="swarm-status-dot" data-state="idle"></span>
+            <span id="swarm-status-line">idle</span>
+          </div>
+          <div class="swarm-head-actions">
+            <button id="swarm-settings-btn" class="swarm-icon-btn" type="button" title="configure LLM" aria-label="open swarm settings">
+              <span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></span>
+            </button>
+            <button class="swarm-icon-btn" type="button" data-swarm-close title="close (Esc)" aria-label="close swarm">
+              <span aria-hidden="true">✕</span>
+            </button>
+          </div>
+        </header>
+
+        <form id="swarm-form" class="swarm-form" autocomplete="off" spellcheck="false">
+          <div class="swarm-input-row">
+            <input id="swarm-query" class="swarm-query" type="text"
+                   placeholder="ask the swarm — multi-step research with cohort + web grounding"
+                   autocomplete="off" />
+            <select id="swarm-model" class="swarm-model" aria-label="LLM model">
+              <option value="anthropic/claude-sonnet-4-6">Anthropic · sonnet 4.6</option>
+              <option value="anthropic/claude-opus-4-7">Anthropic · opus 4.7</option>
+              <option value="anthropic/claude-haiku-4-5-20251001">Anthropic · haiku 4.5</option>
+              <option value="ollama/qwen3:35b">Ollama · qwen3:35b (local)</option>
+              <option value="ollama/llama3.2:8b">Ollama · llama3.2:8b (local)</option>
+              <option value="ollama/qwen2.5:7b">Ollama · qwen2.5:7b (local)</option>
+            </select>
+            <label class="swarm-parallel-toggle">
+              <input id="swarm-parallel" type="checkbox" />
+              <span>parallel</span>
+            </label>
+            <button id="swarm-start-btn" class="swarm-start-btn" type="submit">start</button>
+            <button id="swarm-stop-btn" class="swarm-stop-btn" type="button" hidden>stop</button>
+          </div>
+          <div class="swarm-pre-message" id="swarm-pre-message"></div>
+        </form>
+
+        <div class="swarm-trace" id="swarm-trace" role="log" aria-live="polite" aria-label="agent trace">
+          <div class="swarm-trace-empty" id="swarm-trace-empty">
+            Type a question and press start. The swarm will search your
+            local index → cohort peers → public web in order, read pages
+            it finds, and write you a grounded answer with citations.
+            Live trace appears here as the agent thinks.
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings sub-modal (sits on top of the runner card when open) -->
+      <div id="swarm-settings" class="swarm-settings" hidden aria-hidden="true">
+        <div class="swarm-settings-card" role="document">
+          <header class="swarm-settings-head">
+            <div class="swarm-mark">
+              <span class="swarm-mark-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg></span>
+              <span class="swarm-mark-text">swarm settings</span>
+            </div>
+            <button class="swarm-icon-btn" type="button" id="swarm-settings-close" aria-label="close settings">
+              <span aria-hidden="true">✕</span>
+            </button>
+          </header>
+
+          <div class="swarm-settings-section">
+            <div class="swarm-settings-label">Anthropic API key</div>
+            <input id="swarm-anthropic-key" type="password" class="swarm-settings-input"
+                   placeholder="sk-ant-…  (stored encrypted in your keychain)"
+                   autocomplete="off" spellcheck="false" />
+            <div class="swarm-settings-hint">
+              The key is encrypted via Electron's <code>safeStorage</code>
+              (macOS Keychain · Linux libsecret · Windows DPAPI). It never
+              leaves your machine in plaintext.
+            </div>
+          </div>
+
+          <div class="swarm-settings-section">
+            <div class="swarm-settings-label">Local model (Ollama / OpenAI-compatible)</div>
+            <input id="swarm-ollama-base" type="text" class="swarm-settings-input"
+                   placeholder="http://localhost:11434  (or any OpenAI-compatible endpoint)"
+                   autocomplete="off" spellcheck="false" />
+            <div class="swarm-settings-hint">
+              Used when you pick an <code>ollama/*</code> model. The base URL
+              passes through as <code>LM_API_BASE</code>; the local server
+              must already be running.
+            </div>
+          </div>
+
+          <div class="swarm-settings-status" id="swarm-settings-status"></div>
+          <div class="swarm-settings-actions">
+            <button id="swarm-settings-save" class="swarm-start-btn" type="button">save</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Chat with the cohort — runs the member's OWN local AI CLI (Claude Code /
+         Codex) grounded in the live cohort data. No API key. See
+         apps/os/src/renderer/cohort-chat.js. -->
+    <section id="cohort-chat-panel" class="cohort-chat-panel" hidden aria-hidden="true"
+             role="dialog" aria-modal="false" aria-label="chat with the cohort">
+      <div class="cohort-chat-backdrop" data-cohort-chat-close></div>
+      <div class="cohort-chat-card" role="document" data-cc-view="ask">
+        <div class="cc-resize" data-cc-resize role="separator" aria-orientation="vertical" aria-label="resize chat panel" title="drag to resize"></div>
+        <header class="cohort-chat-head">
+          <button class="cohort-chat-icon-btn cohort-chat-close-btn" type="button" data-cohort-chat-close title="collapse (Esc) — anything running keeps going" aria-label="collapse chat">
+            <span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/></svg></span>
+          </button>
+          <div class="cohort-chat-head-status">
+            <span class="cohort-chat-dot" id="cohort-chat-dot" data-state="idle"></span>
+            <span id="cohort-chat-status-line">idle</span>
+          </div>
+          <div class="cohort-chat-head-actions">
+            <button id="cohort-chat-expand" class="cohort-chat-icon-btn" type="button" title="expand to full page" aria-pressed="false" aria-label="expand chat to full page">
+              <span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></span>
+            </button>
+            <button id="cohort-chat-settings-btn" class="cohort-chat-icon-btn" type="button" title="configure local AI" aria-label="open chat settings">
+              <span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+            </button>
+          </div>
+        </header>
+        <div class="cc-tabs" role="tablist" aria-label="chat modes">
+          <button class="cc-tab is-active" type="button" role="tab" data-cc-tab="ask" aria-selected="true">ask</button>
+          <button class="cc-tab" type="button" role="tab" data-cc-tab="search" aria-selected="false">search</button>
+          <button class="cc-tab" type="button" role="tab" data-cc-tab="transcript" aria-selected="false">transcript</button>
+          <button class="cc-tab" type="button" role="tab" data-cc-tab="sync" aria-selected="false">sync</button>
+        </div>
+
+        <div class="cohort-chat-log" id="cohort-chat-log" role="log" aria-live="polite" aria-label="cohort chat">
+          <div class="cohort-chat-empty" id="cohort-chat-empty">
+            <div class="cohort-chat-empty-lede">Ask about the cohort — or ask me to <b>do</b> something. I draft, you approve.</div>
+            <div class="cc-live-line" id="cc-live-line" hidden></div>
+            <div class="cc-purpose" aria-label="what this assistant does">
+              <div class="cc-purpose-row"><b>ask</b><span>questions about teams, people, transcripts, what's happening</span></div>
+              <div class="cc-purpose-row"><b>search</b><span>find anything across the cohort surface</span></div>
+              <div class="cc-purpose-row"><b>transcript</b><span>upload a session — you pick type + confidence, nothing publishes itself</span></div>
+              <div class="cc-purpose-row"><b>sync</b><span>refresh your profile from your own recent work — nothing sends until you hit send</span></div>
+              <div class="cc-purpose-row"><b>you</b><span>your profile lives in the left menu — hover the left edge, click your name at the bottom</span></div>
+            </div>
+            <div class="cohort-chat-egs">
+              <button type="button" class="cc-eg" data-cc-eg>who should I talk to about TEE Postgres?</button>
+              <button type="button" class="cc-eg" data-cc-eg>submit my own profile update without scanning private work</button>
+              <button type="button" class="cc-eg" data-cc-eg>suggest who I should connect with — and propose it</button>
+              <button type="button" class="cc-eg" data-cc-eg>check my Shape OS work and draft this week's update</button>
+            </div>
+            <small>Runs on your local AI (Claude Code / Codex) — no API key, stays on your machine.<br>
+              Your edits apply next refresh.<br>
+              Changes about others go to daily review.</small>
+          </div>
+        </div>
+
+        <form id="cohort-chat-form" class="cohort-chat-form" autocomplete="off" spellcheck="false">
+          <button id="cohort-chat-jump" class="cc-jump-latest" type="button" hidden aria-label="jump to the latest message">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+            latest
+          </button>
+          <div class="cc-page-presets" id="cohort-chat-presets" hidden></div>
+          <div class="cohort-chat-pre-message" id="cohort-chat-pre-message"></div>
+          <div class="cc-composer">
+            <textarea id="cohort-chat-input" class="cohort-chat-input" rows="1"
+                      placeholder="ask the cohort — or ask me to do something…"></textarea>
+            <button id="cohort-chat-send" class="ds-icon-btn ds-primary cc-send" type="submit" disabled
+                    title="send — Enter (Shift+Enter for a new line)" aria-label="send">
+              <span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></span>
+            </button>
+            <button id="cohort-chat-stop" class="ds-icon-btn ds-danger cc-send" type="button" hidden
+                    title="stop generating" aria-label="stop generating">
+              <span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg></span>
+            </button>
+          </div>
+        </form>
+        <!-- In-panel hosts for the non-chat tabs; revealed by data-cc-view (CSS).
+             search → find.js mountInline; sync → self-report.js (mount). -->
+        <div class="cc-pane" id="cc-pane-search" data-cc-pane="search"></div>
+        <div class="cc-pane" id="cc-pane-sync" data-cc-pane="sync"></div>
+      </div>
+
+      <!-- Settings sub-modal: which local AI command to run. -->
+      <div id="cohort-chat-settings" class="cohort-chat-settings" hidden aria-hidden="true">
+        <div class="cohort-chat-settings-card" role="document">
+          <header class="cohort-chat-settings-head">
+            <span class="cohort-chat-mark-text">local AI command</span>
+            <button class="cohort-chat-icon-btn" type="button" id="cohort-chat-settings-close" aria-label="close settings">
+              <span aria-hidden="true">✕</span>
+            </button>
+          </header>
+          <div class="cohort-chat-settings-section">
+            <input id="cohort-chat-cmd" type="text" class="cohort-chat-settings-input"
+                   placeholder="auto-detect (claude -p · codex exec)"
+                   autocomplete="off" spellcheck="false" />
+            <div class="cohort-chat-settings-hint" id="cohort-chat-detected"></div>
+            <div class="cohort-chat-settings-hint">
+              The full prompt (cohort context + your question) is piped to this
+              command's stdin and the reply streams back. Leave blank to
+              auto-detect a CLI on your PATH. Use the agent's non-interactive form
+              (e.g. <code>claude -p</code> or <code>codex exec</code>).
+            </div>
+          </div>
+          <div class="cohort-chat-settings-status" id="cohort-chat-settings-status"></div>
+          <div class="cohort-chat-settings-actions">
+            <button id="cohort-chat-settings-save" class="btn ds-primary" type="button">save</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- The chat launcher: a persistent corner control that toggles the chat
+         popup. Hover/focus reveals a compact system popover. Its CSS
+         (renderer/cohort-chat.css) is eager-linked in <head> so the glyph is styled
+         at first paint - no unstyled flash. -->
+    <div id="cohort-chat-dial-wrap" class="cohort-chat-dial-wrap" aria-label="cohort chat quick actions">
+      <button id="cohort-chat-dial" class="cohort-chat-dial" type="button"
+              aria-label="ask the cohort" aria-expanded="false" aria-haspopup="menu"
+              aria-controls="cohort-chat-action-menu cohort-chat-panel" title="Ask the cohort (Ctrl+Shift+K)">
+        <svg class="cc-dial-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 8V4H8"/>
+          <rect width="16" height="12" x="4" y="8" rx="2"/>
+          <path d="M2 14h2"/>
+          <path d="M20 14h2"/>
+          <path d="M15 13v2"/>
+          <path d="M9 13v2"/>
+        </svg>
+      </button>
+      <div id="cohort-chat-action-menu" class="cohort-chat-action-menu" role="menu" aria-label="cohort chat quick actions" aria-hidden="true" inert>
+        <button class="cc-launcher-action is-primary" data-cohort-chat-action="chat" type="button" role="menuitem" tabindex="-1"
+                aria-label="ask the cohort" title="Ask the cohort">
+          <span class="cc-launcher-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg></span>
+          <span class="cc-launcher-copy"><span class="cc-launcher-label">ask</span><span class="cc-launcher-hint">local cohort agent</span></span>
+        </button>
+        <button class="cc-launcher-action" data-cohort-chat-action="search" type="button" role="menuitem" tabindex="-1"
+                aria-label="open global search" title="Global search">
+          <span class="cc-launcher-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg></span>
+          <span class="cc-launcher-copy"><span class="cc-launcher-label">search</span><span class="cc-launcher-hint">jump anywhere</span></span>
+        </button>
+        <button class="cc-launcher-action" data-cohort-chat-action="transcript" type="button" role="menuitem" tabindex="-1"
+                aria-label="add transcript to Supabase intake" title="Add transcript">
+          <span class="cc-launcher-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></span>
+          <span class="cc-launcher-copy"><span class="cc-launcher-label">transcript</span><span class="cc-launcher-hint">typed intake</span></span>
+        </button>
+        <button class="cc-launcher-action" data-cohort-chat-action="sync" type="button" role="menuitem" tabindex="-1"
+                aria-label="sync your profile with the platform" title="Sync">
+          <span class="cc-launcher-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M16 8h5V3"/></svg></span>
+          <span class="cc-launcher-copy"><span class="cc-launcher-label">sync</span><span class="cc-launcher-hint">work -> profile</span></span>
+        </button>
+      </div>
+    </div>
+
+    <section id="atlas-view" class="atlas-view atlas-only">
+      <div class="atlas-back-bar">
+        <button class="atlas-back-btn" type="button" data-apps-back aria-label="back to apps">
+          <span class="atlas-back-glyph" aria-hidden="true">←</span>
+          <span class="atlas-back-label">apps</span>
+        </button>
+      </div>
+
+      <!-- atlas help · a quiet (?) in the top-right of the paper map.
+           Click toggles a small overlay explaining what the visitor is
+           looking at + what the underlying P2P stack is. -->
+      <button id="atlas-help-toggle" class="atlas-help-toggle" type="button"
+              title="what am I looking at?" aria-label="show atlas help"
+              aria-expanded="false" aria-controls="atlas-help-panel">
+        <span class="aht-glyph" aria-hidden="true">?</span>
+        <span class="aht-label">what is this</span>
+      </button>
+
+      <aside id="atlas-help-panel" class="atlas-help-panel" hidden role="dialog"
+             aria-label="how the atlas works">
+        <button class="ahp-close" type="button" aria-label="close help">✕</button>
+        <header class="ahp-head">
+          <span class="ahp-eyebrow">SHAPE ROTATOR · cohort atlas</span>
+          <h2 class="ahp-title">What you're looking at</h2>
+        </header>
+
+        <section class="ahp-section">
+          <p>
+            Each colored region is a <strong>peer</strong> in your cohort — a country
+            whose territory holds every page that peer has indexed. <em>Your</em>
+            country sits at the center; friends radiate outward.
+          </p>
+          <p>
+            Every dot inside a country is a <strong>page</strong> that peer has fetched
+            and offered to the cohort. Pages cluster by <em>who</em> fetched them,
+            not by topic — so the wall reads as <em>"this is what hyperion is into,
+            this is what easel is into, this is what you're into."</em>
+          </p>
+          <p>
+            When two peers index the same page, a faint <strong>caravan route</strong>
+            arcs between their countries — co-contribution in the wild.
+          </p>
+        </section>
+
+        <section class="ahp-section ahp-stack">
+          <div class="ahp-stack-mark">searxng-wth-frnds</div>
+          <p>
+            Shape Rotator OS runs <strong>searxng-wth-frnds</strong> — a peer-to-peer
+            meta search engine forked from <a href="https://searxng.org" target="_blank" rel="noopener noreferrer">SearXNG</a>,
+            built for collaborative searching. Every search you run is auto-shared
+            with the cohort (scope: <code>friends</code>) and propagates over your LAN via mDNS.
+          </p>
+          <p class="ahp-tenets">
+            <span class="ahp-tenet">no central server</span>
+            <span class="ahp-tenet">no telemetry</span>
+            <span class="ahp-tenet">nothing leaves the cohort unless you ask</span>
+          </p>
+        </section>
+
+        <footer class="ahp-foot">
+          <span class="ahp-foot-pair"><span class="k">repo</span><a href="https://github.com/dmarzzz/searxng-wth-frnds" target="_blank" rel="noopener noreferrer">searxng-wth-frnds</a></span>
+          <span class="ahp-foot-pair"><span class="k">app</span><a href="https://github.com/dmarzzz/shape-rotator-os" target="_blank" rel="noopener noreferrer">shape-rotator-os</a></span>
+        </footer>
+      </aside>
+
+      <div id="atlas-stage" class="atlas-stage"></div>
+      <div id="atlas-empty" class="atlas-offline" hidden role="status" aria-live="polite">
+        <div class="ao-card">
+          <div class="ao-glyph" aria-hidden="true">◌</div>
+          <div class="ao-eyebrow">INDEX EMPTY</div>
+          <h2 class="ao-title">no pages yet</h2>
+          <p class="ao-body">
+            swf-node is up but hasn't indexed anything yet. The atlas populates as
+            pages are fetched — either by your own searches, or by pulling from
+            other peers on your LAN once they have data of their own. This panel
+            auto-disappears the moment a page lands.
+          </p>
+        </div>
+      </div>
+      <div id="atlas-offline" class="atlas-offline" hidden role="status" aria-live="polite">
+        <div class="ao-card">
+          <div class="ao-glyph" aria-hidden="true">⌬</div>
+          <div class="ao-eyebrow">SWF-NODE UNREACHABLE</div>
+          <h2 class="ao-title">no daemon, no atlas</h2>
+          <p class="ao-body">
+            The Shape Rotator OS is read-only — your indexed pages live in swf-node's local DB,
+            and we talk to it over <code id="ao-server-url">http://127.0.0.1:7777</code>.
+            Right now nothing's answering there, so atlas / network / metrics have nothing
+            to show. The operating system tab still works — it has its own data path.
+          </p>
+          <div class="ao-actions">
+            <button id="ao-copy-prompt" class="ao-btn ao-btn-primary" type="button"
+                    title="copies a debug prompt to paste into Claude / ChatGPT / Cursor">
+              <span class="ao-btn-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg></span>
+              <span class="ao-btn-label">command to give agent</span>
+            </button>
+            <button id="ao-retry" class="ao-btn" type="button" title="re-fetch /graph from swf-node">
+              <span class="ao-btn-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span>
+              <span class="ao-btn-label">retry</span>
+            </button>
+          </div>
+          <div class="ao-foot">
+            <span class="ao-foot-tag">tip</span>
+            <span>this panel auto-disappears the moment swf-node responds.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="easel-view" class="easel-view easel-only">
+      <div class="easel-back-bar">
+        <button class="easel-back-btn" type="button" data-apps-back aria-label="back to apps">
+          <span class="easel-back-glyph" aria-hidden="true">←</span>
+          <span class="easel-back-label">apps</span>
+        </button>
+      </div>
+      <div id="easel-stage" class="easel-stage"></div>
+    </section>
+
+    <section id="alchemy-view" class="alchemy-view alchemy-only" aria-label="operating system">
+      <div class="alchemy-grain" aria-hidden="true"></div>
+      <header class="alchemy-header">
+        <div class="alchemy-header-mark">
+          <span class="mark-name">SHAPE ROTATOR</span>
+          <span class="mark-sub">operating system</span>
+        </div>
+      </header>
+      <div class="alchemy-stage">
+        <main id="alchemy-canvas" class="alchemy-canvas" aria-live="polite"></main>
+      </div>
+    </section>
+
+    <!-- ─── chat view (cohort matrix) ─── -->
+    <!-- Mounted lazily by renderer/chat/chat.js on first activation of the
+         "chat" top-level tab. The main-process Matrix client (apps/os/
+         matrix.js) feeds it rooms + messages over IPC. -->
+    <section id="chat-view" class="chat-view chat-only" aria-label="cohort chat"></section>
+
+    <!-- ─── links view (important external endpoints) ─── -->
+    <section id="links-view" class="links-view links-only" aria-label="important links">
+      <header class="links-head">
+        <p class="links-eyebrow">↗ external</p>
+        <h1 class="links-title">important links</h1>
+        <p class="links-sub">handouts, repos, workspace, and desktop downloads — share with anyone outside the cohort.</p>
+      </header>
+      <ul class="links-grid" role="list">
+        <li>
+          <a class="link-card" href="https://github.com/dmarzzz/shape-rotator-field-kit" target="_blank" rel="noopener noreferrer">
+            <span class="link-card-eyebrow">CLI tools</span>
+            <span class="link-card-title">Field-kit</span>
+            <span class="link-card-desc">Research swarm, content pipeline, voxterm, cohort skills. The CLI side of your local agent.</span>
+            <span class="link-card-url">github.com/dmarzzz/shape-rotator-field-kit</span>
+          </a>
+        </li>
+        <li>
+          <a class="link-card" href="https://onboard.shaperotator.xyz" target="_blank" rel="noopener noreferrer">
+            <span class="link-card-eyebrow">handout</span>
+            <span class="link-card-title">Onboarding Guide</span>
+            <span class="link-card-desc">Printable one-pager — six steps to get wired into the cohort, plus the 10-week arc.</span>
+            <span class="link-card-url">onboard.shaperotator.xyz</span>
+          </a>
+        </li>
+        <li>
+          <a class="link-card" href="https://school.shaperotator.xyz" target="_blank" rel="noopener noreferrer">
+            <span class="link-card-eyebrow">handout</span>
+            <span class="link-card-title">The School Site Guide</span>
+            <span class="link-card-desc">Printable map of 29 Nassau Avenue — wifi, floor plan, house rules, emergency contacts.</span>
+            <span class="link-card-url">school.shaperotator.xyz</span>
+          </a>
+        </li>
+        <li>
+          <a class="link-card" href="https://os-web.shaperotator.xyz/workspace" target="_blank" rel="noopener noreferrer">
+            <span class="link-card-eyebrow">live surface</span>
+            <span class="link-card-title">Centaur Workspace</span>
+            <span class="link-card-desc">Full-screen Shape Rotator control-room view for cohort slugs, operators, teams, events, and recent OS activity.</span>
+            <span class="link-card-url">os-web.shaperotator.xyz/workspace</span>
+          </a>
+        </li>
+        <li>
+          <a class="link-card" href="https://shape-rotator-os.vercel.app/#all-platforms" target="_blank" rel="noopener noreferrer">
+            <span class="link-card-eyebrow">desktop</span>
+            <span class="link-card-title">Download the Desktop App</span>
+            <span class="link-card-desc">Install the full Shape Rotator surface with alchemy, atlas, and network views. macOS, Windows, Linux.</span>
+            <span class="link-card-url">shape-rotator-os.vercel.app/#all-platforms</span>
+          </a>
+        </li>
+        <li>
+          <a class="link-card" href="https://github.com/dmarzzz/shape-rotator-os" target="_blank" rel="noopener noreferrer">
+            <span class="link-card-eyebrow">source</span>
+            <span class="link-card-title">GitHub Repository</span>
+            <span class="link-card-desc">Issues, PRs, releases. Everything you see in this app is built from <code>main</code>.</span>
+            <span class="link-card-url">github.com/dmarzzz/shape-rotator-os</span>
+          </a>
+        </li>
+      </ul>
+    </section>
+
+    <!-- experimental view archived 2026-05-09 — see _archive/experimental/. -->
+
+    <nav id="network-subtabs" class="network-subtabs network-tab-only" role="tablist" aria-label="network sub-view">
+      <button class="net-subtab" data-net-sub="network" type="button" aria-selected="true">network</button>
+      <button class="net-subtab" data-net-sub="metrics" type="button" aria-selected="false">metrics</button>
+      <div class="net-view-mode" role="group" aria-label="network view mode" title="switch between glance (default) and debug (protocol-level)">
+        <button class="net-mode-btn is-active" data-mode="glance" type="button" aria-pressed="true">glance</button>
+        <button class="net-mode-btn" data-mode="debug" type="button" aria-pressed="false">debug</button>
+      </div>
+    </nav>
+
+    <!-- ─── GLANCE VIEW · dormant cohort-at-a-glance surface ───────── -->
+    <section id="network-glance-view" class="glance-view net-only" data-view-mode="glance">
+      <header class="glance-hero">
+        <div class="glance-hero-meta">
+          <span class="glance-mark"></span>
+          <span class="glance-hero-label">SHAPE ROTATOR · cohort</span>
+          <span class="glance-hero-pulse"></span>
+          <span class="glance-hero-state" id="glance-state-line">— peers · — live</span>
+        </div>
+        <h1 class="glance-hero-title">
+          <span id="glance-headline-prefix">—</span>
+          <span class="glance-accent" id="glance-headline-emphasis">here right now.</span>
+        </h1>
+        <p class="glance-lede">A self-sovereign peer search across the Shape Rotator cohort. Every page you index lands in the atlas and propagates to your friends; theirs come back to you. Nothing leaves the cohort unless you ask it to.</p>
+      </header>
+
+      <section class="glance-numbers">
+        <div class="glance-num-card">
+          <div class="glance-num-label"><span>Cohort</span><span class="glance-num-delta" id="glance-cohort-delta"></span></div>
+          <div class="glance-num-v"><span id="glance-num-cohort">—</span></div>
+          <div class="glance-num-sub" id="glance-cohort-sub">peers known</div>
+        </div>
+        <div class="glance-num-card">
+          <div class="glance-num-label"><span>You shared</span><span class="glance-num-delta" id="glance-shared-delta"></span></div>
+          <div class="glance-num-v"><span id="glance-num-shared">—</span></div>
+          <div class="glance-num-sub">pages signed and offered to the cohort</div>
+        </div>
+        <div class="glance-num-card">
+          <div class="glance-num-label"><span>You pulled</span><span class="glance-num-delta" id="glance-pulled-delta"></span></div>
+          <div class="glance-num-v"><span id="glance-num-pulled">—</span></div>
+          <div class="glance-num-sub">pages from cohort peers</div>
+        </div>
+        <div class="glance-num-card">
+          <div class="glance-num-label"><span>Queries today</span></div>
+          <div class="glance-num-v"><span id="glance-num-queries">—</span><span class="glance-num-frac" id="glance-num-queries-frac"></span></div>
+          <div class="glance-num-sub" id="glance-queries-sub">routed via self · public · egress</div>
+        </div>
+      </section>
+
+      <section class="glance-cohort">
+        <div class="glance-ring-stage">
+          <svg class="glance-bgring" viewBox="-110 -110 220 220" aria-hidden="true">
+            <circle cx="0" cy="0" r="100" class="g-r1"/>
+            <circle cx="0" cy="0" r="78" class="g-r2"/>
+            <circle cx="0" cy="0" r="48" class="g-r3"/>
+          </svg>
+          <svg class="glance-ring-svg" viewBox="-110 -110 220 220" aria-hidden="true">
+            <g id="glance-rays"></g>
+            <g id="glance-peers"></g>
+            <circle class="glance-self-halo" cx="0" cy="0" r="8"/>
+            <circle class="glance-self-mark" cx="0" cy="0" r="3.5"/>
+          </svg>
+          <div class="glance-ring-center">
+            <div class="glance-ring-you">YOU</div>
+            <div class="glance-ring-machine" id="glance-self-host">—</div>
+          </div>
+          <div class="glance-ring-legend">
+            <span class="glance-key"><span class="glance-sw is-live"></span>live <span class="glance-key-n" id="glance-legend-live">0</span></span>
+            <span class="glance-key"><span class="glance-sw is-recent"></span>recent <span class="glance-key-n" id="glance-legend-recent">0</span></span>
+            <span class="glance-key"><span class="glance-sw is-offline"></span>offline <span class="glance-key-n" id="glance-legend-offline">0</span></span>
+          </div>
+        </div>
+
+        <div class="glance-peer-strip">
+          <h3><span>Live now</span><span class="glance-peer-strip-num" id="glance-peer-strip-num">— / —</span></h3>
+          <div id="glance-peer-list" class="glance-peer-list"></div>
+          <button type="button" class="glance-show-more" id="glance-show-more">+ <span id="glance-show-more-n">0</span> recent · <span id="glance-show-more-i">0</span> resting</button>
+        </div>
+      </section>
+
+      <section class="glance-insights">
+        <div class="glance-insight">
+          <h3><span>Topics flowing</span><span class="glance-insight-meta" id="glance-topics-meta">across — pages</span></h3>
+          <div class="glance-topics-flow" id="glance-topics-flow"></div>
+        </div>
+
+        <div class="glance-insight">
+          <h3><span>Your reach</span><span class="glance-insight-meta" id="glance-reach-meta">latest bundle</span></h3>
+          <div class="glance-reach" id="glance-reach"></div>
+        </div>
+
+        <div class="glance-insight">
+          <h3><span>Cohort rhythm</span><span class="glance-insight-meta">queries · last 24h</span></h3>
+          <div class="glance-rhythm" id="glance-rhythm"></div>
+          <div class="glance-rhythm-legend">
+            <span>24h ago</span><span>12h</span><span>now</span>
+          </div>
+          <div class="glance-rhythm-summary" id="glance-rhythm-summary"></div>
+        </div>
+      </section>
+
+      <section class="glance-ticker">
+        <div class="glance-ticker-heading"><span class="glance-ticker-pulse"></span>Right now</div>
+        <div class="glance-ticker-line" id="glance-ticker-line">awaiting cohort activity…</div>
+        <div class="glance-ticker-when" id="glance-ticker-when">—</div>
+      </section>
+
+      <section class="glance-health">
+        <div class="glance-health-group">
+          <div class="glance-health-item"><span class="k">Daemon</span><span class="v ok" id="glance-health-daemon">—</span></div>
+          <div class="glance-health-item"><span class="k">Cursor</span><span class="v" id="glance-health-cursor">@—</span></div>
+          <div class="glance-health-item"><span class="k">Last publish</span><span class="v" id="glance-health-publish">—</span></div>
+          <div class="glance-health-item"><span class="k">DC-net</span><span class="v" id="glance-health-dcnet">idle</span></div>
+        </div>
+        <div class="glance-health-group">
+          <div class="glance-health-item"><span class="k">mDNS</span><span class="v ok" id="glance-health-mdns">advertising</span></div>
+          <div class="glance-health-item"><span class="k">Latency p50</span><span class="v" id="glance-health-lat">—</span></div>
+          <div class="glance-health-item"><span class="k">Errors 1h</span><span class="v" id="glance-health-err">—</span></div>
+        </div>
+      </section>
+    </section>
+
+    <section id="network-view" class="network-view net-only">
+      <header class="net-header">
+        <div class="net-header-mark">
+          <span class="mark-name">SHAPE ROTATOR</span>
+          <span class="mark-sub">network</span>
+        </div>
+        <div id="net-anon-header" class="net-anon-header" data-state="idle" title="anonymity-set state">
+          <span class="nah-label">active circle</span>
+          <span class="nah-value">idle</span>
+          <span class="nah-meta"></span>
+        </div>
+      </header>
+
+      <div class="net-grid">
+        <section class="net-col net-col-peers" aria-label="peers">
+          <header class="net-col-head">
+            <span class="net-col-title">peers</span>
+            <span class="net-col-sep">·</span>
+            <span id="net-peers-count" class="net-col-count">0</span>
+          </header>
+          <div id="net-peers-list" class="net-peers-list"></div>
+        </section>
+
+        <section class="net-col net-col-center" aria-label="protocol traffic and router">
+          <section id="livegraph-panel" class="events-panel livegraph-panel net-livegraph" data-collapsed="false">
+            <header class="events-panel-head livegraph-head" aria-expanded="true">
+              <span class="events-panel-title">live network</span>
+              <span class="events-panel-sep">·</span>
+              <span id="livegraph-count" class="events-panel-count">0</span>
+              <span class="livegraph-mode" role="tablist" aria-label="live or replay">
+                <button class="livegraph-mode-btn selected" data-mode="live" type="button">live</button>
+                <button class="livegraph-mode-btn" data-mode="replay" type="button">replay 60s</button>
+              </span>
+            </header>
+            <div class="livegraph-body">
+              <canvas id="livegraph-canvas" class="livegraph-canvas"></canvas>
+              <div id="livegraph-tooltip" class="livegraph-tooltip" hidden></div>
+              <div id="livegraph-empty" class="livegraph-empty">no peers yet. the network is quiet.</div>
+            </div>
+          </section>
+
+          <section id="traffic-panel" class="events-panel traffic-panel net-traffic" data-collapsed="false">
+            <button id="traffic-panel-head" class="events-panel-head" type="button" aria-expanded="true" title="toggle protocol traffic">
+              <span class="events-panel-title">traffic</span>
+              <span class="events-panel-sep">·</span>
+              <span id="traffic-panel-count" class="events-panel-count">0</span>
+              <span class="events-panel-chev" aria-hidden="true">▾</span>
+            </button>
+            <div id="traffic-filter-bar" class="traffic-filter-bar" role="tablist" aria-label="traffic filter">
+              <button class="traffic-chip selected" data-filter="all" type="button">all</button>
+              <button class="traffic-chip" data-filter="sync" type="button">sync</button>
+              <button class="traffic-chip" data-filter="mdns" type="button">mdns</button>
+              <button class="traffic-chip" data-filter="health" type="button">health</button>
+              <button class="traffic-chip" data-filter="ingest" type="button">ingest</button>
+              <button class="traffic-chip" data-filter="search" type="button">search</button>
+              <button class="traffic-chip" data-filter="error" type="button">error</button>
+            </div>
+            <div id="traffic-panel-list" class="events-panel-list traffic-panel-list" role="log" aria-live="polite"></div>
+          </section>
+
+          <!-- "router-panel" ID retained to avoid touching the dozens of
+               wiring call sites; visible title + body content are repurposed
+               as the unified node sync-status line driven by /node/log. -->
+          <section id="router-panel" class="events-panel router-panel net-router" data-collapsed="false">
+            <button id="router-panel-head" class="events-panel-head" type="button" aria-expanded="true" title="toggle sync status">
+              <span class="events-panel-title">sync</span>
+              <span class="events-panel-sep">·</span>
+              <span id="router-panel-count" class="events-panel-count">v1</span>
+              <span class="events-panel-chev" aria-hidden="true">▾</span>
+            </button>
+            <div id="router-panel-body" class="router-panel-body"></div>
+          </section>
+        </section>
+
+        <section class="net-col net-col-right" aria-label="search and records">
+          <!-- "tickets-panel" ID retained; body is now the live search-events
+               summary (web_search_completed). -->
+          <section id="tickets-panel" class="events-panel tickets-panel net-tickets" data-collapsed="false">
+            <button id="tickets-panel-head" class="events-panel-head" type="button" aria-expanded="true" title="toggle search activity">
+              <span class="events-panel-title">search</span>
+              <span class="events-panel-sep">·</span>
+              <span id="tickets-panel-epoch" class="events-panel-count">0</span>
+              <span class="events-panel-chev" aria-hidden="true">▾</span>
+            </button>
+            <div id="tickets-panel-body" class="tickets-panel-body"></div>
+          </section>
+
+          <!-- "receipts-panel" ID retained; body shows the local /sync/manifest
+               record count + the newest record's wall-clock age. -->
+          <section id="receipts-panel" class="events-panel receipts-panel net-receipts" data-collapsed="false">
+            <button id="receipts-panel-head" class="events-panel-head" type="button" aria-expanded="true" title="toggle local records summary">
+              <span class="events-panel-title">records</span>
+              <span class="events-panel-sep">·</span>
+              <span id="receipts-panel-count" class="events-panel-count">0</span>
+              <span class="events-panel-chev" aria-hidden="true">▾</span>
+            </button>
+            <div id="receipts-panel-body" class="receipts-panel-body"></div>
+          </section>
+
+          <section class="net-col-detail" aria-label="detail">
+            <header class="net-col-head"><span class="net-col-title">detail</span></header>
+            <div id="net-detail-host" class="net-detail-host">
+              <div id="detail" class="detail"></div>
+              <div class="net-detail-empty">pick a row to inspect.</div>
+            </div>
+          </section>
+        </section>
+      </div>
+    </section>
+
+    <section id="search-view" class="search-view search-only">
+      <div class="search-stage">
+        <header class="search-header">
+          <div class="search-header-mark">
+            <span class="mark-name">SHAPE ROTATOR</span>
+            <span class="mark-sub">search</span>
+          </div>
+          <div class="search-header-hint">local. friends. web. routed by SPEC v0.3.</div>
+        </header>
+
+        <form id="search-form" class="search-form" autocomplete="off" spellcheck="false">
+          <div class="search-input-wrap">
+            <span class="search-input-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg></span>
+            <input id="search-input" class="search-input" type="text"
+                   placeholder="search the network."
+                   autocomplete="off" spellcheck="false" />
+            <button id="search-ask-agent" class="search-ask-agent" type="button"
+                    title="copy a prompt for your LLM agent (Cmd/Ctrl+Shift+A)">ask my agent</button>
+            <button id="search-ask-cohort" class="search-ask-agent" type="button"
+                    title="chat with the cohort using your local AI (Cmd/Ctrl+Shift+K)">ask the cohort</button>
+            <button id="search-submit" class="search-submit" type="submit" title="search (Enter)">go</button>
+          </div>
+          <div class="search-controls">
+            <label class="search-control">
+              <span class="search-control-label">policy</span>
+              <select id="search-policy">
+                <option value="default">default</option>
+                <option value="private_circle">private circle</option>
+                <option value="local_only">local only</option>
+              </select>
+            </label>
+            <label class="search-control search-control-toggle">
+              <input id="search-confirm-egress" type="checkbox" />
+              <span class="search-control-label">allow public egress</span>
+            </label>
+            <label class="search-control">
+              <span class="search-control-label">top_k</span>
+              <select id="search-topk">
+                <option value="5">5</option>
+                <option value="10" selected>10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+              </select>
+            </label>
+          </div>
+        </form>
+
+        <div id="search-meta" class="search-meta" hidden>
+          <span id="search-meta-delivery" class="search-meta-delivery">—</span>
+          <span class="search-meta-sep">·</span>
+          <span class="search-meta-row">
+            <span class="search-meta-key">privacy</span>
+            <span id="search-meta-privacy" class="rr-badge" data-pl="none">none</span>
+          </span>
+          <span class="search-meta-sep">·</span>
+          <span class="search-meta-row"><span class="search-meta-key">network</span><span id="search-meta-network" class="search-meta-flag">—</span></span>
+          <span class="search-meta-sep">·</span>
+          <span class="search-meta-row"><span class="search-meta-key">egress</span><span id="search-meta-egress" class="search-meta-flag">—</span></span>
+          <span class="search-meta-sep">·</span>
+          <span class="search-meta-row"><span class="search-meta-key">latency</span><span id="search-meta-latency" class="search-meta-flag">—</span></span>
+          <span class="search-meta-sep">·</span>
+          <span class="search-meta-row"><span class="search-meta-key">results</span><span id="search-meta-count" class="search-meta-flag">0</span></span>
+        </div>
+
+        <div id="search-status" class="search-status" hidden></div>
+
+        <div id="search-results" class="search-results" role="list">
+          <div class="search-empty">
+            <div class="search-empty-glyph" aria-hidden="true">
+              <svg viewBox="0 0 64 64" width="64" height="64" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="26" cy="26" r="14"/>
+                <path d="M36 36l16 16"/>
+                <path d="M22 26h8"/>
+              </svg>
+            </div>
+            <div class="search-empty-title">search</div>
+            <div class="search-empty-sub">local cache first. then friends. then the open web. you choose what is allowed to leave.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="metrics-view" class="metrics-view metrics-only">
+      <header class="metrics-header">
+        <div class="metrics-header-mark">
+          <span class="mark-name">SHAPE ROTATOR</span>
+          <span class="mark-sub">metrics</span>
+        </div>
+        <div class="metrics-header-controls">
+          <div id="metrics-range" class="metrics-range" role="tablist" aria-label="time range">
+            <button class="metrics-range-btn" data-range="15m" type="button">15m</button>
+            <button class="metrics-range-btn selected" data-range="1h" type="button">1h</button>
+            <button class="metrics-range-btn" data-range="6h" type="button">6h</button>
+            <button class="metrics-range-btn" data-range="24h" type="button">24h</button>
+          </div>
+          <button id="metrics-refresh" class="metrics-refresh" type="button" title="refresh now">refresh</button>
+          <span id="metrics-status" class="metrics-status">—</span>
+        </div>
+      </header>
+
+      <section class="metrics-stat-row">
+        <div class="metrics-stat" data-name="peers.count_active">
+          <span class="ms-label">peers active</span>
+          <span class="ms-value" data-stat="peers.count_active">—</span>
+          <span class="ms-sub" data-stat-sub="peers.count_known">of —</span>
+        </div>
+        <div class="metrics-stat" data-name="pages.count_total">
+          <span class="ms-label">pages</span>
+          <span class="ms-value" data-stat="pages.count_total">—</span>
+          <span class="ms-sub">total in graph</span>
+        </div>
+        <div class="metrics-stat" data-name="contributions.count_total">
+          <span class="ms-label">contributions</span>
+          <span class="ms-value" data-stat="contributions.count_total">—</span>
+          <span class="ms-sub">slices merged</span>
+        </div>
+        <div class="metrics-stat" data-name="events.lag_secs">
+          <span class="ms-label">events lag</span>
+          <span class="ms-value" data-stat="events.lag_secs">—</span>
+          <span class="ms-sub">seconds since last</span>
+        </div>
+        <div class="metrics-stat" data-name="process.rss_bytes">
+          <span class="ms-label">memory</span>
+          <span class="ms-value" data-stat="process.rss_bytes">—</span>
+          <span class="ms-sub">RSS</span>
+        </div>
+        <div class="metrics-stat" data-name="process.cpu_percent">
+          <span class="ms-label">cpu</span>
+          <span class="ms-value" data-stat="process.cpu_percent">—</span>
+          <span class="ms-sub">% (avg over interval)</span>
+        </div>
+      </section>
+
+      <section id="metrics-charts" class="metrics-charts">
+        <article class="metrics-chart" data-chart="search-latency">
+          <header class="mc-head"><span class="mc-title">search latency</span><span class="mc-meta">p50 / p95 (ms)</span></header>
+          <svg class="mc-svg" viewBox="0 0 280 140" preserveAspectRatio="none"></svg>
+        </article>
+        <article class="metrics-chart" data-chart="search-throughput">
+          <header class="mc-head"><span class="mc-title">search throughput</span><span class="mc-meta">queries / minute</span></header>
+          <svg class="mc-svg" viewBox="0 0 280 140" preserveAspectRatio="none"></svg>
+        </article>
+        <article class="metrics-chart" data-chart="scrape-latency">
+          <header class="mc-head"><span class="mc-title">scrape latency</span><span class="mc-meta">p50 / p95 (ms)</span></header>
+          <svg class="mc-svg" viewBox="0 0 280 140" preserveAspectRatio="none"></svg>
+        </article>
+        <article class="metrics-chart" data-chart="peers-active">
+          <header class="mc-head"><span class="mc-title">active peers</span><span class="mc-meta">last_seen &lt; 5min</span></header>
+          <svg class="mc-svg" viewBox="0 0 280 140" preserveAspectRatio="none"></svg>
+        </article>
+        <article class="metrics-chart" data-chart="pages-total">
+          <header class="mc-head"><span class="mc-title">pages total</span><span class="mc-meta">graph size</span></header>
+          <svg class="mc-svg" viewBox="0 0 280 140" preserveAspectRatio="none"></svg>
+        </article>
+        <article class="metrics-chart" data-chart="rss-mem">
+          <header class="mc-head"><span class="mc-title">memory (RSS)</span><span class="mc-meta">leak watch <span id="mc-leak" class="mc-leak"></span></span></header>
+          <svg class="mc-svg" viewBox="0 0 280 140" preserveAspectRatio="none"></svg>
+        </article>
+        <article class="metrics-chart" data-chart="cpu-percent">
+          <header class="mc-head"><span class="mc-title">cpu</span><span class="mc-meta">% over time</span></header>
+          <svg class="mc-svg" viewBox="0 0 280 140" preserveAspectRatio="none"></svg>
+        </article>
+      </section>
+
+      <div id="metrics-empty" class="metrics-empty" hidden>
+        metrics warm up in ~10s. start <code>swf-node</code> with <code>--full</code> if you haven't.
+      </div>
+      <div id="metrics-footnote" class="metrics-footnote" aria-hidden="true">
+        <span class="mfn-rule" aria-hidden="true"></span>
+        <span class="mfn-text">
+          <span class="mfn-key">anomaly dot</span>
+          a value more than 3σ from the rolling 60s mean. hover for context.
+        </span>
+      </div>
+    </section>
+
+    <script type="module" src="renderer/boot.js"></script>
+  </body>
+</html>

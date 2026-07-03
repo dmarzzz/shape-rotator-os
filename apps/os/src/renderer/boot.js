@@ -4799,10 +4799,11 @@ const navHist = { stack: [], index: -1, last: null, restoring: false };
 
 function navContextView(raw) {
   const v = String(raw || "").toLowerCase();
-  if (v === "article") return "articles";
-  if (v === "transcript" || v === "transcripts") return "raw";
-  if (v === "card" || v === "cards" || v === "intel" || v === "signals" || v === "data") return "evidence";
-  return v === "articles" || v === "raw" || v === "evidence" ? v : "";
+  if (v === "stream" || v === "library") return v;
+  // legacy type-based views (pre-2026-07 two-lens page) reopen on the stream
+  if (v === "article" || v === "articles" || v === "transcript" || v === "transcripts" || v === "raw"
+    || v === "card" || v === "cards" || v === "evidence" || v === "intel" || v === "signals" || v === "data") return "stream";
+  return "";
 }
 
 function navSnapshot() {
@@ -4896,7 +4897,7 @@ function navApplyLocation(snap) {
       instant: true,
     };
     if (mode === "constellation" && snap.constMode) loc.constellationMode = snap.constMode;
-    if (mode === "context" && (snap.ctxView || legacyIntel)) loc.contextView = legacyIntel ? "evidence" : navContextView(snap.ctxView);
+    if (mode === "context" && (snap.ctxView || legacyIntel)) loc.contextView = legacyIntel ? "stream" : navContextView(snap.ctxView);
     if (mode === "program" && snap.programPage) loc.programPage = snap.programPage;
     try { Alchemy.applyLocation(loc); } catch {}
   }

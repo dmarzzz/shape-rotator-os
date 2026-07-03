@@ -19523,7 +19523,9 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
 .alch-cv-layout.is-resizing { cursor: col-resize; user-select: none; }
 /* the reader keeps a left gutter now that the grid gap is gone */
 .alch-cv-layout > .alch-cv-detail,
-.alch-cv-layout > .alch-cv-empty-detail { padding-left: clamp(20px, 2.6vw, 40px); }
+.alch-cv-layout > .alch-cv-empty-detail,
+.alch-cv-layout > .alch-cv-detailcol { padding-left: clamp(20px, 2.6vw, 40px); }
+.alch-cv-detailcol { min-width: 0; }
 
 .alch-cv-sidebar {
   position: sticky;
@@ -19612,7 +19614,16 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   line-height: 1.32;
 }
 
-.alch-cv-transcript-source .alch-cv-source-meta {
+.alch-cv-transcript-source .alch-cv-source-desc {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font: var(--ds-weight-reg, 400) var(--ds-text-xs, 12px)/1.45 var(--ds-font-ui, sans-serif);
+  color: var(--ds-ink-3, rgba(241, 236, 231, 0.52));
+}
+
+.alch-cv-source-meta {
   display: block;
   max-width: 100%;
   line-height: 1.45;
@@ -19627,25 +19638,6 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
 }
 
 /* grouped/newest ordering toggle atop the distilled list */
-.alch-cv-tsort {
-  display: flex;
-  gap: 2px;
-  margin: 2px 2px 8px;
-  padding: 3px;
-  background: rgba(var(--ink-rgb), 0.05);
-  border-radius: 8px;
-  width: fit-content;
-}
-.alch-cv-tsort-btn {
-  appearance: none; cursor: pointer; border: 0; background: transparent;
-  color: rgba(var(--ink-rgb), 0.5); border-radius: 6px; padding: 4px 10px;
-  font: var(--ds-weight-med, 500) var(--ds-text-2xs, 10px)/1.4 var(--ds-font-mono, monospace);
-  letter-spacing: 0.08em; text-transform: uppercase;
-  transition: background 120ms ease, color 120ms ease;
-}
-.alch-cv-tsort-btn:hover { color: rgba(var(--ink-rgb), 0.8); }
-.alch-cv-tsort-btn.is-on { background: rgba(var(--ink-rgb), 0.1); color: rgba(var(--ink-rgb), 0.95); }
-
 /* Distilled-transcript list grouping (by session type) + confidence badges. */
 .alch-cv-group-head {
   display: flex;
@@ -19674,6 +19666,113 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
 }
 .alch-cv-conf.is-sure { border-color: color-mix(in srgb, var(--ds-accent) 45%, transparent); color: var(--ds-accent); }
 .alch-cv-conf.is-needs-review { border-color: color-mix(in srgb, var(--ds-danger, #e5484d) 45%, transparent); color: var(--ds-danger, #e5484d); }
+
+/* ── Two-lens context page (stream · library) ─────────────────────────── */
+/* library sidebar: topic rows reuse .alch-cv-source; the count sits top-right */
+.alch-cv-topic { padding-right: 40px; }
+.alch-cv-topic-count {
+  position: absolute;
+  top: 10px; right: 12px;
+  font: var(--ds-weight-med, 500) var(--ds-text-2xs, 10px)/1.4 var(--ds-font-mono, monospace);
+  color: var(--ds-ink-4, rgba(241, 236, 231, 0.32));
+}
+.alch-cv-source.is-selected .alch-cv-topic-count,
+.alch-cv-source:hover .alch-cv-topic-count { color: var(--ds-ink-3, rgba(241, 236, 231, 0.52)); }
+
+/* topic page + session roll-up sections: quiet mono overline over a hairline */
+.alch-cv-lib-section { margin: 18px 0 0; }
+.alch-cv-lib-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ds-border, rgba(241, 236, 231, 0.14));
+  font: var(--ds-weight-med, 500) var(--ds-text-2xs, 10px)/1.4 var(--ds-font-mono, monospace);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ds-ink-3, rgba(241, 236, 231, 0.52));
+}
+
+/* hint / session rows on a topic page — bordered rows, not cards */
+.alch-cv-lib-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: var(--ds-radius, 8px);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms var(--ds-ease, ease);
+}
+.alch-cv-lib-item:hover { background: var(--ds-surface-3, rgba(241, 236, 231, 0.045)); }
+.alch-cv-lib-item strong {
+  font: var(--ds-weight-med, 500) var(--ds-text-sm, 13px)/1.4 var(--ds-font-ui, sans-serif);
+  color: var(--ds-ink-1, rgba(241, 236, 231, 0.94));
+}
+.alch-cv-lib-item span {
+  font: var(--ds-weight-reg, 400) var(--ds-text-xs, 12px)/1.5 var(--ds-font-ui, sans-serif);
+  color: var(--ds-ink-3, rgba(241, 236, 231, 0.52));
+}
+.alch-cv-lib-sess {
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.alch-cv-lib-sess .alch-cv-lib-when {
+  flex: 0 0 auto;
+  font: var(--ds-weight-reg, 400) var(--ds-text-2xs, 10px)/1.4 var(--ds-font-mono, monospace);
+  color: var(--ds-ink-4, rgba(241, 236, 231, 0.32));
+}
+
+/* one claim = one compact row: type tag · claim text · confidence */
+.alch-cv-claim {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 2px;
+}
+.alch-cv-claim-type {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border: 1px solid color-mix(in srgb, var(--ds-accent, #EAB308) 35%, transparent);
+  border-radius: 999px;
+  font: var(--ds-weight-med, 500) var(--ds-text-2xs, 10px)/1.4 var(--ds-font-mono, monospace);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ds-accent, #EAB308);
+}
+.alch-cv-claim-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font: var(--ds-weight-reg, 400) var(--ds-text-sm, 13px)/1.5 var(--ds-font-ui, sans-serif);
+  color: var(--ds-ink-2, rgba(241, 236, 231, 0.74));
+}
+.alch-cv-claim-conf {
+  flex: 0 0 auto;
+  font: var(--ds-weight-reg, 400) var(--ds-text-2xs, 10px)/1.4 var(--ds-font-mono, monospace);
+  color: var(--ds-ink-4, rgba(241, 236, 231, 0.32));
+}
+
+/* a hint/session opened from a topic page: back row above the full reader */
+.alch-cv-libopen {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+.alch-cv-libback-row { padding: 14px 0 0; }
+.alch-cv-libback { max-width: none; }
+
+/* the reader already sizes type inside .alch-cv-reader; topic pages only
+   need the sections to breathe */
+.alch-cv-topic-reader .alch-cv-lib-section:first-of-type { margin-top: 6px; }
 
 .alch-cv-detail {
   display: flex;

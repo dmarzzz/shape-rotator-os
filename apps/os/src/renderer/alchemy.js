@@ -52,10 +52,15 @@ import {
   CONTEXT_SUBMISSION_KINDS,
   submitContext,
 } from "./context-submit.mjs";
+import {
+  buildStreamItems, groupStreamItems, buildTopicIndex, topicPageData,
+  claimsForSession, streamKey, parseStreamKey, articleTopics, distilledTopics,
+  topicSlug,
+} from "./context-lenses.mjs";
 import { getCohortSurface, subscribeToCohortChanges, isSyncAvailable, refreshCohortFromGithub } from "./cohort-source.js";
 import { readSupabaseConfig, persistCohortKeyOverride } from "./supabase-evidence.mjs";
 import { unreadCounts, unreadRecordsForMode, markModeSeen, fingerprintItems, unreadCountForFingerprints, markFingerprintsSeen } from "./whats-new.js";
-import { evidenceMoveCards, indexCohortEvidence, rankEvidenceNeighbors, teamEvidence, recentClaims, teamTimeline, claimLane, teamProgressRollup } from "./cohort-evidence-index.mjs";
+import { indexCohortEvidence, rankEvidenceNeighbors, teamEvidence, recentClaims, teamTimeline, claimLane, teamProgressRollup } from "./cohort-evidence-index.mjs";
 import { cardTraceBodyHtml, cardTraceHtml } from "./cohort-trace-view.mjs";
 import { getCohortTimeline } from "./cohort-timeline.js";
 import { getStandingWeekly } from "./cohort-standing-weekly.js";
@@ -87,7 +92,7 @@ const ALCHEMY_LS_KEY  = "srwk:alchemy_mode";
 const COME_JOIN_NOTIFY_LS_KEY = "srwk:comejoin:notified_v1";
 const COME_JOIN_NOTIFY_LAST_LS_KEY = "srwk:comejoin:last_alert_ms_v1";
 const COME_JOIN_NOTIFY_COOLDOWN_MS = 2 * 60 * 1000;
-const CONTEXT_VIEW_LS_KEY = "srwk:context_view"; // context page view: "articles" | "raw" | "evidence"
+const CONTEXT_VIEW_LS_KEY = "srwk:context_view"; // context page lens: "stream" | "library"
 const CONST_MODE_LS_KEY = "srwk:const_mode";  // constellation sub-view: "map" | "ring" | "journey" | "stack" | "targets" | "collab" ("shipped" -> mirror, "timeline" -> calendar)
 const MIRROR_VIEW_LS_KEY = "srwk:mirror_view"; // mirror subject state: { mode, focus, a, b } — survives reloads
 const CONST_SCOPE_LS_KEY = "srwk:const_scope"; // network scope: "projects" | "people"
@@ -336,12 +341,15 @@ const state = {
     loading: false,
     manifest: null,
     roots: [],
-    mode: "articles",
+    // Two lenses over one corpus: "stream" (everything chronological) and
+    // "library" (the same corpus pivoted by topic). The old type-based views
+    // (articles / raw / evidence) normalize into these.
+    mode: "stream",
     query: "",
     tag: null,
-    // distilled-list ordering: "grouped" (by session type) | "newest" (flat
-    // chronological) — both were asked for in the 2026-07-02 session.
-    tsort: (() => { try { return localStorage.getItem("srwk:cv_tsort") === "newest" ? "newest" : "grouped"; } catch { return "grouped"; } })(),
+    selectedStream: null, // "kind:id" of the stream row whose reader is open
+    topicKey: null,       // active library topic
+    libraryOpen: null,    // { kind, id } — a hint/session opened from a topic page
     prefs: null,          // lazy-loaded personalization (width / measure / size / accent)
     preview: null,        // active restyle lens: { style, mode: "one" | "all" } — never persisted
     previewId: null,      // the source id a "one" preview applies to
@@ -448,16 +456,17 @@ export function mount(container) {
       localStorage.setItem(ALCHEMY_LS_KEY, "mirror");
       localStorage.setItem(CONST_MODE_LS_KEY, "map");
     }
-    // Context page view (articles | raw | evidence) survives reloads. Activity
-    // is menu-nested under Context, but remains its own renderer/mode.
+    // Context page lens (stream | library) survives reloads; legacy view names
+    // (articles / raw / evidence) normalize into a lens. Activity is menu-
+    // nested under Context, but remains its own renderer/mode.
     state.contextVault.mode = contextNormalizeView(localStorage.getItem(CONTEXT_VIEW_LS_KEY) || state.contextVault.mode);
     // intel folded into the context page (2026-06), then retired from the
-    // context nav (2026-06-28): old intel users land on evidence.
+    // context nav (2026-06-28): old intel users land on the stream.
     if (saved === "intel") {
       state.mode = "context";
-      state.contextVault.mode = "evidence";
+      state.contextVault.mode = "stream";
       localStorage.setItem(ALCHEMY_LS_KEY, "context");
-      localStorage.setItem(CONTEXT_VIEW_LS_KEY, "evidence");
+      localStorage.setItem(CONTEXT_VIEW_LS_KEY, "stream");
     }
     // Defensive: if state.mode somehow came in as "feed" from a non-
     // localStorage path while FEED_DISABLED is true, reroute to shapes
@@ -749,7 +758,7 @@ export function applyLocation(loc = {}) {
     try { localStorage.setItem(CONST_MODE_LS_KEY, "map"); } catch {}
   }
   if (legacyIntel || (mode === "context" && loc.contextView)) {
-    state.contextVault.mode = legacyIntel ? "evidence" : contextNormalizeView(loc.contextView);
+    state.contextVault.mode = legacyIntel ? "stream" : contextNormalizeView(loc.contextView);
     try { localStorage.setItem(CONTEXT_VIEW_LS_KEY, state.contextVault.mode); } catch {}
   }
   if (loc.recordId) {
@@ -2537,7 +2546,7 @@ function buildContextTranscriptFeed(manifest) {
         kind: 'transcript',
         label,
         meta: bits.join(' · ') || 'transcript',
-        nav: { mode: 'context', contextView: 'raw' },
+        nav: { mode: 'context', contextView: 'stream' },
         rawId: id || null,
       };
     })
@@ -2849,8 +2858,8 @@ window.__srwkAlchemyJump = function alchemyJumpFromMembrane(mode, opts) {
     render();
     return;
   }
-  // intel used to live inside the context page; land old jumps on evidence.
-  if (mode === "intel") { mode = "context"; opts = { ...(opts || {}), contextView: opts?.contextView || "evidence" }; }
+  // intel used to live inside the context page; land old jumps on the stream.
+  if (mode === "intel") { mode = "context"; opts = { ...(opts || {}), contextView: opts?.contextView || "stream" }; }
   if (mode === "asks") mode = "activity";
   if (mode === "constellation" && String(opts?.constellationMode || "").toLowerCase() === "timeline") {
     mode = "calendar";
@@ -14616,74 +14625,106 @@ function startContextAutoRefresh() {
   });
 }
 
-async function selectContextSource(sourceId) {
-  if (!sourceId) return;
-  if (state.contextVault.selectedId === sourceId) return;
-  state.contextVault.mode = "articles";
-  state.contextVault.selectedId = sourceId;
-  state.contextVault.selectedText = "";
-  state.contextVault.selectedTruncated = false;
-  const selected = contextSourceById(sourceId);
-  const detail = state.canvas?.querySelector(".alch-cv-detail");
-  if (state.mode === "context" && selected && detail) {
-    for (const btn of state.canvas.querySelectorAll("[data-cv-source]")) {
-      btn.classList.toggle("is-selected", btn.dataset.cvSource === sourceId);
-    }
-    detail.outerHTML = renderContextVaultDetail(selected);
-    wireContextVaultDetailActions(state.canvas);
-    return;
-  }
-  render();
-}
-
-// The context page's views. Articles prefer hosted/public cohort articles and
-// can be enriched by an optional device-local vault; evidence is the reviewed
-// public-safe transcript-card lane. Retired names normalize to evidence.
+// The context page's two lenses. People bring exactly two questions to this
+// corpus — "what happened?" (stream: everything chronological) and "what do we
+// know about X?" (library: the same corpus pivoted by topic). Content type
+// (readout / article / raw) is a badge on rows, not navigation; the retired
+// type-based views normalize into a lens.
 function contextNormalizeView(raw) {
   const v = String(raw || "").toLowerCase();
-  if (v === "article") return "articles";
-  if (v === "transcript" || v === "transcripts") return "raw";
-  if (v === "card" || v === "cards") return "evidence";
-  if (v === "intel" || v === "signals" || v === "data") return "evidence";
-  return (v === "articles" || v === "raw" || v === "evidence") ? v : "articles";
+  if (v === "stream" || v === "library") return v;
+  // Every retired type-based view (articles / raw / evidence / intel…) lands
+  // on the stream — the chronological front door. The library is reached
+  // deliberately, never as a legacy redirect.
+  return "stream";
 }
 
 const CONTEXT_VIEWS = [
-  { view: "articles", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>', label: "articles", hint: "reader-facing drafts from the vault" },
-  { view: "raw",      glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="21" x2="3" y1="6" y2="6"/><line x1="15" x2="3" y1="12" y2="12"/><line x1="17" x2="3" y1="18" y2="18"/></svg>', label: "transcripts", hint: "distilled readouts + optional device raw files" },
-  { view: "evidence", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg>', label: "evidence", hint: "distilled evidence cards, live from Supabase" },
+  { view: "stream",  glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="21" x2="3" y1="6" y2="6"/><line x1="15" x2="3" y1="12" y2="12"/><line x1="17" x2="3" y1="18" y2="18"/></svg>', label: "stream", hint: "everything chronological — readouts, articles, raw files" },
+  { view: "library", glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 6 4 14"/><path d="M12 6v14"/><path d="M8 8v12"/><path d="M4 4v16"/></svg>', label: "library", hint: "the same corpus by topic — hints, claims, sessions" },
 ];
 
-function setContextVaultMode(mode) {
-  const nextMode = contextNormalizeView(mode);
-  if (state.contextVault.mode === nextMode) return;
-  state.contextVault.mode = nextMode;
-  try { localStorage.setItem(CONTEXT_VIEW_LS_KEY, nextMode); } catch {}
-  // Mirror onto the container so the tab system captures the view switch
-  // (this repaint path skips the full render()).
-  if (state.container && state.mode === "context") state.container.dataset.contextView = nextMode;
-  renderContextVault();
-  wireContextVault();
-  syncRailSubnavs();  // keep the rail disclosure's active row in lock-step
+// Resolve a stream/library reference to its record.
+function contextRecordByRef(kind, id) {
+  if (kind === "article") return contextSourceById(id);
+  if (kind === "raw") return contextRawScriptById(id);
+  if (kind === "readout") return contextDistilledById(id);
+  return null;
 }
 
-async function selectContextRawScript(sourceId) {
-  if (!sourceId) return;
-  if (state.contextVault.mode === "raw" && state.contextVault.selectedRawId === sourceId) return;
-  state.contextVault.mode = "raw";
-  state.contextVault.selectedRawId = sourceId;
-  const selected = contextRawScriptById(sourceId);
-  const detail = state.canvas?.querySelector(".alch-cv-detail");
-  if (state.mode === "context" && selected && detail) {
-    for (const btn of state.canvas.querySelectorAll("[data-cv-raw-source]")) {
-      btn.classList.toggle("is-selected", btn.dataset.cvRawSource === sourceId);
-    }
-    detail.outerHTML = renderContextVaultRawDetail(selected);
-    wireContextVaultDetailActions(state.canvas);
-    loadContextRawScriptText(sourceId);
-    return;
+// The restyle / snapshot / raw-text machinery still keys off the per-kind
+// selection ids; note them whenever a record becomes the open reader.
+function contextNoteDetailSelection(kind, id) {
+  const cv = state.contextVault;
+  if (kind === "article") cv.selectedId = id;
+  else if (kind === "raw") cv.selectedRawId = id;
+  else if (kind === "readout") cv.selectedDistilledId = id;
+}
+
+// Which record the reader pane is currently showing, independent of lens.
+function activeContextDetailRef() {
+  const cv = state.contextVault;
+  if (contextNormalizeView(cv.mode) === "library") {
+    return cv.libraryOpen ? { ...cv.libraryOpen } : null;
   }
-  render();
+  const ref = parseStreamKey(cv.selectedStream || "");
+  return ref.kind ? ref : null;
+}
+
+// Swap only the reader column (keeps the list's scroll, search text, and
+// focus). Falls back to a full render when the column isn't mounted.
+function swapContextDetail(html) {
+  const root = state.canvas?.querySelector("[data-cv-detail-root]");
+  if (!root) return false;
+  root.outerHTML = html;
+  wireContextDetailRegion(state.canvas);
+  return true;
+}
+
+function selectContextStreamItem(key) {
+  const cv = state.contextVault;
+  if (!key || cv.selectedStream === key) return;
+  const { kind, id } = parseStreamKey(key);
+  const record = contextRecordByRef(kind, id);
+  if (!record) return;
+  cv.selectedStream = key;
+  contextNoteDetailSelection(kind, id);
+  for (const btn of state.canvas?.querySelectorAll("[data-cv-stream]") || []) {
+    btn.classList.toggle("is-selected", btn.dataset.cvStream === key);
+  }
+  if (!swapContextDetail(contextDetailColHtml(contextStreamDetailHtml(kind, record)))) { render(); return; }
+  if (kind === "raw" && !cv.rawTextById?.[id]) loadContextRawScriptText(id);
+}
+
+function selectContextTopic(key) {
+  const cv = state.contextVault;
+  if (!key || (cv.topicKey === key && !cv.libraryOpen)) return;
+  cv.topicKey = key;
+  cv.libraryOpen = null;
+  for (const btn of state.canvas?.querySelectorAll("[data-cv-topic]") || []) {
+    btn.classList.toggle("is-selected", btn.dataset.cvTopic === key);
+  }
+  if (!swapContextDetail(contextDetailColHtml(contextTopicPageHtml(key)))) render();
+}
+
+// A hint/session row on a topic page opens its full reader in place, with a
+// back row to return to the topic — one pane, no third column.
+function openContextLibraryItem(key) {
+  const cv = state.contextVault;
+  const ref = parseStreamKey(key);
+  const record = contextRecordByRef(ref.kind, ref.id);
+  if (!record) return;
+  cv.libraryOpen = ref;
+  contextNoteDetailSelection(ref.kind, ref.id);
+  if (!swapContextDetail(contextDetailColHtml(contextLibraryOpenHtml(ref, record)))) { render(); return; }
+  if (ref.kind === "raw" && !cv.rawTextById?.[ref.id]) loadContextRawScriptText(ref.id);
+}
+
+function closeContextLibraryItem() {
+  const cv = state.contextVault;
+  if (!cv.libraryOpen) return;
+  cv.libraryOpen = null;
+  if (!swapContextDetail(contextDetailColHtml(contextTopicPageHtml(cv.topicKey)))) render();
 }
 
 function contextSourceById(id) {
@@ -14760,8 +14801,10 @@ async function loadContextRawScriptText(sourceId) {
   } finally {
     if (state.contextVault.rawLoadingId === sourceId) state.contextVault.rawLoadingId = null;
   }
-  if (state.mode === "context" && state.contextVault.mode === "raw" && state.contextVault.selectedRawId === sourceId) {
+  const ref = activeContextDetailRef();
+  if (state.mode === "context" && ref && ref.kind === "raw" && ref.id === sourceId) {
     const selected = contextRawScriptById(sourceId);
+    // Swap the inner reader article only — a library-open raw keeps its back row.
     const detail = state.canvas?.querySelector(".alch-cv-detail");
     if (selected && detail) {
       detail.outerHTML = renderContextVaultRawDetail(selected);
@@ -14822,15 +14865,6 @@ function contextArticleDek(source) {
 
 function contextArticleSection(source) {
   return source?.article_section || "article candidate";
-}
-
-function contextArticleMeta(source) {
-  const bits = [];
-  if (source?.status) bits.push(String(source.status));
-  if (source?.content_version) bits.push(String(source.content_version));
-  const section = contextArticleSection(source);
-  if (section) bits.push(section);
-  return bits.join(" · ");
 }
 
 function contextArticleReader(source) {
@@ -15184,7 +15218,7 @@ function renderContextVaultRawDetail(selected) {
     return `
       <article class="alch-cv-detail alch-cv-empty-detail">
         <h3>no raw transcripts on this device</h3>
-        <p>Paste context above to submit it, or switch to distilled when readouts are available.</p>
+        <p>Paste context above to submit it — distilled readouts land in the same stream once processed.</p>
       </article>
     `;
   }
@@ -15356,69 +15390,6 @@ function evidenceOverTimeLinks(contentJson) {
     `<button type="button" class="alch-ev-tl" data-evt-team="${escAttr(t)}" data-evt-week="${escAttr(week)}" title="${escAttr(`see ${evTeamName(t)} over time`)}"><span class="alch-ev-tl-name">${escHtml(evTeamName(t))}</span><span class="alch-ev-tl-arrow" aria-hidden="true">over time →</span></button>`).join("")}</div>`;
 }
 
-function contextEvidenceCardHtml(card) {
-  const type = String(card.claim_type || "insight");
-  const title = String(card.title || "").trim();
-  const claim = String(card.claim_text || "").trim();
-  const summary = String(card.summary || "").trim();
-  const evidence = String(card.evidence_level || "").trim();
-  const scope = String(card.attribution_scope || "").trim();
-  const confNum = Number(card.confidence);
-  const conf = Number.isFinite(confNum) ? `${Math.round(confNum * 100)}%` : "";
-  const topic = String(card.content_json?.topic_label || "").trim();
-  const when = contextEvidenceDate(card.created_at);
-  const chips = [evidence, scope].filter(Boolean)
-    .map(c => `<span class="alch-ev-chip">${escHtml(c.replace(/_/g, " "))}</span>`).join("");
-  const tierLabel = String(card.surface_tier || "T3") === "T2" ? "T2 cohort" : "T3 public";
-  const prov = [topic, "distilled", tierLabel, when].filter(Boolean).map(escHtml).join(" · ");
-  return `
-    <article class="alch-ev-card" data-claim-type="${escAttr(type)}">
-      <header class="alch-ev-head">
-        <span class="alch-ev-type">${escHtml(type.replace(/_/g, " "))}</span>
-        ${conf ? `<span class="alch-ev-conf" title="confidence">${escHtml(conf)}</span>` : ""}
-      </header>
-      ${title ? `<h3 class="alch-ev-title">${escHtml(title)}</h3>` : ""}
-      ${claim ? `<p class="alch-ev-claim">${escHtml(claim)}</p>` : ""}
-      ${summary && summary !== claim ? `<p class="alch-ev-summary">${escHtml(summary)}</p>` : ""}
-      <footer class="alch-ev-meta">
-        ${chips}
-        <span class="alch-ev-prov">${prov}</span>
-      </footer>
-      ${evidenceOverTimeLinks(card.content_json)}
-    </article>
-  `;
-}
-
-function contextEvidenceMovesHtml(cards) {
-  const cohort = activeConstellationCohort();
-  const moves = evidenceMoveCards(cards, cohort?.teams || [], { limit: 3 });
-  if (!moves.length) return "";
-  return `
-    <section class="alch-ev-moves" aria-label="suggested evidence moves">
-      ${moves.map((move) => `
-        <article class="alch-ev-move" data-move-kind="${escAttr(move.kind)}">
-          <header class="alch-ev-move-head">
-            <span class="alch-ev-type">${escHtml(move.kind)}</span>
-            <span class="alch-ev-prov">${move.receipts.map(escHtml).join(" · ")}</span>
-          </header>
-          <h3 class="alch-ev-move-title">${escHtml(move.title)}</h3>
-          <p class="alch-ev-move-claim">${escHtml(constShortText(move.claim, 190))}</p>
-          <dl class="alch-ev-move-fields">
-            <div><dt>move</dt><dd>${escHtml(move.coordinatorMove)}</dd></div>
-            <div><dt>watch</dt><dd>${escHtml(move.watchFor)}</dd></div>
-            <div><dt>limit</dt><dd>${escHtml(move.limits)}</dd></div>
-          </dl>
-          <div class="alch-ev-move-teams">
-            ${move.teams.map((teamId) => `<button type="button" class="alch-ev-move-team" data-evt-team="${escAttr(teamId)}">${escHtml(evTeamName(teamId))}</button>`).join("")}
-          </div>
-        </article>
-      `).join("")}
-    </section>
-  `;
-}
-
-const EVIDENCE_TIER_LS_KEY = "srfg:evidence_tier";
-
 // Split the live evidence read into its two tiers. transcript_evidence_cards
 // carries BOTH the gated named cohort cards (surface_tier "T2", read with the
 // Google session or cohort key) and the public anonymized cards ("T3", read with the anon key) —
@@ -15433,44 +15404,23 @@ function contextEvidenceData() {
   return { t2cards, t3cards, insights, namedCount: t2cards.length + insights.length, generalizedCount: t3cards.length };
 }
 
-// Detail tier for the Context > evidence view.
-//   T2 "named"       = team- and person-attributed cohort cards (gated Supabase
-//                      view, read with the Google session or cohort key) + legacy session_insights.
-//   T3 "generalized" = the person-anonymized public cards (anon Supabase view).
-// Both render off the live transcript_evidence_cards read, split by surface_tier.
-// With no explicit choice: prefer the richer NAMED tier when the app actually
-// read it (Google session/key present), else fall back to the generalized tier so the
-// live public cards still show — never land on an empty tab. An explicit choice
-// (set via the in-view toggle) is always honored.
+// Which claims tier the context page reads. Silent and automatic — there is
+// no in-page named/generalized switch (deliberately deferred): prefer the
+// richer NAMED tier when the app actually read it (Google session/key
+// present), else fall back to the generalized tier so the live public cards
+// still show. (The retired toggle's srfg:evidence_tier preference is ignored
+// — an invisible pin with no UI to unpin it would be a trap.)
+//   T2 "named"       = team- and person-attributed cohort cards (gated view).
+//   T3 "generalized" = the person-anonymized public cards (anon view).
 function contextEvidenceTier() {
-  let saved = "";
-  try { saved = String(localStorage.getItem(EVIDENCE_TIER_LS_KEY) || "").toUpperCase(); } catch {}
-  if (saved === "T2" || saved === "T3") return saved;
   const { namedCount, generalizedCount } = contextEvidenceData();
   if (namedCount) return "T2";
   if (generalizedCount) return "T3";
   return "T2";
 }
-function setContextEvidenceTier(tier) {
-  const next = tier === "T3" ? "T3" : "T2";
-  try { localStorage.setItem(EVIDENCE_TIER_LS_KEY, next); } catch {}
-  if (state.mode === "context") { renderContextVault(); wireContextVault(); }
-}
 
-function evidenceTierToggleHtml(tier) {
-  const opt = (t, label, hint) =>
-    `<button class="alch-ev-tier-btn${tier === t ? " is-on" : ""}" data-ev-tier="${t}" type="button" aria-pressed="${tier === t}" title="${escAttr(hint)}">${label}</button>`;
-  return `<div class="alch-ev-tier" role="group" aria-label="evidence detail tier">
-    ${opt("T2", "named", "cohort tier — named teams, people, and the full session summary")}
-    ${opt("T3", "generalized", "public tier — person-anonymized, no named teams or people")}
-  </div>`;
-}
-
-// ─── Transcripts tab: raw (device files) ↔ distilled (hosted cohort) toggle ───
-// The transcripts tab has an optional device-local raw lane (Electron IPC only)
-// and a portable distilled-readout lane from Supabase. Public/browser builds may
-// have neither; that is a normal empty state, not a setup failure.
-const TRANSCRIPTS_SOURCE_LS_KEY = "srfg:transcripts_source";
+// Distilled readouts (hosted cohort lane) and device raw files both land in
+// the stream — the old raw ↔ distilled source toggle retired with the lenses.
 
 function contextDistilledList() {
   const arts = state.cohort?.transcript_distillations?.artifacts;
@@ -15482,27 +15432,11 @@ function contextDistilledById(id) {
   return contextDistilledList().find((d) => d && d.id === id) || null;
 }
 
-// Which source the transcripts tab shows. Honors an explicit toggle choice; with
-// none, prefers distilled when the app actually read any, else raw. Raw may still
-// be empty on public/browser builds; the empty state explains that calmly.
-function contextTranscriptsSource() {
-  let saved = "";
-  try { saved = String(localStorage.getItem(TRANSCRIPTS_SOURCE_LS_KEY) || "").toLowerCase(); } catch {}
-  if (saved === "raw" || saved === "distilled") return saved;
-  return contextDistilledList().length ? "distilled" : "raw";
-}
-
-function setContextTranscriptsSource(src) {
-  const next = src === "distilled" ? "distilled" : "raw";
-  try { localStorage.setItem(TRANSCRIPTS_SOURCE_LS_KEY, next); } catch {}
-  if (state.mode === "context") { renderContextVault(); wireContextVault(); }
-}
-
 // Persist the entered cohort key, then re-read the gated cohort surface IN PLACE
 // (no page reload): refreshCohortFromGithub re-runs applyDistillationOverlay — which
-// now sees the key — and notifies the subscriber that repaints the view. We pin the
-// transcripts source to "distilled" so the user lands on the now-populated side, and
-// surface a result count (or a "check the key" hint) when the refresh settles.
+// now sees the key — and notifies the subscriber that repaints the view. The stream
+// merges distilled + raw, so no source pinning is needed; we surface a result count
+// (or a "check the key" hint) when the refresh settles.
 async function submitCohortKeyForm(form) {
   const input = form && form.querySelector('input[name="cohortKey"]');
   const raw = input ? input.value : "";
@@ -15516,11 +15450,9 @@ async function submitCohortKeyForm(form) {
   cv.error = "";
   if (!hasKey) {
     cv.message = "Cohort key cleared — showing any raw files available on this device.";
-    try { localStorage.setItem(TRANSCRIPTS_SOURCE_LS_KEY, "raw"); } catch {}
     renderContextVault(); wireContextVault();
     return;
   }
-  try { localStorage.setItem(TRANSCRIPTS_SOURCE_LS_KEY, "distilled"); } catch {}
   cv.message = "Reading the cohort's distilled readouts live…";
   renderContextVault(); wireContextVault();
   try {
@@ -15532,15 +15464,6 @@ async function submitCohortKeyForm(form) {
     ? `Loaded ${n} distilled readout${n === 1 ? "" : "s"} from the cohort.`
     : "Key saved, but no distilled readouts came back — double-check it's a current role=cohort_app key.";
   if (state.mode === "context") { renderContextVault(); wireContextVault(); }
-}
-
-function transcriptsSourceToggleHtml(source, rawCount, distilledCount) {
-  const opt = (s, label, count, hint) =>
-    `<button class="alch-ev-tier-btn${source === s ? " is-on" : ""}" data-cv-tsource="${s}" type="button" aria-pressed="${source === s}" title="${escAttr(hint)}">${label}${Number.isFinite(count) ? ` ${count}` : ""}</button>`;
-  return `<div class="alch-ev-tier alch-cv-tsource" role="group" aria-label="transcripts source">
-    ${opt("raw", "raw", rawCount, "optional raw source files on this device")}
-    ${opt("distilled", "distilled", distilledCount, "cohort tier - cleaned, paraphrased session readouts from the transcript tier")}
-  </div>`;
 }
 
 function distilledTranscriptTitle(s) {
@@ -15565,6 +15488,14 @@ function cohortKeyConfigured() {
   try { return !!readSupabaseConfig().cohortKey; } catch { return false; }
 }
 
+function cohortKeyFormEnabled() {
+  try {
+    const qs = new URLSearchParams(window.location.search || "");
+    if (qs.get("cohortKeyForm") === "1") return true;
+  } catch {}
+  try { return localStorage.getItem("srfg:show_cohort_key_form") === "1"; } catch { return false; }
+}
+
 // The inline cohort-key affordance shown in the distilled empty state. Lets a
 // provisioned run drop in a role=cohort_app JWT on this machine without an env var
 // or a packaged build — it persists via persistCohortKeyOverride, then refreshes
@@ -15583,17 +15514,59 @@ function cohortKeyFormHtml(configured) {
   `;
 }
 
+// One evidence claim as a compact row — the library/topic and session-rollup
+// representation (the old full-card grid retired with the evidence view).
+function contextClaimRowHtml(card) {
+  const type = String(card.claim_type || "insight").replace(/_/g, " ");
+  const text = String(card.claim_text || card.title || card.summary || "").trim();
+  const confNum = Number(card.confidence);
+  const conf = Number.isFinite(confNum) ? `${Math.round(confNum * 100)}%` : "";
+  return `
+    <div class="alch-cv-claim">
+      <span class="alch-cv-claim-type">${escHtml(type)}</span>
+      <p class="alch-cv-claim-text">${escHtml(text)}</p>
+      ${conf ? `<span class="alch-cv-claim-conf" title="confidence">${escHtml(conf)}</span>` : ""}
+    </div>`;
+}
+
+function contextLibSectionHtml(head, body, side = "", cls = "") {
+  return `
+    <section class="alch-cv-lib-section${cls ? ` ${cls}` : ""}">
+      <div class="alch-cv-lib-head"><span>${escHtml(head)}</span>${side}</div>
+      ${body}
+    </section>`;
+}
+
+// Evidence cards don't get stream rows — they ride inside their session's
+// reader. Fuzzy provenance match (same week/day + team or topic overlap);
+// no match ⇒ no section, silently.
+function contextSessionClaimsHtml(session) {
+  const tier = contextEvidenceTier();
+  const { t2cards, t3cards } = contextEvidenceData();
+  const claims = claimsForSession(tier === "T2" ? t2cards : t3cards, session);
+  if (!claims.length) return "";
+  const shown = claims.slice(0, 4);
+  const more = claims.length - shown.length;
+  return contextLibSectionHtml(
+    `taken from this session · ${claims.length} claim${claims.length === 1 ? "" : "s"}`,
+    `${shown.map(contextClaimRowHtml).join("")}${more ? `<p class="alch-cv-muted">+ ${more} more under this topic in the library</p>` : ""}`,
+    "",
+    "alch-cv-fromsession",
+  );
+}
+
 function renderDistilledTranscriptDetail(selected) {
   if (!selected) {
     const configured = cohortKeyConfigured();
+    const showKeyForm = cohortKeyFormEnabled();
     const lede = configured
-      ? `A cohort key is set, but no distilled readouts came back — the key may be wrong/expired, or no sessions are distilled, reviewed &amp; published yet. Re-enter a key below, or check raw only if this device has source files.`
-      : `The cohort's distilled readouts unlock after Google sign-in, with the cohort key only as backup. Public builds can still use the generalized evidence tab without any local files.`;
+      ? `Google sign-in is active, but no cohort readouts came back yet. The backup key may be wrong or expired, or no sessions have been distilled, reviewed, and published.`
+      : `Sign in with Google to unlock cohort readouts. Generalized public claims still appear without it.`;
     return `
       <article class="alch-cv-detail alch-cv-empty-detail">
         <h3>no distilled transcripts yet</h3>
         <p>${lede}</p>
-        ${cohortKeyFormHtml(configured)}
+        ${showKeyForm ? cohortKeyFormHtml(configured) : ""}
       </article>
     `;
   }
@@ -15604,6 +15577,7 @@ function renderDistilledTranscriptDetail(selected) {
     .map((w) => String(w).replace(/-/g, " ").trim()).filter(Boolean);
   const body = selected.body_md ? renderProgramMarkdown(selected.body_md) : `<p class="alch-cv-muted">This readout has no body.</p>`;
   const overTime = evidenceOverTimeLinks({ teams: selected.teams, week_start: selected.week_start, date: selected.date });
+  const claimsBlock = contextSessionClaimsHtml(selected);
   return `
     <article class="alch-cv-detail alch-cv-distilled-detail">
       <header class="alch-cv-detail-head">
@@ -15623,61 +15597,13 @@ function renderDistilledTranscriptDetail(selected) {
         ${selected.summary ? `<p class="alch-cv-reader-dek">${escHtml(selected.summary)}</p>` : ""}
         ${themeChips ? `<div class="alch-ev-meta">${themeChips}</div>` : ""}
         ${overTime}
+        ${claimsBlock}
         ${body}
         ${who.length ? `<div class="alch-ev-sum-who">${who.slice(0, 12).map((w) => `<span class="alch-ev-chip alch-ev-who-chip">${escHtml(w)}</span>`).join("")}</div>` : ""}
       </article>
       <div class="alch-cv-result" data-cv-result hidden></div>
     </article>
   `;
-}
-
-// A named cohort session readout (T2) — the summary-section format: thesis hook,
-// the 60-second summary, product insights, themes, and the named teams/people.
-function contextSessionSummaryHtml(s) {
-  const title = String(s.title || "").trim();
-  const thesis = String(s.thesis || "").trim();
-  const summary = String(s.summary || s.one_liner || "").trim();
-  const date = contextEvidenceDate(s.date);
-  const kind = String(s.kind || "").trim();
-  const themes = Array.isArray(s.themes) ? s.themes : [];
-  const insights = Array.isArray(s.insights) ? s.insights : [];
-  const who = [...(Array.isArray(s.teams) ? s.teams : []), ...(Array.isArray(s.people) ? s.people : [])]
-    .map((t) => String(t).replace(/-/g, " ").trim()).filter(Boolean);
-  const meta = [kind, date].filter(Boolean).map(escHtml).join(" · ");
-  const themeChips = themes.slice(0, 6).map((t) => `<span class="alch-ev-chip">${escHtml(String(t))}</span>`).join("");
-  return `
-    <article class="alch-ev-sum">
-      ${meta ? `<div class="alch-ev-type">${meta}</div>` : ""}
-      ${title ? `<h3 class="alch-ev-sum-title">${escHtml(title)}</h3>` : ""}
-      ${thesis ? `<p class="alch-ev-sum-thesis">${escHtml(thesis)}</p>` : ""}
-      ${summary ? `<p class="alch-ev-sum-body">${escHtml(summary)}</p>` : ""}
-      ${insights.length ? `<ul class="alch-ev-sum-list">${insights.slice(0, 10).map((i) => `<li>${escHtml(String(i))}</li>`).join("")}</ul>` : ""}
-      ${themeChips ? `<div class="alch-ev-meta">${themeChips}</div>` : ""}
-      ${who.length ? `<div class="alch-ev-sum-who">${who.slice(0, 10).map((w) => `<span class="alch-ev-chip alch-ev-who-chip">${escHtml(w)}</span>`).join("")}</div>` : ""}
-    </article>
-  `;
-}
-
-function renderContextEvidence(tier, t3cards, t2cards, insights) {
-  const toggle = evidenceTierToggleHtml(tier);
-  if (tier === "T2") {
-    const named = Array.isArray(t2cards) ? t2cards : [];
-    const readouts = Array.isArray(insights) ? insights : [];
-    const total = named.length + readouts.length;
-    const moves = contextEvidenceMovesHtml(named);
-    const body = total
-      ? `${moves}<p class="alch-ev-lede">${total} named cohort evidence ${total === 1 ? "card" : "cards"} - team- and person-attributed, read live through the gated transcript tier. Switch to <em>generalized</em> for the person-anonymized public view.</p>
-         <div class="alch-ev-grid">${named.map(contextEvidenceCardHtml).join("")}${readouts.map(contextSessionSummaryHtml).join("")}</div>`
-      : `<p class="alch-cv-muted alch-ev-empty">No named cohort evidence in this session. The named tier needs Google sign-in or the cohort key; without either, the app shows the <em>generalized</em> public tier only.</p>`;
-    return `${toggle}${body}`;
-  }
-  const cards = Array.isArray(t3cards) ? t3cards : [];
-  const moves = contextEvidenceMovesHtml(cards);
-  const body = cards.length
-    ? `${moves}<p class="alch-ev-lede">${cards.length} distilled evidence card${cards.length === 1 ? "" : "s"}, read live from the public transcript tier - person-anonymized, team-attributed, published.</p>
-       <div class="alch-ev-grid">${cards.map(contextEvidenceCardHtml).join("")}</div>`
-    : `<p class="alch-cv-muted alch-ev-empty">No distilled evidence cards yet. These appear once cohort sessions are distilled, reviewed, and published.</p>`;
-  return `${toggle}${body}`;
 }
 
 // ── Context reader personalization (device-only prefs) ──────────────────
@@ -15766,26 +15692,24 @@ function contextToolbarHtml() {
     </div>`;
 }
 
-// Tags for the current view — articles: skill_areas; distilled: themes; raw: source_kind.
-function contextTagsForView(mode, tsource, sources, rawScripts, distilled) {
-  const set = new Set();
-  const add = (arr) => (Array.isArray(arr) ? arr : []).forEach((t) => { const s = String(t || "").trim(); if (s) set.add(s); });
-  if (mode === "articles") (sources || []).forEach((s) => add(s.skill_areas));
-  else if (tsource === "distilled") (distilled || []).forEach((s) => add(s.themes));
-  else (rawScripts || []).forEach((s) => { const k = String(s.source_kind || "").trim(); if (k) set.add(k); });
-  return [...set].slice(0, 20);
+// Tag chips for the stream — one vocabulary across species (article
+// skills/tags ∪ readout themes ∪ raw source kinds), slugged so multi-word
+// topics survive the whitespace-tokenized data-cv-tags filter, busiest first.
+function contextStreamTags(items) {
+  const counts = new Map();
+  const add = (slug) => { if (slug) counts.set(slug, (counts.get(slug) || 0) + 1); };
+  for (const item of items || []) {
+    if (item.kind === "article") articleTopics(item.record).forEach((t) => add(topicSlug(t)));
+    else if (item.kind === "readout") distilledTopics(item.record).forEach((t) => add(topicSlug(t)));
+    else add(topicSlug(String(item.record?.source_kind || "")));
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([slug]) => slug).slice(0, 20);
 }
 
 function contextTagChipsHtml(tags, active) {
   if (!tags || !tags.length) return "";
   return `<div class="alch-cv-tags">${tags.map((t) =>
     `<button class="alch-cv-tag${t === active ? " is-on" : ""}" type="button" data-cv-tag="${escAttr(t)}">#${escHtml(t)}</button>`).join("")}</div>`;
-}
-
-function contextSourceTagsAttr(source) {
-  const tags = Array.isArray(source && source.skill_areas) ? source.skill_areas : [];
-  const bits = [...tags, source && source.article_section].map((t) => String(t || "").trim()).filter(Boolean);
-  return escAttr(bits.join(" "));
 }
 
 // Ephemeral raw-transcript distillation prompt (preview-only companion to the
@@ -15853,7 +15777,7 @@ function contextPreviewBannerHtml(style, pending) {
     : `<div class="alch-cv-pvbanner"><span class="alch-cv-pvdot"></span><b>preview</b> restyled ${label} · not saved<button class="alch-cv-pvrevert" type="button" data-cv-revert>revert</button></div>`;
 }
 
-// Re-render just the selected article's detail pane in place (mirrors selectContextSource).
+// Re-render just the selected article's detail pane in place (mirrors selectContextStreamItem).
 function refreshContextArticleDetail() {
   const selected = contextSourceById(state.contextVault.selectedId);
   const detail = state.canvas && state.canvas.querySelector(".alch-cv-detail");
@@ -15973,232 +15897,245 @@ async function snapshotContextReader() {
   else contextToast("Couldn't save the snapshot.", true);
 }
 
+// Everything the two lenses read, resolved once per render. Claims honor the
+// current evidence tier (named T2 / generalized T3).
+function contextLensInputs() {
+  const manifest = state.contextVault.manifest || null;
+  const articles = contextArticleSources(manifest);
+  const rawScripts = manifest?.raw_scripts || [];
+  const distilled = contextDistilledList();
+  // Tier selection is silent — the richest tier the session can read (see
+  // contextEvidenceTier); no in-page named/generalized switch.
+  const tier = contextEvidenceTier();
+  const { t2cards, t3cards } = contextEvidenceData();
+  return { articles, rawScripts, distilled, tier, cards: tier === "T2" ? t2cards : t3cards };
+}
+
+const CONTEXT_KIND_LABEL = { article: "article", readout: "readout", raw: "raw · this device" };
+
+function contextStreamTitle(item) {
+  if (item.kind === "article") return contextArticleTitle(item.record);
+  if (item.kind === "raw") return contextRawScriptTitle(item.record);
+  return distilledTranscriptTitle(item.record);
+}
+
+// Row meta: the species word first (type is a badge, not a tab), then the one
+// or two bits that identify the item at a glance.
+function contextStreamMeta(item) {
+  const bits = [CONTEXT_KIND_LABEL[item.kind] || item.kind];
+  if (item.kind === "readout") {
+    const st = String(item.record?.session_type || item.record?.kind || "").replace(/_/g, " ").trim();
+    if (st) bits.push(st);
+  } else if (item.kind === "article") {
+    const section = contextArticleSection(item.record);
+    if (section) bits.push(section);
+  } else {
+    const sk = String(item.record?.source_kind || "").replace(/-/g, " ").trim();
+    if (sk) bits.push(sk);
+  }
+  const when = item.dateMs != null ? contextEvidenceDate(item.dateMs) : "";
+  if (when) bits.push(when);
+  return bits.filter(Boolean).join(" · ");
+}
+
+function contextStreamTagsAttr(item) {
+  if (item.kind === "article") return escAttr(["article", ...articleTopics(item.record).map(topicSlug)].join(" "));
+  if (item.kind === "raw") return escAttr(["raw", topicSlug(String(item.record?.source_kind || ""))].filter(Boolean).join(" "));
+  return escAttr(["readout", ...distilledTopics(item.record).map(topicSlug)].join(" "));
+}
+
+// The one-liner under a row's title — what the thing says, before you click
+// in. Sourced from what each species already carries; absent ⇒ no line.
+function contextStreamDesc(item) {
+  const r = item.record || {};
+  if (item.kind === "article") return String(r.article_dek || r.article_angle || "").trim();
+  if (item.kind === "raw") return String(r.excerpt || "").trim();
+  return String(r.summary || r.thesis || "").trim();
+}
+
+// Confidence stays silent when it's fine — a badge only when a readout needs
+// human eyes ("sure" is the absence of a badge).
+function contextStreamConfBadge(record) {
+  const c = Number(record?.confidence);
+  if (!Number.isFinite(c) || c >= 0.8) return "";
+  const tierWord = c >= 0.5 ? "best guess" : "needs review";
+  return `<span class="alch-cv-conf is-${tierWord.replace(/\s+/g, "-")}" title="type confidence ${Math.round(c * 100)}%">${escHtml(tierWord)}</span>`;
+}
+
+function contextStreamRowHtml(item, selectedKey) {
+  const key = streamKey(item.kind, item.id);
+  const selectedCls = key === selectedKey ? " is-selected" : "";
+  const pvBadge = item.kind === "article" && contextPreviewApplies(item.record) ? `<span class="alch-cv-pvbadge">preview</span>` : "";
+  const desc = contextStreamDesc(item);
+  return `
+    <button class="alch-cv-source alch-cv-transcript-source${selectedCls}" type="button" data-cv-stream="${escAttr(key)}" data-cv-tags="${contextStreamTagsAttr(item)}">
+      ${pvBadge}
+      <strong>${escHtml(contextStreamTitle(item))}</strong>
+      ${desc ? `<span class="alch-cv-source-desc">${escHtml(desc)}</span>` : ""}
+      <span class="alch-cv-source-meta">${escHtml(contextStreamMeta(item))}</span>
+      ${item.kind === "readout" ? contextStreamConfBadge(item.record) : ""}
+    </button>`;
+}
+
+function contextStreamDetailHtml(kind, record) {
+  if (!record) return renderDistilledTranscriptDetail(null); // doubles as the cohort-key door
+  if (kind === "article") return renderContextVaultDetail(record);
+  if (kind === "raw") return renderContextVaultRawDetail(record);
+  return renderDistilledTranscriptDetail(record);
+}
+
+// The reader column wrapper both lenses share — the stable swap target for
+// in-place detail updates (selection, topic pages, back navigation).
+function contextDetailColHtml(inner) {
+  return `<div class="alch-cv-detailcol" data-cv-detail-root>${inner}</div>`;
+}
+
+function contextTopicMeta(t) {
+  const bits = [];
+  if (t.hints) bits.push(`${t.hints} hint${t.hints === 1 ? "" : "s"}`);
+  if (t.claims) bits.push(`${t.claims} claim${t.claims === 1 ? "" : "s"}`);
+  if (t.sessions) bits.push(`${t.sessions} session${t.sessions === 1 ? "" : "s"}`);
+  return bits.join(" · ");
+}
+
+// A topic page reads durable → derived → raw: hints (evergreen articles),
+// then claims (evidence, tier-scoped), then the sessions they came from.
+// Sections with nothing to say don't render.
+function contextTopicPageHtml(topicKey) {
+  const { articles, distilled, cards } = contextLensInputs();
+  const page = topicPageData(topicKey, { articles, distilled, cards });
+  const label = page.key || "topic";
+  const counts = contextTopicMeta({
+    hints: page.hints.length, claims: page.claims.length, sessions: page.sessions.length,
+  });
+  const hintRows = page.hints.map((a) => `
+    <button class="alch-cv-lib-item" type="button" data-cv-lib-open="${escAttr(streamKey("article", a.id))}">
+      <strong>${escHtml(contextArticleTitle(a))}</strong>
+      <span>${escHtml(contextArticleDek(a))}</span>
+    </button>`).join("");
+  const claimsBody = page.claims.map(contextClaimRowHtml).join("");
+  const sessRows = page.sessions.map((d) => `
+    <button class="alch-cv-lib-item alch-cv-lib-sess" type="button" data-cv-lib-open="${escAttr(streamKey("readout", d.id))}">
+      <strong>${escHtml(distilledTranscriptTitle(d))}</strong>
+      <span class="alch-cv-lib-when">${escHtml(contextEvidenceDate(d.date || d.created_at) || "")}</span>
+    </button>`).join("");
+  const empty = !(page.hints.length || page.claims.length || page.sessions.length);
+  return `
+    <article class="alch-cv-detail alch-cv-topic-page">
+      <header class="alch-cv-detail-head">
+        <div><span class="alch-cv-eyebrow">topic</span></div>
+      </header>
+      <article class="alch-cv-reader alch-cv-topic-reader">
+        <h1>${escHtml(label)}</h1>
+        ${counts ? `<p class="alch-cv-reader-dek">${escHtml(counts)}</p>` : ""}
+        ${page.hints.length ? contextLibSectionHtml("start here · hints & articles", hintRows) : ""}
+        ${page.claims.length ? contextLibSectionHtml(`what we've learned · ${page.claims.length} claim${page.claims.length === 1 ? "" : "s"}`, claimsBody) : ""}
+        ${page.sessions.length ? contextLibSectionHtml(`where it came from · ${page.sessions.length} session${page.sessions.length === 1 ? "" : "s"}`, sessRows) : ""}
+        ${empty ? `<p class="alch-cv-muted">Nothing under this topic yet.</p>` : ""}
+      </article>
+    </article>`;
+}
+
+function contextLibraryOpenHtml(ref, record) {
+  const topic = state.contextVault.topicKey || "topic";
+  return `
+    <div class="alch-cv-libopen">
+      <div class="alch-cv-libback-row">
+        <button class="alch-cv-md-action alch-cv-libback" type="button" data-cv-lib-back title="back to the topic page">
+          <span class="alch-cv-md-action-label">← ${escHtml(topic)}</span>
+        </button>
+      </div>
+      ${contextStreamDetailHtml(ref.kind, record)}
+    </div>`;
+}
+
 function renderContextVault() {
   const cv = state.contextVault;
   const view = contextNormalizeView(cv.mode);
   cv.mode = view;
-  if ((view === "articles" || view === "raw") && !cv.loaded && !cv.loading) {
+  if (!cv.loaded && !cv.loading) {
     // Fire after the current render stack so the loading state can paint.
     setTimeout(() => loadContextVault({ scan: false }), 0);
   }
-  const manifest = cv.manifest || null;
-  const sources = contextArticleSources(manifest);
-  const rawScripts = manifest?.raw_scripts || [];
-  // Context views live in the rail sub-nav — no in-page tab strip.
+  // Lenses live in the rail sub-nav — no in-page tab strip.
+  const { articles, rawScripts, distilled, cards } = contextLensInputs();
 
-  // Evidence view — distilled transcript cards read live from Supabase
-  // (cohort-source.js overlays them onto the surface). Full-width under the
-  // shared page header, with the rail sub-nav owning view switches.
-  if (view === "evidence") {
-    const tier = contextEvidenceTier();
-    const { t2cards, t3cards, insights } = contextEvidenceData();
-    state.canvas.innerHTML = `
-      <section class="alch-cv">
-        ${pageHeadHtml({ side: contextToolbarHtml() })}
-        ${renderContextEvidence(tier, t3cards, t2cards, insights)}
-      </section>
-    `;
-    return;
-  }
+  let sourceRows = "";
+  let detail = "";
+  let chips = "";
+  let searchLabel = "context";
+  let emptySourceCopy = "";
 
-  const mode = view === "raw" ? "raw" : "articles";
-  const pendingRaw = resolvePendingContextRawScript();
-  const selected = contextSourceById(cv.selectedId) || sources[0] || null;
-  const selectedRaw = pendingRaw || contextRawScriptById(cv.selectedRawId) || rawScripts[0] || null;
-  if (selected && !cv.selectedId) cv.selectedId = selected.id;
-  if (selectedRaw && !cv.selectedRawId) cv.selectedRawId = selectedRaw.id;
-  // Transcripts tab has two possible sources: optional device raw files and the
-  // cohort's hosted distilled readouts. A toggle swaps the list + detail pane.
-  const tsource = mode === "raw" ? contextTranscriptsSource() : "raw";
-  const distilled = mode === "raw" ? contextDistilledList() : [];
-  const selectedDistilled = tsource === "distilled"
-    ? (contextDistilledById(cv.selectedDistilledId) || distilled[0] || null)
-    : null;
-  if (selectedDistilled && !cv.selectedDistilledId) cv.selectedDistilledId = selectedDistilled.id;
-
-  let sourceRows;
-  let detail;
-  if (mode === "articles") {
-    sourceRows = sources.map(s => {
-      const selectedCls = selected && selected.id === s.id ? " is-selected" : "";
-      const title = contextArticleTitle(s);
-      const meta = contextArticleMeta(s);
-      const pvBadge = contextPreviewApplies(s) ? `<span class="alch-cv-pvbadge">preview</span>` : "";
-      return `
-        <button class="alch-cv-source${selectedCls}" type="button" data-cv-source="${escAttr(s.id)}" data-cv-tags="${contextSourceTagsAttr(s)}">
-          ${pvBadge}
-          <strong>${escHtml(title)}</strong>
-          ${meta ? `<span class="alch-cv-source-meta">${escHtml(meta)}</span>` : ""}
-        </button>
-      `;
-    }).join("");
-    detail = renderContextVaultDetail(selected);
-  } else if (tsource === "distilled") {
-    // Two orderings, both asked for in the 2026-07-02 session: grouped by
-    // session type with confidence badges ("there needs to be grouping"), OR
-    // one chronological scroll ("I want to just scroll down and see everything
-    // in order"). A tiny toggle honors both; grouped is the default.
-    const tsort = state.contextVault.tsort === "newest" ? "newest" : "grouped";
-    const confBadge = (s) => {
-      if (!Number.isFinite(s.confidence)) return "";
-      const tier = s.confidence >= 0.8 ? "sure" : s.confidence >= 0.5 ? "best guess" : "needs review";
-      return `<span class="alch-cv-conf is-${tier.replace(/\s+/g, "-")}" title="type confidence ${Math.round(s.confidence * 100)}%">${escHtml(tier)}</span>`;
-    };
-    const row = (s) => {
-      const selectedCls = selectedDistilled && selectedDistilled.id === s.id ? " is-selected" : "";
-      return `
-        <button class="alch-cv-source alch-cv-transcript-source${selectedCls}" type="button" data-cv-distilled-source="${escAttr(s.id)}" data-cv-tags="${escAttr((Array.isArray(s.themes) ? s.themes : []).join(" "))}">
-          <strong>${escHtml(distilledTranscriptTitle(s))}</strong>
-          <span class="alch-cv-source-meta">${escHtml(distilledTranscriptMeta(s))}</span>
-          ${confBadge(s)}
-        </button>`;
-    };
-    const sortToggle = `
-      <div class="alch-cv-tsort" role="group" aria-label="transcript ordering">
-        <button type="button" class="alch-cv-tsort-btn${tsort === "grouped" ? " is-on" : ""}" data-cv-tsort="grouped">by type</button>
-        <button type="button" class="alch-cv-tsort-btn${tsort === "newest" ? " is-on" : ""}" data-cv-tsort="newest">newest</button>
-      </div>`;
-    if (tsort === "newest") {
-      // The list arrives created_at-desc from Supabase — render it flat.
-      sourceRows = sortToggle + distilled.map(row).join("");
-    } else {
-      const groups = new Map();
-      for (const s of distilled) {
-        const label = String(s.session_type || s.kind || "session").replace(/_/g, " ");
-        if (!groups.has(label)) groups.set(label, []);
-        groups.get(label).push(s);
-      }
-      sourceRows = sortToggle + [...groups.entries()].map(([label, items]) => `
-        <div class="alch-cv-group-head">${escHtml(label)}<span>${items.length}</span></div>
-        ${items.map(row).join("")}
-      `).join("");
-    }
-    detail = renderDistilledTranscriptDetail(selectedDistilled);
+  if (view === "library") {
+    searchLabel = "topics";
+    emptySourceCopy = "No topics yet — they grow out of readout themes, article tags, and claim labels.";
+    const topics = buildTopicIndex({ articles, distilled, cards });
+    if (!(cv.topicKey && topics.some((t) => t.key === cv.topicKey))) cv.topicKey = topics[0]?.key || null;
+    if (cv.libraryOpen && !contextRecordByRef(cv.libraryOpen.kind, cv.libraryOpen.id)) cv.libraryOpen = null;
+    sourceRows = topics.map((t) => `
+      <button class="alch-cv-source alch-cv-topic${t.key === cv.topicKey ? " is-selected" : ""}" type="button" data-cv-topic="${escAttr(t.key)}" data-cv-tags="${escAttr(topicSlug(t.key))}">
+        <span class="alch-cv-topic-count">${t.total}</span>
+        <strong>${escHtml(t.label)}</strong>
+        <span class="alch-cv-source-meta">${escHtml(contextTopicMeta(t))}</span>
+      </button>`).join("");
+    const openRecord = cv.libraryOpen ? contextRecordByRef(cv.libraryOpen.kind, cv.libraryOpen.id) : null;
+    detail = openRecord
+      ? contextLibraryOpenHtml(cv.libraryOpen, openRecord)
+      : (cv.topicKey ? contextTopicPageHtml(cv.topicKey) : `
+        <article class="alch-cv-detail alch-cv-empty-detail">
+          <h3>no topics yet</h3>
+          <p>Topics grow out of readout themes, article tags, and claim labels — the library fills in as content lands.</p>
+        </article>`);
   } else {
-    sourceRows = rawScripts.map(s => {
-      const selectedCls = selectedRaw && selectedRaw.id === s.id ? " is-selected" : "";
-      return `
-        <button class="alch-cv-source alch-cv-transcript-source${selectedCls}" type="button" data-cv-raw-source="${escAttr(s.id)}" data-cv-tags="${escAttr(String(s.source_kind || ""))}">
-          <strong>${escHtml(contextRawScriptTitle(s))}</strong>
-          <span class="alch-cv-source-meta">${escHtml(contextRawScriptMeta(s))}</span>
-        </button>
-      `;
-    }).join("");
-    detail = renderContextVaultRawDetail(selectedRaw);
+    emptySourceCopy = "Nothing in the stream yet — distilled readouts, articles, and device raw files land here in one scroll.";
+    const items = buildStreamItems({ articles, distilled, rawScripts });
+    const pendingRaw = resolvePendingContextRawScript();
+    if (pendingRaw) cv.selectedStream = streamKey("raw", pendingRaw.id);
+    const sel = items.find((it) => streamKey(it.kind, it.id) === cv.selectedStream) || items[0] || null;
+    cv.selectedStream = sel ? streamKey(sel.kind, sel.id) : null;
+    if (sel) contextNoteDetailSelection(sel.kind, sel.id);
+    const groups = groupStreamItems(items, new Date());
+    sourceRows = groups.map((g) => `
+      <div class="alch-cv-group-head">${escHtml(g.label)}<span>${g.items.length}</span></div>
+      ${g.items.map((it) => contextStreamRowHtml(it, cv.selectedStream)).join("")}
+    `).join("");
+    chips = contextTagChipsHtml(contextStreamTags(items), cv.tag);
+    detail = sel ? contextStreamDetailHtml(sel.kind, sel.record) : renderDistilledTranscriptDetail(null);
   }
-
-  const emptyLabel = mode === "articles" ? "articles"
-    : tsource === "distilled" ? "distilled readouts" : "transcripts";
-  const emptySourceCopy = mode === "articles"
-    ? "No articles available yet."
-    : tsource === "distilled"
-      ? "No distilled readouts available yet."
-      : "No raw files available on this device.";
-  const tagList = contextTagsForView(mode, tsource, sources, rawScripts, distilled);
 
   state.canvas.innerHTML = `
     <section class="alch-cv">
       ${pageHeadHtml({ side: contextToolbarHtml() })}
-      ${mode === "raw" ? renderContextComposer() : ""}
-      ${mode === "raw" ? transcriptsSourceToggleHtml(tsource, rawScripts.length, distilled.length) : ""}
+      ${view === "stream" ? renderContextComposer() : ""}
       ${cv.message ? `<p class="alch-cv-message">${escHtml(cv.message)}</p>` : ""}
       ${cv.error ? `<p class="alch-cv-error">${escHtml(cv.error)}</p>` : ""}
       <div class="alch-cv-layout">
         <aside class="alch-cv-sidebar">
           <div class="alch-cv-search">
             <svg class="alch-cv-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-            <input type="search" class="alch-cv-search-input" data-cv-search value="${escAttr(cv.query || "")}" placeholder="Search ${escAttr(emptyLabel)} or #tag…" spellcheck="false" autocomplete="off" aria-label="search ${escAttr(emptyLabel)}" />
+            <input type="search" class="alch-cv-search-input" data-cv-search value="${escAttr(cv.query || "")}" placeholder="Search ${escAttr(searchLabel)} or #tag…" spellcheck="false" autocomplete="off" aria-label="search ${escAttr(searchLabel)}" />
             <button class="alch-cv-search-clear" type="button" data-cv-search-clear>clear</button>
           </div>
-          ${contextTagChipsHtml(tagList, cv.tag)}
+          ${chips}
           <div class="alch-cv-sources">${sourceRows || `<p class="alch-cv-muted">${emptySourceCopy}</p>`}</div>
         </aside>
         <div class="alch-cv-handle" data-cv-handle title="Drag to resize · double-click to reset"><span class="alch-cv-wl">${contextPrefs().sidebarW}px</span></div>
-        ${detail}
+        ${contextDetailColHtml(detail)}
       </div>
     </section>
   `;
-  if (mode === "raw" && tsource === "raw" && selectedRaw && !cv.rawTextById?.[selectedRaw.id]) {
-    setTimeout(() => loadContextRawScriptText(selectedRaw.id), 0);
+  const ref = activeContextDetailRef();
+  if (ref && ref.kind === "raw" && !cv.rawTextById?.[ref.id]) {
+    setTimeout(() => loadContextRawScriptText(ref.id), 0);
   }
-}
-
-// Select a distilled readout in the transcripts tab's distilled source. Mirrors
-// selectContextRawScript but the readout body is already in the surface (no async
-// text fetch), so a plain re-render swaps the detail pane.
-function selectContextDistilled(id) {
-  if (!id || state.contextVault.selectedDistilledId === id) return;
-  state.contextVault.selectedDistilledId = id;
-  if (state.mode === "context") { renderContextVault(); wireContextVault(); }
 }
 
 function wireContextVault() {
-  for (const btn of state.canvas.querySelectorAll("[data-cv-mode]")) {
-    btn.addEventListener("click", () => setContextVaultMode(btn.dataset.cvMode));
+  for (const btn of state.canvas.querySelectorAll("[data-cv-stream]")) {
+    btn.addEventListener("click", () => selectContextStreamItem(btn.dataset.cvStream));
   }
-  for (const btn of state.canvas.querySelectorAll("[data-ev-tier]")) {
-    btn.addEventListener("click", () => setContextEvidenceTier(btn.dataset.evTier));
-  }
-  for (const btn of state.canvas.querySelectorAll("[data-cv-source]")) {
-    btn.addEventListener("click", () => selectContextSource(btn.dataset.cvSource));
-  }
-  for (const btn of state.canvas.querySelectorAll("[data-cv-raw-source]")) {
-    btn.addEventListener("click", () => selectContextRawScript(btn.dataset.cvRawSource));
-  }
-  for (const btn of state.canvas.querySelectorAll("[data-cv-tsource]")) {
-    btn.addEventListener("click", () => setContextTranscriptsSource(btn.dataset.cvTsource));
-  }
-  for (const btn of state.canvas.querySelectorAll("[data-cv-distilled-source]")) {
-    btn.addEventListener("click", () => selectContextDistilled(btn.dataset.cvDistilledSource));
-  }
-  // grouped-by-type ⇄ newest-first ordering for the distilled list (both were
-  // asked for; the preference sticks per device).
-  for (const btn of state.canvas.querySelectorAll("[data-cv-tsort]")) {
-    btn.addEventListener("click", () => {
-      const next = btn.dataset.cvTsort === "newest" ? "newest" : "grouped";
-      if (state.contextVault.tsort === next) return;
-      state.contextVault.tsort = next;
-      try { localStorage.setItem("srwk:cv_tsort", next); } catch {}
-      renderContextVault(); wireContextVault();
-    });
-  }
-  for (const btn of state.canvas.querySelectorAll("[data-cv-copy-distilled]")) {
-    btn.addEventListener("click", async () => {
-      const d = contextDistilledById(btn.dataset.cvCopyDistilled);
-      if (!d) return;
-      const ok = await copyTextToClipboard(d.body_md || "");
-      flashCopyButton(btn, ok);
-    });
-  }
-  // "Send it to me" (2026-07-02 feedback), scoped safe: prefill a mailto draft
-  // in the member's OWN mail client — no server-side send, no admin queue, and
-  // the member is the only trigger. mailto bodies have practical length limits,
-  // so the full markdown goes to the clipboard and the draft carries the
-  // summary + the head of the readout with a paste note.
-  for (const btn of state.canvas.querySelectorAll("[data-cv-email-distilled]")) {
-    btn.addEventListener("click", async () => {
-      const d = contextDistilledById(btn.dataset.cvEmailDistilled);
-      if (!d || !window.api?.openExternal) return;
-      const md = String(d.body_md || "");
-      await copyTextToClipboard(md);
-      const subject = `Distilled readout: ${distilledTranscriptTitle(d)}`;
-      const body = [
-        distilledTranscriptMeta(d),
-        d.summary || "",
-        Array.isArray(d.themes) && d.themes.length ? `themes: ${d.themes.join(", ")}` : "",
-        "",
-        md.slice(0, 1400),
-        md.length > 1400 ? "\n[truncated — the full readout is on your clipboard, paste it here]" : "",
-      ].filter(Boolean).join("\n");
-      window.api.openExternal(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
-    });
-  }
-  const keyForm = state.canvas.querySelector("[data-cv-cohort-key-form]");
-  if (keyForm) {
-    keyForm.addEventListener("submit", (e) => {
-      e.preventDefault();
-      submitCohortKeyForm(keyForm);
-    });
+  for (const btn of state.canvas.querySelectorAll("[data-cv-topic]")) {
+    btn.addEventListener("click", () => selectContextTopic(btn.dataset.cvTopic));
   }
   const composeForm = state.canvas.querySelector("form[data-cv-compose]");
   if (composeForm) {
@@ -16217,7 +16154,59 @@ function wireContextVault() {
   wireContextVaultToolbar();
   wireContextVaultResize();
   applyContextPrefs();
-  wireContextVaultDetailActions(state.canvas);
+  wireContextDetailRegion(state.canvas);
+}
+
+// Everything that lives INSIDE the reader column — rewired after every
+// in-place detail swap (stream selection, topic page, library open/back) as
+// well as on full renders.
+function wireContextDetailRegion(root = state.canvas) {
+  if (!root) return;
+  for (const btn of root.querySelectorAll("[data-cv-lib-open]")) {
+    btn.addEventListener("click", () => openContextLibraryItem(btn.dataset.cvLibOpen));
+  }
+  for (const btn of root.querySelectorAll("[data-cv-lib-back]")) {
+    btn.addEventListener("click", () => closeContextLibraryItem());
+  }
+  for (const btn of root.querySelectorAll("[data-cv-copy-distilled]")) {
+    btn.addEventListener("click", async () => {
+      const d = contextDistilledById(btn.dataset.cvCopyDistilled);
+      if (!d) return;
+      const ok = await copyTextToClipboard(d.body_md || "");
+      flashCopyButton(btn, ok);
+    });
+  }
+  // "Send it to me" (2026-07-02 feedback), scoped safe: prefill a mailto draft
+  // in the member's OWN mail client — no server-side send, no admin queue, and
+  // the member is the only trigger. mailto bodies have practical length limits,
+  // so the full markdown goes to the clipboard and the draft carries the
+  // summary + the head of the readout with a paste note.
+  for (const btn of root.querySelectorAll("[data-cv-email-distilled]")) {
+    btn.addEventListener("click", async () => {
+      const d = contextDistilledById(btn.dataset.cvEmailDistilled);
+      if (!d || !window.api?.openExternal) return;
+      const md = String(d.body_md || "");
+      await copyTextToClipboard(md);
+      const subject = `Distilled readout: ${distilledTranscriptTitle(d)}`;
+      const body = [
+        distilledTranscriptMeta(d),
+        d.summary || "",
+        Array.isArray(d.themes) && d.themes.length ? `themes: ${d.themes.join(", ")}` : "",
+        "",
+        md.slice(0, 1400),
+        md.length > 1400 ? "\n[truncated — the full readout is on your clipboard, paste it here]" : "",
+      ].filter(Boolean).join("\n");
+      window.api.openExternal(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+    });
+  }
+  const keyForm = root.querySelector("[data-cv-cohort-key-form]");
+  if (keyForm) {
+    keyForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      submitCohortKeyForm(keyForm);
+    });
+  }
+  wireContextVaultDetailActions(root);
 }
 
 // Live sidebar filter — text (title / subject / tags) AND an optional tag chip.
