@@ -12168,9 +12168,12 @@ function renderProgramMarkdown(md) {
     t = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
     t = t.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
     t = t.replace(/_([^_\n]+)_/g, "<em>$1</em>");
-    // [label](url)
+    // [label](url) — encode quotes so a URL can never break out of the href
+    // attribute (escHtmlPreserve leaves `"` alone, and model/transcript-derived
+    // markdown flows through here via the distill/restyle previews).
     t = t.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, url) => {
-      const safe = url.startsWith("http") || url.startsWith("/") || url.startsWith("#") ? url : "#";
+      const safe = (url.startsWith("http") || url.startsWith("/") || url.startsWith("#") ? url : "#")
+        .replace(/"/g, "%22").replace(/'/g, "%27");
       return `<a href="${safe}" data-external>${label}</a>`;
     });
     return t;
@@ -16516,6 +16519,7 @@ function wireContextVaultDetailActions(root = state.canvas) {
         say(`
           <div class="alch-cv-pvbanner"><span class="alch-cv-pvdot"></span><b>preview</b> distilled by your AI · not saved</div>
           <article class="alch-cv-reader alch-cv-article-md">${renderProgramMarkdown(contextCleanRewrite(r.text))}</article>`);
+        if (result) wireExternalLinks(result);   // markdown links → default browser, never a window navigation
       } else {
         say(`<p class="alch-onb-inline-line alch-onb-inline-err">couldn't distill: ${escHtml((r && r.error) === "busy" ? "the bot is busy right now — try again in a moment" : (r && r.error) || "no reply")}</p>`);
       }
