@@ -238,6 +238,26 @@ function createController() {
     dial.setAttribute("aria-expanded", isOpen ? "true" : "false");
   }
 
+  // Aliveness signals on the corner dial. Collapsing the panel deliberately
+  // KEEPS a turn running (see close()), but nothing said so — the dial now
+  // pulses while a collapsed turn works and wears a badge once the answer is
+  // waiting, so the loop the collapse opened gets visibly closed.
+  function setDialActivity({ running = null, news = null } = {}) {
+    const dial = document.getElementById("cohort-chat-dial");
+    if (!dial) return;
+    if (running != null) dial.classList.toggle("is-running", !!running);
+    if (news != null) {
+      dial.classList.toggle("has-news", !!news);
+      dial.title = news ? "answer ready — open chat" : "Ask the cohort (Ctrl+Shift+K)";
+    }
+  }
+  // Same loop for in-panel view switches: an answer that lands while you're on
+  // sync/transcript/search dots the ask tab until you look.
+  function markAskTabNews(on) {
+    const t = tabsEl ? tabsEl.querySelector('.cc-tab[data-cc-tab="ask"]') : null;
+    if (t) t.classList.toggle("has-news", !!on);
+  }
+
   const CHAT_ONBOARDED_KEY = "srwk:chat_onboarded_v1";
 
   // Open/close the dock. The OS window grows to the RIGHT so the panel is ADDED
@@ -288,11 +308,41 @@ function createController() {
     let wantFull = false; try { wantFull = localStorage.getItem("srwk:chat_expanded_v1") === "1"; } catch {}
     setChatFull(wantFull, { remember: false });
     syncDial(true);  // dial state only
+    setDialActivity({ news: false });  // you're looking now — the badge is spent
     setDocked(true);  // grows the window + opens the dock (owns html.cohort-chat-open)
     window.addEventListener("keydown", onKey, true);
     setTimeout(() => input.focus(), 60);
     refreshReadiness();
+    void renderLiveLine();
     void onboardThenOffer();
+  }
+
+  // One line of live cohort vitals in the welcome — the panel opens onto proof
+  // that the surface underneath is current, not a static brochure. Best-effort:
+  // hidden whenever the surface (or its counts) aren't loadable.
+  async function renderLiveLine() {
+    const el = $("cc-live-line");
+    if (!el) return;
+    let surface = null;
+    try { surface = await getCohortSurface(); } catch {}
+    const teams = surface && Array.isArray(surface.teams) ? surface.teams.length : 0;
+    const people = surface && Array.isArray(surface.people) ? surface.people.length : 0;
+    if (!teams && !people) { el.hidden = true; return; }
+    const wn = surface && Array.isArray(surface.whats_new) ? surface.whats_new : [];
+    const latest = wn[0] && wn[0].date ? relativeDay(wn[0].date) : "";
+    el.textContent = `${teams} teams · ${people} people${latest ? ` · latest activity ${latest}` : ""}`;
+    el.hidden = false;
+  }
+  // Calendar-day distance (membrane's feedAge convention): later-today reads
+  // "today", never "in 0d"; future program items also read "today".
+  function relativeDay(dateText) {
+    const then = Date.parse(String(dateText || ""));
+    if (!Number.isFinite(then)) return "";
+    const day = (ms) => { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); };
+    const days = Math.round((day(Date.now()) - day(then)) / 86400000);
+    if (days <= 0) return "today";
+    if (days === 1) return "yesterday";
+    return `${days}d ago`;
   }
 
   // Keep activePage tracking the page the member is ACTUALLY on. Called on
@@ -1268,6 +1318,10 @@ function createController() {
   function finishRun(label, failMsg) {
     clearInterval(elapsedTimer); elapsedTimer = null;
     setStatus(failMsg ? "error" : "idle", label || "idle");
+    // Close the collapsed-run loop: badge the dial when the panel is away, or
+    // dot the ask tab when you're on another view. Both clear on look.
+    setDialActivity({ running: false, news: panel.hidden ? true : null });
+    if (!panel.hidden && lastView !== "ask") markAskTabNews(true);
     sendBtn.hidden = false;
     stopBtn.hidden = true;
     let parsed = null;
@@ -1414,6 +1468,7 @@ function createController() {
     activeBubbleBody.classList.add("is-streaming");
     activeStream = createChatStream();
     setStatus("running", "thinking…");
+    setDialActivity({ running: true, news: false });
     sendBtn.hidden = true;
     stopBtn.hidden = false;
 
@@ -1473,6 +1528,7 @@ function createController() {
         }
         clearRunCard({ error: true });
         setStatus("error", "failed");
+        setDialActivity({ running: false });
         setPreMsg(msg, "error");
         sendBtn.hidden = false;
         stopBtn.hidden = true;
@@ -1488,6 +1544,7 @@ function createController() {
       }
       clearRunCard({ error: true });
       setStatus("error", "failed");
+      setDialActivity({ running: false });
       setPreMsg(msg, "error");
       sendBtn.hidden = false;
       stopBtn.hidden = true;
@@ -1588,8 +1645,9 @@ function createController() {
       t.classList.toggle("is-active", on);
       t.setAttribute("aria-selected", on ? "true" : "false");
     });
-    // Returning to "ask" restores the welcome when nothing's been asked yet.
-    if (view === "ask") syncWelcome();
+    // Returning to "ask" restores the welcome when nothing's been asked yet —
+    // and spends the finished-answer dot, since you're looking at it now.
+    if (view === "ask") { syncWelcome(); markAskTabNews(false); }
     lastView = view;
   }
 

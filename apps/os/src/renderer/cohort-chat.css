@@ -167,6 +167,17 @@ body[data-active-tab="matrix"] .cohort-chat-dial-wrap {
   border-bottom-color: var(--cc-tab-tint);
 }
 .cc-tab:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: -2px; }
+/* An answer landed while you were on another view — dot the ask tab until seen. */
+.cc-tab.has-news::after {
+  content: "";
+  display: inline-block;
+  width: 6px; height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--cc-tab-tint);
+  vertical-align: 1px;
+  animation: cc-badge-in 0.25s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
 .cc-tabs[hidden] { display: none; }
 
 /* ── drag-to-resize handle on the panel's left edge ──────────────────────── */
@@ -342,6 +353,28 @@ body.cc-resizing .cc-resize::before { background: var(--ds-accent); }
   margin-bottom: 14px;
 }
 .cohort-chat-empty-lede b { color: var(--ds-accent); font-weight: 600; }
+/* Live cohort vitals — one breathing dot + counts, proof the surface is fresh. */
+.cc-live-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin: -6px 0 12px;
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  color: var(--ds-ink-3);
+}
+.cc-live-line[hidden] { display: none; }
+.cc-live-line::before {
+  content: "";
+  flex: none;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--ds-accent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cc-live-line::before { animation: cc-pulse 2.4s ease-in-out infinite; }
+}
 /* Purpose outline — one line per tab so first-open answers "what does this do?" */
 .cc-purpose {
   display: flex;
@@ -1322,6 +1355,35 @@ html[data-theme="light"] .cohort-chat-dial:hover { color: var(--ds-ink-1); }
 }
 .cohort-chat-dial.is-open { color: var(--ds-accent-hover); border-color: color-mix(in srgb, var(--ds-accent) 64%, var(--ds-border-strong)); }
 
+/* A collapsed panel keeps its turn running (close() is a collapse) — the dial
+   carries that state: an accent ring-pulse while working… */
+.cohort-chat-dial.is-running {
+  border-color: color-mix(in srgb, var(--ds-accent) 55%, var(--ds-border-strong));
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cohort-chat-dial.is-running { animation: cc-dial-working 1.5s ease-in-out infinite; }
+}
+@keyframes cc-dial-working {
+  0%, 100% { box-shadow: 0 10px 24px rgba(0, 0, 0, 0.34), 0 0 0 0 color-mix(in srgb, var(--ds-accent) 45%, transparent); }
+  50%      { box-shadow: 0 10px 24px rgba(0, 0, 0, 0.34), 0 0 0 5px color-mix(in srgb, var(--ds-accent) 12%, transparent); }
+}
+/* …and a badge once the answer is waiting (cleared the moment you open). The
+   dial tucks into the window corner, so the visible quadrant is its top-left. */
+.cohort-chat-dial.has-news::after {
+  content: "";
+  position: absolute;
+  top: 4px; left: 4px;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--ds-accent);
+  border: 2px solid var(--ds-surface-1);
+  animation: cc-badge-in 0.25s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+@keyframes cc-badge-in {
+  from { transform: scale(0); }
+  to   { transform: scale(1); }
+}
+
 .cc-dial-glyph { position: relative; width: calc(var(--cc-win-corner) * 1.2); height: calc(var(--cc-win-corner) * 1.2); }
 
 /* Press feedback for the panel's small chip-buttons (the DS family covers the
@@ -1331,8 +1393,22 @@ html[data-theme="light"] .cohort-chat-dial:hover { color: var(--ds-ink-1); }
   .cc-jump-latest:active { transform: translateX(-50%) scale(0.97); }
 }
 
+/* Preset chips settle in with a small stagger when the page changes under an
+   open panel — the row visibly follows your navigation. (Label is child 1.) */
+@media (prefers-reduced-motion: no-preference) {
+  .cc-page-preset { animation: cc-chip-in 0.18s ease-out both; }
+  .cc-page-preset:nth-child(2) { animation-delay: 0.03s; }
+  .cc-page-preset:nth-child(3) { animation-delay: 0.07s; }
+  .cc-page-preset:nth-child(4) { animation-delay: 0.11s; }
+}
+@keyframes cc-chip-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cohort-chat-card { animation: none; }
+  .cohort-chat-dial.has-news::after, .cc-tab.has-news::after { animation: none; }
   .cohort-chat-action-menu,
   .cohort-chat-dial,
   .cc-launcher-action { transition: none; }
