@@ -781,6 +781,23 @@ function createController() {
     return { sessionTypes: FALLBACK_TRANSCRIPT_TYPES, confidenceOptions: FALLBACK_TRANSCRIPT_CONFIDENCE };
   }
 
+  // The upload token resolves automatically — you're already in the app, so it
+  // should carry your credentials (2026-07-03 feedback: "you need a supabase key
+  // but that should automatically be the app"). Order: an explicit manual
+  // override → the signed-in member's Supabase session token → the build's
+  // baked cohort key. Manual entry remains only as the advanced escape hatch.
+  async function resolveIntakeToken(explicit) {
+    const manual = String(explicit || "").trim();
+    if (manual) return { token: manual, source: "manual" };
+    try {
+      const s = window.api?.auth?.getSession ? await window.api.auth.getSession() : null;
+      if (s && s.access_token) return { token: String(s.access_token), source: "login" };
+    } catch { /* fall through */ }
+    const baked = (window.api && typeof window.api.cohortKey === "string") ? window.api.cohortKey.trim() : "";
+    if (baked) return { token: baked, source: "app" };
+    return { token: "", source: "none" };
+  }
+
   function readTranscriptSupabaseConfig() {
     const base = readSupabaseConfig();
     const ingress = loadCalendarIngressConfig();
@@ -905,6 +922,18 @@ function createController() {
     let confidence = confidenceOptions[0]?.key || "sure";
     let selectedFile = null;
     let busy = false;
+
+    // Say HOW the upload will authenticate, up front — signed-in members and
+    // provisioned builds never need to think about tokens.
+    const connSummary = card.querySelector(".cc-upload-connection summary");
+    void (async () => {
+      const r = await resolveIntakeToken(readTranscriptSupabaseConfig().accessToken);
+      if (!connSummary) return;
+      if (r.source === "login") connSummary.textContent = "✓ uploads as you (signed in) — override (advanced)";
+      else if (r.source === "app") connSummary.textContent = "✓ connected through the app — override (advanced)";
+      else if (r.source === "manual") connSummary.textContent = "✓ manual token set — storage connection (advanced)";
+      else connSummary.textContent = "⚠ not connected — set a token here, or sign in";
+    })();
 
     function setStatus(kind, text) {
       if (!text) { stat.hidden = true; stat.textContent = ""; return; }
@@ -1038,6 +1067,7 @@ function createController() {
       setStatus("", "uploading…");
       try {
         const currentConfig = readTranscriptSupabaseConfig();
+        const resolved = await resolveIntakeToken(token.value || currentConfig.accessToken);
         const res = await window.api.submitTranscriptIntake({
           filePath: selectedFile.filePath,
           sessionType: type.key,
@@ -1049,7 +1079,7 @@ function createController() {
           supabase: {
             ...currentConfig,
             orgId: (org.value || currentConfig.orgId || "").trim(),
-            accessToken: (token.value || currentConfig.accessToken || "").trim(),
+            accessToken: resolved.token,
           },
         });
         if (res && res.ok) {
