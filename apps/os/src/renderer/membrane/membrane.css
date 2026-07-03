@@ -122,6 +122,7 @@ html[data-theme="light"] .mfeed-event-changed { --mfeed-color: #b9821f; }  /* am
    (so a [data-cat] override wins and the card inherits it). */
 html[data-theme="light"] .magenda-event { --c2-acc: #6f655e; }
 html[data-theme="light"] .magenda-up    { --c2-acc: #6f655e; }
+html[data-theme="light"] .magenda-later { --c2-acc: #6f655e; }
 html[data-theme="light"] .magenda-event,
 html[data-theme="light"] .magenda-up-event {
   background: color-mix(in srgb, var(--c2-acc) 28%, #ffffff);
@@ -162,14 +163,14 @@ html[data-theme="light"] .magenda-now::after {
    entirely on paper — lift the resting floor (hover/open still snap to 1). */
 html[data-theme="light"] .membrane-host { --mfb-rest-opacity: 0.55; }
 
-html[data-theme="light"] .membrane-agenda [data-cat="oh"]      { --c2-acc: #c4763f; }
+html[data-theme="light"] .membrane-agenda [data-cat="oh"]      { --c2-acc: #c98643; }
 html[data-theme="light"] .membrane-agenda [data-cat="salon"]   { --c2-acc: #a87fc0; }
 html[data-theme="light"] .membrane-agenda [data-cat="weekly"]  { --c2-acc: #79a06a; }
 html[data-theme="light"] .membrane-agenda [data-cat="coord"]   { --c2-acc: #c9a338; }
-html[data-theme="light"] .membrane-agenda [data-cat="review"]  { --c2-acc: #d9883f; }
+html[data-theme="light"] .membrane-agenda [data-cat="review"]  { --c2-acc: #c25a75; }
 html[data-theme="light"] .membrane-agenda [data-cat="hack"]    { --c2-acc: #6f90c4; }
-html[data-theme="light"] .membrane-agenda [data-cat="demo"]    { --c2-acc: #c75f34; }
-html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #79a06a; }
+html[data-theme="light"] .membrane-agenda [data-cat="demo"]    { --c2-acc: #c7532f; }
+html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #8ba03e; }
 
 .membrane-host {
   position: relative;
@@ -740,35 +741,11 @@ html[data-theme="light"] .membrane-agenda .magenda-next {
 }
 .membrane-agenda .magenda-add svg { width: 13px; height: 13px; display: block; }
 
-/* Hover-reveal CTA — mirror of the left feed's .mfeed-cta grammar (grid
-   0fr→1fr accordion; fast collapse at rest, slower reveal on hover — the
-   house asymmetric-timing law) so the two rails share one hover vocabulary.
-   Right-aligned by the card's own flex-end column; tinted by its category. */
-.magenda-cta {
-  display: grid;
-  grid-template-rows: 0fr;
-  opacity: 0;
-  transition: grid-template-rows 170ms cubic-bezier(0.65, 0, 0.05, 1),
-              opacity 120ms ease;
-}
-.magenda-cta-inner {
-  min-height: 0;
-  overflow: hidden;
-  padding-top: 3px;   /* clipped to 0 while collapsed; breathes once open */
-}
-.magenda-cta-go {
-  font-size: 9.5px;
-  letter-spacing: 0.04em;
-  font-weight: 600;
-  color: var(--c2-acc);
-}
-.membrane-agenda .magenda-up:hover .magenda-cta,
-.membrane-agenda .magenda-up:focus-within .magenda-cta {
-  grid-template-rows: 1fr;
-  opacity: 1;
-  transition: grid-template-rows 260ms cubic-bezier(0.19, 1, 0.22, 1),
-              opacity 200ms ease 60ms;
-}
+/* The old .magenda-cta hover layer (grid 0fr→1fr accordion) grew a row INSIDE
+   the card, stretching it and shifting every card below — you could never
+   read a card calmly (2026-07-03 feedback). Fully removed: hover now only
+   tints (the .magenda-up-event:hover rules); the title attribute still names
+   the click destination. */
 
 .magenda-up-event .magenda-event-title {
   max-width: 100%;
@@ -780,16 +757,59 @@ html[data-theme="light"] .membrane-agenda .magenda-next {
   overflow-wrap: anywhere;
   color: rgba(var(--mem-ink-rgb), 0.85);
 }
+/* ── agenda "later" fold ── far-future events as one-line rows under a single
+   quiet head, instead of full cards under far-off day heads. Same grammar as
+   the up-event cards (right-aligned, category edge-tick on the screen-edge
+   side) at the mono 2xs tier. Declared ABOVE the [data-cat] colour tier so a
+   category hue on the row wins over this default (same pattern as
+   .magenda-up / .magenda-next). */
+.membrane-agenda .magenda-later {
+  --c2-acc: #8f817a;          /* default tier; [data-cat] overrides below win */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  width: 100%;
+  padding: 5px 8px;
+  border: 0;
+  border-right: 2px solid color-mix(in srgb, var(--c2-acc) 55%, transparent);
+  border-radius: 5px 0 0 5px;
+  background: transparent;
+  color: rgba(var(--mem-ink-rgb), 0.6);
+  font: inherit;
+  text-align: right;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+.membrane-agenda .magenda-later:hover {
+  background: color-mix(in srgb, var(--c2-acc) 18%, transparent);
+  color: rgba(var(--mem-ink-rgb), 0.88);
+}
+.membrane-agenda .magenda-later:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--membrane-ember) 45%, transparent);
+  outline-offset: 1px;
+}
+.magenda-later .magenda-event-title {
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+}
+.magenda-later .magenda-event-time {
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+}
+
 /* Category colours — same hexes as calendar.css so the two surfaces match.
    'default' is the inherited --c2-acc above. */
-.membrane-agenda [data-cat="oh"]      { --c2-acc: #d98a5c; }
+/* Category accents — one hue step per category (was: three near-identical
+   oranges for oh/review/demo and weekly==anarchy). Mirrors calendar.css. */
+.membrane-agenda [data-cat="oh"]      { --c2-acc: #e2a06b; }
 .membrane-agenda [data-cat="salon"]   { --c2-acc: #c9a8d8; }
 .membrane-agenda [data-cat="weekly"]  { --c2-acc: #a8c79f; }
 .membrane-agenda [data-cat="coord"]   { --c2-acc: #e3c77f; }
-.membrane-agenda [data-cat="review"]  { --c2-acc: #f3b174; }
+.membrane-agenda [data-cat="review"]  { --c2-acc: #ec93a4; }
 .membrane-agenda [data-cat="hack"]    { --c2-acc: #9fb8d8; }
-.membrane-agenda [data-cat="demo"]    { --c2-acc: #e07a4e; }
-.membrane-agenda [data-cat="anarchy"] { --c2-acc: #a8c79f; }
+.membrane-agenda [data-cat="demo"]    { --c2-acc: #e86a4e; }
+.membrane-agenda [data-cat="anarchy"] { --c2-acc: #c6cf8d; }
 
 /* "What's new" feed — left-edge stream of cohort activity. Above the canvas
    (so items are clickable), scrollable, color-coded by kind. Each item is a
@@ -1088,12 +1108,11 @@ html[data-theme="light"] .membrane-agenda .magenda-next {
 .mfeed-category-row:nth-last-child(1) { opacity: 0.78; }
 .mfeed-category-row:hover,
 .mfeed-category-row:focus-within,
-.mfeed-category-row.is-expanded { opacity: 1; z-index: 22; }
+.mfeed-category-row.is-popped { opacity: 1; z-index: 22; }
 .mfeed-category-row.is-entering { animation: mfeed-enter 280ms cubic-bezier(0.19, 1, 0.22, 1); }
 
 .mfeed-category,
-.mfeed-detail-row,
-.mfeed-sprawl-row {
+.mfeed-detail-row {
   display: flex;
   align-items: stretch;
   gap: 9px;
@@ -1119,7 +1138,7 @@ html[data-theme="light"] .membrane-agenda .magenda-next {
 }
 .mfeed-category:hover,
 .mfeed-category:focus-visible,
-.mfeed-category-row.is-expanded .mfeed-category {
+.mfeed-category-row.is-popped .mfeed-category {
   background: var(--mfeed-lift-bg);
   border-color: color-mix(in srgb, var(--mfeed-color, rgba(var(--mem-ink-rgb), 0.4)) 40%, transparent);
   box-shadow: 0 12px 30px -18px color-mix(in srgb, var(--mfeed-color, #000) 70%, transparent),
@@ -1150,60 +1169,58 @@ html[data-theme="light"] .membrane-agenda .magenda-next {
   background: rgba(var(--mem-ink-rgb), 0.08);
   border: 1px solid rgba(var(--mem-ink-rgb), 0.1);
 }
-.mfeed-sprawl {
+/* ── the category popover ────────────────────────────────────────────────
+   All category detail lives here — one panel anchored beside the rail (top
+   set inline by renderFeedPop). Hover previews it and the pointer can travel
+   into it; click pins (.is-pinned). It sits OUTSIDE the rail's masked column,
+   so nothing clips, and the list scrolls past max-height. Replaces both the
+   old fly-out (unreachable) and the in-flow detail (clipped, unscrollable). */
+.mfeed-pop {
   position: absolute;
-  left: calc(100% + 10px);
-  top: 0;
-  width: 248px;
-  display: grid;
-  gap: 6px;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateX(-8px) scale(0.98);
-  transform-origin: left top;
-  transition: opacity 180ms ease,
-              transform 240ms cubic-bezier(0.19, 1, 0.22, 1);
-}
-.mfeed-category-row:hover .mfeed-sprawl,
-.mfeed-category-row:focus-within .mfeed-sprawl {
-  opacity: 1;
-  transform: translateX(0) scale(1);
-}
-.mfeed-sprawl-row {
-  min-height: 38px;
-  padding: 7px 9px;
+  left: 232px;
+  width: 306px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(var(--mem-ink-rgb), 0.14);
+  border-radius: 11px;
   background: var(--mfeed-lift-bg);
   backdrop-filter: blur(12px) saturate(1.08);
   -webkit-backdrop-filter: blur(12px) saturate(1.08);
-  box-shadow: 0 10px 24px -18px color-mix(in srgb, var(--mfeed-color, #000) 60%, transparent),
-              0 0 0 1px rgba(var(--mem-ink-rgb), 0.04);
+  box-shadow: 0 18px 44px -20px rgba(0, 0, 0, 0.6),
+              0 0 0 1px rgba(var(--mem-ink-rgb), 0.03);
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  animation: mfeed-pop-in 200ms cubic-bezier(0.19, 1, 0.22, 1);
 }
-.mfeed-category-detail {
-  margin-top: 7px;
-  padding: 8px;
-  display: grid;
-  gap: 6px;
-  border: 1px solid rgba(var(--mem-ink-rgb), 0.07);
-  border-radius: 9px;
-  background: rgba(var(--mem-ink-rgb), 0.055);
-  box-shadow: 0 12px 28px -24px rgba(0, 0, 0, 0.5);
-  animation: mfeed-detail-in 220ms cubic-bezier(0.19, 1, 0.22, 1);
+.mfeed-pop.is-pinned { border-color: rgba(var(--mem-ink-rgb), 0.22); }
+@keyframes mfeed-pop-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: none; }
 }
-@keyframes mfeed-detail-in {
-  from { opacity: 0; transform: translateY(-4px); }
-  to   { opacity: 1; transform: translateY(0); }
+@media (prefers-reduced-motion: reduce) {
+  .mfeed-pop { animation: none; }
 }
-.mfeed-detail-head {
+.mfeed-pop-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 2px 2px;
-  font-size: 9px;
-  letter-spacing: 0.05em;
-  color: rgba(var(--mem-ink-rgb), 0.42);
+  gap: 7px;
+  padding: 9px 10px;
+  border-bottom: 1px solid rgba(var(--mem-ink-rgb), 0.08);
 }
-.mfeed-detail-open {
+.mfeed-pop-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: rgba(var(--mem-ink-rgb), 0.92);
+}
+.mfeed-pop-count {
+  flex: 1 1 auto;
+  font-size: 9px;
+  color: rgba(var(--mem-ink-rgb), 0.45);
+}
+.mfeed-pop-actions { display: flex; align-items: center; gap: 5px; }
+.mfeed-pop-act {
   height: 22px;
   padding: 0 8px;
   border: 1px solid rgba(var(--mem-ink-rgb), 0.1);
@@ -1213,15 +1230,51 @@ html[data-theme="light"] .membrane-agenda .magenda-next {
   font: inherit;
   font-size: 9px;
   cursor: pointer;
-  transition: background 150ms ease,
-              color 150ms ease,
-              transform 150ms cubic-bezier(0.19, 1, 0.22, 1);
+  transition: background 150ms ease, color 150ms ease;
 }
-.mfeed-detail-open:hover {
+.mfeed-pop-act:hover {
   background: rgba(var(--mem-ink-rgb), 0.14);
   color: rgba(var(--mem-ink-rgb), 0.9);
 }
-.mfeed-detail-open:active { transform: scale(0.96); }
+/* clear = the destructive one; reads quieter until you mean it */
+.mfeed-pop-clear { border-style: dashed; color: rgba(var(--mem-ink-rgb), 0.5); }
+.mfeed-pop-x {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: rgba(var(--mem-ink-rgb), 0.55);
+  cursor: pointer;
+}
+.mfeed-pop-x:hover { background: rgba(var(--mem-ink-rgb), 0.12); color: rgba(var(--mem-ink-rgb), 0.9); }
+.mfeed-pop-x svg { width: 12px; height: 12px; }
+.mfeed-pop-list {
+  overflow-y: auto;
+  max-height: min(46vh, 380px);
+  padding: 7px;
+  display: grid;
+  gap: 6px;
+  scrollbar-width: thin;
+}
+.mfeed-pop-excerpt {
+  display: block;
+  margin-top: 3px;
+  font-size: 10px;
+  font-style: italic;
+  line-height: 1.5;
+  color: rgba(var(--mem-ink-rgb), 0.55);
+}
+.mfeed-pop-act:focus-visible,
+.mfeed-pop-x:focus-visible,
+.mfeed-pop-row:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--membrane-ember) 45%, transparent);
+  outline-offset: 1px;
+}
 .mfeed-detail-row {
   min-height: 40px;
   padding: 7px 9px;
@@ -1233,6 +1286,48 @@ html[data-theme="light"] .membrane-agenda .magenda-next {
 .mfeed-detail-row:hover {
   background: rgba(var(--mem-ink-rgb), 0.11);
   border-color: color-mix(in srgb, var(--mfeed-color, rgba(var(--mem-ink-rgb), 0.4)) 34%, transparent);
+}
+
+/* ── rail type filter ────────────────────────────────────────────────────
+   Reversible visibility per notification TYPE — the complement to the
+   one-way dismiss X. Chips carry the kind's --mfeed-color dot. */
+.mfeed-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 0 5px;
+}
+.mfeed-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border: 1px solid rgba(var(--mem-ink-rgb), 0.14);
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(var(--mem-ink-rgb), 0.62);
+  font: inherit;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: color 150ms ease, border-color 150ms ease, opacity 150ms ease;
+}
+.mfeed-filter-chip:hover { color: rgba(var(--mem-ink-rgb), 0.9); border-color: rgba(var(--mem-ink-rgb), 0.28); }
+.mfeed-filter-chip:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--membrane-ember) 45%, transparent);
+  outline-offset: 1px;
+}
+.mfeed-filter-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--mfeed-color, rgba(var(--mem-ink-rgb), 0.4));
+}
+.mfeed-filter-n { color: rgba(var(--mem-ink-rgb), 0.4); font-variant-numeric: tabular-nums; }
+.mfeed-filter-chip.is-off { opacity: 0.42; border-style: dashed; }
+.mfeed-filter-chip.is-off .mfeed-filter-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--mfeed-color, rgba(var(--mem-ink-rgb), 0.4));
 }
 
 /* ── hover layer ─────────────────────────────────────────────────────────
@@ -2696,7 +2791,6 @@ html[data-theme="light"] .membrane-agenda .magenda-next {
      (dismiss control visible on hover/focus; cards present) but drop the
      transforms, blur, and easing so nothing animates. */
   .mfeed-row, .mfeed-item, .mfeed-dismiss, .mfeed-cta,
-  .magenda-cta,
   .membrane-agenda .magenda-up,
   .membrane-agenda .magenda-up-event,
   .membrane-agenda .magenda-event,
@@ -2707,9 +2801,7 @@ html[data-theme="light"] .membrane-agenda .magenda-next {
   /* The hover layer still REVEALS (un-truncate + CTA visible) — just without
      the grid-row accordion. Force the revealed track open instantly. */
   .mfeed-row:hover .mfeed-cta,
-  .mfeed-row:focus-within .mfeed-cta,
-  .membrane-agenda .magenda-up:hover .magenda-cta,
-  .membrane-agenda .magenda-up:focus-within .magenda-cta { grid-template-rows: 1fr; }
+  .mfeed-row:focus-within .mfeed-cta { grid-template-rows: 1fr; }
   /* Keep the add control centred; drop only its scale punctuation. */
   .membrane-agenda .magenda-add,
   .membrane-agenda .magenda-up:hover .magenda-add,
@@ -3236,3 +3328,235 @@ html[data-theme="light"] .membrane-ask-verb .alch-asks-verb-svg { color: #fff; }
 }
 .membrane-feedback-send:active:not(:disabled) { transform: translateY(1px) scale(0.98); }
 .membrane-feedback-send:disabled { opacity: 0.4; cursor: default; }
+
+/* ── Hub prototype (.membrane-hub): asks beside the shape + capture bar ───
+   The die keeps the center as the focal anchor; open asks (say / maybe — the
+   human layer) stack up the LEFT edge of the field and pop out from the left
+   (2026-07-03: "instead of keeping the chat bubbles sprawled around the
+   shape, keep them able to pop out from the left"). Machine "did" lives in
+   the left rail with the other notifications. Scoped entirely under
+   .membrane-hub so the prototype is one class-removal away from reverting. */
+
+/* The die is the focus again — just a whisper of dim so row text reads. */
+.membrane-hub .membrane-canvas { opacity: 0.85; }
+
+/* The feedback pill's bottom-center spot now belongs to the capture bar.
+   Direction (not built in v0): OS feedback becomes a say → "to: OS" target. */
+.membrane-hub .membrane-feedback { display: none; }
+
+.membrane-field-feed {
+  position: absolute;
+  /* Clear the left feed (224px) and right agenda (196px) rails. */
+  left: 244px;
+  right: 216px;
+  top: 84px;
+  bottom: 98px;
+  z-index: 3;
+  /* One left-hugging column, newest at the bottom next to the capture bar —
+     the die keeps the center-right of the field to itself. */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: 7px;
+  pointer-events: none;        /* the void stays clickable beside rows */
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+.mff-row {
+  pointer-events: auto;
+  box-sizing: border-box;
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  width: min(420px, 56%);
+  max-width: 100%;
+  padding: 7px 11px;
+  border: 1px solid rgba(var(--mem-ink-rgb), 0.09);
+  border-radius: 10px;
+  background: var(--membrane-card-bg);
+}
+/* Older rows recede a touch; the newest (bottom, by the capture bar) reads
+   at full strength. */
+.mff-row:not(:last-child) { opacity: 0.84; }
+.mff-row.is-entering {
+  animation: mff-enter 360ms ease-out both;
+}
+/* Pop out from the left — rows are static column members now, so the entry
+   transform is free. */
+@keyframes mff-enter {
+  from { opacity: 0; transform: translateX(-18px); }
+  to   { opacity: 1; transform: none; }
+}
+/* Narrow windows: the center zone is barely wider than the rails — let the
+   rows take the full column width. */
+@media (max-width: 1180px) {
+  .mff-row { width: min(480px, 100%); }
+}
+
+.mff-verb {
+  flex: none;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--mff-tint);
+  color: var(--mff-ink);
+}
+.mff-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(var(--mem-ink-rgb), 0.92);
+  overflow-wrap: anywhere;
+}
+.mff-author { color: rgba(var(--mem-ink-rgb), 0.55); }
+.mff-author::after { content: ' — '; color: rgba(var(--mem-ink-rgb), 0.35); }
+.mff-age {
+  flex: none;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: rgba(var(--mem-ink-rgb), 0.4);
+}
+.mff-quiet {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: rgba(var(--mem-ink-rgb), 0.4);
+  padding-bottom: 8px;
+}
+
+/* ── capture bar ── */
+.membrane-capture {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 6;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: min(640px, calc(100% - 452px));
+  min-width: 340px;
+  padding: 8px;
+  border: 1px solid rgba(var(--mem-ink-rgb), 0.14);
+  border-radius: 13px;
+  background: var(--membrane-card-top);
+  backdrop-filter: blur(7px);
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+/* Step aside for the Rubik's easter-egg controls, like the pill did. */
+.membrane-rubiks-active .membrane-capture {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 300ms ease, visibility 0s linear 300ms;
+}
+
+/* The bar itself is the field: verbs sit in one segmented pill, the input is
+   borderless inside the bar, and focus lights the WHOLE bar (focus-within)
+   instead of drawing a second box within a box. */
+.membrane-capture:focus-within {
+  border-color: var(--membrane-ember-soft);
+  box-shadow: 0 10px 34px -20px var(--membrane-ember-soft);
+}
+.mcap-verbs {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid rgba(var(--mem-ink-rgb), 0.14);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.22);
+}
+html[data-theme="light"] .mcap-verbs { background: rgba(255, 255, 255, 0.5); }
+.mcap-verb {
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  color: rgba(var(--mem-ink-rgb), 0.55);
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+.mcap-verb:hover { color: rgba(var(--mem-ink-rgb), 0.9); }
+.mcap-verb:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--membrane-ember) 45%, transparent);
+  outline-offset: 1px;
+}
+/* Active verb takes its intent tint (same pairs the feed rows use). */
+.mcap-verb[data-mcap-verb="say"].is-active   { background: #EADBA8; color: #5E4310; font-weight: 700; }
+.mcap-verb[data-mcap-verb="did"].is-active   { background: #CDD3EC; color: #2E3660; font-weight: 700; }
+.mcap-verb[data-mcap-verb="maybe"].is-active { background: #CAE3C8; color: #1E4A2A; font-weight: 700; }
+
+.mcap-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
+  padding: 7px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--membrane-mist);
+}
+.mcap-input::placeholder { color: rgba(var(--mem-ink-rgb), 0.35); }
+/* the bar's :focus-within carries focus — no inner ring (plain :focus too:
+   programmatic focus, e.g. the preview's ?post driver, draws the UA ring) */
+.mcap-input:focus,
+.mcap-input:focus-visible { outline: none; }
+
+.mcap-send {
+  flex: none;
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  padding: 6px 13px;
+  border: 1px solid var(--membrane-ember-soft);
+  border-radius: 9px;
+  background: rgba(255, 122, 61, 0.1);
+  color: var(--membrane-ember);
+  cursor: pointer;
+  transition: background 140ms ease, opacity 140ms ease;
+}
+.mcap-send:hover:not(:disabled) { background: rgba(255, 122, 61, 0.18); }
+.mcap-send:disabled { opacity: 0.35; cursor: default; }
+
+/* (the agenda "later" fold rules live with the agenda card vocabulary above,
+   before the [data-cat] colour tier — see "agenda later fold".) */
+
+/* ── center column eyebrow ── names the surface; the live dot says new posts
+   arrive here on their own. */
+.mff-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 2px 2px;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(var(--mem-ink-rgb), 0.42);
+}
+.mff-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--membrane-ember);
+  box-shadow: 0 0 6px var(--membrane-ember-soft);
+  animation: mff-live 2.6s ease-in-out infinite;
+}
+@keyframes mff-live {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mff-live-dot { animation: none; }
+}

@@ -588,6 +588,10 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
   const spineMarks = [];
   for (let m = Math.ceil(bWinStart / 180) * 180; m <= bWinEnd; m += 3 * 60) spineMarks.push(m);
   const spineHtml = `<div class="rr-spine" aria-hidden="true">${spineMarks.map(m => `<span class="rr-t" style="top:${bPct(m).toFixed(1)}%">${escHtml(fmtHour(m))}</span>`).join("")}</div>`;
+  // Hour-lines shared by every day column, at the SAME tops as the gutter
+  // labels. The old decorative 112px stripe wasn't tied to the time scale at
+  // all — lines that don't match the labels break spatial reading.
+  const hourLines = spineMarks.map(m => `<i class="rr-hl" style="top:${bPct(m).toFixed(1)}%"></i>`).join("");
 
   const fieldsHtml = days.map((d, di) => {
     const bannerBtns = d.allday.map((item, ai) => {
@@ -622,8 +626,8 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
     const ground = (!d.timed.length && !d.allday.length) ? `<span class="rr-ghost">${isWeekend(d.name) ? "rest" : "open build"}</span>` : "";
     const nowEls = d.isToday && nowMin >= bWinStart && nowMin <= bWinEnd
       ? `<span class="rr-now" style="top:${bPct(nowMin).toFixed(1)}%"></span><span class="rr-now-dot" style="top:${bPct(nowMin).toFixed(1)}%"></span>` : "";
-    const cls = ["rr-field", d.isToday ? "today" : ""].filter(Boolean).join(" ");
-    return `<div class="${cls}"${d.isToday ? ` data-rr-win="${bWinStart}:${bWinEnd}"` : ""}>${ground}${banners}${ticks}${nowEls}</div>`;
+    const cls = ["rr-field", d.isToday ? "today" : "", isWeekend(d.name) ? "weekend" : ""].filter(Boolean).join(" ");
+    return `<div class="${cls}"${d.isToday ? ` data-rr-win="${bWinStart}:${bWinEnd}"` : ""}>${hourLines}${ground}${banners}${ticks}${nowEls}</div>`;
   }).join("");
 
   // ── filmstrip week hero — the program-week navigator ──────────────────────

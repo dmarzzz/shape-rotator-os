@@ -2548,6 +2548,9 @@ function buildContextTranscriptFeed(manifest) {
         meta: bits.join(' · ') || 'transcript',
         nav: { mode: 'context', contextView: 'stream' },
         rawId: id || null,
+        // First lines of the raw script — the membrane's hover popover shows
+        // this so a bare title ("walking-notes") actually tells you something.
+        excerpt: String(source?.excerpt || '').trim() || null,
       };
     })
     .filter((it) => it.label && it.date)

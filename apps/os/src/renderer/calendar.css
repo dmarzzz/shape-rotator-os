@@ -25,6 +25,11 @@
   font-family: var(--ed-mono);
 }
 
+/* The week board is CONTAINED, not full-bleed: on wide windows the 7 columns
+   stretched across the whole screen, so an event's day/time position stopped
+   reading spatially (2026-07-03 feedback). ~150px columns max, centered. */
+.c2.rr-cal { max-width: 1160px; margin-inline: auto; }
+
 /* ── masthead — week strip (← 1 2 … 10 →), centered. The calendar /
  * presence tabs above it use the app-wide .alch-page-views component
  * (styles.css) — no page-local tab styling here. ─────────────────────── */
@@ -374,24 +379,31 @@
 }
 /* category accents — same palette as the legacy week view. Scoped to the
  * c2 page + modal so the legacy calendar's data-cat cards are untouched. */
+/* One hue step per category. The old map had three near-identical oranges
+   (oh #d98a5c · review #f3b174 · demo #e07a4e) and weekly==anarchy — colours
+   couldn't be told apart, so they carried no meaning. Hue wheel, all in the
+   same muted-pastel register: salon lavender → hack steel → social teal →
+   weekly sage → anarchy lime → coord gold → oh apricot → review rose →
+   demo ember (the marquee keeps the strongest hue). Membrane's agenda copies
+   mirror these (membrane.css [data-cat]). */
 .c2 [data-cat="oh"],
-.c2-modal-panel[data-cat="oh"] { --c2-acc: #d98a5c; }
+.c2-modal-panel[data-cat="oh"] { --c2-acc: #e2a06b; }
 .c2 [data-cat="salon"],
 .c2-modal-panel[data-cat="salon"] { --c2-acc: #c9a8d8; }
 .c2 [data-cat="social"],
-.c2-modal-panel[data-cat="social"] { --c2-acc: #8fbdb2; }
+.c2-modal-panel[data-cat="social"] { --c2-acc: #7fc7b3; }
 .c2 [data-cat="weekly"],
 .c2-modal-panel[data-cat="weekly"] { --c2-acc: #a8c79f; }
 .c2 [data-cat="coord"],
 .c2-modal-panel[data-cat="coord"] { --c2-acc: #e3c77f; }
 .c2 [data-cat="review"],
-.c2-modal-panel[data-cat="review"] { --c2-acc: #f3b174; }
+.c2-modal-panel[data-cat="review"] { --c2-acc: #ec93a4; }
 .c2 [data-cat="hack"],
 .c2-modal-panel[data-cat="hack"] { --c2-acc: #9fb8d8; }
 .c2 [data-cat="demo"],
-.c2-modal-panel[data-cat="demo"] { --c2-acc: #e07a4e; }
+.c2-modal-panel[data-cat="demo"] { --c2-acc: #e86a4e; }
 .c2 [data-cat="anarchy"],
-.c2-modal-panel[data-cat="anarchy"] { --c2-acc: #a8c79f; }
+.c2-modal-panel[data-cat="anarchy"] { --c2-acc: #c6cf8d; }
 
 /* ── now line ───────────────────────────────────────────────────────── */
 
@@ -912,8 +924,14 @@
 .rr-t.acc { color: var(--rr-ox); }
 /* a calm build-ground: a faint 2-hour guide (not a busy hourly grid), softer
    borders; the today column drinks a quiet oxide wash. */
-.rr-field { position: relative; height: 100%; min-height: 0; border-left: 1px solid var(--ed-rule); border-top: 1px solid var(--ed-rule); background: repeating-linear-gradient(0deg, transparent 0 112px, rgba(var(--ink-rgb), 0.028) 112px 114px); overflow: hidden; }
-.rr-field.today { border-left: 1px solid color-mix(in oklch, var(--rr-ox) 55%, transparent); background: linear-gradient(180deg, color-mix(in oklch, var(--rr-ox) 6%, transparent), color-mix(in oklch, var(--rr-ox) 1.5%, transparent)), repeating-linear-gradient(0deg, transparent 0 112px, rgba(var(--ink-rgb), 0.028) 112px 114px); }
+/* No decorative stripe: the fields carry REAL hour-lines (.rr-hl, emitted at
+   the same tops as the gutter labels) so what you see maps to the time scale. */
+.rr-field { position: relative; height: 100%; min-height: 0; border-left: 1px solid var(--ed-rule); border-top: 1px solid var(--ed-rule); overflow: hidden; }
+.rr-field.today { border-left: 1px solid color-mix(in oklch, var(--rr-ox) 55%, transparent); background: linear-gradient(180deg, color-mix(in oklch, var(--rr-ox) 6%, transparent), color-mix(in oklch, var(--rr-ox) 1.5%, transparent)); }
+/* Rest days read as different ground at a glance, not just via the ghost word. */
+.rr-field.weekend { background: rgba(var(--ink-rgb), 0.025); }
+.rr-field.weekend.today { background: linear-gradient(180deg, color-mix(in oklch, var(--rr-ox) 6%, transparent), color-mix(in oklch, var(--rr-ox) 1.5%, transparent)), rgba(var(--ink-rgb), 0.025); }
+.rr-hl { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid rgba(var(--ink-rgb), 0.055); pointer-events: none; }
 .rr-ghost { position: absolute; top: 50%; left: 0; right: 0; text-align: center; transform: translateY(-50%); font-family: var(--ed-display); font-style: italic; font-size: 13px; letter-spacing: -0.01em; color: var(--rr-faint-2); }
 /* all-day banners stack in a column at the top of the field; each row lays out
    in normal flow inside it so 2+ banners never pin to the same top and overlap. */
@@ -926,7 +944,7 @@
 .rr-allday.is-cont { background: transparent; border-left-style: dashed; border-left-color: color-mix(in oklch, var(--c2-acc, #8f817a) 45%, transparent); }
 .rr-allday.is-cont span { font-style: italic; color: var(--rr-faint); }
 .rr-allday.is-cont:hover { background: color-mix(in oklch, var(--c2-acc, #8f817a) 12%, transparent); }
-.rr-tick { position: absolute; left: 5px; right: 5px; min-height: 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 1px; padding: 5px 8px; border: 1px solid color-mix(in oklch, var(--c2-acc, #8f817a) 50%, transparent); border-radius: 7px; background: color-mix(in oklch, var(--c2-acc, #8f817a) 17%, var(--ed-bg-1)); color: var(--ed-ink-1); cursor: pointer; z-index: 3; text-align: left; transition: background 150ms cubic-bezier(0.16,1,0.3,1), border-color 150ms ease, transform 110ms ease, box-shadow 150ms ease; }
+.rr-tick { position: absolute; left: 5px; right: 5px; min-height: 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 1px; padding: 5px 8px; border: 1px solid color-mix(in oklch, var(--c2-acc, #8f817a) 58%, transparent); border-left: 3px solid var(--c2-acc, #8f817a); border-radius: 7px; background: color-mix(in oklch, var(--c2-acc, #8f817a) 20%, var(--ed-bg-1)); color: var(--ed-ink-1); cursor: pointer; z-index: 3; text-align: left; transition: background 150ms cubic-bezier(0.16,1,0.3,1), border-color 150ms ease, transform 110ms ease, box-shadow 150ms ease; }
 .rr-tick:hover,
 .rr-tick:focus-visible { outline: none; background: color-mix(in oklch, var(--c2-acc, #8f817a) 27%, var(--ed-bg-1)); border-color: color-mix(in oklch, var(--c2-acc, #8f817a) 72%, transparent); box-shadow: 0 12px 28px rgba(0,0,0,0.32); z-index: 6; }
 .rr-tick:active { transform: scale(0.99); }
