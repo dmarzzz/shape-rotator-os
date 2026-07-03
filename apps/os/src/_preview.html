@@ -10,6 +10,7 @@
   (function () {
     const qs = new URLSearchParams(location.search);
     const lens = qs.get("lens") === "library" ? "library" : "stream";
+    const mode = qs.get("mode") === "membrane" ? "membrane" : "context";
 
     const DEMO_MANIFEST = {
       schema_version: 2,
@@ -37,12 +38,12 @@
       localStorage.setItem("srwk:identity_v1", JSON.stringify({ kind: "person", record_id: "albiona-hoti", display_name: "Albiona" }));
       localStorage.setItem("srwk:identity_onboarding_skipped_v1", "1");
       localStorage.setItem("srwk:membrane_seen_v1", "1");
-      localStorage.setItem("srwk:alchemy_mode", "context");
+      localStorage.setItem("srwk:alchemy_mode", mode);
       localStorage.setItem("srwk:context_view", lens);
       // the tab strip restores the last session and would override the seeded
-      // mode — hand it a context tab instead
+      // mode — hand it the target tab instead
       localStorage.setItem("srwk:tabs_v1", JSON.stringify({
-        tabs: [{ id: "t_preview", loc: { tab: "alchemy", mode: "context", contextView: lens } }],
+        tabs: [{ id: "t_preview", loc: mode === "membrane" ? { tab: "alchemy", mode: "membrane" } : { tab: "alchemy", mode: "context", contextView: lens } }],
         activeId: "t_preview"
       }));
       // collapse the nav drawer (first-launch discovery pins it open,
@@ -149,6 +150,34 @@
       return surface;
     }
 
+    // Headless-screenshot driver: ?post=verb:text||verb:text posts through the
+    // membrane capture bar (populates the field stack deterministically).
+    if (qs.get("post")) {
+      window.addEventListener("load", () => {
+        let tries = 0;
+        const t = setInterval(() => {
+          tries += 1;
+          const input = document.querySelector("[data-mcap-input]");
+          if (input) {
+            clearInterval(t);
+            for (const part of qs.get("post").split("||")) {
+              const m = /^(say|did|maybe):/.exec(part);
+              const verb = m ? m[1] : "say";
+              const text = m ? part.slice(m[0].length) : part;
+              const vb = document.querySelector('[data-mcap-verb="' + verb + '"]');
+              if (vb) vb.click();
+              input.value = text;
+              input.dispatchEvent(new Event("input", { bubbles: true }));
+              input.closest("form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+            }
+          } else if (tries > 40) clearInterval(t);
+        }, 300);
+      });
+    }
+    if (qs.get("theme") === "light") {
+      try { localStorage.setItem("srwk:theme", "light"); } catch (e) {}
+    }
+
     // Headless-screenshot driver: ?revealdemo=1 forces the hover-reveal
     // states (claim provenance / session summary) so a static shot shows them.
     if (qs.get("revealdemo")) {
@@ -184,15 +213,16 @@
     });
 
     const realFetch = window.fetch.bind(window);
+    const LIVE = !!qs.get("live"); // ?live=1 → real overlays, no demo records
     window.fetch = async function (input, init) {
       const url = typeof input === "string" ? input : (input instanceof URL ? input.href : (input && input.url) || "");
       // keep the preview deterministic: no live github/supabase/web-bundle
       // overlays (they'd replace the demo records with gated/live reads)
-      if (/api\.github\.com|supabase\.co|shaperotator\.xyz|phala\.network/.test(url)) {
+      if (!LIVE && /api\.github\.com|supabase\.co|shaperotator\.xyz|phala\.network/.test(url)) {
         return new Response("preview: remote source blocked", { status: 503 });
       }
       const res = await realFetch(input, init);
-      if (/cohort-surface\.json/.test(url) && res.ok) {
+      if (!LIVE && /cohort-surface\.json/.test(url) && res.ok) {
         try {
           const data = demoOverlay(await res.json());
           return new Response(JSON.stringify(data), { status: 200, headers: { "content-type": "application/json" } });

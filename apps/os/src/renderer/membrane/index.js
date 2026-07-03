@@ -334,6 +334,47 @@ const FEED_CTA = {
 };
 function feedCta(kind) { return FEED_CTA[kind] || 'open'; }
 
+// ── hub prototype: the field feed + say/did/maybe capture bar ──────────────
+// The membrane's center stops being pure decoration: a "cohort today" feed
+// floats over the (dimmed) die, and a capture bar sits at the bottom. Three
+// verbs, one input, zero navigation. say → an ask on the spine; maybe → a
+// tentative come_join; did → a self-report (feeds the mirror/attribution
+// direction). v0 posts are LOCAL-ONLY (localStorage) — the spine write goes
+// in with the asks migration; the point here is the interaction shape.
+// Tint/ink pairs follow the asks.js intent-color pattern (colors live in JS,
+// applied as inline CSS vars): say = ask amber, maybe = come_join green,
+// did = a new slate-lavender (no existing intent to borrow).
+const FIELD_VERBS = {
+  say:   { label: 'say',   ink: '#5E4310', tint: '#EADBA8', hint: 'say it to the cohort' },
+  did:   { label: 'did',   ink: '#2E3660', tint: '#CDD3EC', hint: 'log what you did' },
+  maybe: { label: 'maybe', ink: '#1E4A2A', tint: '#CAE3C8', hint: 'float a plan — who’s in?' },
+};
+const FIELD_VERB_ORDER = ['say', 'did', 'maybe'];
+const FIELD_POSTS_KEY = 'srwk:membrane:posts_v0';
+
+function loadFieldPosts() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(FIELD_POSTS_KEY) || '[]');
+    return Array.isArray(arr) ? arr.filter((p) => p && p.text) : [];
+  } catch { return []; }
+}
+function saveFieldPosts(posts) {
+  try { localStorage.setItem(FIELD_POSTS_KEY, JSON.stringify(posts.slice(-50))); } catch {}
+}
+
+// Minute-level age for the field feed — local posts are fresher than the
+// day-granular feedAge() can express ("now", "12m", "3h", then days/weeks).
+function fieldAge(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return '';
+  const d = Date.now() - ms;
+  if (d < 60e3) return 'now';
+  if (d < 3600e3) return `${Math.floor(d / 60e3)}m`;
+  if (d < 86400e3) return `${Math.floor(d / 3600e3)}h`;
+  const days = Math.floor(d / 86400e3);
+  if (days < 7) return `${days}d`;
+  return `${Math.floor(days / 7)}w`;
+}
+
 // Build a Google Calendar "add event" template URL from an agenda item. The
 // app's shell:openExternal is hard-restricted to http(s) (main.js), so a
 // calendar.google.com TEMPLATE link is the one-click path — a data: .ics URL
@@ -967,6 +1008,9 @@ function setupFirstWhisper(container) {
 export function mountMembrane(container, opts = {}) {
   cp('membrane:mount-start');
   container.classList.add('membrane-host');
+  // Hub prototype flag — scopes the field-feed/capture-bar styles and the
+  // die's ambient dimming (membrane.css). One class to rip out if we revert.
+  container.classList.add('membrane-hub');
   // Always start showing the shapes, never the Rubik's cube — clear any stale
   // reveal state left on the (reused) container from a previous visit, so the
   // cube overlay and its Scramble/Reset controls don't linger after coming back.
@@ -1051,6 +1095,21 @@ export function mountMembrane(container, opts = {}) {
           </button>
         </footer>
       </aside>
+      <!-- hub prototype: the cohort-today feed floating over the die … -->
+      <div class="membrane-field-feed" data-mfield role="region" aria-label="the cohort today"></div>
+      <!-- … and the say/did/maybe capture bar. Type first, verb after; Tab
+           cycles the verb; Enter posts. v0 writes locally (see FIELD_VERBS). -->
+      <form class="membrane-capture" data-mcap autocomplete="off">
+        <div class="mcap-verbs" role="group" aria-label="what kind of post">
+          ${FIELD_VERB_ORDER.map((v, i) => `
+            <button type="button" class="mcap-verb${i === 0 ? ' is-active' : ''}" data-mcap-verb="${v}" aria-pressed="${i === 0 ? 'true' : 'false'}">${FIELD_VERBS[v].label}</button>
+          `).join('')}
+        </div>
+        <input class="mcap-input" data-mcap-input type="text" maxlength="280"
+               placeholder="${FIELD_VERBS.say.hint} · tab switches verb"
+               aria-label="post to the cohort" />
+        <button type="submit" class="mcap-send" data-mcap-send disabled>post</button>
+      </form>
       <div class="membrane-feedback" data-feedback>
         <div class="membrane-feedback-card">
           <button type="button" class="membrane-feedback-pill" data-feedback-toggle
@@ -1185,7 +1244,6 @@ export function mountMembrane(container, opts = {}) {
         <button type="button" class="magenda-add" data-cal-url="${calUrl}" aria-label="add ${escHtml(title || 'event')} to calendar" title="add to calendar">${CAL_PLUS}</button>
         <button type="button" class="magenda-up-event" data-up-key="${ek}">
           <span class="magenda-event-title">${escHtml(title || 'untitled')}</span>${sub ? `<span class="magenda-event-time">${escHtml(sub)}</span>` : ''}
-          <span class="magenda-cta" aria-hidden="true"><span class="magenda-cta-inner"><span class="magenda-cta-go">open calendar →</span></span></span>
         </button>
         <button type="button" class="magenda-dismiss" data-dismiss-key="${ek}" aria-label="dismiss ${escHtml(title || 'event')}" title="dismiss">${DISMISS_X}</button>
       </div>`;
@@ -1224,10 +1282,28 @@ export function mountMembrane(container, opts = {}) {
     if (!todayEmpty) html += `<div class="magenda-track">${ticks}${rows}${nowLine}</div>`;
     // Quiet note when today has nothing but there's a look-ahead.
     if (todayEmpty && !allDay.length && groups.length) html += `<div class="magenda-quiet">nothing today</div>`;
-    // Upcoming, grouped by day.
-    for (const g of groups) {
+    // Upcoming, grouped by day — but only the next 7 days rate full cards.
+    // Anything further folds into one quiet "later" block: a lone far-off
+    // event under its own day head ("final demo day" under WED JUL 22) read
+    // as stuck to the rail bottom (2026-07-03 feedback).
+    const aheadDays = (ds) => Math.round(
+      (new Date(`${ds}T00:00:00`).getTime() - new Date(`${todayStr}T00:00:00`).getTime()) / 86400000);
+    const nearGroups = groups.filter((g) => aheadDays(g.date) <= 7);
+    const farItems = groups.filter((g) => aheadDays(g.date) > 7)
+      .flatMap((g) => g.items.map((it) => ({ ...it, date: g.date })));
+    for (const g of nearGroups) {
       html += `<div class="magenda-day-head">${escHtml(dayLabel(g.date))}</div>`;
       for (const it of g.items) html += card(it.title, it.time, g.date);
+    }
+    if (farItems.length) {
+      html += `<div class="magenda-day-head">later</div>`;
+      for (const it of farItems.slice(0, 3)) {
+        html += `<button type="button" class="magenda-later" data-cat="${agendaCat(it.title)}" title="${escHtml(`${it.title || 'untitled'} — open calendar`)}">
+          <span class="magenda-event-title">${escHtml(it.title || 'untitled')}</span>
+          <span class="magenda-event-time">${escHtml(dayLabel(it.date))}${it.time ? ' · ' + escHtml(it.time) : ''}</span>
+        </button>`;
+      }
+      if (farItems.length > 3) html += `<div class="magenda-quiet">+${farItems.length - 3} more ahead</div>`;
     }
     // Truly nothing on the horizon.
     if (todayEmpty && !allDay.length && !groups.length) html += `<div class="magenda-quiet">clear ahead</div>`;
@@ -1237,7 +1313,7 @@ export function mountMembrane(container, opts = {}) {
   }
   // Once-a-minute tick advances the agenda now-line AND recomputes the incoming
   // band (so "tea — in 12 min" counts down live, not just on a cohort refresh).
-  const agendaTimer = setInterval(() => { renderAgenda(); renderFeed(); }, 60 * 1000);
+  const agendaTimer = setInterval(() => { renderAgenda(); renderFeed(); renderFieldFeed(); }, 60 * 1000);
   // Clicking a dismiss control closes that notification; clicking the card
   // itself opens the calendar in a new OS tab (same as clicking through from
   // the calendar view).
@@ -1263,7 +1339,7 @@ export function mountMembrane(container, opts = {}) {
       dismissCard(x.closest('.magenda-up'), () => renderAgenda());
       return;
     }
-    if (!ev.target.closest('.magenda-up-event, .magenda-event, .magenda-next')) return;
+    if (!ev.target.closest('.magenda-up-event, .magenda-event, .magenda-next, .magenda-later')) return;
     if (typeof window.__srwkOpenInNewTab === 'function') {
       window.__srwkOpenInNewTab({ tab: 'alchemy', mode: 'calendar' });
     }
@@ -1275,7 +1351,28 @@ export function mountMembrane(container, opts = {}) {
   const feedEl = container.querySelector('[data-feed]');
   const feedDismissed = makeDismissStore('srwk:membrane:dismissed:feed');
   let feedPrevKeys = null;
-  let feedPinnedCategory = null;
+  // ── category popover state ──
+  // One panel anchored beside the rail carries ALL category detail: hover
+  // previews it (and the pointer can travel into it), click pins it. Closing
+  // never dismisses — the panel's own "clear" does that explicitly
+  // (2026-07-03: the X-to-close was nuking the notifications).
+  let feedPopCat = null;      // category id the popover is showing
+  let feedPopPinned = false;  // pinned by click — stays until closed
+  let feedPopHideTimer = null;
+  let feedPopCats = [];       // categories from the last renderFeed pass
+  let feedPopEl = null;
+  // Hidden TYPES (filter chips at the rail top) — persisted, and separate
+  // from dismissals: hiding a type is reversible, clearing is not.
+  const FEED_FILTER_KEY = 'srwk:membrane:feed_filter_v0';
+  const feedHidden = (() => {
+    try {
+      const a = JSON.parse(localStorage.getItem(FEED_FILTER_KEY) || '[]');
+      return new Set(Array.isArray(a) ? a : []);
+    } catch { return new Set(); }
+  })();
+  const saveFeedHidden = () => {
+    try { localStorage.setItem(FEED_FILTER_KEY, JSON.stringify([...feedHidden])); } catch {}
+  };
   // Incoming-watch cards are also remembered locally so a 60s re-render between
   // cohort refreshes can't resurrect a just-dismissed card; dismissing one ALSO
   // acknowledges it in the watch ledger (acknowledgeIncoming) so a fresh compute
@@ -1335,47 +1432,123 @@ export function mountMembrane(container, opts = {}) {
     if (member.type === 'incoming') return member.card?.title || '';
     return member.it?.label || '';
   }
-  function feedCategoryItem(cat, member, index) {
-    const label = categoryItemLabel(member);
-    const meta = categoryItemMeta(member);
-    const age = categoryItemAge(member);
-    return `
-      <button type="button" class="mfeed-detail-row mfeed-${escHtml(member.kind || cat.kind)}"
-              data-feed-category-item="${escHtml(cat.id)}" data-feed-category-index="${index}"
-              aria-label="${escHtml([label, meta, age, member.recordId ? 'open profile' : feedCta(member.kind || cat.kind)].filter(Boolean).join('. '))}">
-        ${feedIcon(member.icon || member.kind || cat.kind)}
-        <span class="mfeed-body">
-          <span class="mfeed-label">${escHtml(label)}</span>
-          <span class="mfeed-meta">${escHtml(meta)}</span>
-        </span>
-        <span class="mfeed-age">${escHtml(age)}</span>
-      </button>`;
+  // ── the category popover ──────────────────────────────────────────────
+  // Hover a category → this panel appears beside the rail with the actual
+  // content (labels, meta, transcript excerpts). The pointer can travel into
+  // it (grace timer below) and its list scrolls — unlike the old fly-out,
+  // which was pointer-events:none and clipped by the rail mask. Click pins.
+  function ensureFeedPop() {
+    if (feedPopEl) return feedPopEl;
+    feedPopEl = document.createElement('div');
+    feedPopEl.className = 'mfeed-pop';
+    feedPopEl.setAttribute('role', 'region');
+    feedPopEl.hidden = true;
+    (container.querySelector('.membrane-stage') || container).appendChild(feedPopEl);
+    feedPopEl.addEventListener('mouseenter', () => clearTimeout(feedPopHideTimer));
+    feedPopEl.addEventListener('mouseleave', () => { if (!feedPopPinned) scheduleFeedPopHide(); });
+    return feedPopEl;
   }
+  function scheduleFeedPopHide() {
+    clearTimeout(feedPopHideTimer);
+    feedPopHideTimer = setTimeout(() => { if (!feedPopPinned) closeFeedPop(); }, 240);
+  }
+  function closeFeedPop() {
+    clearTimeout(feedPopHideTimer);
+    feedPopCat = null;
+    feedPopPinned = false;
+    if (feedPopEl) feedPopEl.hidden = true;
+    if (!feedEl) return;
+    feedEl.querySelectorAll('.mfeed-category-row.is-popped').forEach((r) => r.classList.remove('is-popped'));
+    feedEl.querySelectorAll('[data-feed-category-toggle]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
+  }
+  function openFeedPop(id, pin) {
+    clearTimeout(feedPopHideTimer);
+    feedPopCat = id;
+    if (pin != null) feedPopPinned = pin;
+    renderFeedPop();
+  }
+  function renderFeedPop() {
+    const cat = feedPopCats.find((c) => c.id === feedPopCat);
+    if (!cat) { closeFeedPop(); return; }
+    const pop = ensureFeedPop();
+    pop.classList.toggle('is-pinned', feedPopPinned);
+    pop.setAttribute('aria-label', `${cat.title} — ${categoryCountLabel(cat)}`);
+    const rows = cat.members.slice(0, 30).map((m, i) => {
+      const label = categoryItemLabel(m);
+      const meta = categoryItemMeta(m);
+      const age = categoryItemAge(m);
+      // Transcripts carry their first lines — the difference between
+      // "walking-notes" meaning nothing and meaning something.
+      const excerpt = (m.type === 'feed' && m.it?.excerpt) ? m.it.excerpt : '';
+      return `
+        <button type="button" class="mfeed-detail-row mfeed-pop-row mfeed-${escHtml(m.kind || cat.kind)}" data-pop-item="${i}"
+                aria-label="${escHtml([label, meta, age, m.recordId ? 'open profile' : feedCta(m.kind || cat.kind)].filter(Boolean).join('. '))}">
+          ${feedIcon(m.icon || m.kind || cat.kind)}
+          <span class="mfeed-body">
+            <span class="mfeed-label">${escHtml(label)}</span>
+            <span class="mfeed-meta">${escHtml(meta)}</span>
+            ${excerpt ? `<span class="mfeed-pop-excerpt">${escHtml(excerpt)}</span>` : ''}
+          </span>
+          <span class="mfeed-age">${escHtml(age)}</span>
+        </button>`;
+    }).join('');
+    pop.innerHTML = `
+      <div class="mfeed-pop-head mfeed-${escHtml(cat.kind)}">
+        ${feedIcon(cat.kind)}
+        <span class="mfeed-pop-title">${escHtml(cat.title)}</span>
+        <span class="mfeed-pop-count">${escHtml(categoryCountLabel(cat))}</span>
+        <span class="mfeed-pop-actions">
+          <button type="button" class="mfeed-pop-act" data-pop-open>${escHtml(cat.cta || 'open')}</button>
+          <button type="button" class="mfeed-pop-act mfeed-pop-clear" data-pop-clear
+                  title="dismiss all ${escHtml(cat.title)} notifications">clear</button>
+          <button type="button" class="mfeed-pop-x" data-pop-close aria-label="close (keeps notifications)" title="close">${DISMISS_X}</button>
+        </span>
+      </div>
+      <div class="mfeed-pop-list" role="list">${rows}</div>`;
+    // Close = collapse, nothing else. Clear = the explicit dismissal.
+    pop.querySelector('[data-pop-close]').addEventListener('click', () => closeFeedPop());
+    pop.querySelector('[data-pop-open]').addEventListener('click', () => { openFeedCategory(cat); closeFeedPop(); });
+    pop.querySelector('[data-pop-clear]').addEventListener('click', () => {
+      for (const member of cat.members) {
+        if (member.type === 'incoming') {
+          incomingDismissed.add(member.dismissKey);
+          acknowledgeIncoming(member.dismissKey);
+        } else {
+          feedDismissed.add(member.dismissKey);
+        }
+      }
+      closeFeedPop();
+      renderFeed();
+    });
+    pop.querySelectorAll('[data-pop-item]').forEach((btn) => {
+      btn.addEventListener('click', () => openFeedCategoryItem(cat.members[+btn.dataset.popItem]));
+    });
+    // Anchor beside the hovered row, clamped so the panel never runs off the
+    // stage bottom (its list scrolls internally past max-height).
+    pop.hidden = false;
+    const row = feedEl?.querySelector(`[data-feed-category="${cat.id}"]`);
+    const stage = container.querySelector('.membrane-stage');
+    if (row && stage) {
+      const r = row.getBoundingClientRect();
+      const s = stage.getBoundingClientRect();
+      const top = Math.max(12, Math.min(r.top - s.top, s.height - pop.offsetHeight - 14));
+      pop.style.top = `${Math.round(top)}px`;
+    }
+    feedEl?.querySelectorAll('.mfeed-category-row').forEach((r2) =>
+      r2.classList.toggle('is-popped', r2.dataset.feedCategory === cat.id));
+    feedEl?.querySelectorAll('[data-feed-category-toggle]').forEach((b) =>
+      b.setAttribute('aria-expanded', b.dataset.feedCategoryToggle === cat.id ? 'true' : 'false'));
+  }
+  // Collapsed row only — ALL detail lives in the popover (hover to peek,
+  // click to pin). No in-flow expansion: inside this masked, fixed-width rail
+  // it clipped mid-list and couldn't scroll (2026-07-03 feedback).
   function feedCategoryHtml(cat) {
     const top = cat.members[0];
-    const isOpen = feedPinnedCategory === cat.id;
-    const preview = cat.members.slice(0, 4).map((member) => `
-      <div class="mfeed-sprawl-row mfeed-${escHtml(member.kind || cat.kind)}">
-        ${feedIcon(member.icon || member.kind || cat.kind)}
-        <span class="mfeed-body">
-          <span class="mfeed-label">${escHtml(categoryItemLabel(member))}</span>
-          <span class="mfeed-meta">${escHtml(categoryItemMeta(member))}</span>
-        </span>
-        <span class="mfeed-age">${escHtml(categoryItemAge(member))}</span>
-      </div>`).join('');
-    const details = isOpen ? `
-      <div class="mfeed-category-detail">
-        <div class="mfeed-detail-head">
-          <span>${escHtml(categoryCountLabel(cat))}</span>
-          <button type="button" class="mfeed-detail-open" data-open-feed-category="${escHtml(cat.id)}">${escHtml(cat.cta || 'open')}</button>
-        </div>
-        ${cat.members.slice(0, 8).map((member, index) => feedCategoryItem(cat, member, index)).join('')}
-      </div>` : '';
     return `
-      <div class="mfeed-category-row${isOpen ? ' is-expanded' : ''}" data-row-key="${escHtml(cat.rowKey)}" data-feed-category="${escHtml(cat.id)}">
+      <div class="mfeed-category-row" data-row-key="${escHtml(cat.rowKey)}" data-feed-category="${escHtml(cat.id)}">
         <button type="button" class="mfeed-category mfeed-${escHtml(cat.kind)}" data-feed-category-toggle="${escHtml(cat.id)}"
-                aria-expanded="${isOpen ? 'true' : 'false'}"
-                aria-label="${escHtml([cat.title, categoryCountLabel(cat), isOpen ? 'collapse' : 'expand'].join('. '))}">
+                aria-expanded="false" aria-haspopup="true"
+                aria-label="${escHtml([cat.title, categoryCountLabel(cat), 'open details'].join('. '))}">
           ${feedIcon(cat.kind)}
           <span class="mfeed-body">
             <span class="mfeed-label">${escHtml(cat.title)}</span>
@@ -1384,9 +1557,7 @@ export function mountMembrane(container, opts = {}) {
           <span class="mfeed-inline-count">${escHtml(String(cat.members.length))}</span>
           <span class="mfeed-age">${escHtml(categoryItemAge(top))}</span>
         </button>
-        <div class="mfeed-sprawl" aria-hidden="true">${preview}</div>
         <button type="button" class="mfeed-dismiss" data-category-dismiss="${escHtml(cat.id)}" aria-label="dismiss ${escHtml(cat.title)}" title="dismiss">${DISMISS_X}</button>
-        ${details}
       </div>`;
   }
   function openFeedCategoryItem(member) {
@@ -1460,7 +1631,11 @@ export function mountMembrane(container, opts = {}) {
         plural: 'updates',
         cta: 'open activity',
         defaultNav: { mode: 'shapes' },
-        members: [...byKind('release'), ...byKind('commit')],
+        // Newest-first across releases + commits + captured did posts, so a
+        // just-posted did surfaces as the category's visible top row instead
+        // of hiding under the whole release backlog.
+        members: [...byKind('release'), ...byKind('commit')].sort((a, b) =>
+          (Date.parse(b.it?.date || '') || 0) - (Date.parse(a.it?.date || '') || 0)),
       },
       {
         id: 'asks',
@@ -1483,8 +1658,19 @@ export function mountMembrane(container, opts = {}) {
     // Don't rebuild while a card is mid-recede (see renderAgenda).
     if (feedEl.querySelector('.is-dismissing')) return;
     const incoming = incomingCards();
+    // Locally-captured "did" self-reports merge into the same left rail as the
+    // machine shipping items (kind commit → the shipping category) — the did
+    // half of the capture bar. fieldPosts is hoisted let-state from the hub
+    // block below; renderFeed only ever runs after mount finishes wiring it.
+    const didPosts = (fieldPosts || []).filter((p) => p.verb === 'did').map((p) => ({
+      kind: 'commit',
+      label: `${p.author} — ${p.text}`,
+      meta: 'self-report',
+      date: new Date(p.ts).toISOString(),
+      nav: { mode: 'mirror' },
+    }));
     const keyN = new Map();
-    const keyedFeed = (Array.isArray(dataStore.feed) ? dataStore.feed : [])
+    const keyedFeed = [...didPosts, ...(Array.isArray(dataStore.feed) ? dataStore.feed : [])]
       // Attach a collision-proof dismiss key (occurrence ordinal for any
       // identical kind|date|label|meta), then drop the already-dismissed.
       .map((it) => {
@@ -1494,36 +1680,54 @@ export function mountMembrane(container, opts = {}) {
       })
       .filter(({ key }) => !feedDismissed.has(key));
     const categories = buildFeedCategories(incoming, keyedFeed);
-    if (feedPinnedCategory && !categories.some((cat) => cat.id === feedPinnedCategory)) {
-      feedPinnedCategory = null;
-    }
+    feedPopCats = categories;
+    // Type filter — hiding is reversible (unlike dismissing), so the chips
+    // render for EVERY category with members, including hidden ones.
+    const visible = categories.filter((cat) => !feedHidden.has(cat.id));
+    const filterHtml = categories.length ? `
+      <div class="mfeed-filter" role="group" aria-label="notification types">
+        ${categories.map((cat) => `
+          <button type="button" class="mfeed-filter-chip mfeed-${escHtml(cat.kind)}${feedHidden.has(cat.id) ? ' is-off' : ''}"
+                  data-feed-filter="${escHtml(cat.id)}" aria-pressed="${feedHidden.has(cat.id) ? 'false' : 'true'}"
+                  title="${feedHidden.has(cat.id) ? 'show' : 'hide'} ${escHtml(cat.title)}">
+            <i class="mfeed-filter-dot" aria-hidden="true"></i>${escHtml(cat.title)}<span class="mfeed-filter-n">${cat.members.length}</span>
+          </button>`).join('')}
+      </div>` : '';
     // Leave feedPrevKeys untouched here: if data hasn't loaded yet (first
     // render is empty), prevKeys stays null so the first real population is
     // instant (no stagger-storm) rather than treating every card as "new".
-    if (!categories.length) { feedEl.innerHTML = ''; return; }
+    if (!categories.length) { feedEl.innerHTML = ''; closeFeedPop(); return; }
 
-    feedEl.innerHTML = categories.map(feedCategoryHtml).join('');
+    feedEl.innerHTML = filterHtml + visible.map(feedCategoryHtml).join('');
     feedPrevKeys = markEnteringRows(feedEl, feedPrevKeys, '.mfeed-category-row');
+    // Keep the open popover in sync with fresh data (or close it if its
+    // category emptied / got hidden).
+    if (feedPopCat) {
+      if (visible.some((cat) => cat.id === feedPopCat)) renderFeedPop();
+      else closeFeedPop();
+    }
 
-    feedEl.querySelectorAll('[data-feed-category-toggle]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const id = btn.dataset.feedCategoryToggle;
-        feedPinnedCategory = feedPinnedCategory === id ? null : id;
+    feedEl.querySelectorAll('[data-feed-filter]').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const id = chip.dataset.feedFilter;
+        if (feedHidden.has(id)) feedHidden.delete(id);
+        else { feedHidden.add(id); if (feedPopCat === id) closeFeedPop(); }
+        saveFeedHidden();
         renderFeed();
       });
     });
-    feedEl.querySelectorAll('[data-open-feed-category]').forEach((btn) => {
+    feedEl.querySelectorAll('[data-feed-category-toggle]').forEach((btn) => {
+      const id = btn.dataset.feedCategoryToggle;
+      // Click toggles the PIN; hover/focus previews (grace timer lets the
+      // pointer travel into the panel).
       btn.addEventListener('click', () => {
-        const cat = categories.find((c) => c.id === btn.dataset.openFeedCategory);
-        openFeedCategory(cat);
+        if (feedPopCat === id && feedPopPinned) { closeFeedPop(); return; }
+        openFeedPop(id, true);
       });
-    });
-    feedEl.querySelectorAll('[data-feed-category-item]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const cat = categories.find((c) => c.id === btn.dataset.feedCategoryItem);
-        const member = cat?.members?.[+btn.dataset.feedCategoryIndex];
-        openFeedCategoryItem(member);
-      });
+      btn.addEventListener('mouseenter', () => { if (!feedPopPinned) openFeedPop(id, false); });
+      btn.addEventListener('mouseleave', () => { if (!feedPopPinned) scheduleFeedPopHide(); });
+      btn.addEventListener('focus', () => { if (!feedPopPinned) openFeedPop(id, false); });
+      btn.addEventListener('blur', () => { if (!feedPopPinned) scheduleFeedPopHide(); });
     });
     feedEl.querySelectorAll('.mfeed-dismiss').forEach((btn) => {
       btn.addEventListener('click', (ev) => {
@@ -1539,13 +1743,135 @@ export function mountMembrane(container, opts = {}) {
             feedDismissed.add(member.dismissKey);
           }
         }
-        if (feedPinnedCategory === cat.id) feedPinnedCategory = null;
+        if (feedPopCat === cat.id) closeFeedPop();
         dismissCard(btn.closest('.mfeed-category-row'), () => renderFeed());
       });
     });
   }
 
   let dataStore = {};
+  // Which left-rail notification category is click-pinned open (null = none).
+  // Read by feedCategoryHtml and the pin/dismiss handlers in renderFeed —
+  // declared here with the rest of the mount state so the first render
+  // (mount end) never hits the temporal dead zone.
+  let feedPinnedCategory = null;
+
+  // ── hub prototype: field feed + capture bar ─────────────────────────────
+  // The center feed blends three sources into one "cohort today" stream:
+  // open asks (say / maybe by intent), shipping items from what's-new (did),
+  // and locally-captured posts. Oldest→newest top-to-bottom, anchored to the
+  // capture bar (your post lands right above the input).
+  const fieldEl = container.querySelector('[data-mfield]');
+  const capForm = container.querySelector('[data-mcap]');
+  const capInput = container.querySelector('[data-mcap-input]');
+  const capSend = container.querySelector('[data-mcap-send]');
+  const capVerbBtns = [...container.querySelectorAll('[data-mcap-verb]')];
+  let fieldPosts = loadFieldPosts();
+  let capVerb = 'say';
+
+  function selfName() {
+    const p = dataStore.self?.profile || {};
+    return p.name || p.display_name || p.handle || 'you';
+  }
+
+  // Center = the HUMAN layer only: open asks (say) and tentative plans
+  // (maybe), orbiting the die. Machine "did" (releases/commits) stays in the
+  // left notifications, and locally-captured did posts merge into that same
+  // rail (see the didPosts splice in renderFeed) — 2026-07-03 feedback:
+  // "put did on the left merged with the notifications, keep the asks in the
+  // centre, focus it around the shape."
+  function buildFieldItems() {
+    const items = [];
+    const asks = Array.isArray(dataStore.asks?.asksList) ? dataStore.asks.asksList : [];
+    const people = Array.isArray(dataStore.asks?.peopleList) ? dataStore.asks.peopleList : [];
+    for (const a of asks) {
+      if (!askIsOpen(a)) continue;
+      const ts = Date.parse(a.posted_at || a.created_at || '');
+      const author = resolveAskAuthor(a, people);
+      items.push({
+        verb: askIntent(a) === 'come_join' ? 'maybe' : 'say',
+        author: (author && (author.name || author.record_id)) || a.author || 'someone',
+        text: askTopic(a) || 'untitled',
+        ts: Number.isFinite(ts) ? ts : 0,
+        joined: askJoinedBy(a).length,
+      });
+    }
+    for (const p of fieldPosts) { if (p.verb !== 'did') items.push(p); }
+    items.sort((x, y) => (x.ts || 0) - (y.ts || 0));
+    return items.slice(-6);
+  }
+
+  // Rows stack up the LEFT edge of the field (membrane.css) and pop out from
+  // the left — chronological top-to-bottom, so the newest sits at the bottom
+  // right above the capture bar (your post lands where you typed it).
+  function renderFieldFeed() {
+    if (!fieldEl) return;
+    const items = buildFieldItems();
+    // Eyebrow names the surface + the live dot signals that new posts land
+    // here on their own (fresh ones slide in from the left) — answers "how
+    // does something enter this feed?" without a manual anywhere.
+    const head = '<div class="mff-head"><i class="mff-live-dot" aria-hidden="true"></i>open asks · live</div>';
+    if (!items.length) {
+      fieldEl.innerHTML = `${head}<div class="mff-quiet">no open asks — say something below.</div>`;
+      return;
+    }
+    fieldEl.innerHTML = head + items.map((it) => {
+      const v = FIELD_VERBS[it.verb] || FIELD_VERBS.say;
+      const joined = it.joined ? ` · ${it.joined} in` : '';
+      return `
+        <div class="mff-row${it.mine ? ' is-mine' : ''}" style="--mff-tint:${v.tint};--mff-ink:${v.ink}">
+          <span class="mff-verb">${escHtml(v.label)}</span>
+          <span class="mff-body"><span class="mff-author">${escHtml(it.author)}</span><span class="mff-text">${escHtml(it.text)}${escHtml(joined)}</span></span>
+          <span class="mff-age">${escHtml(fieldAge(it.ts))}</span>
+        </div>`;
+    }).join('');
+  }
+
+  function setCapVerb(verb) {
+    if (!FIELD_VERBS[verb]) return;
+    capVerb = verb;
+    for (const b of capVerbBtns) {
+      const on = b.dataset.mcapVerb === verb;
+      b.classList.toggle('is-active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+    if (capInput) capInput.placeholder = `${FIELD_VERBS[verb].hint} · tab switches verb`;
+  }
+
+  if (capForm) {
+    for (const b of capVerbBtns) {
+      b.addEventListener('click', () => { setCapVerb(b.dataset.mcapVerb); capInput?.focus(); });
+    }
+    capInput?.addEventListener('input', () => {
+      capSend.disabled = capInput.value.trim().length < 2;
+    });
+    // Plain Tab cycles the verb (the bar's promised affordance); Shift+Tab
+    // still walks focus out, so keyboard users aren't trapped.
+    capInput?.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Tab' || ev.shiftKey) return;
+      ev.preventDefault();
+      setCapVerb(FIELD_VERB_ORDER[(FIELD_VERB_ORDER.indexOf(capVerb) + 1) % FIELD_VERB_ORDER.length]);
+    });
+    capForm.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      const text = (capInput?.value || '').trim();
+      if (text.length < 2) return;
+      fieldPosts.push({ verb: capVerb, author: selfName(), text, ts: Date.now(), mine: true });
+      fieldPosts = fieldPosts.slice(-50);
+      saveFieldPosts(fieldPosts);
+      capInput.value = '';
+      capSend.disabled = true;
+      if (capVerb === 'did') {
+        // did lands in the LEFT rail (merged with the shipping notifications);
+        // markEnteringRows slides the changed category in.
+        renderFeed();
+      } else {
+        renderFieldFeed();
+        const fresh = fieldEl?.lastElementChild; // bottom of the stack = the fresh post
+        if (fresh && !prefersReducedMotion()) fresh.classList.add('is-entering');
+      }
+    });
+  }
 
   function renderPanelFor(id) {
     const tpl = PANEL_TEMPLATES[id];
@@ -1741,6 +2067,7 @@ export function mountMembrane(container, opts = {}) {
   if (rubiksResetBtn) rubiksResetBtn.addEventListener('click', () => rubiks?.reset());
   renderAgenda();
   renderFeed();
+  renderFieldFeed();
 
   sound.setTonic('self');
   renderPanelFor('self');
@@ -1775,6 +2102,21 @@ export function mountMembrane(container, opts = {}) {
   const feedback = setupFeedbackBox(container);
   const whisper = setupFirstWhisper(container);
 
+  // Popover escape hatches — Esc always closes; a click anywhere outside the
+  // panel and the rail closes a PINNED panel (hover previews go on their own
+  // grace timer). Both removed in destroy(); container listeners would
+  // otherwise stack across re-mounts of this page.
+  function onFeedPopKey(ev) {
+    if (ev.key === 'Escape' && feedPopCat) { ev.stopPropagation(); closeFeedPop(); }
+  }
+  function onFeedPopOutside(ev) {
+    if (!feedPopCat || !feedPopPinned) return;
+    if (ev.target.closest('.mfeed-pop') || ev.target.closest('.mfeed-category-row')) return;
+    closeFeedPop();
+  }
+  document.addEventListener('keydown', onFeedPopKey);
+  container.addEventListener('mousedown', onFeedPopOutside);
+
   return {
     setActiveBlob(id) {
       scene.setActiveBlob(id);
@@ -1787,18 +2129,23 @@ export function mountMembrane(container, opts = {}) {
       maybeAutoEnterField();
       renderAgenda();
       renderFeed();
+      renderFieldFeed();
       const active = scene.getActiveBlobId();
       if (active) renderPanelFor(active);
     },
     sound,
     destroy() {
       clearInterval(agendaTimer);
+      clearTimeout(feedPopHideTimer);
+      document.removeEventListener('keydown', onFeedPopKey);
+      container.removeEventListener('mousedown', onFeedPopOutside);
       feedback.dispose();
       whisper.dispose();
       if (rubiks) rubiks.dispose();
       scene.destroy();
       sound.destroy();
       container.classList.remove('membrane-host');
+      container.classList.remove('membrane-hub');
       container.classList.remove('membrane-rubiks-active');
       container.innerHTML = '';
     },
