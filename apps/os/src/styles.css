@@ -20112,6 +20112,26 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   text-transform: uppercase;
 }
 
+/* grouped/newest ordering toggle atop the distilled list */
+.alch-cv-tsort {
+  display: flex;
+  gap: 2px;
+  margin: 2px 2px 8px;
+  padding: 3px;
+  background: rgba(var(--ink-rgb), 0.05);
+  border-radius: 8px;
+  width: fit-content;
+}
+.alch-cv-tsort-btn {
+  appearance: none; cursor: pointer; border: 0; background: transparent;
+  color: rgba(var(--ink-rgb), 0.5); border-radius: 6px; padding: 4px 10px;
+  font: var(--ds-weight-med, 500) var(--ds-text-2xs, 10px)/1.4 var(--ds-font-mono, monospace);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  transition: background 120ms ease, color 120ms ease;
+}
+.alch-cv-tsort-btn:hover { color: rgba(var(--ink-rgb), 0.8); }
+.alch-cv-tsort-btn.is-on { background: rgba(var(--ink-rgb), 0.1); color: rgba(var(--ink-rgb), 0.95); }
+
 /* Distilled-transcript list grouping (by session type) + confidence badges. */
 .alch-cv-group-head {
   display: flex;

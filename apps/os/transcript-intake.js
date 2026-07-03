@@ -454,6 +454,13 @@ async function submitTranscriptIntake({
     const persisted = ingest.persisted || {};
     const processingJobs = Array.isArray(persisted.processingJobs) ? persisted.processingJobs : [];
     const sourceArtifacts = Array.isArray(persisted.sourceArtifacts) ? persisted.sourceArtifacts : [];
+    // Stamp the sidecar so the upload-history list can answer "did it work?"
+    // ("I wonder if I don't know if it worked then", 2026-07-02).
+    try {
+      const done = { ...sidecar, submitted_at: new Date().toISOString(), processing_queued: processingJobs.length > 0 };
+      fs.writeFileSync(`${staged.stagedPath}.manifest.json`, `${JSON.stringify(done, null, 2)}
+`, "utf8");
+    } catch { /* history is best-effort */ }
     return {
       ok: true,
       submittedToSupabase: true,
@@ -503,6 +510,42 @@ async function pickTranscriptFile({ browserWindow, dialogImpl } = {}) {
   return inspectTranscriptFile(selection.filePaths[0]);
 }
 
+// Recent uploads staged FROM THIS DEVICE, newest first — each entry is a
+// manifest sidecar written at stage time and stamped submitted_at on a
+// successful ingest. Answers "did my earlier upload go through?" without any
+// network call; the renderer may additionally match distilled readouts to show
+// "processed".
+function listTranscriptIntakeHistory({ intakeRoot = DEFAULT_INTAKE_ROOT, limit = 8 } = {}) {
+  const out = [];
+  const walk = (dir, depth = 0) => {
+    if (depth > 4) return;
+    let entries = [];
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const ent of entries) {
+      const p = path.join(dir, ent.name);
+      if (ent.isDirectory()) walk(p, depth + 1);
+      else if (ent.name.endsWith(".manifest.json")) {
+        const m = readJson(p, null);
+        if (m && m.staged_at) {
+          out.push({
+            staged_at: m.staged_at,
+            submitted_at: m.submitted_at || null,
+            processing_queued: !!m.processing_queued,
+            session_type: m.session_type || "",
+            label: m.label || m.original_file_name || "",
+            declared_date: m.declared_date || null,
+            route_path: m.route_path || "",
+            size_bytes: m.size_bytes || 0,
+          });
+        }
+      }
+    }
+  };
+  walk(intakeRoot);
+  out.sort((a, b) => String(b.staged_at).localeCompare(String(a.staged_at)));
+  return out.slice(0, Math.max(1, Math.min(50, limit)));
+}
+
 async function pickAndSubmitTranscriptIntake({ browserWindow, dialogImpl, ...opts } = {}) {
   const policy = loadTranscriptPolicy();
   routeForTranscriptType(policy, opts.sessionType);
@@ -513,6 +556,7 @@ async function pickAndSubmitTranscriptIntake({ browserWindow, dialogImpl, ...opt
 
 module.exports = {
   DEFAULT_INTAKE_ROOT,
+  listTranscriptIntakeHistory,
   DEFAULT_POLICY,
   MAX_UPLOAD_BYTES,
   buildTranscriptIntakeBody,
