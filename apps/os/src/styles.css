@@ -5,12 +5,10 @@
  * boot for the calendar stylesheet. */
 
 /* ─── type ─────────────────────────────────────────────────────────────────
- * Space Grotesk + JetBrains Mono, matching shaperotator.xyz. Loaded via
- * Google Fonts in index.html (preconnect + display=swap). CSP already
- * permits fonts.googleapis.com + fonts.gstatic.com; the brief system-ui
- * flash on first-launch-while-offline is acceptable for an Electron app
- * because the wordmark layout doesn't shift (Space Grotesk and system-ui
- * have near-identical advance widths at our display sizes).
+ * Space Grotesk + JetBrains Mono, matching shaperotator.xyz. VENDORED
+ * locally (vendor/fonts/fonts.css, linked from index.html) so a launch
+ * never blocks on fonts.googleapis.com — offline starts used to wait out a
+ * network timeout before text settled. CSP is 'self' for styles + fonts.
  * ─────────────────────────────────────────────────────────────────────── */
 
 /* Canonical design tokens moved to packages/shape-ui/tokens.css (imported at top). */
