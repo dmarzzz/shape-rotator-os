@@ -19464,7 +19464,9 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   align-items: baseline;
   gap: 12px;
   flex-wrap: wrap;
-  margin: -6px 0 0;
+  /* right margin reserves the floating toolbar band (absolute, top-right) so
+     the question can never run underneath it at narrow widths */
+  margin: -6px 300px 0 0;
 }
 .alch-cv-question h2 {
   margin: 0;
@@ -20450,6 +20452,8 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   .alch-cv-detail-head {
     flex-direction: column;
   }
+  .alch-cv-question { margin-right: 220px; }
+  .alch-cv-question span { display: none; }
   .alch-cv-layout {
     grid-template-columns: 1fr;
   }
