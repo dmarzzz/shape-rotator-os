@@ -10,7 +10,11 @@
   (function () {
     const qs = new URLSearchParams(location.search);
     const lens = qs.get("lens") === "library" ? "library" : "stream";
-    const mode = qs.get("mode") === "membrane" ? "membrane" : "context";
+    // ?mode= any rail page (unknown values land on context); ?cmode= picks the
+    // constellation sub-view (map | journey | collab) when mode=constellation.
+    const KNOWN_MODES = ["membrane", "context", "shapes", "constellation", "mirror", "calendar", "program"];
+    const mode = KNOWN_MODES.includes(qs.get("mode")) ? qs.get("mode") : "context";
+    const cmode = ["map", "journey", "collab"].includes(qs.get("cmode")) ? qs.get("cmode") : "map";
 
     const DEMO_MANIFEST = {
       schema_version: 2,
@@ -40,10 +44,18 @@
       localStorage.setItem("srwk:membrane_seen_v1", "1");
       localStorage.setItem("srwk:alchemy_mode", mode);
       localStorage.setItem("srwk:context_view", lens);
+      if (mode === "constellation") localStorage.setItem("srwk:const_mode", cmode);
+      // ?cscope=people flips the relationship map to the people network
+      if (qs.get("cscope")) localStorage.setItem("srwk:const_scope", qs.get("cscope"));
       // the tab strip restores the last session and would override the seeded
       // mode — hand it the target tab instead
+      const loc = mode === "context"
+        ? { tab: "alchemy", mode: "context", contextView: lens }
+        : (mode === "constellation"
+          ? { tab: "alchemy", mode: "constellation", constellationMode: cmode }
+          : { tab: "alchemy", mode });
       localStorage.setItem("srwk:tabs_v1", JSON.stringify({
-        tabs: [{ id: "t_preview", loc: mode === "membrane" ? { tab: "alchemy", mode: "membrane" } : { tab: "alchemy", mode: "context", contextView: lens } }],
+        tabs: [{ id: "t_preview", loc }],
         activeId: "t_preview"
       }));
       // collapse the nav drawer (first-launch discovery pins it open,
@@ -211,6 +223,63 @@
         else if (tries > 30) clearInterval(timer);
       }, 300);
     });
+
+    // Headless repro driver: ?clicks=<sel>||<sel>||… clicks each CSS selector
+    // in order (600ms apart, each retried until present). ?diag=1 appends a
+    // fixed diagnostics box reporting what document.elementFromPoint sees at
+    // the viewport center + any leftover overlay-ish state after the sequence —
+    // lets a static screenshot / --dump-dom show "page is unclickable" states.
+    if (qs.get("clicks") || qs.get("diag")) {
+      window.addEventListener("load", () => {
+        const steps = (qs.get("clicks") || "").split("||").filter(Boolean);
+        let i = 0;
+        const stepDelay = Number(qs.get("clickdelay") || 600);
+        const log = [];
+        const next = () => {
+          if (i >= steps.length) { if (qs.get("diag")) setTimeout(report, 900); return; }
+          const sel = steps[i];
+          let tries = 0;
+          const t = setInterval(() => {
+            tries += 1;
+            let el = null;
+            try { el = document.querySelector(sel); } catch (e) { log.push("BAD SELECTOR " + sel); }
+            if (el) {
+              clearInterval(t);
+              log.push("clicked " + sel);
+              // SVG elements have no .click(); dispatch a real bubbling event
+              try { el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window })); }
+              catch (err) { log.push("CLICK ERR " + err); }
+              i += 1;
+              setTimeout(next, stepDelay);
+            } else if (tries > 20) {
+              clearInterval(t);
+              log.push("MISSING " + sel);
+              i += 1;
+              setTimeout(next, stepDelay);
+            }
+          }, 300);
+        };
+        const report = () => {
+          const cx = Math.floor(innerWidth / 2), cy = Math.floor(innerHeight / 2);
+          const hit = document.elementFromPoint(cx, cy);
+          const desc = (el) => el ? el.tagName + (el.id ? "#" + el.id : "") + (el.className && typeof el.className === "string" ? "." + el.className.trim().split(/\s+/).slice(0, 3).join(".") : "") : "null";
+          const box = document.createElement("pre");
+          box.id = "preview-diag";
+          box.style.cssText = "position:fixed;left:8px;bottom:8px;z-index:99999;background:#000;color:#0f0;font:11px monospace;padding:8px;max-width:900px;white-space:pre-wrap;";
+          box.textContent = [
+            "DIAG mode=" + (localStorage.getItem("srwk:alchemy_mode") || "?"),
+            "htmlClass=" + document.documentElement.className,
+            "centerHit=" + desc(hit),
+            "activeVT=" + (document.documentElement.matches(":active-view-transition") ? "YES" : "no"),
+            "scrubbers=" + document.querySelectorAll(".cps").length,
+            "canvasChildren=" + (document.getElementById("alchemy-canvas") ? document.getElementById("alchemy-canvas").children.length : -1),
+            ...log,
+          ].join("\n");
+          document.body.appendChild(box);
+        };
+        setTimeout(next, 800);
+      });
+    }
 
     const realFetch = window.fetch.bind(window);
     const LIVE = !!qs.get("live"); // ?live=1 → real overlays, no demo records
