@@ -32,6 +32,13 @@
     </script>
   </head>
   <body data-active-tab="alchemy" data-net-sub="network">
+    <script>
+      // Pre-paint seed for the USER nav pin (boot.js owns it after wiring):
+      // body[data-nav-pinned] pads the content column right of the docked rail,
+      // so a pinned session must carry the attribute before first paint or the
+      // page flashes unpadded and slides.
+      try { if (localStorage.getItem("srwk:nav_pinned_v1") === "1") document.body.dataset.navPinned = "1"; } catch (e) {}
+    </script>
     <div id="chrome-staging" hidden>
       <!-- Boot-only staging. The version chip is moved into the rail footer
            once renderer boot finishes; visible tabs live in #content-top. -->
