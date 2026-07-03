@@ -15,7 +15,7 @@
 // (paraphrased source_transform, publishable artifact_kind, reviewed/published T2
 // only), so raw transcripts can never flow through it, and it NEVER reads with anon.
 
-import { readSupabaseConfig } from "./supabase-evidence.mjs";
+import { readSupabaseConfig, resolveGatedBearer } from "./supabase-evidence.mjs";
 import { fetchAnon } from "./supabase-anon-write.mjs";
 
 // Columns the gated distillation view exposes (must match the migration's select
@@ -100,14 +100,17 @@ export function normalizeDistillation(row) {
 // (never throws) so a Supabase outage degrades to "no distilled transcripts".
 export async function fetchCohortDistillations(opts = {}) {
   const doFetch = opts.fetchImpl || globalThis.fetch;
-  const { url, anonKey, cohortKey } = opts.config || readSupabaseConfig(opts.storage);
-  if (!url || !anonKey || !cohortKey || typeof doFetch !== "function") {
+  const cfg = opts.config || readSupabaseConfig(opts.storage);
+  // Cohort key when provisioned, else the signed-in member's session token —
+  // the gated view grants SELECT to both cohort_app and authenticated.
+  const bearer = await resolveGatedBearer(cfg, opts);
+  if (!cfg.url || !cfg.anonKey || !bearer || typeof doFetch !== "function") {
     return { artifacts: [], source: "unconfigured" };
   }
   // Same gateway discipline as the evidence reader: apikey is the anon key (Kong
-  // validates it before PostgREST), the cohort_app role rides in Bearer via fetchAnon's
+  // validates it before PostgREST), the gated role rides in Bearer via fetchAnon's
   // bearer override. On success we relabel the generic "supabase" to "supabase-cohort".
-  const { rows, source, error } = await fetchAnon(DISTILL_PATH, { ...opts, bearer: cohortKey });
+  const { rows, source, error } = await fetchAnon(DISTILL_PATH, { ...opts, bearer });
   if (source !== "supabase") return { artifacts: [], source, error };
   const artifacts = rows.map(normalizeDistillation).filter(Boolean);
   return { artifacts, source: "supabase-cohort" };

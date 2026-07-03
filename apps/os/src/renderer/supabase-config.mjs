@@ -61,6 +61,30 @@ export function readSupabaseConfig(storage = globalThis.localStorage) {
   return { url, anonKey, cohortKey };
 }
 
+// Resolve the bearer for the GATED cohort reads (distillations / T2 evidence /
+// insight cards): the cohort key when one exists, else the signed-in member's
+// Supabase session token. The gated views grant SELECT to both the cohort_app
+// AND authenticated roles (verified against the live DB 2026-07-03), so a
+// logged-in member reads them with no key at all — "the app is built that you
+// login and can access all these things." Async because the session rides the
+// auth IPC (main refreshes it when near expiry). Returns "" when neither
+// credential exists (public web / signed-out unprovisioned build) — callers
+// no-op exactly as they did before.
+export async function resolveGatedBearer(config, { auth } = {}) {
+  const cfg = config || readSupabaseConfig();
+  if (cfg && cfg.cohortKey) return cfg.cohortKey;
+  const bridge = auth !== undefined
+    ? auth
+    : (typeof globalThis !== "undefined" && globalThis.api && globalThis.api.auth) || null;
+  if (bridge && typeof bridge.getSession === "function") {
+    try {
+      const s = await bridge.getSession();
+      if (s && s.access_token) return String(s.access_token).trim();
+    } catch { /* signed out or auth unavailable */ }
+  }
+  return "";
+}
+
 // Persist a cohort key into the SAME config blob readSupabaseConfig() consults
 // (srfg:calendar_ingress_config → supabaseCohortKey), so a dev / provisioned run
 // can light up the GATED cohort reads (distilled transcripts + named T2 evidence)
