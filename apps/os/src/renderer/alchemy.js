@@ -15491,7 +15491,7 @@ function distilledTranscriptTitle(s) {
 function distilledTranscriptMeta(s) {
   const bits = [];
   if (s?.session_type) bits.push(String(s.session_type).replace(/_/g, " "));
-  if (s?.kind) bits.push(String(s.kind).replace(/_/g, " "));
+  else if (s?.kind) bits.push(String(s.kind).replace(/_/g, " "));
   if (s?.date) bits.push(contextEvidenceDate(s.date));
   const teams = Array.isArray(s?.teams) ? s.teams : [];
   if (teams.length) bits.push(teams.slice(0, 3).map((t) => String(t).replace(/-/g, " ")).join(", "));
@@ -15942,6 +15942,12 @@ function contextStreamTitle(item) {
 
 // Row meta: the species word first (type is a badge, not a tab), then the one
 // or two bits that identify the item at a glance.
+function contextStreamShortDate(ms) {
+  try {
+    return new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  } catch { return ""; }
+}
+
 function contextStreamMeta(item) {
   const bits = [CONTEXT_KIND_LABEL[item.kind] || item.kind];
   if (item.kind === "readout") {
@@ -15954,7 +15960,7 @@ function contextStreamMeta(item) {
     const sk = String(item.record?.source_kind || "").replace(/-/g, " ").trim();
     if (sk) bits.push(sk);
   }
-  const when = item.dateMs != null ? contextEvidenceDate(item.dateMs) : "";
+  const when = item.dateMs != null ? contextStreamShortDate(item.dateMs) : "";
   if (when) bits.push(when);
   return bits.filter(Boolean).join(" · ");
 }
@@ -16011,14 +16017,6 @@ function contextDetailColHtml(inner) {
   return `<div class="alch-cv-detailcol" data-cv-detail-root>${inner}</div>`;
 }
 
-function contextTopicMeta(t) {
-  const bits = [];
-  if (t.hints) bits.push(`${t.hints} hint${t.hints === 1 ? "" : "s"}`);
-  if (t.claims) bits.push(`${t.claims} claim${t.claims === 1 ? "" : "s"}`);
-  if (t.sessions) bits.push(`${t.sessions} session${t.sessions === 1 ? "" : "s"}`);
-  return bits.join(" · ");
-}
-
 // A topic page reads durable → derived → raw: hints (evergreen articles),
 // then claims (evidence, tier-scoped), then the sessions they came from.
 // Sections with nothing to say don't render.
@@ -16026,9 +16024,6 @@ function contextTopicPageHtml(topicKey) {
   const { articles, distilled, cards } = contextLensInputs();
   const page = topicPageData(topicKey, { articles, distilled, cards });
   const label = page.key || "topic";
-  const counts = contextTopicMeta({
-    hints: page.hints.length, claims: page.claims.length, sessions: page.sessions.length,
-  });
   const hintRows = page.hints.map((a) => `
     <button class="alch-cv-lib-item" type="button" data-cv-lib-open="${escAttr(streamKey("article", a.id))}">
       <strong>${escHtml(contextArticleTitle(a))}</strong>
@@ -16049,12 +16044,8 @@ function contextTopicPageHtml(topicKey) {
   const empty = !(page.hints.length || page.claims.length || page.sessions.length);
   return `
     <article class="alch-cv-detail alch-cv-topic-page">
-      <header class="alch-cv-detail-head">
-        <div><span class="alch-cv-eyebrow">topic</span></div>
-      </header>
       <article class="alch-cv-reader alch-cv-topic-reader">
         <h1>${escHtml(label)}</h1>
-        ${counts ? `<p class="alch-cv-reader-dek">${escHtml(counts)}</p>` : ""}
         ${page.hints.length ? contextLibSectionHtml("start here · hints & articles", hintRows) : ""}
         ${page.claims.length ? contextLibSectionHtml(`what we've learned · ${page.claims.length} claim${page.claims.length === 1 ? "" : "s"}`, claimsBody) : ""}
         ${page.sessions.length ? contextLibSectionHtml(`where it came from · ${page.sessions.length} session${page.sessions.length === 1 ? "" : "s"}`, sessRows) : ""}
@@ -16102,7 +16093,6 @@ function renderContextVault() {
       <button class="alch-cv-source alch-cv-topic${t.key === cv.topicKey ? " is-selected" : ""}" type="button" data-cv-topic="${escAttr(t.key)}" data-cv-tags="${escAttr(topicSlug(t.key))}">
         <span class="alch-cv-topic-count">${t.total}</span>
         <strong>${escHtml(t.label)}</strong>
-        <span class="alch-cv-source-meta">${escHtml(contextTopicMeta(t))}</span>
       </button>`).join("");
     const openRecord = cv.libraryOpen ? contextRecordByRef(cv.libraryOpen.kind, cv.libraryOpen.id) : null;
     detail = openRecord
@@ -16318,6 +16308,14 @@ function wireContextVaultFilter() {
   };
   cv._applyFilter = apply;
   if (input) input.addEventListener("input", () => { cv.query = input.value || ""; apply(); });
+  if (input) input.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowDown") return;
+    const first = sources && [...sources.querySelectorAll("[data-cv-stream], [data-cv-topic]")].find((r) => !r.hidden);
+    if (!first) return;
+    e.preventDefault();
+    first.focus();
+    first.click();
+  });
   if (clearBtn) clearBtn.addEventListener("click", () => { cv.query = ""; if (input) input.value = ""; apply(); });
   if (cv.query) apply();
 }
