@@ -63,20 +63,31 @@ test("buildStreamItems merges species newest-first with undated last", () => {
   );
 });
 
-test("groupStreamItems buckets this week / last week / month / undated", () => {
+test("groupStreamItems buckets weeks first, months beyond a month, undated last", () => {
   const now = new Date("2026-07-03T12:00:00"); // Friday; week starts Mon Jun 29
   const items = buildStreamItems({
     distilled: [
-      { id: "wk", date: "2026-07-01" },
-      { id: "lastwk", date: "2026-06-26" },
-      { id: "june", date: "2026-06-10" },
+      { id: "wk", date: "2026-07-01" },        // this week
+      { id: "lastwk", date: "2026-06-26" },    // week of Jun 22
+      { id: "two", date: "2026-06-17" },       // week of Jun 15
+      { id: "three", date: "2026-06-10" },     // week of Jun 8
+      { id: "four", date: "2026-06-03" },      // week of Jun 1
+      { id: "old", date: "2026-05-20" },       // 6 weeks back → month page
     ],
     rawScripts: [{ id: "undated" }],
   });
   const groups = groupStreamItems(items, now);
   assert.deepEqual(
     groups.map((g) => [g.label, g.items.length]),
-    [["this week", 1], ["last week", 1], ["june 2026", 1], ["undated", 1]],
+    [
+      ["this week", 1],
+      ["last week", 1],
+      ["2 weeks ago", 1],
+      ["3 weeks ago", 1],
+      ["4 weeks ago", 1],
+      ["may 2026", 1],
+      ["undated", 1],
+    ],
   );
 });
 

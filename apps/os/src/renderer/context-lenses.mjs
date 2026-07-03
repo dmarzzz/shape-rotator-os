@@ -93,12 +93,17 @@ function startOfWeekMs(now) {
   return d.getTime();
 }
 
-// Date-bucket an already-sorted stream: this week / last week / month pages /
-// undated. Buckets appear in the order the sorted items produce them, so the
-// scroll stays strictly newest-first.
+// How far back the stream keeps week-grained buckets before falling to month
+// pages. The cohort runs on a weekly rhythm, so recent history reads in weeks
+// ("2 weeks ago"), and only older-than-a-month content rolls up by month.
+const WEEK_BUCKET_MAX = 4;
+
+// Date-bucket an already-sorted stream: this week / last week / N weeks ago
+// (out to WEEK_BUCKET_MAX) / month pages / undated. Buckets appear in the
+// order the sorted items produce them, so the scroll stays strictly
+// newest-first.
 export function groupStreamItems(items = [], now = new Date()) {
   const thisWeek = startOfWeekMs(now);
-  const lastWeek = thisWeek - WEEK_MS;
   const groups = [];
   const byLabel = new Map();
   const push = (label, item) => {
@@ -110,12 +115,19 @@ export function groupStreamItems(items = [], now = new Date()) {
     }
     group.items.push(item);
   };
+  const monthLabel = (ms) => {
+    const d = new Date(ms);
+    return `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+  };
   for (const item of Array.isArray(items) ? items : []) {
     if (item.dateMs == null) { push("undated", item); continue; }
-    if (item.dateMs >= thisWeek && item.dateMs < thisWeek + WEEK_MS) { push("this week", item); continue; }
-    if (item.dateMs >= lastWeek && item.dateMs < thisWeek) { push("last week", item); continue; }
-    const d = new Date(item.dateMs);
-    push(`${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`, item);
+    // Round out DST wobble: week starts are local midnights, so the gap
+    // between two of them is N weeks ± an hour.
+    const weeksAgo = Math.round((thisWeek - startOfWeekMs(new Date(item.dateMs))) / WEEK_MS);
+    if (weeksAgo === 0) push("this week", item);
+    else if (weeksAgo === 1) push("last week", item);
+    else if (weeksAgo > 1 && weeksAgo <= WEEK_BUCKET_MAX) push(`${weeksAgo} weeks ago`, item);
+    else push(monthLabel(item.dateMs), item); // older than a month, or future-dated
   }
   return groups;
 }
