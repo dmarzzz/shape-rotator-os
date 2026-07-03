@@ -85,6 +85,16 @@ function currentPageContext() {
     if (tab === "chat") return { key: "chat", label: "matrix chat", detail: "the cohort's chat channels", presets: ["who in the cohort should I meet?", "what's happening this week?"] };
     if (tab === "network") return { key: "network", label: "network glance", detail: "", presets: ["what's happening in the cohort this week?"] };
     const mode = document.body.dataset.alchMode || "";
+    // A document open in the context reader beats the page: seed prompts about
+    // THAT transcript/readout ("how is this relevant to my team?", 2026-07-02).
+    if (mode === "context" && document.querySelector(".alch-cv-detail")) {
+      return {
+        key: "context-reader",
+        label: "the open document",
+        detail: "a transcript/readout open in the context reader",
+        presets: ["how is this relevant to my team?", "sum this up in three bullets", "who in the cohort should read this?"],
+      };
+    }
     const hit = PAGE_MAP[mode];
     return hit ? { key: mode, ...hit } : null;
   } catch { return null; }
@@ -314,6 +324,7 @@ function createController() {
     setTimeout(() => input.focus(), 60);
     refreshReadiness();
     void renderLiveLine();
+    void personalizeChips();
     void onboardThenOffer();
   }
 
@@ -548,10 +559,30 @@ function createController() {
     preMsg.className = "cohort-chat-pre-message" + (kind ? ` is-${kind}` : "");
   }
 
+  // One succinct, non-adjustable note saying which local AI answers here —
+  // derived from the resolved command (e.g. "claude -p" → Claude Code).
+  function backendLabel(cfg) {
+    const src = String((cfg && (cfg.resolved || cfg.chatCmd)) || (cfg && cfg.available && cfg.available[0]) || "").trim();
+    if (!src) return "";
+    const bin = (src.split(/\s+/)[0] || "").replace(/\\/g, "/").split("/").pop().replace(/\.(exe|cmd|bat|ps1)$/i, "").toLowerCase();
+    if (bin === "claude") return "Claude Code";
+    if (bin === "codex") return "Codex";
+    return bin;
+  }
+  function syncModelNote(cfg) {
+    const el = $("cohort-chat-model");
+    if (!el) return;
+    const label = cfg && cfg.ready ? backendLabel(cfg) : "";
+    el.hidden = !label;
+    el.textContent = label ? `· ${label}` : "";
+    if (label) el.title = `answers come from your own ${label} agent on this machine`;
+  }
+
   async function refreshReadiness() {
     try {
       const cfg = await window.api.getCohortChatConfig();
       cmdInput.value = cfg.chatCmd || "";
+      syncModelNote(cfg);
       detectedEl.textContent = cfg.available && cfg.available.length
         ? `detected on PATH: ${cfg.available.join(", ")}${cfg.resolved ? ` · will run: ${cfg.resolved}` : ""}`
         : "no local AI CLI detected on PATH";
@@ -611,13 +642,107 @@ function createController() {
     body.className = "cc-msg-body";
     // Assistant prose renders as markdown (escape-first — see chat-markdown.mjs);
     // user text stays literal.
-    if (role === "assistant" && text) body.innerHTML = renderChatMarkdown(text);
+    if (role === "assistant" && text) { body.innerHTML = renderChatMarkdown(text); decorateSources(body); }
     else body.textContent = text || "";
     row.appendChild(body);
     if (role === "assistant") row.appendChild(buildCopyBtn(body));
     log.appendChild(row);
     log.scrollTop = log.scrollHeight;
     return body;
+  }
+
+  // ── sources — a compact list at the END of an answer, expandable in place ──
+  // The prompt asks the model to close with a `Sources:` bullet list (never
+  // links sprinkled through the prose). Here that trailing list becomes
+  // <details> rows: clicking a source expands what we know about it INLINE
+  // (from the live distilled-readout catalog or the cohort surface) instead of
+  // navigating anywhere (2026-07-02 feedback).
+  function decorateSources(body) {
+    try {
+      const blocks = body.querySelectorAll("p, h1, h2, h3, h4");
+      let head = null;
+      for (const el of blocks) {
+        if (/^sources?:?$/i.test((el.textContent || "").trim())) head = el;
+      }
+      if (!head) return;
+      const list = head.nextElementSibling;
+      if (!list || (list.tagName !== "UL" && list.tagName !== "OL")) return;
+      if (list.nextElementSibling) return; // only a TRAILING list is a sources block
+      const wrap = document.createElement("div");
+      wrap.className = "cc-sources";
+      const cap = document.createElement("div");
+      cap.className = "cc-sources-head";
+      cap.textContent = "sources";
+      wrap.appendChild(cap);
+      let any = false;
+      for (const li of list.querySelectorAll(":scope > li")) {
+        const name = (li.textContent || "").trim();
+        if (!name) continue;
+        any = true;
+        const d = document.createElement("details");
+        d.className = "cc-src";
+        const s = document.createElement("summary");
+        s.textContent = name;
+        d.appendChild(s);
+        const detail = document.createElement("div");
+        detail.className = "cc-src-body";
+        d.appendChild(detail);
+        d.addEventListener("toggle", () => {
+          if (d.open && !detail.textContent) {
+            detail.textContent = "looking it up…";
+            void fillSourceDetail(name, detail);
+          }
+        });
+        wrap.appendChild(d);
+      }
+      if (!any) return;
+      head.remove();
+      list.replaceWith(wrap);
+    } catch { /* decoration is best-effort — the plain list still reads fine */ }
+  }
+
+  // What we can show for a cited source, looked up in the live data the answer
+  // was grounded in: distilled readouts first, then team/person records.
+  async function fillSourceDetail(name, el) {
+    const n = String(name).toLowerCase().replace(/\s+/g, " ").trim();
+    const has = (a, b) => a && b && (a.includes(b) || b.includes(a));
+    try {
+      const artifacts = await getDistillationsForPrompt();
+      const art = (artifacts || []).find((a) => {
+        const t = String((a && a.title) || "").toLowerCase().trim();
+        return t && has(n, t);
+      });
+      if (art) {
+        el.textContent = [
+          String(art.date || art.created_at || "").slice(0, 10),
+          String(art.session_type || "").replace(/_/g, " "),
+          art.teams && art.teams.length ? `teams: ${art.teams.slice(0, 4).join(", ")}` : "",
+          art.themes && art.themes.length ? `themes: ${art.themes.slice(0, 4).join(", ")}` : "",
+          art.summary ? String(art.summary) : "distilled readout — full text in the context tab",
+        ].filter(Boolean).join(" · ");
+        return;
+      }
+    } catch {}
+    try {
+      const surface = await getCohortSurface();
+      const recs = [
+        ...(Array.isArray(surface && surface.teams) ? surface.teams : []),
+        ...(Array.isArray(surface && surface.people) ? surface.people : []),
+      ];
+      const rec = recs.find((r) => {
+        const rn = String((r && r.name) || "").toLowerCase().trim();
+        return rn && n.includes(rn);
+      });
+      if (rec) {
+        el.textContent = [
+          rec.team ? `person — team ${rec.team}` : "team",
+          rec.focus ? `focus: ${rec.focus}` : "",
+          rec.now ? `now: ${rec.now}` : "",
+        ].filter(Boolean).join(" · ") || "cohort record";
+        return;
+      }
+    } catch {}
+    el.textContent = "cited from the cohort context pack behind this answer.";
   }
 
   // The welcome (example prompts + info) belongs whenever the user hasn't asked
@@ -1003,7 +1128,7 @@ function createController() {
     card.className = "cc-card is-transcript-intake";
     card.innerHTML = `
       <div class="cc-card-eyebrow">add transcript</div>
-      <p class="cc-upload-privacy">Uploads go to the program's private store and queue for processing — nothing publishes automatically, and the raw file is never shown to the cohort. Pick a type below to see exactly where this one routes.</p>
+      <p class="cc-upload-privacy">Uploads go to the program's private store and queue for processing. Nothing publishes itself; the cohort never sees the raw file. Pick a type to see where this one routes.</p>
       <button type="button" class="cc-upload-dropzone" data-cc-transcript-dropzone aria-label="choose a transcript file"></button>
       <div class="cc-upload-grid">
         <label class="cc-upload-field">
@@ -1342,6 +1467,7 @@ function createController() {
         // The stream typed out plain text; the finished answer swaps to rendered
         // markdown so **bold**/# headings stop showing as raw asterisks.
         activeBubbleBody.innerHTML = renderChatMarkdown(display || finalText);
+        decorateSources(activeBubbleBody);
         ephemeralText = display || finalText;
         // Ephemeral one-shots (article restyle) never join the conversation.
         if (!pendingEphemeral) history.push({ role: "assistant", content: display || finalText });
@@ -1494,7 +1620,10 @@ function createController() {
         const disp = activeStream.display();
         if (disp) {
           activeBubbleBody.hidden = false;
-          activeBubbleBody.textContent = disp; // type it out as deltas arrive
+          // Render markdown LIVE while it types — literal **asterisks** / raw #
+          // headings never flash on screen (2026-07-02 feedback). The text is
+          // small; re-rendering per chunk is cheap and escape-first (safe).
+          activeBubbleBody.innerHTML = renderChatMarkdown(disp);
           const secs = Math.round((Date.now() - started) / 1000);
           setRunPhase("writing", secs);
         }
@@ -1619,11 +1748,33 @@ function createController() {
   panel.querySelectorAll("[data-cohort-chat-close]").forEach((el) => el.addEventListener("click", close));
   // Click an example prompt to drop it into the input (delightful discovery of the
   // agentic verbs). Submitting `/mirror` etc. then flows through send() as normal.
+  // The "…" chip fills only its stem and leaves the caret waiting for a topic.
   panel.querySelectorAll("[data-cc-eg]").forEach((el) => el.addEventListener("click", () => {
-    input.value = el.textContent.trim();
+    input.value = el.dataset.ccEgStem != null && el.dataset.ccEgStem !== ""
+      ? el.dataset.ccEgStem
+      : el.textContent.trim();
     autosize();
     input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
   }));
+
+  // Personalize the work-check chip to the member's OWN project ("check my
+  // Shape OS work" meant nothing to other teams — 2026-07-02 feedback). Falls
+  // back to the generic "my recent work" label for unclaimed users.
+  async function personalizeChips() {
+    const btn = panel.querySelector("[data-cc-eg-work]");
+    if (!btn || btn.dataset.ccPersonalized) return;
+    let surface = null;
+    try { surface = await getCohortSurface(); } catch {}
+    if (!surface) return;
+    let res = null;
+    try { res = resolveChatFocus({ surface, identity: getIdentity(), selectedTeamId: "", mentioned: "" }); } catch {}
+    const name = res && res.focus && res.focus.teamName;
+    if (name) {
+      btn.textContent = `check my ${name} work and draft this week's update`;
+      btn.dataset.ccPersonalized = "1";
+    }
+  }
   // Top tabs: ask ⇄ transcript switch the panel body (via data-cc-view, see the
   // CSS); search opens the global overlay and leaves the view as-is.
   // All tabs are in-panel views now. ask/transcript use the chat log; search/
@@ -1743,11 +1894,17 @@ function createController() {
   // persists; close() drops the class but keeps the preference for next open.
   const CHAT_FULL_KEY = "srwk:chat_expanded_v1";
   const expandBtn = $("cohort-chat-expand");
+  // The icon always points the way the card will move (2026-07-02 feedback):
+  // arrows out while it can expand, arrows in once it's full and will contract.
+  const CC_EXPAND_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>`;
+  const CC_CONTRACT_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10h-6V4"/><path d="M4 14h6v6"/><path d="M14 10l7-7"/><path d="M3 21l7-7"/></svg>`;
   function setChatFull(on, { remember = true } = {}) {
     _html.classList.toggle("cohort-chat-full", on);
     if (expandBtn) {
       expandBtn.setAttribute("aria-pressed", on ? "true" : "false");
       expandBtn.title = on ? "back to side panel" : "expand to full page";
+      const glyph = expandBtn.querySelector("span");
+      if (glyph) glyph.innerHTML = on ? CC_CONTRACT_SVG : CC_EXPAND_SVG;
     }
     if (remember) { try { localStorage.setItem(CHAT_FULL_KEY, on ? "1" : "0"); } catch {} }
   }
@@ -1816,6 +1973,16 @@ function createController() {
     openSettings,
     runEphemeral,
     isOpen: () => !panel.hidden,
+    // Open on the ask view with a question in hand — the search views' "ask the
+    // AI" escalation and the first-visit page tips route through here.
+    ask(question, { send: sendNow = true } = {}) {
+      open();
+      setChatView("ask");
+      input.value = String(question || "");
+      autosize();
+      input.focus();
+      if (sendNow && (input.value || "").trim()) void send();
+    },
     notice(text) {
       open();
       appendBubble("assistant", text);
@@ -1882,6 +2049,16 @@ export async function openCohortTranscriptUpload() {
   const c = getController();
   if (!c) { console.warn("[cohort-chat] panel markup missing"); return; }
   c.showTranscriptUpload();
+}
+
+// Route a question straight into the ask view — the deterministic search's
+// "ask the AI" escalation (find.js) and the first-visit page tips use this.
+// `send:false` opens with the prompt staged in the composer instead of firing.
+export async function askCohort(question, opts = {}) {
+  await warmCohortChat();
+  const c = getController();
+  if (!c || typeof c.ask !== "function") { console.warn("[cohort-chat] panel markup missing"); return; }
+  c.ask(question, opts);
 }
 
 // Toggle for the corner launcher: open when closed, close when open.

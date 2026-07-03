@@ -180,6 +180,9 @@
 .ofr-type[data-type="person"]  { color: #8FEAF2; }
 .ofr-type[data-type="page"],
 .ofr-type[data-type="section"] { color: #C28BFF; }
+/* "ask the AI" escalation row — the deterministic search's hand-off to ask. */
+.ofr-type[data-type="ask"] { color: var(--find-accent); }
+.os-find-ask { border-top: 1px dashed var(--find-rule, rgba(255, 255, 255, 0.12)); margin-top: 4px; }
 .ofr-main {
   flex: 1 1 auto;
   min-width: 0;
