@@ -10,7 +10,11 @@
   (function () {
     const qs = new URLSearchParams(location.search);
     const lens = qs.get("lens") === "library" ? "library" : "stream";
-    const mode = qs.get("mode") === "membrane" ? "membrane" : "context";
+    // ?mode=membrane|calendar|collab|context (default context). collab is the
+    // constellation sub-view; the legacy "collab" location is normalized by
+    // alchemy.js on restore.
+    const MODES = new Set(["membrane", "calendar", "collab", "context"]);
+    const mode = MODES.has(qs.get("mode")) ? qs.get("mode") : "context";
 
     const DEMO_MANIFEST = {
       schema_version: 2,
@@ -43,13 +47,14 @@
       // the tab strip restores the last session and would override the seeded
       // mode — hand it the target tab instead
       localStorage.setItem("srwk:tabs_v1", JSON.stringify({
-        tabs: [{ id: "t_preview", loc: mode === "membrane" ? { tab: "alchemy", mode: "membrane" } : { tab: "alchemy", mode: "context", contextView: lens } }],
+        tabs: [{ id: "t_preview", loc: mode === "context" ? { tab: "alchemy", mode: "context", contextView: lens } : { tab: "alchemy", mode } }],
         activeId: "t_preview"
       }));
       // collapse the nav drawer (first-launch discovery pins it open,
-      // covering the list column in screenshots)
+      // covering the list column in screenshots); ?pin=1 seeds the USER pin
+      // instead, for verifying the pinned-rail content reflow.
       localStorage.setItem("srwk:nav_discovered_v1", "1");
-      localStorage.setItem("srwk:nav_pinned_v1", "0");
+      localStorage.setItem("srwk:nav_pinned_v1", qs.get("pin") === "1" ? "1" : "0");
       // deterministic surface: force the committed fixture (built-in dev
       // override) and drop any cached surface from earlier visits
       localStorage.setItem("srfg:cohort_source", "local");
@@ -178,6 +183,20 @@
       try { localStorage.setItem("srwk:theme", "light"); } catch (e) {}
     }
 
+    // Headless-screenshot driver: ?suggest=1 opens the calendar's
+    // suggest-an-event modal once the page has painted.
+    if (qs.get("suggest")) {
+      window.addEventListener("load", () => {
+        let tries = 0;
+        const t = setInterval(() => {
+          tries += 1;
+          const btn = document.querySelector("[data-c2-suggest]");
+          if (btn) { clearInterval(t); btn.click(); }
+          else if (tries > 40) clearInterval(t);
+        }, 300);
+      });
+    }
+
     // Headless-screenshot driver: ?revealdemo=1 forces the hover-reveal
     // states (claim provenance / session summary) so a static shot shows them.
     if (qs.get("revealdemo")) {
@@ -263,6 +282,10 @@
     </script>
   </head>
   <body data-active-tab="alchemy" data-net-sub="network">
+    <script>
+      // Mirrors index.html's pre-paint nav-pin seed (see there).
+      try { if (localStorage.getItem("srwk:nav_pinned_v1") === "1") document.body.dataset.navPinned = "1"; } catch (e) {}
+    </script>
     <div id="chrome-staging" hidden>
       <!-- Boot-only staging. The version chip is moved into the rail footer
            once renderer boot finishes; visible tabs live in #content-top. -->
