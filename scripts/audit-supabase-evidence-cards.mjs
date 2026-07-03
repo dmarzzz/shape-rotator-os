@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -62,6 +63,8 @@ function readOptions(argv = process.argv.slice(2), env = process.env) {
     serviceRoleKey: arg(argv, "--service-role-key", merged.SUPABASE_SERVICE_ROLE_KEY || merged.SHAPE_SUPABASE_SERVICE_ROLE_KEY),
     limit: Number(arg(argv, "--limit", merged.SUPABASE_EVIDENCE_AUDIT_LIMIT || DEFAULT_LIMIT)) || DEFAULT_LIMIT,
     strict: hasFlag(argv, "--strict"),
+    strictPublicNames: hasFlag(argv, "--strict") || hasFlag(argv, "--strict-public-names"),
+    namedHintsReport: arg(argv, "--named-hints-report", null),
     json: hasFlag(argv, "--json"),
     help: hasFlag(argv, "--help") || hasFlag(argv, "-h"),
   };
@@ -75,6 +78,8 @@ function usage() {
     "Audits live Supabase evidence_cards and public_transcript_evidence_cards without printing raw transcript text.",
     "",
     "Hard failures: missing public view, anonymous private-table access, T3 publication boundary violations, public rows exposing entity/provenance keys or private markers.",
+    "--strict-public-names (or --strict): treat known cohort entity names/ids in public rows as hard failures.",
+    "--named-hints-report <path>: write a private remediation report with row ids and hashed roster-term hits, but no row text.",
     "Warnings: missing provenance links, uniform confidence, low claim/evidence-type diversity, weak people coverage, sparse week/theme coverage.",
   ].join("\n");
 }
@@ -185,8 +190,22 @@ function rowText(row) {
   ].join(" ");
 }
 
+function rowFieldText(row, field) {
+  return field === "content_json"
+    ? (row.content_json ? JSON.stringify(row.content_json) : "")
+    : String(row[field] || "");
+}
+
 function privateMarkerHits(rows) {
   return rows.filter((row) => PRIVATE_MARKER_RE.test(rowText(row)));
+}
+
+function isPublicEligibleEvidenceRow(row) {
+  return row?.surface_tier === "T3"
+    && row.review_status === "published"
+    && row.approval_state === "approved"
+    && row.public_anonymous === true
+    && row.public_article_mode === "generalized_no_named_insights";
 }
 
 function loadEntityDictionary(root = ROOT) {
@@ -222,6 +241,57 @@ function countNamedEntityHints(rows, dictionary = []) {
     for (const term of rowTerms) inc(termCounts, term);
   }
   return { row_count: hitCount, top_terms: sortedCounts(termCounts, 12) };
+}
+
+function hashTerm(item) {
+  return crypto
+    .createHash("sha256")
+    .update(`${item.kind}:${item.value}`)
+    .digest("hex")
+    .slice(0, 16);
+}
+
+function buildNamedEntityHintReport(rows, dictionary = []) {
+  const fields = ["title", "claim_text", "summary", "content_json"];
+  const rowHits = [];
+  const termCounts = new Map();
+  for (const row of rows || []) {
+    const hits = [];
+    for (const item of dictionary || []) {
+      const hitFields = fields.filter((field) => normalizeText(rowFieldText(row, field)).includes(item.value));
+      if (!hitFields.length) continue;
+      const termHash = hashTerm(item);
+      const countKey = `${item.kind}:${termHash}`;
+      const current = termCounts.get(countKey) || { kind: item.kind, term_hash: termHash, count: 0 };
+      current.count += 1;
+      termCounts.set(countKey, current);
+      hits.push({ kind: item.kind, term_hash: termHash, fields: hitFields });
+    }
+    if (hits.length) {
+      rowHits.push({
+        id: row.id,
+        created_at: row.created_at,
+        hits,
+      });
+    }
+  }
+  return {
+    generated_at: new Date().toISOString(),
+    note: "Private remediation aid. Contains row ids, hit fields, and hashed cohort roster terms only; no public row text or raw transcript text.",
+    public_rows: Array.isArray(rows) ? rows.length : 0,
+    rows_with_named_hints: rowHits.length,
+    dictionary_terms: Array.isArray(dictionary) ? dictionary.length : 0,
+    top_hashed_terms: [...termCounts.values()].sort((a, b) => b.count - a.count || a.kind.localeCompare(b.kind)).slice(0, 25),
+    row_hits: rowHits,
+  };
+}
+
+function writeNamedEntityHintReport(filePath, rows, dictionary) {
+  if (!filePath) return null;
+  const report = buildNamedEntityHintReport(rows, dictionary);
+  fs.mkdirSync(path.dirname(path.resolve(filePath)), { recursive: true });
+  fs.writeFileSync(filePath, JSON.stringify(report, null, 2) + "\n");
+  return report;
 }
 
 function evidenceMetrics(rows = []) {
@@ -281,10 +351,12 @@ function evaluateEvidenceCardAudit({
   publicResult = null,
   anonEvidenceResult = null,
   appResult = null,
+  cohortAppResult = null,
   insightPublicResult = null,
   anonInsightResult = null,
   entityDictionary = [],
   strict = false,
+  strictPublicNames = false,
 } = {}) {
   const evidenceRows = evidenceResult?.rows || [];
   const publicRows = publicResult?.rows || [];
@@ -296,6 +368,7 @@ function evaluateEvidenceCardAudit({
   if (!evidenceResult?.ok) schema.failures.push(`cannot query evidence_cards with service role: ${evidenceResult?.status || "not queried"}`);
   if (!publicResult?.ok) schema.failures.push(`cannot query public_transcript_evidence_cards with anon key: ${publicResult?.status || "not queried"}`);
   if (appResult && !appResult.ok) schema.warnings.push(`cannot query app_transcript_evidence_cards with service role: ${appResult.status}`);
+  if (cohortAppResult && !cohortAppResult.ok) schema.warnings.push(`cannot query cohort_app_transcript_evidence_cards with service role: ${cohortAppResult.status}`);
   if (insightPublicResult && !insightPublicResult.ok) schema.warnings.push(`cannot query public_cohort_insight_cards with anon key: ${insightPublicResult.status}`);
 
   if (anonEvidenceResult?.ok && (anonEvidenceResult.rows || []).length > 0) {
@@ -305,16 +378,30 @@ function evaluateEvidenceCardAudit({
     privacy.failures.push(`anon can read cohort_insight_cards (${anonInsightResult.rows.length} row(s) returned)`);
   }
 
-  const t3Bad = evidenceRows.filter((row) =>
-    row.surface_tier === "T3"
-    && (
-      row.review_status !== "published"
-      || row.approval_state !== "approved"
-      || row.public_anonymous !== true
-      || row.public_article_mode !== "generalized_no_named_insights"
-    )
-  );
-  if (t3Bad.length) privacy.failures.push(`${t3Bad.length} T3 card(s) violate published/approved/anonymous/no-name boundary`);
+  const evidenceById = new Map(evidenceRows.map((row) => [row.id, row]));
+  const completeEvidenceSample = Number(evidenceResult?.count || 0) <= evidenceRows.length;
+  const privateT3Candidates = evidenceRows.filter((row) => row.surface_tier === "T3" && !isPublicEligibleEvidenceRow(row));
+  if (privateT3Candidates.length) {
+    privacy.warnings.push(`${privateT3Candidates.length} private T3 candidate(s) are not public-eligible yet`);
+  }
+  const publicMissingBase = [];
+  const publicNotEligible = [];
+  for (const row of publicRows) {
+    const source = evidenceById.get(row.id);
+    if (!source) {
+      publicMissingBase.push(row);
+    } else if (!isPublicEligibleEvidenceRow(source)) {
+      publicNotEligible.push(row);
+    }
+  }
+  if (publicNotEligible.length) {
+    privacy.failures.push(`${publicNotEligible.length} public row(s) map to base cards that fail published/approved/anonymous/no-name gates`);
+  }
+  if (publicMissingBase.length) {
+    const message = `${publicMissingBase.length} public row(s) could not be matched to sampled base evidence rows`;
+    if (completeEvidenceSample) privacy.failures.push(message);
+    else schema.warnings.push(`${message}; increase --limit to verify public-view gating against base rows`);
+  }
 
   const publicForbidden = publicRows
     .map((row) => ({ id: row.id, hits: scanForbiddenKeys(row.content_json) }))
@@ -340,7 +427,9 @@ function evaluateEvidenceCardAudit({
 
   const namedHints = countNamedEntityHints(publicRows, entityDictionary);
   if (namedHints.row_count) {
-    privacy.warnings.push(`${namedHints.row_count} public row(s) contain known cohort entity names/ids in title, text, summary, or content`);
+    const message = `${namedHints.row_count} public row(s) contain known cohort entity names/ids in title, text, summary, or content`;
+    if (strictPublicNames) privacy.failures.push(message);
+    else privacy.warnings.push(message);
   }
 
   const missingSource = evidenceRows.filter((row) => !row.source_artifact_id).length;
@@ -385,6 +474,7 @@ function evaluateEvidenceCardAudit({
       evidence_cards: evidenceResult?.count ?? evidenceRows.length,
       public_transcript_evidence_cards: publicResult?.count ?? publicRows.length,
       public_cohort_insight_cards: insightPublicResult?.count ?? insightPublicRows.length,
+      cohort_app_transcript_evidence_cards: cohortAppResult?.count ?? (cohortAppResult?.rows || []).length,
       app_transcript_evidence_cards: appResult?.count ?? (appResult?.rows || []).length,
       anon_evidence_cards_rows: (anonEvidenceResult?.rows || []).length,
       anon_cohort_insight_cards_rows: (anonInsightResult?.rows || []).length,
@@ -398,6 +488,8 @@ async function runLiveEvidenceCardAudit({
   serviceRoleKey,
   limit = DEFAULT_LIMIT,
   strict = false,
+  strictPublicNames = false,
+  namedHintsReport = null,
   fetchImpl = fetch,
 } = {}) {
   if (!supabaseUrl) throw new Error("supabaseUrl is required");
@@ -427,7 +519,7 @@ async function runLiveEvidenceCardAudit({
   ].join(",");
   const publicSelect = "id,claim_type,title,claim_text,summary,evidence_level,confidence,attribution_scope,content_json,created_at";
 
-  const [evidenceResult, publicResult, anonEvidenceResult, appResult, insightPublicResult, anonInsightResult] = await Promise.all([
+  const [evidenceResult, publicResult, anonEvidenceResult, appResult, cohortAppResult, insightPublicResult, anonInsightResult] = await Promise.all([
     restSelect({
       supabaseUrl,
       key: serviceRoleKey,
@@ -466,6 +558,15 @@ async function runLiveEvidenceCardAudit({
     }),
     restSelect({
       supabaseUrl,
+      key: serviceRoleKey,
+      table: "cohort_app_transcript_evidence_cards",
+      select: "id,claim_type,title,evidence_level,confidence,surface_tier,content_json,created_at",
+      query: { order: "created_at.desc" },
+      limit,
+      fetchImpl,
+    }),
+    restSelect({
+      supabaseUrl,
       key: anonKey,
       table: "public_cohort_insight_cards",
       select: "id,kind,subject_type,title,claim_text,summary,content_json,created_at",
@@ -484,21 +585,33 @@ async function runLiveEvidenceCardAudit({
     }),
   ]);
 
-  return evaluateEvidenceCardAudit({
+  const entityDictionary = loadEntityDictionary();
+  const result = evaluateEvidenceCardAudit({
     evidenceResult,
     publicResult,
     anonEvidenceResult,
     appResult,
+    cohortAppResult,
     insightPublicResult,
     anonInsightResult,
-    entityDictionary: loadEntityDictionary(),
+    entityDictionary,
     strict,
+    strictPublicNames,
   });
+  if (namedHintsReport) {
+    const report = writeNamedEntityHintReport(namedHintsReport, publicResult?.rows || [], entityDictionary);
+    result.privacy.public_named_entity_hint_report = {
+      path: namedHintsReport,
+      rows_with_named_hints: report.rows_with_named_hints,
+      top_hashed_terms: report.top_hashed_terms.length,
+    };
+  }
+  return result;
 }
 
 function printSummary(result) {
   console.log(`Supabase evidence-card audit: ${result.status}`);
-  console.log(`cards: evidence=${result.counts.evidence_cards} public=${result.counts.public_transcript_evidence_cards} app=${result.counts.app_transcript_evidence_cards}`);
+  console.log(`cards: evidence=${result.counts.evidence_cards} public=${result.counts.public_transcript_evidence_cards} cohort_app=${result.counts.cohort_app_transcript_evidence_cards} app_legacy=${result.counts.app_transcript_evidence_cards}`);
   for (const [label, section] of Object.entries({ schema: result.schema, privacy: result.privacy, insight: result.insight })) {
     const failures = section.failures || [];
     const warnings = section.warnings || [];
@@ -540,6 +653,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
 }
 
 export {
+  buildNamedEntityHintReport,
   evaluateEvidenceCardAudit,
   loadEntityDictionary,
   parseEnvText,

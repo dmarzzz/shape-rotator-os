@@ -28,7 +28,7 @@ test("cohortDistillationsUrl targets the gated view with the exact column set", 
   }
 });
 
-test("fetchCohortDistillations no-ops (unconfigured) without a cohort key", async () => {
+test("fetchCohortDistillations no-ops (unconfigured) without a gated bearer", async () => {
   let called = false;
   const res = await fetchCohortDistillations({
     config: { url: DEFAULT_URL, anonKey: "anon", cohortKey: "" },
@@ -36,7 +36,7 @@ test("fetchCohortDistillations no-ops (unconfigured) without a cohort key", asyn
   });
   assert.equal(res.source, "unconfigured");
   assert.deepEqual(res.artifacts, []);
-  assert.equal(called, false, "must not hit the network without a cohort key (public web / un-provisioned)");
+  assert.equal(called, false, "must not hit the network without a gated bearer (public web / un-provisioned)");
 });
 
 test("fetchCohortDistillations reads the gated view: apikey is anon, the cohort_app JWT rides in Bearer", async () => {
@@ -50,6 +50,18 @@ test("fetchCohortDistillations reads the gated view: apikey is anon, the cohort_
   // MUST be the anon key; the role=cohort_app JWT is only valid in Authorization.
   assert.equal(headers.apikey, "ANON");
   assert.equal(headers.authorization, "Bearer COHORT_JWT");
+});
+
+test("fetchCohortDistillations reads the gated view with a Google sign-in app session", async () => {
+  let headers = null;
+  const res = await fetchCohortDistillations({
+    config: { url: DEFAULT_URL, anonKey: "ANON", cohortKey: "" },
+    auth: { getSession: async () => ({ access_token: "MEMBER_SESSION_JWT" }) },
+    fetchImpl: async (_url, opts) => { headers = opts.headers; return okResponse([]); },
+  });
+  assert.equal(res.source, "supabase-cohort");
+  assert.equal(headers.apikey, "ANON");
+  assert.equal(headers.authorization, "Bearer MEMBER_SESSION_JWT");
 });
 
 test("fetchCohortDistillations degrades to source:error on a non-ok response", async () => {

@@ -121,9 +121,11 @@ Runs via `npm run build:cohort-insights` → `cohort-data/artifacts/cohort-insig
 This is where *actual transcript content* becomes insight, at runtime, in the app. It reads
 gated Supabase views and indexes them:
 
-- `fetchPublicEvidenceCards()` → `public_transcript_evidence_cards` (T3, anonymized) — **live today**
-- `fetchCohortEvidenceCards()` → `cohort_app_transcript_evidence_cards` (T2, named) — **dormant** (`COHORT_APP_READER_ENABLED = false` until the migration ships)
-- `fetchCohortDistillations()` → `cohort_app_transcript_distillations` (T2, paraphrased) — **dormant**
+- `fetchPublicEvidenceCards()` -> `public_transcript_evidence_cards` (T3, anonymized) - **live today**
+- `fetchCohortEvidenceCards()` -> `cohort_app_transcript_evidence_cards` (T2, named) - **live when a cohort key or Google sign-in app session is available**
+- `fetchCohortDistillations()` -> `cohort_app_transcript_distillations` (T2, paraphrased) - **live when a cohort key or Google sign-in app session is available**
+
+The current receive contract is summarized in `docs/TRANSCRIPT_ENGINE_CONSUMER.md`.
 
 `indexCohortEvidence()` buckets cards by team / week / claim-lane (`DID`, `PMF`, `ASK`, `RISK`,
 `EDGE`). `teamTimeline()`, `recentClaims()`, `evidenceDependencyRecords()` derive views from that
@@ -145,8 +147,8 @@ single "sessions" view:
 
 | Surface | Render fn (`alchemy.js`) | Data | Tier |
 |---------|--------------------------|------|------|
-| Evidence tab (cards) | `renderContextEvidence` / `contextEvidenceCardHtml` | evidence overlay | T3 live / T2 dormant |
-| Evidence tab (distilled) | `contextSessionSummaryHtml` | distillation overlay | T2 dormant |
+| Evidence tab (cards) | `renderContextEvidence` / `contextEvidenceCardHtml` | evidence overlay | T3 live / T2 live with gated bearer |
+| Evidence tab (distilled) | `contextSessionSummaryHtml` | distillation overlay | T2 live with gated bearer |
 | Say/Did/Shipped "did" cell | `sdsEvidenceDidHtml` | `recentClaims(...,'did')` | T3 |
 | Team dossier timeline | `renderWorkstreamTimeline` | `teamTimeline()` | T3 |
 | Ecosystem / relationship map edges | `constellationDependencyEdges` (+ `cohort-relations.js`) | evidence + insight deps | T0/T3 |

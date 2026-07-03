@@ -8,6 +8,7 @@ import {
   fetchPublicEvidenceCards,
   cohortEvidenceCardsUrl,
   fetchCohortEvidenceCards,
+  fetchCohortInsightCards,
 } from "../apps/os/src/renderer/supabase-evidence.mjs";
 import { saveCalendarIngressConfig } from "../apps/os/src/renderer/calendar-ingress.mjs";
 
@@ -204,12 +205,12 @@ test("cohortEvidenceCardsUrl targets the role-gated cohort view incl. surface_ti
   }
 });
 
-test("fetchCohortEvidenceCards no-ops (unconfigured) without a cohort key — public-web safe", async () => {
+test("fetchCohortEvidenceCards no-ops (unconfigured) without a gated bearer - public-web safe", async () => {
   let called = false;
   const out = await fetchCohortEvidenceCards({ config: { url: DEFAULT_URL, cohortKey: "" }, fetchImpl: () => { called = true; } });
   assert.equal(out.source, "unconfigured");
   assert.deepEqual(out.cards, []);
-  assert.equal(called, false, "no cohort key => never hits the gated view (public web stays T3-only)");
+  assert.equal(called, false, "no cohort key/session => never hits the gated view (public web stays T3-only)");
 });
 
 test("fetchCohortEvidenceCards reads the gated view with the cohort key + marks T2", async () => {
@@ -227,4 +228,46 @@ test("fetchCohortEvidenceCards reads the gated view with the cohort key + marks 
   // Sending the cohort JWT as apikey is rejected by Kong with 401 "Invalid API key".
   assert.equal(seenHeaders.apikey, "anon-xyz");
   assert.equal(seenHeaders.authorization, "Bearer cohort-jwt");
+});
+
+test("fetchCohortEvidenceCards reads T2 with a Google sign-in app session when no cohort key is baked", async () => {
+  let seenUrl = null;
+  let seenHeaders = null;
+  const fetchImpl = (url, opts) => {
+    seenUrl = url;
+    seenHeaders = opts.headers;
+    return okResponse([
+      { id: "g-session", claim_type: "decision", title: "T2", claim_text: "X", evidence_level: "observed", confidence: 0.8, attribution_scope: "team", surface_tier: "T2", content_json: {}, created_at: "2026-07-03" },
+    ]);
+  };
+  const out = await fetchCohortEvidenceCards({
+    config: { url: DEFAULT_URL, anonKey: "anon-xyz", cohortKey: "" },
+    auth: { getSession: async () => ({ access_token: "google-signin-app-session-jwt" }) },
+    fetchImpl,
+  });
+  assert.equal(out.source, "supabase-cohort");
+  assert.equal(out.cards.length, 1);
+  assert.equal(out.cards[0].surface_tier, "T2");
+  assert.match(seenUrl, /cohort_app_transcript_evidence_cards/);
+  assert.equal(seenHeaders.apikey, "anon-xyz");
+  assert.equal(seenHeaders.authorization, "Bearer google-signin-app-session-jwt");
+});
+
+test("fetchCohortInsightCards reads gated insight cards with the Google sign-in app session", async () => {
+  let seenHeaders = null;
+  const out = await fetchCohortInsightCards({
+    config: { url: DEFAULT_URL, anonKey: "anon-xyz", cohortKey: "" },
+    auth: { getSession: async () => ({ access_token: "google-signin-app-session-jwt" }) },
+    fetchImpl: (_url, opts) => {
+      seenHeaders = opts.headers;
+      return okResponse([
+        { id: "insight-1", kind: "collaboration_contribution", subject_type: "team", subject_ids: ["team-a"], title: "Worked together", claim_text: "X", evidence_level: "observed", confidence: 0.7, surface_tier: "T2", source_refs: [], content_json: {} },
+      ]);
+    },
+  });
+  assert.equal(out.source, "supabase-cohort");
+  assert.equal(out.cards.length, 1);
+  assert.equal(out.cards[0].kind, "collaboration_contribution");
+  assert.equal(seenHeaders.apikey, "anon-xyz");
+  assert.equal(seenHeaders.authorization, "Bearer google-signin-app-session-jwt");
 });
