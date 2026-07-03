@@ -870,7 +870,7 @@ function createController() {
       <div class="cc-upload-route" data-cc-transcript-route></div>
       <div class="cc-upload-dup" data-cc-transcript-dup hidden></div>
       <details class="cc-upload-connection">
-        <summary>Supabase</summary>
+        <summary>storage connection (advanced — the program's Supabase database)</summary>
         <div class="cc-upload-grid is-connection">
           <label class="cc-upload-field">
             <span>org id</span>

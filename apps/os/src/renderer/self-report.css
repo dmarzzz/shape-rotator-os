@@ -345,6 +345,30 @@ button.selfrep-consent {
 }
 .selfrep-refine-btn { margin-top: 8px; height: auto; padding: 6px 12px; }
 
+/* Prompt preview on the consent step — the exact text the run pipes in. */
+.selfrep-prompt-preview { margin: 10px 0 2px; }
+.selfrep-prompt-preview summary {
+  cursor: pointer;
+  font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs);
+  color: var(--ds-ink-3);
+}
+.selfrep-prompt-preview summary:hover { color: var(--ds-ink-1); }
+.selfrep-prompt-preview pre {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--ds-surface-2);
+  border: 1px solid var(--ds-border);
+  border-radius: 8px;
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: 1.55;
+  color: var(--ds-ink-2);
+}
+
 /* Pre-run guidance box on the consent step ("guide it before it sinks"). */
 .selfrep-guide { display: block; margin: 10px 0 2px; }
 .selfrep-guide > span {

@@ -15322,6 +15322,9 @@ function renderContextVaultRawDetail(selected) {
           <span class="alch-cv-eyebrow">transcript · txt</span>
         </div>
         <div class="alch-cv-detail-actions">
+          <button class="alch-cv-md-action" type="button" data-cv-distill-raw="${escAttr(selected.id)}" title="your own local AI writes a distilled readout of this raw transcript — preview only, nothing saved or published">
+            <span class="alch-cv-md-action-label">distill with your AI</span>
+          </button>
           <button class="alch-cv-md-action" type="button" data-cv-copy-raw-bundle title="copy all transcripts">
             <span class="alch-cv-md-action-label">copy all</span>
           </button>
@@ -15907,6 +15910,20 @@ function contextSourceTagsAttr(source) {
   return escAttr(bits.join(" "));
 }
 
+// Ephemeral raw-transcript distillation prompt (preview-only companion to the
+// engine's real distillation pipeline; nothing this produces is stored).
+function contextRawDistillPrompt(title, text) {
+  return [
+    "You are the member's own local AI. Distill the RAW session transcript below into a readout.",
+    "Output MARKDOWN only: a `# title` line, `## Summary` (3–5 bullets), `## Themes` (one comma-separated line), `## Open questions` (bullets).",
+    "Paraphrase — never quote a speaker verbatim. Drop small talk. Name people only when essential to the point.",
+    "This is a PREVIEW for the member's own reading; it is not saved or published anywhere.",
+    "",
+    `TRANSCRIPT — ${title}:`,
+    String(text || "").slice(0, 24000),
+  ].join("\n");
+}
+
 // ── Bot restyle (ephemeral, never saved) ────────────────────────────────
 const RESTYLE_LABELS = { plainer: "plainer", shorter: "shorter", technical: "more technical", eli5: "ELI5" };
 const RESTYLE_INSTR = {
@@ -16465,6 +16482,44 @@ function wireContextVaultDetailActions(root = state.canvas) {
   }
   for (const btn of root.querySelectorAll("[data-cv-revert]")) {
     btn.addEventListener("click", clearContextPreview);
+  }
+  // "If I see raw transcripts and it's not distilled, maybe someone can do it
+  // using their own [AI]" (2026-07-02) — distill a RAW transcript into an
+  // ephemeral preview readout with the member's own local AI. Never saved,
+  // never published; same machinery as the article restyle.
+  for (const btn of root.querySelectorAll("[data-cv-distill-raw]")) {
+    btn.addEventListener("click", async () => {
+      const sourceId = btn.dataset.cvDistillRaw;
+      const result = root.querySelector("[data-cv-result]");
+      const say = (html) => { if (result) { result.hidden = false; result.innerHTML = html; } };
+      let text = state.contextVault.rawTextById?.[sourceId] || "";
+      if (!text && window.api?.readContextVaultSource) {
+        const res = await window.api.readContextVaultSource(sourceId);
+        if (res?.ok) {
+          text = res.text || "";
+          state.contextVault.rawTextById = { ...(state.contextVault.rawTextById || {}), [sourceId]: text };
+        }
+      }
+      if (!text) { say(`<p class="alch-onb-inline-line alch-onb-inline-err">couldn't read this transcript's text.</p>`); return; }
+      btn.disabled = true;
+      say(`<p class="alch-onb-inline-line">your local AI is distilling this transcript — preview only, nothing is saved…</p>`);
+      let r;
+      try {
+        const mod = await import("./cohort-chat.js");
+        const rawTitle = contextRawScriptTitle(state.contextVault.manifest?.raw_scripts?.find((s) => s.id === sourceId) || {});
+        r = await mod.runCohortEphemeralPrompt(contextRawDistillPrompt(rawTitle, text), {
+          userLabel: `Distill “${rawTitle}” (preview only, not saved)`,
+        });
+      } catch (e) { r = { ok: false, error: (e && e.message) || "chat unavailable" }; }
+      btn.disabled = false;
+      if (r && r.ok && r.text) {
+        say(`
+          <div class="alch-cv-pvbanner"><span class="alch-cv-pvdot"></span><b>preview</b> distilled by your AI · not saved</div>
+          <article class="alch-cv-reader alch-cv-article-md">${renderProgramMarkdown(contextCleanRewrite(r.text))}</article>`);
+      } else {
+        say(`<p class="alch-onb-inline-line alch-onb-inline-err">couldn't distill: ${escHtml((r && r.error) === "busy" ? "the bot is busy right now — try again in a moment" : (r && r.error) || "no reply")}</p>`);
+      }
+    });
   }
   for (const btn of root.querySelectorAll("[data-cv-reveal-corpus]")) {
     btn.addEventListener("click", async () => {

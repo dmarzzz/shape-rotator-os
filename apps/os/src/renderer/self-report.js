@@ -526,6 +526,10 @@ function renderConsent(person, githubFallback) {
       <span><b>Guide it before it runs</b> <small>(optional)</small></span>
       <textarea data-sr-guidance rows="2" placeholder="anything it should know up front — e.g. “we pivoted from NDI to transcripts”, “ignore my side project”…" spellcheck="true"></textarea>
     </label>
+    <details class="selfrep-prompt-preview" data-sr-prompt-details>
+      <summary>see the exact prompt it will run</summary>
+      <pre data-sr-prompt-preview></pre>
+    </details>
     <div class="selfrep-actions">
       <button type="button" class="selfrep-btn selfrep-ghost" data-sr-close>cancel</button>
       <button type="button" class="selfrep-btn selfrep-primary" data-sr-run disabled>scan &amp; draft</button>
@@ -540,6 +544,26 @@ function renderConsent(person, githubFallback) {
   sessions.addEventListener("change", refresh);
   if (github) github.addEventListener("change", refresh);
   refresh();
+  // "It shows you the prompt… and so you could adjust it" — the ACTUAL prompt
+  // the run will pipe to the local AI, live-updated as sources/guidance change.
+  // Digest slots show placeholders (the scans haven't run yet by definition).
+  const promptDetails = host.querySelector("[data-sr-prompt-details]");
+  const promptPre = host.querySelector("[data-sr-prompt-preview]");
+  const guidanceEl = host.querySelector("[data-sr-guidance]");
+  const fillPromptPreview = () => {
+    if (!promptDetails || !promptDetails.open || !promptPre) return;
+    promptPre.textContent = buildSelfReportPrompt({
+      person,
+      appContextDigest: "[the app's current read on you — profile, team focus, recent timeline — is inserted here]",
+      sessionDigest: sessions.checked ? "[a scrubbed digest of your recent local AI sessions is inserted here after the scan]" : "",
+      githubDigest: (github && github.checked) ? "[a scrubbed digest of your recent GitHub activity is inserted here after the scan]" : "",
+      guidance: ((guidanceEl && guidanceEl.value) || "").trim(),
+    });
+  };
+  if (promptDetails) promptDetails.addEventListener("toggle", fillPromptPreview);
+  if (guidanceEl) guidanceEl.addEventListener("input", fillPromptPreview);
+  sessions.addEventListener("change", fillPromptPreview);
+  if (github) github.addEventListener("change", fillPromptPreview);
   for (const b of host.querySelectorAll("[data-sr-close]")) b.addEventListener("click", closeSelfReport);
   const manual = host.querySelector("[data-sr-manual]");
   if (manual) manual.addEventListener("click", () => { void renderManualDraft(person, githubFallback); });
