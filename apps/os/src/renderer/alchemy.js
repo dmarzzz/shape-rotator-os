@@ -2604,9 +2604,9 @@ function computeMembraneData() {
   const now = Date.now();
   const DAY_MS = 24 * 60 * 60 * 1000;
   const weekFromNow = now + 7 * DAY_MS;
-  // Range-aware parse — match renderEventsInline(): point events use
-  // date/starts_at, spans use range_start/range_end (extended to day end).
-  // Without this, every span event (daily tea, office hours…) was dropped.
+  // Range-aware parse — point events use date/starts_at, spans use
+  // range_start/range_end (extended to day end). Without this, every span
+  // event (daily tea, office hours…) was dropped.
   const spans = events
     .map((e) => {
       const startMs = Date.parse(e?.starts_at || e?.start || e?.date || e?.range_start || '');

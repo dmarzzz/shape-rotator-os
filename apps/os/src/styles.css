@@ -20502,7 +20502,7 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
 .ao-btn-glyph { display: inline-flex; align-items: center; }
 .ao-btn-glyph svg { width: 14px; height: 14px; display: block; }
 
-.enroll-issuer, .crewid-issuer { display: inline-flex; align-items: center; gap: 6px; }
+.enroll-issuer { display: inline-flex; align-items: center; gap: 6px; }
 .issuer-glyph { width: 13px; height: 13px; display: block; }
 
 /* asks · verb icons — emoji in the stored `verb` value is mapped to a
