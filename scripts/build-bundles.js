@@ -2057,11 +2057,11 @@ function sanitizeTranscriptDistillationsForApp(manifest) {
   const artifacts = [];
   return {
     schema_version: base.schema_version || 1,
-    generated_at: base.generated_at || null,
+    generated_at: null,
     source: base.source || "supabase.derived_artifacts",
     default_export_policy: "runtime-only: committed app bundle carries no transcript distillations",
-    source_default_export_policy: base.default_export_policy || null,
-    source_artifact_count: Number(base.artifact_count || 0),
+    source_default_export_policy: null,
+    source_artifact_count: 0,
     source_operator_review_count: Number(base.operator_review_count || 0),
     artifact_count: artifacts.length,
     cohort_count: artifacts.filter((item) => item.surface === "cohort").length,
