@@ -79,6 +79,13 @@ truth for "who is this writer," replacing the client-supplied `proposer_record_i
    desktop auth work. Shape OS must always pass its explicit app deep link via
    `redirect_to`; if that deep link is missing from the allow-list, Supabase can
    fall back to the project Site URL instead of returning to the app.
+  For the static web app surface, also allow the web origin root used by the
+  GitHub to Vercel deploy, e.g. `https://os-web.shaperotator.xyz/`. The web app
+  redirects OAuth back to the origin root, stores the original app page locally,
+  then returns the user to that page after the PKCE token exchange. That keeps
+  the code deployable from GitHub without per-route Vercel settings.
+  The public cohort/marketing pages should not show a login affordance; app
+  pages opt into it explicitly with `data-web-app-auth`.
 2. **Google Cloud console**: confirm the OAuth 2.0 client used by the Supabase Google
    provider is live. No new client needed unless you want a separate one for the
    desktop app.
@@ -88,15 +95,21 @@ truth for "who is this writer," replacing the client-supplied `proposer_record_i
 4. **Seed `app_members`**: insert the admin row(s) (your emails) as `approved`; approve
    others as they sign in and request. Optionally backfill the 52 directory people once
    you have their emails (which sign-in itself will collect).
-5. Flip the gate flag on in the app once 1–4 are done.
+5. ~~Flip the gate flag on in the app once 1–4 are done.~~ **Done 2026-07-04**: the
+   gate is ON by default. `srwk:auth_gate_enabled` is now a per-install kill switch —
+   set it to `"0"` to run ungated (absence means ON). Steps 1–4 were completed and
+   live-verified the same day, and Matrix joined Google as a second front door
+   (`app_matrix_members` + `app_matrix_membership` RPC,
+   `supabase/migrations/20260704100000_shape_os_matrix_members.sql`).
 
 ## Phasing
 
 - **Phase 1 (now)**: additive data model + client auth core + main/preload wiring +
-  gate UI (flag-off) + this doc. Nothing destructive; safe to ship.
+  gate UI (ON by default; localStorage kill switch) + Google **and Matrix** sign-in +
+  app-side static web Google sign-in chip + gated `/context`
+  hydration + this doc. Nothing destructive; safe to ship.
 - **Phase 2**: swap write paths (`supabase-anon-write.postAnonRow`, `cohort-emit`,
-  `self-report`, `context-submit`) to send the user JWT; enforce the authenticated RLS;
-  flip the gate on.
+  `self-report`, `context-submit`) to send the user JWT; enforce the authenticated RLS.
 - **Phase 3**: revoke the anon INSERT policies + tighten the auto-approve trigger to the
   JWT-derived `is_self`; retire the `claim_token` model.
 

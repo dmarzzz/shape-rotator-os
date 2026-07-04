@@ -4,6 +4,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  isAuthGateEnabled,
+  setAuthGateEnabled,
   isSessionValid,
   sessionExpiresSoon,
   sessionEmail,
@@ -114,4 +116,19 @@ test("matrixGateState: full state machine across the flow", () => {
   assert.equal(matrixGateState({ userId: "@m:matrix.org", membership: { status: "pending" } }), "pending");
   assert.equal(matrixGateState({ userId: "@m:matrix.org", membership: { status: "approved", bound: false } }), "needs_binding");
   assert.equal(matrixGateState({ userId: "@m:matrix.org", membership: approved }), "approved");
+});
+
+test("isAuthGateEnabled: ON by default, '0' is the per-install kill switch", () => {
+  const store = (v) => ({ getItem: () => v, setItem() {} });
+  assert.equal(isAuthGateEnabled(store(null)), true, "absent flag means ON");
+  assert.equal(isAuthGateEnabled(store("1")), true);
+  assert.equal(isAuthGateEnabled(store("0")), false, "explicit kill switch");
+  assert.equal(isAuthGateEnabled(undefined), true, "no storage at all still gates");
+
+  const written = {};
+  const w = { getItem: (k) => written[k] ?? null, setItem: (k, v) => { written[k] = v; } };
+  setAuthGateEnabled(false, w);
+  assert.equal(isAuthGateEnabled(w), false);
+  setAuthGateEnabled(true, w);
+  assert.equal(isAuthGateEnabled(w), true);
 });

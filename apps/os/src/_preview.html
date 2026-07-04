@@ -94,6 +94,9 @@
       localStorage.setItem("srwk:identity_v1", JSON.stringify({ kind: "person", record_id: "albiona-hoti", display_name: "Albiona" }));
       localStorage.setItem("srwk:identity_onboarding_skipped_v1", "1");
       localStorage.setItem("srwk:membrane_seen_v1", "1");
+      // the auth gate is ON by default; previews run ungated ("0" = kill switch)
+      // unless ?authProof=1, which boot flips back to "1" for gate screenshots
+      localStorage.setItem("srwk:auth_gate_enabled", "0");
       localStorage.setItem("srwk:alchemy_mode", mode);
       localStorage.setItem("srwk:context_view", lens);
       if (mode === "constellation") localStorage.setItem("srwk:const_mode", cmode);

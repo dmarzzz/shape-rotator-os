@@ -547,10 +547,10 @@ async function boot() {
     if (params.get("authProof") === "1") localStorage.setItem("srwk:auth_gate_enabled", "1");
   } catch {}
 
-  // Auth gate (flag-gated via srwk:auth_gate_enabled, OFF by default). When on,
-  // mounts a full-screen Google sign-in / request-access overlay above everything;
-  // a no-op otherwise. Non-blocking on purpose — boot proceeds behind the overlay
-  // so a gate issue can never brick the app (clear the flag to escape). See
+  // Auth gate (ON by default; srwk:auth_gate_enabled="0" is the per-install kill
+  // switch). Mounts a full-screen Google/Matrix sign-in / request-access overlay
+  // above everything. Non-blocking on purpose — boot proceeds behind the overlay
+  // so a gate issue can never brick the app (set the flag to "0" to escape). See
   // auth-gate.js + docs/design/google-auth-gate.md.
   try {
     const auth = await import("./supabase-auth.mjs");
