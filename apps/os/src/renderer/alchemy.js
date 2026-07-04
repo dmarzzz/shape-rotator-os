@@ -16157,7 +16157,7 @@ function renderContextVault() {
     if (!(cv.topicKey && topics.some((t) => t.key === cv.topicKey))) cv.topicKey = topics[0]?.key || null;
     if (cv.libraryOpen && !contextRecordByRef(cv.libraryOpen.kind, cv.libraryOpen.id)) cv.libraryOpen = null;
     sourceRows = topics.map((t) => `
-      <button class="alch-cv-source alch-cv-topic${t.key === cv.topicKey ? " is-selected" : ""}" type="button" data-cv-topic="${escAttr(t.key)}" data-cv-tags="${escAttr(topicSlug(t.key))}">
+      <button class="alch-cv-source alch-cv-topic${t.key === cv.topicKey ? " is-selected" : ""}" type="button" data-cv-topic="${escAttr(t.key)}" data-cv-tags="${escAttr(topicSlug(t.key))}" title="${escAttr(t.label)}" aria-label="${escAttr(`${t.label}, ${t.total} item${t.total === 1 ? "" : "s"}`)}">
         <span class="alch-cv-topic-count">${t.total}</span>
         <strong>${escHtml(t.label)}</strong>
       </button>`).join("");

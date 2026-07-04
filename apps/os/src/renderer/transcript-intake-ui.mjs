@@ -1,16 +1,8 @@
 export const TEXT_TRANSCRIPT_EXTS = new Set([".txt", ".md", ".markdown", ".vtt", ".srt", ".csv", ".json", ".rtf"]);
 
-export const VISIBLE_TRANSCRIPT_PATH_KEYS = ["drive_inbox", "metadata", "supabase_raw", "local_agent"];
+export const VISIBLE_TRANSCRIPT_PATH_KEYS = ["metadata", "supabase_raw", "local_agent"];
 
 export const TRANSCRIPT_PATH_COPY = {
-  drive_inbox: {
-    label: "Drive inbox",
-    short: "private Google Drive",
-    note: "Uploads the original file to the private Google Drive inbox. Shape OS stores only the Drive pointer unless a session is ready to index.",
-    submit: "Send to Drive",
-    submitMany: "Send {count} to Drive",
-    badge: "Drive private",
-  },
   metadata: {
     label: "Private pointer",
     short: "file stays private",
@@ -38,7 +30,7 @@ export const TRANSCRIPT_PATH_COPY = {
 };
 
 export function normalizeVisibleTranscriptPath(key) {
-  return VISIBLE_TRANSCRIPT_PATH_KEYS.includes(key) ? key : "drive_inbox";
+  return VISIBLE_TRANSCRIPT_PATH_KEYS.includes(key) ? key : "metadata";
 }
 
 export function buildVisibleTranscriptPathRows(processingPaths = []) {

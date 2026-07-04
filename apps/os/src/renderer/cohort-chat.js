@@ -2214,6 +2214,25 @@ function createController() {
     input.setSelectionRange(input.value.length, input.value.length);
   }));
 
+  function routeFirstSessionAction(action) {
+    if (action === "transcript") {
+      setChatView("transcript");
+      void renderTranscriptUploadCard();
+      return;
+    }
+    if (action === "sync") {
+      setChatView("sync");
+      void mountSelfReportPane(syncPane, "sync", { autoRunPrevious: true });
+      return;
+    }
+    setChatView("ask");
+    input.focus();
+  }
+
+  panel.querySelectorAll("[data-cc-first-action]").forEach((el) => {
+    el.addEventListener("click", () => routeFirstSessionAction(el.dataset.ccFirstAction || "ask"));
+  });
+
   // Personalize the work-check chip to the member's OWN project ("check my
   // Shape OS work" meant nothing to other teams — 2026-07-02 feedback). Falls
   // back to the generic "my recent work" label for unclaimed users.

@@ -385,6 +385,47 @@ body.cc-resizing .cc-resize::before { background: var(--ds-accent); }
 }
 /* (The always-visible purpose legend is gone — each tab's title tooltip carries
    its one-line explanation now. 2026-07-02: "the legends are a bit heavy".) */
+.cc-first-session {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 8px 0 10px;
+}
+.cc-first-session-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 38px;
+  width: 100%;
+  margin: 0;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 38%, var(--ds-border));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--ds-accent) 9%, var(--ds-bg));
+  color: var(--ds-ink-1);
+  font-family: var(--ds-font-ui);
+  font-size: var(--ds-text-xs);
+  font-weight: 650;
+  line-height: var(--ds-lh-sm);
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  transition: border-color 120ms cubic-bezier(0.22, 1, 0.36, 1),
+              background 120ms cubic-bezier(0.22, 1, 0.36, 1),
+              color 120ms cubic-bezier(0.22, 1, 0.36, 1),
+              transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (hover: hover) {
+  .cc-first-session-btn:hover {
+    border-color: color-mix(in srgb, var(--ds-accent) 60%, var(--ds-border));
+    background: color-mix(in srgb, var(--ds-accent) 14%, var(--ds-bg));
+  }
+}
+.cc-first-session-btn:active { transform: translateY(1px); }
+.cc-first-session-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ds-focus); }
 .cohort-chat-egs { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
 .cc-eg {
   font-family: var(--ds-font-ui);

@@ -48,6 +48,12 @@
 
     window.api = new Proxy({
       getAppInfo: () => Promise.resolve({ version: "preview", platform: "web", name: "Shape Rotator OS" }),
+      matrix: {
+        status: () => Promise.resolve({ state: "logged_out" }),
+        rooms: () => Promise.resolve([]),
+        onStatus: () => () => {},
+        onRooms: () => () => {},
+      },
       loadContextVault: () => Promise.resolve({ ok: true, manifest: DEMO_MANIFEST, roots: [] }),
       scanContextVault: () => Promise.resolve({ ok: true, manifest: DEMO_MANIFEST, roots: [] }),
       readContextVaultSource: (id) => Promise.resolve({ ok: true, text: RAW_TEXT[id] || "", truncated: false }),

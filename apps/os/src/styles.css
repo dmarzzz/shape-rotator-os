@@ -19611,6 +19611,7 @@ html.cohort-chat-open .alch-cv-layout > .alch-cv-detailcol { padding-left: clamp
   flex-direction: column;
   gap: 4px;
   width: 100%;
+  min-width: 0;
   min-height: 0;
   padding: 8px 9px 8px 14px;
   border: 0;
@@ -19650,6 +19651,8 @@ html.cohort-chat-open .alch-cv-layout > .alch-cv-detailcol { padding-left: clamp
 
 .alch-cv-source strong {
   display: block;
+  min-width: 0;
+  max-width: 100%;
   overflow-wrap: anywhere;
   color: var(--ds-ink-2, rgba(241, 236, 231, 0.74));
   font: var(--ds-weight-med, 500) 13px/1.28 var(--ds-font-ui, sans-serif);
@@ -19667,6 +19670,10 @@ html.cohort-chat-open .alch-cv-layout > .alch-cv-detailcol { padding-left: clamp
 }
 
 .alch-cv-transcript-source strong {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
   font-size: 12.5px;
   line-height: 1.32;
 }
@@ -19761,12 +19768,35 @@ html[data-theme="light"] .alch-cv-group-head { background: var(--alchemy-charcoa
 .alch-cv-conf.is-needs-review { border-color: color-mix(in srgb, var(--ds-danger, #e5484d) 45%, transparent); color: var(--ds-danger, #e5484d); }
 
 /* ── Two-lens context page (stream · library) ─────────────────────────── */
-/* library sidebar: topic rows reuse .alch-cv-source; the count sits top-right */
-.alch-cv-topic { padding-right: 40px; }
+/* library sidebar: topic rows use a stable label/count grid so long topics
+   wrap inside the row instead of painting through their neighbours. */
+.alch-cv-topic {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(2ch, auto);
+  gap: 8px;
+  align-items: start;
+  min-height: 34px;
+  padding: 8px 10px 8px 14px;
+}
+.alch-cv-topic strong {
+  grid-column: 1;
+  grid-row: 1;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  line-height: 1.28;
+}
 .alch-cv-topic-count {
-  position: absolute;
-  top: 10px; right: 12px;
+  position: static;
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  min-width: 2ch;
+  padding-top: 1px;
+  text-align: right;
   font: var(--ds-weight-med, 500) var(--ds-text-2xs, 10px)/1.4 var(--ds-font-mono, monospace);
+  font-feature-settings: var(--num-feat, "tnum" 1);
   color: var(--ds-ink-4, rgba(241, 236, 231, 0.32));
 }
 .alch-cv-source.is-selected .alch-cv-topic-count,

@@ -9,7 +9,7 @@ import {
   transcriptSubmitLabel,
 } from "./transcript-intake-ui.mjs";
 
-test("transcript path picker shows Drive first and keeps text-only paths explicit", () => {
+test("transcript path picker shows the three human choices", () => {
   const rows = buildVisibleTranscriptPathRows([
     { key: "drive_inbox", label: "Drive inbox" },
     { key: "metadata", label: "Pointer only" },
@@ -17,15 +17,15 @@ test("transcript path picker shows Drive first and keeps text-only paths explici
     { key: "local_agent", label: "Process here" },
   ]);
 
-  assert.deepEqual(rows.map((row) => row.key), ["drive_inbox", "metadata", "supabase_raw", "local_agent"]);
-  assert.deepEqual(rows.map((row) => row.label), ["Drive inbox", "Private pointer", "Send full text", "Local readout"]);
-  assert.equal(rows[0].short, "private Google Drive");
+  assert.deepEqual(rows.map((row) => row.key), ["metadata", "supabase_raw", "local_agent"]);
+  assert.deepEqual(rows.map((row) => row.label), ["Private pointer", "Send full text", "Local readout"]);
+  assert.equal(rows[0].short, "file stays private");
 });
 
-test("unknown transcript paths normalize to Drive inbox", () => {
-  assert.equal(normalizeVisibleTranscriptPath("drive_inbox"), "drive_inbox");
-  assert.equal(normalizeVisibleTranscriptPath("unknown"), "drive_inbox");
-  assert.match(transcriptPathNoteText("drive_inbox"), /private Google Drive inbox/);
+test("legacy or backend-only transcript paths normalize to private pointer", () => {
+  assert.equal(normalizeVisibleTranscriptPath("drive_inbox"), "metadata");
+  assert.equal(normalizeVisibleTranscriptPath("unknown"), "metadata");
+  assert.match(transcriptPathNoteText("drive_inbox"), /private source pointer/);
 });
 
 test("full-text paths reject PDFs with plain user copy", () => {
@@ -43,8 +43,8 @@ test("full-text paths reject PDFs with plain user copy", () => {
 });
 
 test("submit labels stay action-shaped", () => {
-  assert.equal(transcriptSubmitLabel("drive_inbox", 1), "Send to Drive");
-  assert.equal(transcriptSubmitLabel("drive_inbox", 3), "Send 3 to Drive");
+  assert.equal(transcriptSubmitLabel("drive_inbox", 1), "Add pointer");
+  assert.equal(transcriptSubmitLabel("drive_inbox", 3), "Add 3 pointers");
   assert.equal(transcriptSubmitLabel("metadata", 1), "Add pointer");
   assert.equal(transcriptSubmitLabel("metadata", 3), "Add 3 pointers");
   assert.equal(transcriptSubmitLabel("supabase_raw", 2), "Send 2 files");
