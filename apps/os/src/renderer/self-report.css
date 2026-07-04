@@ -31,12 +31,12 @@
 }
 .selfrep-x:hover { color: var(--ds-ink-1); }
 
-.selfrep-lede { font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); color: var(--ds-ink-2); margin: 0 0 14px; }
+.selfrep-lede { font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); color: var(--ds-ink-1); margin: 0 0 14px; }
 
 .selfrep-sources {
   display: flex; flex-direction: column; gap: 4px;
   margin: -4px 0 12px; font-family: var(--ds-font-mono);
-  font-size: var(--ds-text-2xs); color: var(--ds-ink-4);
+  font-size: var(--ds-text-2xs); color: var(--ds-ink-3);
 }
 .selfrep-sources span { overflow-wrap: anywhere; }
 
@@ -48,7 +48,7 @@
   font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs);
 }
 .selfrep-coverage b { flex: none; color: var(--ds-ink-1); }
-.selfrep-coverage span { color: var(--ds-ink-3); overflow-wrap: anywhere; }
+.selfrep-coverage span { color: var(--ds-ink-2); overflow-wrap: anywhere; }
 
 .selfrep-section { margin: 0 0 14px; }
 .selfrep-section h3 {
@@ -77,40 +77,95 @@
 }
 .selfrep-health-grid span {
   display: flex; flex-direction: column; gap: 2px;
-  font-size: var(--ds-text-xs); color: var(--ds-ink-3);
+  font-size: var(--ds-text-xs); color: var(--ds-ink-2);
 }
 .selfrep-health-grid b,
 .selfrep-health p b { color: var(--ds-ink-1); font-weight: 600; }
 .selfrep-health p {
   margin: 6px 0 0; font-size: var(--ds-text-xs);
-  line-height: var(--ds-lh-xs); color: var(--ds-ink-3);
+  line-height: var(--ds-lh-xs); color: var(--ds-ink-2);
 }
 
-.selfrep-consent {
-  display: flex; gap: 11px; align-items: flex-start;
-  padding: 12px 13px; margin-bottom: 9px;
-  border: 1px solid var(--ds-border); border-radius: 10px;
-  background: var(--ds-surface-3); cursor: pointer;
+.selfrep-source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.selfrep-source-row {
+  border: 1px solid var(--ds-border);
+  border-radius: 10px;
+  background: var(--ds-surface-3);
+  overflow: hidden;
   transition: border-color 140ms ease, background 140ms ease;
 }
-.selfrep-consent:hover { border-color: var(--ds-border-strong); }
-.selfrep-consent:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ds-accent) 28%, transparent);
-}
-.selfrep-consent.is-disabled { opacity: 0.55; cursor: default; }
-.selfrep-consent.selfrep-remember {
+.selfrep-source-row:hover { border-color: var(--ds-border-strong); }
+.selfrep-source-row.is-disabled { opacity: 0.78; }
+.selfrep-source-row.selfrep-remember-row {
   background: color-mix(in srgb, var(--ds-accent) 8%, var(--ds-surface-3));
 }
-.selfrep-consent input { margin-top: 3px; accent-color: var(--ds-accent); flex: none; }
-.selfrep-consent b { display: block; font-size: var(--ds-text-sm); font-weight: 600; margin-bottom: 2px; }
-.selfrep-consent small { display: block; font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); color: var(--ds-ink-3); }
-.selfrep-consent em { font-style: normal; color: var(--ds-ink-2); }
-button.selfrep-consent {
-  appearance: none;
+.selfrep-source-pick {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
   width: 100%;
+  box-sizing: border-box;
+  padding: 11px 12px;
+  color: var(--ds-ink-1);
   font: inherit;
   text-align: left;
+  cursor: pointer;
+}
+button.selfrep-source-pick {
+  appearance: none;
+  border: 0;
+  background: transparent;
+}
+.selfrep-source-pick input {
+  margin-top: 3px;
+  accent-color: var(--ds-accent);
+  flex: none;
+}
+.selfrep-source-pick b {
+  display: block;
+  margin-bottom: 2px;
+  font-size: var(--ds-text-sm);
+  font-weight: 650;
+}
+.selfrep-source-pick small {
+  display: block;
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-lh-xs);
+  color: var(--ds-ink-2);
+}
+.selfrep-source-pick:focus-visible,
+.selfrep-source-detail summary:focus-visible,
+.selfrep-agent-prompt > summary:focus-visible,
+.selfrep-agent-paste summary:focus-visible,
+.selfrep-guide summary:focus-visible,
+.selfrep-prompt-preview summary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ds-accent) 30%, transparent);
+}
+.selfrep-source-detail {
+  border-top: 1px solid var(--ds-border);
+  padding: 0 12px 10px 40px;
+}
+.selfrep-source-detail summary {
+  width: fit-content;
+  cursor: pointer;
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ds-ink-2);
+}
+.selfrep-source-detail summary:hover { color: var(--ds-ink-1); }
+.selfrep-source-detail p {
+  margin: 7px 0 0;
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-lh-xs);
+  color: var(--ds-ink-2);
 }
 .selfrep-manual-choice {
   align-items: center;
@@ -134,19 +189,24 @@ button.selfrep-consent {
   gap: 10px;
 }
 .selfrep-agent-prompt {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
+  display: block;
   margin: 0 0 12px;
   padding: 11px;
   border: 1px solid color-mix(in srgb, var(--ds-accent) 34%, var(--ds-border));
   border-radius: 10px;
   background: color-mix(in srgb, var(--ds-accent) 8%, var(--ds-surface-3));
 }
+.selfrep-agent-prompt > summary {
+  cursor: pointer;
+  list-style-position: outside;
+  color: var(--ds-ink-1);
+}
 .selfrep-agent-copy {
-  display: flex;
+  display: inline-flex;
   flex-direction: column;
   gap: 3px;
+  margin-left: 4px;
+  vertical-align: top;
 }
 .selfrep-agent-copy b {
   font-size: var(--ds-text-sm);
@@ -155,7 +215,19 @@ button.selfrep-consent {
 .selfrep-agent-copy small {
   font-size: var(--ds-text-xs);
   line-height: var(--ds-lh-xs);
-  color: var(--ds-ink-3);
+  color: var(--ds-ink-2);
+}
+.selfrep-agent-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: 10px;
+}
+.selfrep-agent-tools p {
+  margin: 0;
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-lh-xs);
+  color: var(--ds-ink-2);
 }
 .selfrep-copy-prompt {
   align-self: flex-start;
@@ -172,8 +244,9 @@ button.selfrep-consent {
   font-size: var(--ds-text-2xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--ds-ink-3);
+  color: var(--ds-ink-2);
 }
+.selfrep-agent-paste summary:hover { color: var(--ds-ink-1); }
 .selfrep-agent-paste textarea {
   width: 100%;
   box-sizing: border-box;
@@ -206,7 +279,7 @@ button.selfrep-consent {
 .selfrep-agent-fill-row span {
   font-family: var(--ds-font-mono);
   font-size: var(--ds-text-2xs);
-  color: var(--ds-ink-4);
+  color: var(--ds-ink-3);
 }
 .selfrep-agent-fill-row span.is-ok { color: var(--ds-accent); }
 .selfrep-agent-fill-row span.is-error { color: var(--ds-danger); }
@@ -229,7 +302,7 @@ button.selfrep-consent {
   margin-top: 2px;
   font-size: var(--ds-text-xs);
   line-height: var(--ds-lh-xs);
-  color: var(--ds-ink-3);
+  color: var(--ds-ink-2);
 }
 .selfrep-manual-field textarea {
   width: 100%;
@@ -267,7 +340,7 @@ button.selfrep-consent {
 .selfrep-primary:hover { background: var(--ds-accent-hover); border-color: var(--ds-accent-hover); }
 .selfrep-primary:disabled:hover { background: var(--ds-accent); border-color: var(--ds-accent); }
 
-.selfrep-foot { margin: 12px 0 0; font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); color: var(--ds-ink-4); }
+.selfrep-foot { margin: 12px 0 0; font-family: var(--ds-font-mono); font-size: var(--ds-text-2xs); color: var(--ds-ink-3); }
 
 .selfrep-busy { display: flex; align-items: center; gap: 12px; padding: 18px 4px; font-size: var(--ds-text-sm); color: var(--ds-ink-2); }
 .selfrep-spinner {
@@ -348,9 +421,10 @@ button.selfrep-consent {
 /* Prompt preview on the consent step — the exact text the run pipes in. */
 .selfrep-prompt-preview { margin: 10px 0 2px; }
 .selfrep-prompt-preview summary {
+  width: fit-content;
   cursor: pointer;
   font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs);
-  color: var(--ds-ink-3);
+  color: var(--ds-ink-2);
 }
 .selfrep-prompt-preview summary:hover { color: var(--ds-ink-1); }
 .selfrep-prompt-preview pre {
@@ -369,17 +443,43 @@ button.selfrep-consent {
   color: var(--ds-ink-2);
 }
 
-/* Pre-run guidance box on the consent step ("guide it before it sinks"). */
-.selfrep-guide { display: block; margin: 10px 0 2px; }
-.selfrep-guide > span {
-  display: block; margin-bottom: 5px;
-  font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); color: var(--ds-ink-2);
+/* Pre-run guidance box on the consent step. */
+.selfrep-guide {
+  display: block;
+  margin: 10px 0 2px;
+  border: 1px solid var(--ds-border);
+  border-radius: 9px;
+  background: var(--ds-surface-3);
+  padding: 9px 10px;
 }
-.selfrep-guide > span b { color: var(--ds-ink-1); }
+.selfrep-guide summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--ds-ink-2);
+}
+.selfrep-guide summary span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-left: 4px;
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-lh-xs);
+}
+.selfrep-guide summary b { color: var(--ds-ink-1); }
+.selfrep-guide summary small {
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  color: var(--ds-ink-3);
+}
 .selfrep-guide textarea {
-  width: 100%; min-height: 40px; resize: vertical; font: inherit; font-size: var(--ds-text-sm);
+  width: 100%; min-height: 40px; margin-top: 8px; resize: vertical; font: inherit; font-size: var(--ds-text-sm);
   color: var(--ds-ink-1); background: var(--ds-surface-2);
   border: 1px solid var(--ds-border); border-radius: 8px; padding: 7px 9px;
+}
+.selfrep-guide textarea:focus-visible {
+  outline: none;
+  border-color: var(--ds-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ds-accent) 28%, transparent);
 }
 
 @media (max-width: 560px) {

@@ -493,39 +493,67 @@ function renderConsent(person, githubFallback) {
       <span class="selfrep-eyebrow">update from this week's work</span>
       <button type="button" class="selfrep-x" data-sr-close aria-label="close">✕</button>
     </header>
-    <p class="selfrep-lede">I can draft an update to your profile from this week's work — you review and approve every change. Pick what I may read:</p>
-    <label class="selfrep-consent">
-      <input type="checkbox" data-sr-sessions ${rememberedSessions ? "checked" : ""}>
-      <span>
-        <b>My local AI sessions this week</b>
-        <small>Reads your Claude Code / Codex logs and agent memory <em>on this machine</em>, then scrubs them into a short summary. Agent memory honors your Teleport Router read-scope, and your own recent Router posts are used only so the draft does not repeat an update you already shared. Raw content never leaves your computer; you review every field before anything sends.</small>
-      </span>
-    </label>
-    <label class="selfrep-consent${hasGithub ? "" : " is-disabled"}">
-      <input type="checkbox" data-sr-github ${hasGithub ? (remembered ? (rememberedGithub ? "checked" : "") : "checked") : "disabled"}>
-      <span>
-        <b>My GitHub activity</b>
-        <small>${ghSmall}</small>
-      </span>
-    </label>
-    <label class="selfrep-consent selfrep-remember">
-      <input type="checkbox" data-sr-remember ${remembered ? "checked" : ""}>
-      <span>
-        <b>Remember for Updates shortcut</b>
-        <small>The chat dial's Updates quadrant may rerun only the sources checked above. Uncheck this to clear the shortcut.</small>
-      </span>
-    </label>
-    <button type="button" class="selfrep-consent selfrep-manual-choice" data-sr-manual>
-      <span class="selfrep-manual-mark" aria-hidden="true"></span>
-      <span>
-        <b>I'll type my own update</b>
-        <small>No scan. Answer a few questions, preview the changed fields, then send only what you approve to Supabase.</small>
-      </span>
-    </button>
-    <label class="selfrep-guide">
-      <span><b>Guide it before it runs</b> <small>(optional)</small></span>
+    <p class="selfrep-lede">Draft a profile update from recent work. Choose the sources, then review every change before anything sends.</p>
+    <div class="selfrep-source-list" role="group" aria-label="Update sources">
+      <div class="selfrep-source-row">
+        <label class="selfrep-source-pick">
+          <input type="checkbox" data-sr-sessions ${rememberedSessions ? "checked" : ""}>
+          <span>
+            <b>Local AI sessions</b>
+            <small>Private scan on this machine.</small>
+          </span>
+        </label>
+        <details class="selfrep-source-detail">
+          <summary>what this reads</summary>
+          <p>Reads your Claude Code / Codex logs and agent memory on this machine, then scrubs them into a short summary. Agent memory honors your Teleport Router read-scope, and your own recent Router posts are used only so the draft does not repeat an update you already shared. Raw content never leaves your computer.</p>
+        </details>
+      </div>
+      <div class="selfrep-source-row${hasGithub ? "" : " is-disabled"}">
+        <label class="selfrep-source-pick">
+          <input type="checkbox" data-sr-github ${hasGithub ? (remembered ? (rememberedGithub ? "checked" : "") : "checked") : "disabled"}>
+          <span>
+            <b>GitHub activity</b>
+            <small>${hasGithub ? "Recent repo and profile signals." : "Add a handle to use this source."}</small>
+          </span>
+        </label>
+        <details class="selfrep-source-detail">
+          <summary>what this reads</summary>
+          <p>${ghSmall}</p>
+        </details>
+      </div>
+      <div class="selfrep-source-row selfrep-remember-row">
+        <label class="selfrep-source-pick">
+          <input type="checkbox" data-sr-remember ${remembered ? "checked" : ""}>
+          <span>
+            <b>Remember shortcut</b>
+            <small>Reuse these choices from the Updates quadrant.</small>
+          </span>
+        </label>
+        <details class="selfrep-source-detail">
+          <summary>shortcut behavior</summary>
+          <p>The chat dial's Updates quadrant may rerun only the sources checked above. Uncheck this to clear the shortcut.</p>
+        </details>
+      </div>
+      <div class="selfrep-source-row is-manual">
+        <button type="button" class="selfrep-source-pick selfrep-manual-choice" data-sr-manual>
+          <span class="selfrep-manual-mark" aria-hidden="true"></span>
+          <span>
+            <b>Type my own update</b>
+            <small>No scan. Fill only the fields you want to change.</small>
+          </span>
+        </button>
+        <details class="selfrep-source-detail">
+          <summary>manual path</summary>
+          <p>Answer a few questions, preview the changed fields, then send only what you approve to Supabase.</p>
+        </details>
+      </div>
+    </div>
+    <details class="selfrep-guide">
+      <summary>
+        <span><b>Guide it before it runs</b><small>optional</small></span>
+      </summary>
       <textarea data-sr-guidance rows="2" placeholder="anything it should know up front — e.g. “we pivoted from NDI to transcripts”, “ignore my side project”…" spellcheck="true"></textarea>
-    </label>
+    </details>
     <details class="selfrep-prompt-preview" data-sr-prompt-details>
       <summary>see the exact prompt it will run</summary>
       <pre data-sr-prompt-preview></pre>
@@ -602,21 +630,26 @@ async function renderManualDraft(person, githubFallback = "") {
       <button type="button" class="selfrep-x" data-sr-close aria-label="close">✕</button>
     </header>
     <p class="selfrep-lede">No scan runs here. Answer only what you want the cohort profile to know; empty answers are ignored.</p>
-    <section class="selfrep-agent-prompt">
-      <div class="selfrep-agent-copy">
-        <b>Have your agent draft it</b>
-        <small>Copy this prompt to your own agent, then paste its JSON here to fill the answers.</small>
+    <details class="selfrep-agent-prompt">
+      <summary>
+        <span class="selfrep-agent-copy">
+          <b>Have your agent draft it</b>
+          <small>Optional JSON helper.</small>
+        </span>
+      </summary>
+      <div class="selfrep-agent-tools">
+        <p>Copy this prompt to your own agent, then paste its JSON here to fill the answers.</p>
+        <button type="button" class="selfrep-btn selfrep-ghost selfrep-copy-prompt" data-sr-agent-copy>copy agent prompt</button>
+        <details class="selfrep-agent-paste">
+          <summary>paste agent JSON</summary>
+          <textarea data-sr-agent-json rows="5" placeholder='{"person":{"now":"...","seeking":["..."]}}' spellcheck="false"></textarea>
+          <div class="selfrep-agent-fill-row">
+            <button type="button" class="selfrep-btn selfrep-ghost" data-sr-agent-fill>fill answers</button>
+            <span data-sr-agent-status></span>
+          </div>
+        </details>
       </div>
-      <button type="button" class="selfrep-btn selfrep-ghost selfrep-copy-prompt" data-sr-agent-copy>copy agent prompt</button>
-      <details class="selfrep-agent-paste">
-        <summary>paste agent JSON</summary>
-        <textarea data-sr-agent-json rows="5" placeholder='{"person":{"now":"...","seeking":["..."]}}' spellcheck="false"></textarea>
-        <div class="selfrep-agent-fill-row">
-          <button type="button" class="selfrep-btn selfrep-ghost" data-sr-agent-fill>fill answers</button>
-          <span data-sr-agent-status></span>
-        </div>
-      </details>
-    </section>
+    </details>
     <div class="selfrep-manual-grid">${rows}</div>
     <div class="selfrep-actions">
       <button type="button" class="selfrep-btn selfrep-ghost" data-sr-manual-back>back</button>

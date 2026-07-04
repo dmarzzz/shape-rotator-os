@@ -26,6 +26,14 @@ import { submitContest } from "./supabase-contest.mjs";
 import { scanGithubActivity, resolvePersonHandle, summarizeEvents, digestFromEvents } from "./gh-self-report.mjs";
 import { renderChatMarkdown } from "./chat-markdown.mjs";
 import { fetchCohortDistillations } from "./supabase-distillations.mjs";
+import {
+  buildVisibleTranscriptPathRows,
+  normalizeVisibleTranscriptPath,
+  transcriptPathBlocker,
+  transcriptPathNoteText,
+  transcriptStorageBadgeLabel,
+  transcriptSubmitLabel,
+} from "./transcript-intake-ui.mjs";
 
 let stylesheetPromise = null;
 let controller = null;
@@ -60,17 +68,35 @@ const FALLBACK_TRANSCRIPT_CONFIDENCE = [
 ];
 
 const FALLBACK_TRANSCRIPT_PROCESSING_PATHS = [
-  { key: "metadata", label: "Pointer only", description: "Stage locally" },
+  { key: "drive_inbox", label: "Drive inbox", description: "Private Google Drive" },
+  { key: "metadata", label: "Private pointer", description: "Stage locally" },
   { key: "supabase_raw", label: "Send full text", description: "Private Shape OS DB" },
-  { key: "local_agent", label: "Process here", description: "Local agent" },
+  { key: "local_agent", label: "Local readout", description: "Local agent" },
 ];
-const TRANSCRIPT_PATH_SHORT_COPY = {
-  metadata: "stage locally",
-  supabase_raw: "Shape OS DB",
-  local_agent: "local agent",
+const TRANSCRIPT_TYPE_DESCRIPTIONS = {
+  weekly_standup: "Team rhythm, progress, and blockers.",
+  office_hours: "Support, questions, and coaching.",
+  salon: "Cohort-facing conversation or guest session.",
+  rd_jam: "Research, build jam, or product debate.",
+  demo_presentation: "Demo, pitch, or public presentation.",
+  private_1on1: "Private coaching or sensitive 1:1.",
+  user_interview: "Customer or user discovery call.",
+  planning_strategy: "Planning, strategy, or internal direction.",
+  leadership_meeting: "Leadership-only decisions and context.",
 };
-const TRANSCRIPT_PATH_ORDER = ["supabase_raw", "local_agent", "metadata"];
-const RAW_TRANSCRIPT_TEXT_EXTS = new Set([".txt", ".md", ".markdown", ".vtt", ".srt", ".csv", ".json", ".rtf"]);
+const TRANSCRIPT_COHORT_MODE_COPY = {
+  aggregate_only: "Aggregate only",
+  distilled_readout: "Distilled readout",
+  team_call_required: "Team approval",
+  never: "Do not publish",
+};
+function transcriptTypeDescription(type) {
+  if (!type) return "";
+  return type.description
+    || TRANSCRIPT_TYPE_DESCRIPTIONS[type.key]
+    || TRANSCRIPT_COHORT_MODE_COPY[type.cohortMode]
+    || "";
+}
 
 function $(id) { return document.getElementById(id); }
 
@@ -1141,14 +1167,22 @@ function createController() {
     };
   }
 
+  function readTranscriptDriveConfig() {
+    const ingress = loadCalendarIngressConfig();
+    return {
+      folderId: ingress.driveInboxFolderId || ingress.driveArtifactFolderId || ingress.driveFolderId || "",
+    };
+  }
+
   async function renderTranscriptUploadCard() {
     const { sessionTypes: types, confidenceOptions, processingPaths } = await transcriptIntakeOptions();
     const config = readTranscriptSupabaseConfig();
+    const driveConfig = readTranscriptDriveConfig();
     // The transcript view hides the welcome via CSS (data-cc-view="transcript")
     // — don't destroy it, or it can't come back when you return to "ask".
     log.querySelectorAll(".cc-card.is-transcript-intake").forEach((el) => el.remove());
 
-    const ACCEPTED_LABEL = "txt, md, csv, json, doc, docx, pdf, rtf";
+    const ACCEPTED_LABEL = "txt, md, vtt, srt, csv, json, doc, docx, pdf, rtf";
     const fmtBytes = (n) => {
       const b = Number(n) || 0;
       if (b < 1024) return `${b} B`;
@@ -1158,97 +1192,112 @@ function createController() {
     const dropzoneEmptyHtml = `
       <span class="cc-upload-dz-inner">
         <svg class="cc-upload-dz-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/></svg>
-        <span class="cc-upload-dz-lede">Choose a transcript file — or drag it here</span>
+        <span class="cc-upload-dz-lede">Choose transcript files — or drag them here</span>
         <span class="cc-upload-dz-hint">${ACCEPTED_LABEL}</span>
       </span>`;
-    const dropzoneFileHtml = (f) => `
+    const dropzoneFileHtml = (files) => {
+      const list = (Array.isArray(files) ? files : [files]).filter(Boolean);
+      const first = list[0] || {};
+      const totalBytes = list.reduce((sum, item) => sum + (Number(item.sizeBytes) || 0), 0);
+      const names = list.slice(0, 3).map((item) => `<span>${esc(item.name || "transcript")}</span>`).join("");
+      const extra = list.length > 3 ? `<span>+${list.length - 3} more</span>` : "";
+      return `
       <span class="cc-upload-file">
         <svg class="cc-upload-file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
         <span class="cc-upload-file-meta">
-          <span class="cc-upload-file-name">${esc(f.name)}</span>
-          <span class="cc-upload-file-sub">${esc(fmtBytes(f.sizeBytes))} · ${esc((f.ext || "").replace(/^\./, "") || "file")}</span>
+          <span class="cc-upload-file-name">${esc(list.length === 1 ? first.name : `${list.length} transcripts selected`)}</span>
+          <span class="cc-upload-file-sub">${esc(list.length === 1 ? `${fmtBytes(first.sizeBytes)} · ${(first.ext || "").replace(/^\./, "") || "file"}` : `${fmtBytes(totalBytes)} total`)}</span>
+          ${list.length > 1 ? `<span class="cc-upload-file-stack">${names}${extra}</span>` : ""}
         </span>
         <span class="cc-upload-file-change">Change</span>
       </span>`;
+    };
     const rawPathRows = (Array.isArray(processingPaths) && processingPaths.length
       ? processingPaths
       : FALLBACK_TRANSCRIPT_PROCESSING_PATHS);
-    const pathRows = [...rawPathRows].sort((a, b) => {
-      const ai = TRANSCRIPT_PATH_ORDER.indexOf(a.key);
-      const bi = TRANSCRIPT_PATH_ORDER.indexOf(b.key);
-      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-    });
-    const pathButtonsHtml = pathRows.map((item, index) => `
-      <button type="button" class="cc-upload-path${index === 0 ? " is-on" : ""}" data-cc-transcript-path="${esc(item.key)}" role="radio" aria-checked="${index === 0 ? "true" : "false"}">
+    const pathRows = buildVisibleTranscriptPathRows(rawPathRows);
+    const pathButtonsHtml = pathRows.map((item) => `
+      <button type="button" class="cc-upload-path" data-cc-transcript-path="${esc(item.key)}" role="radio" aria-checked="false">
         <strong>${esc(item.label || item.key)}</strong>
-        <small>${esc(TRANSCRIPT_PATH_SHORT_COPY[item.key] || item.description || "")}</small>
+        <small>${esc(item.short || item.description || "")}</small>
       </button>`).join("");
-    const typeButtonsHtml = types.map((type) => `
+    const typeButtonsHtml = types.map((type) => {
+      const description = transcriptTypeDescription(type);
+      return `
       <button type="button" class="cc-upload-type" data-cc-transcript-type="${esc(type.key)}" role="radio" aria-checked="false">
-        <strong>${esc(type.label || type.key)}</strong>
-        ${type.maxTier ? `<small>${esc(type.maxTier)}</small>` : ""}
-      </button>`).join("");
+        <span class="cc-upload-type-main">
+          <strong>${esc(type.label || type.key)}</strong>
+          ${type.maxTier ? `<small>${esc(type.maxTier)}</small>` : ""}
+        </span>
+        ${description ? `<span class="cc-upload-type-desc">${esc(description)}</span>` : ""}
+      </button>`;
+    }).join("");
 
     const card = document.createElement("div");
     card.className = "cc-card is-transcript-intake";
     card.innerHTML = `
       <div class="cc-card-eyebrow">add transcript</div>
-      <p class="cc-upload-privacy">Send full text to the private Shape OS DB, or process it here with your local agent. Nothing publishes without review.</p>
-      <div class="cc-upload-steps" aria-label="transcript upload flow">
-        <span data-cc-step="destination"><b>1</b> destination</span>
-        <span data-cc-step="session"><b>2</b> session</span>
-        <span data-cc-step="file"><b>3</b> file</span>
+      <p class="cc-upload-privacy">Choose files, name the event type, then pick what leaves this device.</p>
+      <div class="cc-upload-section is-upload">
+        <button type="button" class="cc-upload-dropzone" data-cc-transcript-dropzone aria-label="choose transcript files"></button>
+        <button type="button" class="cc-upload-add-more" data-cc-transcript-add-more hidden>Add more</button>
       </div>
-      <div class="cc-upload-section">
-        <div class="cc-upload-section-label">destination</div>
-        <div class="cc-upload-paths" role="radiogroup" aria-label="processing path">${pathButtonsHtml}</div>
-        <div class="cc-upload-path-note" data-cc-transcript-path-note></div>
-      </div>
-      <div class="cc-upload-section">
-        <div class="cc-upload-session">
-          <div class="cc-upload-section-label">session</div>
+      <div class="cc-upload-list" data-cc-upload-list hidden></div>
+      <div class="cc-upload-editor" data-cc-upload-editor hidden>
+        <div class="cc-upload-editor-head" data-cc-upload-editor-head></div>
+        <div class="cc-upload-section">
+          <div class="cc-upload-section-label">event type</div>
           <div class="cc-upload-types" role="radiogroup" aria-label="transcript type">${typeButtonsHtml}</div>
+          <div class="cc-upload-route" data-cc-transcript-route></div>
         </div>
-      </div>
-      <details class="cc-upload-details">
-        <summary>details</summary>
-        <div class="cc-upload-grid is-details">
-        <label class="cc-upload-field">
-          <span>confidence</span>
-          <div class="cc-upload-slider">
-            <div class="cc-upload-slider-ticks">
-              ${confidenceOptions.map((opt, index) => `<span class="cc-upload-slider-tick${index === 0 ? " is-on" : ""}">${esc(opt.label || opt.key)}</span>`).join("")}
+        <div class="cc-upload-section">
+          <div class="cc-upload-section-label">what leaves this device</div>
+          <div class="cc-upload-paths" role="radiogroup" aria-label="processing path">${pathButtonsHtml}</div>
+          <div class="cc-upload-path-note" data-cc-transcript-path-note></div>
+        </div>
+        <details class="cc-upload-details">
+          <summary>metadata</summary>
+          <div class="cc-upload-grid is-details">
+          <label class="cc-upload-field">
+            <span>confidence</span>
+            <div class="cc-upload-slider">
+              <div class="cc-upload-slider-ticks">
+                ${confidenceOptions.map((opt, index) => `<span class="cc-upload-slider-tick${index === 0 ? " is-on" : ""}">${esc(opt.label || opt.key)}</span>`).join("")}
+              </div>
+              <input type="range" class="cc-upload-range" data-cc-transcript-confidence min="0" max="${Math.max(0, confidenceOptions.length - 1)}" step="1" value="0" aria-label="type confidence" />
             </div>
-            <input type="range" class="cc-upload-range" data-cc-transcript-confidence min="0" max="${Math.max(0, confidenceOptions.length - 1)}" step="1" value="0" aria-label="type confidence" />
+          </label>
+          <label class="cc-upload-field">
+            <span>date</span>
+            <input class="cc-upload-input" data-cc-transcript-date type="date" />
+          </label>
+          <label class="cc-upload-field">
+            <span>label</span>
+            <input class="cc-upload-input" data-cc-transcript-label type="text" placeholder="session title or file label" autocomplete="off" spellcheck="false" />
+          </label>
+          <label class="cc-upload-field">
+            <span>session id</span>
+            <input class="cc-upload-input" data-cc-transcript-session type="text" placeholder="optional" autocomplete="off" spellcheck="false" />
+          </label>
+          <label class="cc-upload-field cc-upload-field-wide">
+            <span>related</span>
+            <input class="cc-upload-input" data-cc-transcript-related type="text" placeholder="project, person, topic" autocomplete="off" spellcheck="false" />
+          </label>
           </div>
-        </label>
-        <label class="cc-upload-field">
-          <span>date</span>
-          <input class="cc-upload-input" data-cc-transcript-date type="date" />
-        </label>
-        <label class="cc-upload-field">
-          <span>label</span>
-          <input class="cc-upload-input" data-cc-transcript-label type="text" placeholder="session title or file label" autocomplete="off" spellcheck="false" />
-        </label>
-        <label class="cc-upload-field">
-          <span>session id</span>
-          <input class="cc-upload-input" data-cc-transcript-session type="text" placeholder="optional" autocomplete="off" spellcheck="false" />
-        </label>
-        <label class="cc-upload-field cc-upload-field-wide">
-          <span>related</span>
-          <input class="cc-upload-input" data-cc-transcript-related type="text" placeholder="project, person, topic" autocomplete="off" spellcheck="false" />
-        </label>
-        </div>
-      </details>
-      <div class="cc-upload-section">
-        <div class="cc-upload-section-label">file</div>
-        <button type="button" class="cc-upload-dropzone" data-cc-transcript-dropzone aria-label="choose a transcript file"></button>
+        </details>
       </div>
-      <div class="cc-upload-route" data-cc-transcript-route></div>
       <div class="cc-upload-dup" data-cc-transcript-dup hidden></div>
       <details class="cc-upload-connection">
-        <summary>Shape OS DB connection (advanced)</summary>
+        <summary>Private storage connection (advanced)</summary>
         <div class="cc-upload-grid is-connection">
+          <label class="cc-upload-field">
+            <span>Drive folder id</span>
+            <input class="cc-upload-input" data-cc-transcript-drive-folder type="text" value="${esc(driveConfig.folderId || "")}" autocomplete="off" spellcheck="false" />
+          </label>
+          <div class="cc-upload-field">
+            <span>Drive access</span>
+            <button type="button" class="btn ds-ghost" data-cc-transcript-drive-reconnect>Reconnect Drive</button>
+          </div>
           <label class="cc-upload-field">
             <span>org id</span>
             <input class="cc-upload-input" data-cc-transcript-org type="text" value="${esc(config.orgId || "")}" autocomplete="off" spellcheck="false" />
@@ -1275,6 +1324,10 @@ function createController() {
       <div class="cc-upload-history" data-cc-upload-history hidden></div>`;
 
     const dropzone = card.querySelector("[data-cc-transcript-dropzone]");
+    const addMore = card.querySelector("[data-cc-transcript-add-more]");
+    const uploadList = card.querySelector("[data-cc-upload-list]");
+    const uploadEditor = card.querySelector("[data-cc-upload-editor]");
+    const uploadEditorHead = card.querySelector("[data-cc-upload-editor-head]");
     const typeBtns = Array.from(card.querySelectorAll("[data-cc-transcript-type]"));
     const confidenceRange = card.querySelector("[data-cc-transcript-confidence]");
     const confidenceTicks = Array.from(card.querySelectorAll(".cc-upload-slider-tick"));
@@ -1284,19 +1337,24 @@ function createController() {
     const related = card.querySelector("[data-cc-transcript-related]");
     const org = card.querySelector("[data-cc-transcript-org]");
     const token = card.querySelector("[data-cc-transcript-token]");
+    const driveFolder = card.querySelector("[data-cc-transcript-drive-folder]");
+    const driveReconnect = card.querySelector("[data-cc-transcript-drive-reconnect]");
     const contextUrl = card.querySelector("[data-cc-transcript-context-url]");
     const agentCmd = card.querySelector("[data-cc-transcript-agent]");
     const pathBtns = Array.from(card.querySelectorAll("[data-cc-transcript-path]"));
     const pathNote = card.querySelector("[data-cc-transcript-path-note]");
-    const stepEls = Array.from(card.querySelectorAll("[data-cc-step]"));
     const route = card.querySelector("[data-cc-transcript-route]");
     const submit = card.querySelector("[data-cc-transcript-submit]");
     const cancel = card.querySelector("[data-cc-transcript-cancel]");
     const stat = card.querySelector("[data-cc-transcript-status]");
-    let confidence = confidenceOptions[0]?.key || "sure";
-    let selectedFile = null;
-    let selectedProcessingPath = pathRows[0]?.key || "metadata";
-    let selectedTypeKey = "";
+    let selectedFiles = [];
+    const uploadConfigs = new Map();
+    let activeUploadKey = "";
+    let defaultProcessingPath = "metadata";
+    try {
+      const rememberedPath = localStorage.getItem("srwk:transcript_processing_path");
+      if (rememberedPath) defaultProcessingPath = normalizeVisibleTranscriptPath(rememberedPath);
+    } catch {}
     let busy = false;
 
     // Recent uploads from THIS device with their fate — staged / sent / queued /
@@ -1351,74 +1409,111 @@ function createController() {
       stat.textContent = text;
     }
     function renderDropzone() {
-      dropzone.classList.toggle("has-file", !!selectedFile);
-      dropzone.innerHTML = selectedFile ? dropzoneFileHtml(selectedFile) : dropzoneEmptyHtml;
+      dropzone.classList.toggle("has-file", selectedFiles.length > 0);
+      dropzone.innerHTML = selectedFiles.length ? dropzoneFileHtml(selectedFiles) : dropzoneEmptyHtml;
+      if (addMore) addMore.hidden = !selectedFiles.length;
+    }
+    function todayValue() {
+      const d = new Date();
+      const z = (n) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
+    }
+    function defaultUploadConfig() {
+      return {
+        typeKey: "",
+        processingPath: defaultProcessingPath,
+        confidence: confidenceOptions[0]?.key || "sure",
+        declaredDate: todayValue(),
+        label: "",
+        sessionId: "",
+        relatedText: "",
+      };
+    }
+    function fileKey(info) {
+      return String(info?.filePath || "").toLowerCase();
+    }
+    function configFor(info) {
+      const key = fileKey(info);
+      if (!key) return defaultUploadConfig();
+      if (!uploadConfigs.has(key)) uploadConfigs.set(key, defaultUploadConfig());
+      return uploadConfigs.get(key);
+    }
+    function reconcileUploadConfigs() {
+      const keys = new Set(selectedFiles.map((info) => fileKey(info)).filter(Boolean));
+      for (const key of Array.from(uploadConfigs.keys())) {
+        if (!keys.has(key)) uploadConfigs.delete(key);
+      }
+      selectedFiles.forEach((info) => { if (fileKey(info)) configFor(info); });
+      if (!selectedFiles.some((info) => fileKey(info) === activeUploadKey)) {
+        activeUploadKey = selectedFiles[0] ? fileKey(selectedFiles[0]) : "";
+      }
+    }
+    function activeFile() {
+      return selectedFiles.find((info) => fileKey(info) === activeUploadKey) || selectedFiles[0] || null;
+    }
+    function activeConfig() {
+      const file = activeFile();
+      return file ? configFor(file) : defaultUploadConfig();
+    }
+    function typeForConfig(config) {
+      return types.find((type) => type.key === config?.typeKey) || null;
     }
     function selectedType() {
-      return types.find((type) => type.key === selectedTypeKey) || null;
+      return typeForConfig(activeConfig());
     }
-    function syncSteps() {
-      const done = {
-        destination: !!selectedProcessingPath,
-        session: !!selectedType(),
-        file: !!selectedFile,
-      };
-      const active = !done.destination ? "destination" : !done.session ? "session" : !done.file ? "file" : "";
-      stepEls.forEach((el) => {
-        const key = el.dataset.ccStep || "";
-        el.classList.toggle("is-done", !!done[key]);
-        el.classList.toggle("is-active", key === active);
+    function pathForConfig(config) {
+      const key = normalizeVisibleTranscriptPath(config?.processingPath || defaultProcessingPath);
+      return pathRows.find((item) => item.key === key) || pathRows[0] || { key: "metadata", label: "Private pointer" };
+    }
+    function uploadJobs() {
+      return selectedFiles.map((file) => {
+        const config = configFor(file);
+        return { file, config, type: typeForConfig(config), path: pathForConfig(config) };
       });
     }
-    function setTranscriptType(key) {
-      selectedTypeKey = types.some((type) => type.key === key) ? key : "";
-      typeBtns.forEach((btn) => {
-        const on = btn.dataset.ccTranscriptType === selectedTypeKey;
-        btn.classList.toggle("is-on", on);
-        btn.setAttribute("aria-checked", on ? "true" : "false");
-      });
+    function setActiveUploadByIndex(index) {
+      const next = selectedFiles[index] || selectedFiles[0] || null;
+      activeUploadKey = next ? fileKey(next) : "";
       syncUploadState();
     }
-    function needsTextTranscript() {
-      return selectedProcessingPath === "supabase_raw" || selectedProcessingPath === "local_agent";
+    function updateActiveConfig(patch) {
+      const file = activeFile();
+      if (!file) return;
+      const key = fileKey(file);
+      const config = { ...configFor(file), ...patch };
+      uploadConfigs.set(key, config);
+      syncUploadState();
     }
-    function isTextTranscriptFile(info) {
-      return !!info && RAW_TRANSCRIPT_TEXT_EXTS.has(String(info.ext || "").toLowerCase());
+    function setTranscriptType(key) {
+      updateActiveConfig({ typeKey: types.some((type) => type.key === key) ? key : "" });
     }
-    function pathBlocker() {
-      if (needsTextTranscript() && selectedFile && !isTextTranscriptFile(selectedFile)) {
-        return "This path needs text: txt, md, vtt, srt, csv, json, or rtf. Use Pointer only for PDFs and docs.";
-      }
-      return "";
+    function pathBlocker(file = activeFile(), config = activeConfig()) {
+      return transcriptPathBlocker({
+        fileName: file?.name || "selected file",
+        ext: file?.ext || "",
+        processingPath: config?.processingPath || defaultProcessingPath,
+      });
     }
-    function pathNoteText() {
-      if (selectedProcessingPath === "supabase_raw") return "Sends the full transcript text to the private Shape OS DB for Engine processing.";
-      if (selectedProcessingPath === "local_agent") return "Runs the Engine prompt through a local model command. Raw text stays off the Shape OS DB.";
-      return "Stages the file locally and sends the Shape OS DB only a private source pointer.";
+    function pathNoteText(config = activeConfig()) {
+      return transcriptPathNoteText(config?.processingPath || defaultProcessingPath);
     }
     function syncPathNote() {
-      const blocked = pathBlocker();
+      const config = activeConfig();
+      const blocked = pathBlocker(activeFile(), config);
       if (pathNote) {
         pathNote.classList.toggle("is-warning", !!blocked);
-        pathNote.textContent = blocked || pathNoteText();
+        pathNote.textContent = blocked || pathNoteText(config);
       }
       if (submit) {
-        submit.textContent = selectedProcessingPath === "supabase_raw"
-          ? "Send full text"
-          : selectedProcessingPath === "local_agent"
-            ? "Run local readout"
-            : "Add transcript";
+        const count = selectedFiles.length;
+        submit.textContent = transcriptSubmitLabel(config?.processingPath || defaultProcessingPath, count);
       }
     }
     function setProcessingPath(key) {
-      selectedProcessingPath = (pathRows.some((item) => item.key === key) ? key : "metadata");
-      pathBtns.forEach((btn) => {
-        const on = btn.dataset.ccTranscriptPath === selectedProcessingPath;
-        btn.classList.toggle("is-on", on);
-        btn.setAttribute("aria-checked", on ? "true" : "false");
-      });
-      try { localStorage.setItem("srwk:transcript_processing_path", selectedProcessingPath); } catch {}
-      syncUploadState();
+      const next = normalizeVisibleTranscriptPath(key);
+      defaultProcessingPath = next;
+      try { localStorage.setItem("srwk:transcript_processing_path", next); } catch {}
+      updateActiveConfig({ processingPath: next });
     }
     // Plain-words answer to "am I just yoloing this?": what the chosen type does
     // to the file once it's queued, ahead of the machine route/tier badges.
@@ -1428,12 +1523,12 @@ function createController() {
       team_call_required: "surfaced only if the team on the call approves it",
       never: "stays in the do-not-publish store — read by nothing downstream",
     };
-    function routeBadges(type) {
+    function routeBadges(type, config = activeConfig()) {
       if (!type) return "";
       const badges = [
         type.maxTier ? `<span>${esc(type.maxTier)}</span>` : "",
-        type.cohortMode ? `<span>${esc(String(type.cohortMode).replace(/_/g, " "))}</span>` : "",
-        `<span>Drive queued</span>`,
+        type.cohortMode ? `<span>${esc(TRANSCRIPT_COHORT_MODE_COPY[type.cohortMode] || String(type.cohortMode).replace(/_/g, " "))}</span>` : "",
+        `<span>${esc(transcriptStorageBadgeLabel(config?.processingPath))}</span>`,
       ].filter(Boolean).join("");
       const explain = COHORT_MODE_EXPLAINER[type.cohortMode] || "";
       return `
@@ -1442,14 +1537,76 @@ function createController() {
         <div class="cc-upload-route-badges">${badges}</div>
         ${type.accessNote ? `<div class="cc-upload-route-note">${esc(type.accessNote)}</div>` : ""}`;
     }
-    function syncUploadState() {
+    function renderUploadList() {
+      if (!uploadList) return;
+      if (selectedFiles.length <= 1) {
+        uploadList.hidden = true;
+        uploadList.innerHTML = "";
+        return;
+      }
+      uploadList.hidden = false;
+      uploadList.innerHTML = selectedFiles.map((file, index) => {
+        const config = configFor(file);
+        const type = typeForConfig(config);
+        const path = pathForConfig(config);
+        const blocked = pathBlocker(file, config);
+        const active = fileKey(file) === activeUploadKey;
+        return `<button type="button" class="cc-upload-row${active ? " is-active" : ""}${blocked ? " is-blocked" : ""}" data-cc-upload-index="${index}" ${busy ? "disabled" : ""}>
+          <span class="cc-upload-row-main">
+            <strong>${esc(file.name || "transcript")}</strong>
+            <small>${esc(type ? (type.label || type.key) : "Choose event type")}</small>
+          </span>
+          <span class="cc-upload-row-side">
+            <span>${esc(path.label || path.key)}</span>
+            ${blocked ? `<b>${esc(blocked)}</b>` : ""}
+          </span>
+        </button>`;
+      }).join("");
+    }
+    function renderActiveEditor() {
+      const file = activeFile();
+      if (uploadEditor) uploadEditor.hidden = !file;
+      if (!file) return;
+      const config = activeConfig();
       const type = selectedType();
-      const blocked = pathBlocker();
-      submit.disabled = busy || !selectedFile || !type || !!blocked;
-      route.innerHTML = routeBadges(type);
+      const index = Math.max(0, selectedFiles.findIndex((item) => fileKey(item) === fileKey(file)));
+      if (uploadEditorHead) {
+        uploadEditorHead.innerHTML = `
+          <span>${esc(selectedFiles.length > 1 ? `Upload ${index + 1} of ${selectedFiles.length}` : "Selected upload")}</span>
+          <strong>${esc(file.name || "transcript")}</strong>`;
+      }
+      typeBtns.forEach((btn) => {
+        const on = btn.dataset.ccTranscriptType === config.typeKey;
+        btn.classList.toggle("is-on", on);
+        btn.setAttribute("aria-checked", on ? "true" : "false");
+      });
+      pathBtns.forEach((btn) => {
+        const on = btn.dataset.ccTranscriptPath === config.processingPath;
+        btn.classList.toggle("is-on", on);
+        btn.setAttribute("aria-checked", on ? "true" : "false");
+      });
+      if (date && date.value !== config.declaredDate) date.value = config.declaredDate || todayValue();
+      if (label && label.value !== config.label) label.value = config.label || "";
+      if (session && session.value !== config.sessionId) session.value = config.sessionId || "";
+      if (related && related.value !== config.relatedText) related.value = config.relatedText || "";
+      if (confidenceRange) {
+        const confidenceIndex = Math.max(0, confidenceOptions.findIndex((opt) => opt.key === config.confidence));
+        const value = String(confidenceIndex === -1 ? 0 : confidenceIndex);
+        if (confidenceRange.value !== value) confidenceRange.value = value;
+        confidenceTicks.forEach((tick, tickIndex) => tick.classList.toggle("is-on", tickIndex === Number(value)));
+      }
+      if (route) route.innerHTML = routeBadges(type, config);
+    }
+    function syncUploadState() {
+      const jobs = uploadJobs();
+      const activeType = selectedType();
+      const missingType = jobs.some((job) => !job.type);
+      const blocked = jobs.some((job) => !!pathBlocker(job.file, job.config));
+      submit.disabled = busy || !jobs.length || missingType || blocked;
+      renderUploadList();
+      renderActiveEditor();
       syncPathNote();
-      syncSteps();
-      void warnDuplicate(type);
+      void warnDuplicate(activeType);
     }
     // "It should be already in there, but I think I can upload this" — check the
     // live distilled readouts for the same session type on the same date and
@@ -1457,15 +1614,17 @@ function createController() {
     const dupEl = card.querySelector("[data-cc-transcript-dup]");
     async function warnDuplicate(type) {
       if (!dupEl) return;
-      if (!type || !date || !date.value) { dupEl.hidden = true; dupEl.textContent = ""; return; }
+      const config = activeConfig();
+      const declaredDate = config?.declaredDate || "";
+      if (!type || !declaredDate) { dupEl.hidden = true; dupEl.textContent = ""; return; }
       let artifacts = [];
       try { artifacts = await getDistillationsForPrompt(); } catch {}
       if (selectedType() !== type) return; // selection changed mid-fetch
       const dup = artifacts.find((a) =>
-        a && a.session_type === type.key && String(a.date || a.created_at || "").slice(0, 10) === date.value);
+        a && a.session_type === type.key && String(a.date || a.created_at || "").slice(0, 10) === declaredDate);
       if (dup) {
         dupEl.hidden = false;
-        dupEl.textContent = `Heads up: a distilled ${type.label || type.key} readout for ${date.value} already exists (“${dup.title || "untitled"}”). Adding this file will create a second entry.`;
+        dupEl.textContent = `Heads up: a distilled ${type.label || type.key} readout for ${declaredDate} already exists ("${dup.title || "untitled"}"). Adding this file will create a second entry.`;
       } else {
         dupEl.hidden = true;
         dupEl.textContent = "";
@@ -1473,13 +1632,26 @@ function createController() {
     }
     function setBusy(on) {
       busy = on;
-      for (const el of [dropzone, confidenceRange, date, label, session, related, org, token, contextUrl, agentCmd, cancel, ...pathBtns, ...typeBtns]) {
+      for (const el of [dropzone, addMore, confidenceRange, date, label, session, related, org, token, driveFolder, driveReconnect, contextUrl, agentCmd, cancel, ...pathBtns, ...typeBtns]) {
         if (el) el.disabled = on;
       }
       syncUploadState();
     }
-    function setFile(info) {
-      selectedFile = info;
+    function normalizeSelectedFiles(files) {
+      const seen = new Set();
+      const out = [];
+      for (const info of Array.isArray(files) ? files : [files]) {
+        if (!info || !info.filePath) continue;
+        const key = String(info.filePath).toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(info);
+      }
+      return out;
+    }
+    function setFiles(files, { append = false } = {}) {
+      selectedFiles = normalizeSelectedFiles(append ? [...selectedFiles, ...(Array.isArray(files) ? files : [files])] : files);
+      reconcileUploadConfigs();
       renderDropzone();
       setStatus("", "");
       syncUploadState();
@@ -1487,40 +1659,65 @@ function createController() {
 
     // File first: click the dropzone for the native picker, or drag a file onto
     // it. Both resolve to a real path that submit() hands straight to main.
-    async function pickFile() {
-      if (busy) return;
-      if (!window.api || !window.api.pickTranscriptFile) { setStatus("error", "File picker is unavailable in this build."); return; }
-      const info = await window.api.pickTranscriptFile();
-      if (!info || info.reason === "canceled") return;
-      if (info.ok) setFile(info);
-      else setStatus("error", info.detail || "Couldn't use that file.");
+    function applyPickedFiles(info, { append = false } = {}) {
+      const files = Array.isArray(info?.files) ? info.files : (info?.ok ? [info] : []);
+      if (files.length) {
+        setFiles(files, { append });
+        const rejected = Array.isArray(info?.rejected) ? info.rejected : [];
+        if (rejected.length) setStatus("error", `${files.length} selected; ${rejected.length} skipped.`);
+        return;
+      }
+      setStatus("error", info?.detail || "Couldn't use those files.");
     }
-    async function dropFile(file) {
-      if (busy || !file) return;
-      const p = window.api && window.api.getDroppedFilePath ? window.api.getDroppedFilePath(file) : "";
-      if (!p) { setStatus("error", "Couldn't read that file — use the browse button instead."); return; }
-      const info = window.api && window.api.inspectTranscriptFile ? await window.api.inspectTranscriptFile(p) : null;
-      if (info && info.ok) setFile(info);
-      else setStatus("error", (info && info.detail) || `Unsupported file. Use ${ACCEPTED_LABEL}.`);
+    async function pickFile({ append = false } = {}) {
+      if (busy) return;
+      if (!window.api || (!window.api.pickTranscriptFiles && !window.api.pickTranscriptFile)) { setStatus("error", "File picker is unavailable in this build."); return; }
+      const info = window.api.pickTranscriptFiles
+        ? await window.api.pickTranscriptFiles()
+        : await window.api.pickTranscriptFile();
+      if (!info || info.reason === "canceled") return;
+      applyPickedFiles(info, { append });
+    }
+    async function dropFiles(fileList, { append = false } = {}) {
+      if (busy || !fileList || !fileList.length) return;
+      const paths = Array.from(fileList)
+        .map((file) => window.api && window.api.getDroppedFilePath ? window.api.getDroppedFilePath(file) : "")
+        .filter(Boolean);
+      if (!paths.length) { setStatus("error", "Couldn't read those files — use the browse button instead."); return; }
+      if (window.api && window.api.inspectTranscriptFiles) {
+        applyPickedFiles(await window.api.inspectTranscriptFiles(paths), { append });
+        return;
+      }
+      const files = [];
+      const rejected = [];
+      for (const p of paths) {
+        const info = window.api && window.api.inspectTranscriptFile ? await window.api.inspectTranscriptFile(p) : null;
+        if (info && info.ok) files.push(info);
+        else rejected.push(info || { detail: "Unsupported file." });
+      }
+      applyPickedFiles({ ok: files.length > 0, files, rejected, detail: rejected[0]?.detail || `Unsupported file. Use ${ACCEPTED_LABEL}.` }, { append });
     }
 
-    dropzone.addEventListener("click", pickFile);
+    dropzone.addEventListener("click", () => pickFile({ append: false }));
+    if (addMore) addMore.addEventListener("click", () => pickFile({ append: true }));
+    if (uploadList) {
+      uploadList.addEventListener("click", (ev) => {
+        const row = ev.target && ev.target.closest ? ev.target.closest("[data-cc-upload-index]") : null;
+        if (!row || busy) return;
+        setActiveUploadByIndex(parseInt(row.dataset.ccUploadIndex || "0", 10) || 0);
+      });
+    }
     dropzone.addEventListener("dragover", (ev) => { ev.preventDefault(); ev.stopPropagation(); if (!busy) dropzone.classList.add("is-dragover"); });
     dropzone.addEventListener("dragleave", (ev) => { ev.preventDefault(); ev.stopPropagation(); dropzone.classList.remove("is-dragover"); });
     dropzone.addEventListener("drop", (ev) => {
       ev.preventDefault(); ev.stopPropagation();
       dropzone.classList.remove("is-dragover");
-      const file = ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0];
-      void dropFile(file);
+      void dropFiles(ev.dataTransfer && ev.dataTransfer.files, { append: selectedFiles.length > 0 });
     });
 
     pathBtns.forEach((btn) => {
       btn.addEventListener("click", () => setProcessingPath(btn.dataset.ccTranscriptPath || "metadata"));
     });
-    try {
-      const rememberedPath = localStorage.getItem("srwk:transcript_processing_path");
-      if (rememberedPath) selectedProcessingPath = rememberedPath;
-    } catch {}
 
     typeBtns.forEach((btn) => {
       btn.addEventListener("click", () => setTranscriptType(btn.dataset.ccTranscriptType || ""));
@@ -1529,83 +1726,140 @@ function createController() {
       confidenceRange.addEventListener("input", () => {
         const idx = Math.min(confidenceOptions.length - 1, Math.max(0, parseInt(confidenceRange.value, 10) || 0));
         const opt = confidenceOptions[idx];
-        confidence = opt ? opt.key : "sure";
-        confidenceTicks.forEach((t, i) => t.classList.toggle("is-on", i === idx));
+        updateActiveConfig({ confidence: opt ? opt.key : "sure" });
       });
     }
-    // Date: default to today, and open the native calendar on click anywhere in
-    // the field (not just the icon).
     if (date) {
-      const d = new Date();
-      const z = (n) => String(n).padStart(2, "0");
-      date.value = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
       date.addEventListener("click", () => { try { date.showPicker(); } catch {} });
-      date.addEventListener("change", syncUploadState); // re-run the duplicate check
+      date.addEventListener("change", () => updateActiveConfig({ declaredDate: date.value || todayValue() }));
+    }
+    if (label) label.addEventListener("input", () => updateActiveConfig({ label: label.value || "" }));
+    if (session) session.addEventListener("input", () => updateActiveConfig({ sessionId: session.value || "" }));
+    if (related) related.addEventListener("input", () => updateActiveConfig({ relatedText: related.value || "" }));
+    if (driveReconnect) {
+      driveReconnect.addEventListener("click", async () => {
+        if (busy) return;
+        if (!window.api?.auth?.signIn) { setStatus("error", "Google sign-in is unavailable in this build."); return; }
+        setStatus("", "opening Google Drive consent...");
+        const res = await window.api.auth.signIn({ drive: true, prompt: "consent" });
+        if (res && res.ok === false) setStatus("error", res.error || "Couldn't open Google Drive consent.");
+        else setStatus("ok", "Google opened. Approve Drive access, then retry the upload.");
+      });
     }
     cancel.addEventListener("click", () => card.remove());
+    function uploadProgressText(jobs) {
+      const count = jobs.length;
+      const noun = count === 1 ? "transcript" : `${count} transcripts`;
+      const paths = new Set(jobs.map((job) => job.config.processingPath));
+      if (paths.size > 1) return `uploading ${noun}...`;
+      const pathKey = jobs[0]?.config.processingPath;
+      if (pathKey === "supabase_raw") return `sending full text for ${noun}...`;
+      if (pathKey === "local_agent") return `processing ${noun} locally...`;
+      if (pathKey === "drive_inbox") return `sending ${noun} to Drive inbox...`;
+      return `uploading ${noun}...`;
+    }
+    function resultErrorText(res) {
+      if (!res) return "unknown error";
+      if (res.reason === "missing_supabase_config" && Array.isArray(res.missing)) {
+        return res.driveUploaded
+          ? `uploaded to Drive; Shape OS indexing needs ${res.missing.join(", ")}`
+          : `staged locally; the Shape OS DB needs ${res.missing.join(", ")}`;
+      }
+      if (res.reason === "missing_drive_config" && Array.isArray(res.missing)) {
+        const needsGoogle = res.missing.some((item) => /token|access/i.test(String(item || "")));
+        return needsGoogle ? "staged locally; reconnect Drive access, then retry" : `staged locally; Drive inbox needs ${res.missing.join(", ")}`;
+      }
+      if (res.reason === "drive_upload_failed") {
+        const detail = res.detail || "";
+        return /401|403|invalid|unauthorized/i.test(detail)
+          ? "Drive rejected the upload. Reconnect Drive access, then retry"
+          : (detail || "Drive upload failed");
+      }
+      if (res.reason === "text_transcript_required" || res.reason === "empty_transcript_text") return res.detail || "This path needs a text transcript";
+      if (res.reason === "no_local_agent") return res.detail || "Install Ollama or set a local transcript agent command";
+      if (res.reason === "policy_blocked") return res.detail || "Raw transcript processing is local-only by default";
+      return res.detail || res.reason || "unknown error";
+    }
+    function successMessageForResults(results) {
+      const count = results.filter((item) => item && item.ok).length;
+      const rawRows = results.reduce((sum, item) => sum + (Number(item?.contextSubmissionRows) || 0), 0);
+      const drive = results.filter((item) => item?.processingPath === "drive_inbox" || item?.driveUploaded).length;
+      const local = results.filter((item) => item?.processingPath === "local_agent" || item?.processedLocally).length;
+      const raw = results.filter((item) => item?.processingPath === "supabase_raw" || item?.rawSubmittedToSupabase).length;
+      if (count === 1) {
+        const res = results.find((item) => item && item.ok) || {};
+        if (res.processingPath === "drive_inbox" || res.driveUploaded) {
+          return res.submittedToSupabase
+            ? `sent to private Drive inbox and indexed in Shape OS: ${res.driveFileName || res.driveFileId || "file"}.`
+            : `sent to private Drive inbox: ${res.driveFileName || res.driveFileId || "file"}.`;
+        }
+        if (res.processingPath === "supabase_raw" || res.rawSubmittedToSupabase) {
+          const rows = Number(res.contextSubmissionRows || 1);
+          return `sent full transcript to the private Shape OS DB (${rows} ${rows === 1 ? "row" : "rows"}).`;
+        }
+        if (res.processingPath === "local_agent" || res.processedLocally) return `local readout saved: ${res.localReadoutName || "private readout"}.`;
+        return res.processingQueued
+          ? `queued for processing: ${res.storageRef || "transcript"}`
+          : `saved to the Shape OS DB: ${res.needsSessionMatch ? "needs session match" : "Drive mirror queued"}`;
+      }
+      const parts = [];
+      if (drive) parts.push(`${drive} Drive`);
+      if (raw) parts.push(`${raw} full text${rawRows ? ` / ${rawRows} rows` : ""}`);
+      if (local) parts.push(`${local} local`);
+      const pointer = Math.max(0, count - drive - raw - local);
+      if (pointer) parts.push(`${pointer} pointer`);
+      return `uploaded ${count} transcripts${parts.length ? ` (${parts.join(", ")})` : ""}.`;
+    }
     submit.addEventListener("click", async () => {
-      if (!selectedFile) { setStatus("error", "Choose a transcript file first."); return; }
-      const type = selectedType();
-      if (!type) { setStatus("error", "Choose a session type first."); return; }
-      const blocked = pathBlocker();
-      if (blocked) { setStatus("error", blocked); return; }
+      const jobs = uploadJobs();
+      if (!jobs.length) { setStatus("error", "Choose at least one transcript file first."); return; }
+      const missingType = jobs.find((job) => !job.type);
+      if (missingType) { setStatus("error", `Choose an event type for ${missingType.file?.name || "each upload"}.`); return; }
+      const blocked = jobs.find((job) => pathBlocker(job.file, job.config));
+      if (blocked) { setStatus("error", pathBlocker(blocked.file, blocked.config)); return; }
       if (!window.api || !window.api.submitTranscriptIntake) { setStatus("error", "Transcript intake is unavailable in this build."); return; }
       setBusy(true);
-      const pathKey = selectedProcessingPath;
-      setStatus("", pathKey === "supabase_raw"
-        ? "sending full text..."
-        : pathKey === "local_agent"
-          ? "processing locally..."
-          : "uploading...");
+      setStatus("", uploadProgressText(jobs));
       try {
         const currentConfig = readTranscriptSupabaseConfig();
+        const currentDriveConfig = readTranscriptDriveConfig();
         const resolved = await resolveIntakeToken(token.value || currentConfig.accessToken);
-        const res = await window.api.submitTranscriptIntake({
-          filePath: selectedFile.filePath,
-          sessionType: type.key,
-          label: (label.value || "").trim(),
-          declaredDate: (date.value || "").trim(),
-          relatedText: (related.value || "").trim(),
-          sessionId: (session.value || "").trim(),
-          confidence,
-          processingPath: pathKey,
-          agentCmd: (agentCmd?.value || "").trim(),
-          supabase: {
-            ...currentConfig,
-            orgId: (org.value || currentConfig.orgId || "").trim(),
-            accessToken: resolved.token,
-            contextSubmissionsUrl: (contextUrl?.value || currentConfig.contextSubmissionsUrl || "").trim(),
-          },
-        });
-        if (res && res.ok) {
-          if (res.processingPath === "supabase_raw" || res.rawSubmittedToSupabase) {
-            const rows = Number(res.contextSubmissionRows || 1);
-            setStatus("ok", `sent full transcript to the private Shape OS DB (${rows} ${rows === 1 ? "row" : "rows"}).`);
-          } else if (res.processingPath === "local_agent" || res.processedLocally) {
-            setStatus("ok", `local readout saved: ${res.localReadoutName || "private readout"}.`);
-          } else {
-            setStatus("ok", res.processingQueued
-              ? `queued for processing: ${res.storageRef || type.routePath || "transcript"}`
-              : `saved to the Shape OS DB: ${res.needsSessionMatch ? "needs session match" : "Drive mirror queued"}`);
-          }
+        const results = [];
+        for (const job of jobs) {
+          const res = await window.api.submitTranscriptIntake({
+            filePath: job.file.filePath,
+            sessionType: job.type.key,
+            label: (job.config.label || "").trim(),
+            declaredDate: (job.config.declaredDate || "").trim(),
+            relatedText: (job.config.relatedText || "").trim(),
+            sessionId: (job.config.sessionId || "").trim(),
+            confidence: job.config.confidence || "sure",
+            processingPath: job.config.processingPath,
+            agentCmd: (agentCmd?.value || "").trim(),
+            supabase: {
+              ...currentConfig,
+              orgId: (org.value || currentConfig.orgId || "").trim(),
+              accessToken: resolved.token,
+              contextSubmissionsUrl: (contextUrl?.value || currentConfig.contextSubmissionsUrl || "").trim(),
+            },
+            drive: {
+              ...currentDriveConfig,
+              folderId: (driveFolder?.value || currentDriveConfig.folderId || "").trim(),
+            },
+          });
+          results.push({ ...(res || {}), fileName: job.file.name, processingPath: job.config.processingPath });
+        }
+        const failed = results.filter((item) => !item || !item.ok);
+        if (!failed.length) {
+          setStatus("ok", successMessageForResults(results));
           card.classList.add("is-done");
           void renderUploadHistory();
           return;
         }
-        const reason = res && (res.detail || res.reason);
-        if (res && res.reason === "missing_supabase_config" && Array.isArray(res.missing)) {
-          setStatus("error", `staged locally; the Shape OS DB needs ${res.missing.join(", ")}.`);
-        } else if (res && (res.reason === "text_transcript_required" || res.reason === "empty_transcript_text")) {
-          setStatus("error", res.detail || "This path needs a text transcript.");
-        } else if (res && res.reason === "no_local_agent") {
-          setStatus("error", res.detail || "Install Ollama or set a local transcript agent command.");
-        } else if (res && res.reason === "policy_blocked") {
-          setStatus("error", res.detail || "Raw transcript processing is local-only by default.");
-        } else if (res && res.reason === "canceled") {
-          setStatus("", "");
-        } else {
-          setStatus("error", `intake failed: ${reason || "unknown error"}`);
-        }
+        const okCount = results.length - failed.length;
+        const problem = resultErrorText(failed[0]);
+        setStatus("error", `${okCount} of ${results.length} completed; ${failed.length} need attention${problem ? `: ${problem}` : "."}`);
+        void renderUploadHistory();
         setBusy(false);
       } catch (error) {
         setStatus("error", `intake failed: ${error?.message || error}`);
@@ -1614,7 +1868,6 @@ function createController() {
     });
 
     renderDropzone();
-    setProcessingPath(selectedProcessingPath);
     syncUploadState();
     log.appendChild(card);
     log.scrollTop = log.scrollHeight;
