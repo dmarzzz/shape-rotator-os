@@ -10,7 +10,11 @@
   (function () {
     const qs = new URLSearchParams(location.search);
     const lens = qs.get("lens") === "library" ? "library" : "stream";
-    const mode = qs.get("mode") === "membrane" ? "membrane" : "context";
+    // ?mode= any rail page (unknown values land on context); ?cmode= picks the
+    // constellation sub-view (map | journey | collab) when mode=constellation.
+    const KNOWN_MODES = ["membrane", "context", "shapes", "constellation", "mirror", "calendar", "program"];
+    const mode = KNOWN_MODES.includes(qs.get("mode")) ? qs.get("mode") : "context";
+    const cmode = ["map", "journey", "collab"].includes(qs.get("cmode")) ? qs.get("cmode") : "map";
 
     const DEMO_MANIFEST = {
       schema_version: 2,
@@ -31,8 +35,58 @@
       getAppInfo: () => Promise.resolve({ version: "preview", platform: "web", name: "Shape Rotator OS" }),
       loadContextVault: () => Promise.resolve({ ok: true, manifest: DEMO_MANIFEST, roots: [] }),
       scanContextVault: () => Promise.resolve({ ok: true, manifest: DEMO_MANIFEST, roots: [] }),
-      readContextVaultSource: (id) => Promise.resolve({ ok: true, text: RAW_TEXT[id] || "", truncated: false })
+      readContextVaultSource: (id) => Promise.resolve({ ok: true, text: RAW_TEXT[id] || "", truncated: false }),
+      // a "ready" local AI so the chat panel previews its real welcome state
+      getCohortChatConfig: () => Promise.resolve({ ready: true, available: ["claude"], resolved: "claude -p", chatCmd: "" }),
+      // fake streaming turn: ?chatask drives the REAL pipeline (stream →
+      // markdown swap → trailing-sources decoration) with canned chunks
+      onCohortChatOutput: (fn) => { window.__pvChatOut = fn; return () => { if (window.__pvChatOut === fn) window.__pvChatOut = null; }; },
+      onCohortChatStatus: (fn) => { window.__pvChatStat = fn; return () => { if (window.__pvChatStat === fn) window.__pvChatStat = null; }; },
+      cohortChatStart: ({ requestId }) => {
+        const demo = "**Deep dive — routing context between teams** is the most relevant readout for your team: it covers context routing between teams, which is your current focus.\n\n- routing is social — some context belongs to the team\n- checkpoints need named goals and open loops\n\nSources:\n- Deep dive — routing context between teams\n- Office hours — memory checkpoints\n";
+        let i = 0;
+        setTimeout(() => {
+          const t = setInterval(() => {
+            if (window.__pvChatOut) window.__pvChatOut({ requestId, stream: "stdout", chunk: demo.slice(i, i + 24) });
+            i += 24;
+            if (i >= demo.length) {
+              clearInterval(t);
+              if (window.__pvChatStat) window.__pvChatStat({ state: "idle", exitCode: 0, durationMs: 1200 });
+            }
+          }, 30);
+        }, 250);
+        return Promise.resolve({ ok: true });
+      }
     }, { get: (t, k) => (k in t ? t[k] : () => Promise.resolve(null)) });
+
+    // ?chat=1 — open the cohort chat panel after boot (screenshot driver).
+    // ?chatask=<q> — ask <q> through the fake turn above; ?chatsearch=<q> —
+    // open the in-panel search view with <q> typed (shows the ask-AI row).
+    if (qs.get("chat") === "1" || qs.get("chatask") || qs.get("chatsearch")) {
+      try { localStorage.setItem("srwk:chat_onboarded_v1", "1"); } catch (e) {}
+      window.addEventListener("load", () => {
+        setTimeout(() => {
+          import("./renderer/cohort-chat.js").then(async (m) => {
+            const ask = qs.get("chatask");
+            const search = qs.get("chatsearch");
+            if (ask && m.askCohort) {
+              await m.askCohort(ask);
+              // pop the first source open so the shot shows the inline expansion
+              setTimeout(() => { const d = document.querySelector(".cc-src"); if (d) d.open = true; }, 2800);
+            } else {
+              await m.openCohortChat();
+              if (search) {
+                document.querySelector('.cc-tab[data-cc-tab="search"]')?.click();
+                setTimeout(() => {
+                  const inp = document.querySelector("#cc-pane-search .os-find-input");
+                  if (inp) { inp.value = search; inp.dispatchEvent(new Event("input", { bubbles: true })); }
+                }, 900);
+              }
+            }
+          }).catch(() => {});
+        }, 700);
+      });
+    }
 
     try {
       localStorage.setItem("srwk:identity_v1", JSON.stringify({ kind: "person", record_id: "albiona-hoti", display_name: "Albiona" }));
@@ -40,10 +94,18 @@
       localStorage.setItem("srwk:membrane_seen_v1", "1");
       localStorage.setItem("srwk:alchemy_mode", mode);
       localStorage.setItem("srwk:context_view", lens);
+      if (mode === "constellation") localStorage.setItem("srwk:const_mode", cmode);
+      // ?cscope=people flips the relationship map to the people network
+      if (qs.get("cscope")) localStorage.setItem("srwk:const_scope", qs.get("cscope"));
       // the tab strip restores the last session and would override the seeded
       // mode — hand it the target tab instead
+      const loc = mode === "context"
+        ? { tab: "alchemy", mode: "context", contextView: lens }
+        : (mode === "constellation"
+          ? { tab: "alchemy", mode: "constellation", constellationMode: cmode }
+          : { tab: "alchemy", mode });
       localStorage.setItem("srwk:tabs_v1", JSON.stringify({
-        tabs: [{ id: "t_preview", loc: mode === "membrane" ? { tab: "alchemy", mode: "membrane" } : { tab: "alchemy", mode: "context", contextView: lens } }],
+        tabs: [{ id: "t_preview", loc }],
         activeId: "t_preview"
       }));
       // collapse the nav drawer (first-launch discovery pins it open,
@@ -212,6 +274,63 @@
       }, 300);
     });
 
+    // Headless repro driver: ?clicks=<sel>||<sel>||… clicks each CSS selector
+    // in order (600ms apart, each retried until present). ?diag=1 appends a
+    // fixed diagnostics box reporting what document.elementFromPoint sees at
+    // the viewport center + any leftover overlay-ish state after the sequence —
+    // lets a static screenshot / --dump-dom show "page is unclickable" states.
+    if (qs.get("clicks") || qs.get("diag")) {
+      window.addEventListener("load", () => {
+        const steps = (qs.get("clicks") || "").split("||").filter(Boolean);
+        let i = 0;
+        const stepDelay = Number(qs.get("clickdelay") || 600);
+        const log = [];
+        const next = () => {
+          if (i >= steps.length) { if (qs.get("diag")) setTimeout(report, 900); return; }
+          const sel = steps[i];
+          let tries = 0;
+          const t = setInterval(() => {
+            tries += 1;
+            let el = null;
+            try { el = document.querySelector(sel); } catch (e) { log.push("BAD SELECTOR " + sel); }
+            if (el) {
+              clearInterval(t);
+              log.push("clicked " + sel);
+              // SVG elements have no .click(); dispatch a real bubbling event
+              try { el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window })); }
+              catch (err) { log.push("CLICK ERR " + err); }
+              i += 1;
+              setTimeout(next, stepDelay);
+            } else if (tries > 20) {
+              clearInterval(t);
+              log.push("MISSING " + sel);
+              i += 1;
+              setTimeout(next, stepDelay);
+            }
+          }, 300);
+        };
+        const report = () => {
+          const cx = Math.floor(innerWidth / 2), cy = Math.floor(innerHeight / 2);
+          const hit = document.elementFromPoint(cx, cy);
+          const desc = (el) => el ? el.tagName + (el.id ? "#" + el.id : "") + (el.className && typeof el.className === "string" ? "." + el.className.trim().split(/\s+/).slice(0, 3).join(".") : "") : "null";
+          const box = document.createElement("pre");
+          box.id = "preview-diag";
+          box.style.cssText = "position:fixed;left:8px;bottom:8px;z-index:99999;background:#000;color:#0f0;font:11px monospace;padding:8px;max-width:900px;white-space:pre-wrap;";
+          box.textContent = [
+            "DIAG mode=" + (localStorage.getItem("srwk:alchemy_mode") || "?"),
+            "htmlClass=" + document.documentElement.className,
+            "centerHit=" + desc(hit),
+            "activeVT=" + (document.documentElement.matches(":active-view-transition") ? "YES" : "no"),
+            "scrubbers=" + document.querySelectorAll(".cps").length,
+            "canvasChildren=" + (document.getElementById("alchemy-canvas") ? document.getElementById("alchemy-canvas").children.length : -1),
+            ...log,
+          ].join("\n");
+          document.body.appendChild(box);
+        };
+        setTimeout(next, 800);
+      });
+    }
+
     const realFetch = window.fetch.bind(window);
     const LIVE = !!qs.get("live"); // ?live=1 → real overlays, no demo records
     window.fetch = async function (input, init) {
@@ -233,13 +352,13 @@
   })();
   </script>
     <meta charset="utf-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://github.com https://avatars.githubusercontent.com; connect-src 'self' http://127.0.0.1:* http://localhost:* https://raw.githubusercontent.com https://api.github.com https://txjntzwksiluvqcpccpc.supabase.co https://*.shaperotator.xyz https://*.phala.network; font-src 'self' data: https://fonts.gstatic.com;" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://github.com https://avatars.githubusercontent.com; connect-src 'self' http://127.0.0.1:* http://localhost:* https://raw.githubusercontent.com https://api.github.com https://txjntzwksiluvqcpccpc.supabase.co https://*.shaperotator.xyz https://*.phala.network; font-src 'self' data:;" />
     <title>Shape Rotator OS</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-    <!-- Canonical Shape Rotator font pair (matches shaperotator.xyz). -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <!-- Canonical Shape Rotator font pair (matches shaperotator.xyz), vendored
+         locally (vendor/fonts/) so first paint never waits on
+         fonts.googleapis.com and offline launches get real type instantly. -->
+    <link rel="stylesheet" href="vendor/fonts/fonts.css" />
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="cohort-trace-view.css" />
     <!-- Eager so the always-on corner chat dial is styled at first paint (its
@@ -568,11 +687,12 @@
         <div class="cc-resize" data-cc-resize role="separator" aria-orientation="vertical" aria-label="resize chat panel" title="drag to resize"></div>
         <header class="cohort-chat-head">
           <button class="cohort-chat-icon-btn cohort-chat-close-btn" type="button" data-cohort-chat-close title="collapse (Esc) — anything running keeps going" aria-label="collapse chat">
-            <span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/></svg></span>
+            <span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m13 17 5-5-5-5"/><path d="m6 17 5-5-5-5"/></svg></span>
           </button>
           <div class="cohort-chat-head-status">
             <span class="cohort-chat-dot" id="cohort-chat-dot" data-state="idle"></span>
             <span id="cohort-chat-status-line">idle</span>
+            <span class="cc-model-note" id="cohort-chat-model" hidden></span>
           </div>
           <div class="cohort-chat-head-actions">
             <button id="cohort-chat-expand" class="cohort-chat-icon-btn" type="button" title="expand to full page" aria-pressed="false" aria-label="expand chat to full page">
@@ -584,32 +704,22 @@
           </div>
         </header>
         <div class="cc-tabs" role="tablist" aria-label="chat modes">
-          <button class="cc-tab is-active" type="button" role="tab" data-cc-tab="ask" aria-selected="true">ask</button>
-          <button class="cc-tab" type="button" role="tab" data-cc-tab="search" aria-selected="false">search</button>
-          <button class="cc-tab" type="button" role="tab" data-cc-tab="transcript" aria-selected="false">transcript</button>
-          <button class="cc-tab" type="button" role="tab" data-cc-tab="sync" aria-selected="false">sync</button>
+          <button class="cc-tab is-active" type="button" role="tab" data-cc-tab="ask" aria-selected="true" title="questions about teams, people, transcripts — answered by your local AI">ask</button>
+          <button class="cc-tab" type="button" role="tab" data-cc-tab="search" aria-selected="false" title="find anything across the cohort — keyword search">search</button>
+          <button class="cc-tab" type="button" role="tab" data-cc-tab="transcript" aria-selected="false" title="upload a session transcript — you pick type + confidence, nothing publishes itself">transcript</button>
+          <button class="cc-tab" type="button" role="tab" data-cc-tab="sync" aria-selected="false" title="refresh your profile from your recent work — nothing sends until you hit send">sync</button>
         </div>
 
         <div class="cohort-chat-log" id="cohort-chat-log" role="log" aria-live="polite" aria-label="cohort chat">
           <div class="cohort-chat-empty" id="cohort-chat-empty">
             <div class="cohort-chat-empty-lede">Ask about the cohort — or ask me to <b>do</b> something. I draft, you approve.</div>
             <div class="cc-live-line" id="cc-live-line" hidden></div>
-            <div class="cc-purpose" aria-label="what this assistant does">
-              <div class="cc-purpose-row"><b>ask</b><span>questions about teams, people, transcripts, what's happening</span></div>
-              <div class="cc-purpose-row"><b>search</b><span>find anything across the cohort surface</span></div>
-              <div class="cc-purpose-row"><b>transcript</b><span>upload a session — you pick type + confidence, nothing publishes itself</span></div>
-              <div class="cc-purpose-row"><b>sync</b><span>refresh your profile from your own recent work — nothing sends until you hit send</span></div>
-              <div class="cc-purpose-row"><b>you</b><span>your profile lives in the left menu — hover the left edge, click your name at the bottom</span></div>
-            </div>
             <div class="cohort-chat-egs">
-              <button type="button" class="cc-eg" data-cc-eg>who should I talk to about TEE Postgres?</button>
+              <button type="button" class="cc-eg" data-cc-eg data-cc-eg-stem="who should I talk to about ">who should I talk to about …?</button>
               <button type="button" class="cc-eg" data-cc-eg>submit my own profile update without scanning private work</button>
-              <button type="button" class="cc-eg" data-cc-eg>suggest who I should connect with — and propose it</button>
-              <button type="button" class="cc-eg" data-cc-eg>check my Shape OS work and draft this week's update</button>
+              <button type="button" class="cc-eg" data-cc-eg data-cc-eg-work>check my recent work and draft this week's update</button>
             </div>
-            <small>Runs on your local AI (Claude Code / Codex) — no API key, stays on your machine.<br>
-              Your edits apply next refresh.<br>
-              Changes about others go to daily review.</small>
+            <small>Runs on your local AI (Claude Code / Codex) — no API key, nothing leaves your machine.</small>
           </div>
         </div>
 

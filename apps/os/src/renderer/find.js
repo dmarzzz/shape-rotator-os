@@ -180,6 +180,41 @@ function attachListSearch(input, container, { onPick } = {}) {
     list[active].scrollIntoView({ block: "nearest" });
   };
 
+  // Deterministic search stops at keywords — always offer to hand the query to
+  // the member's own local AI (the ask view) as the next step, most usefully
+  // when the keyword pass missed (2026-07-02 feedback).
+  const appendAskRow = (query, missed) => {
+    if (query.length < 2) return;
+    const row = document.createElement("button");
+    row.className = "os-find-result os-find-ask";
+    row.type = "button";
+    row.setAttribute("role", "option");
+    const tag = document.createElement("span");
+    tag.className = "ofr-type";
+    tag.dataset.type = "ask";
+    tag.textContent = "ask";
+    const main = document.createElement("span");
+    main.className = "ofr-main";
+    const title = document.createElement("span");
+    title.className = "ofr-title";
+    title.textContent = `ask the AI: “${query}”`;
+    main.appendChild(title);
+    const sub = document.createElement("span");
+    sub.className = "ofr-sub";
+    sub.textContent = missed
+      ? "search is keyword-only — your local AI can answer instead"
+      : "hand this to your local AI";
+    main.appendChild(sub);
+    row.appendChild(tag);
+    row.appendChild(main);
+    row.addEventListener("mousemove", () => setActive(rows().indexOf(row)));
+    row.addEventListener("click", () => {
+      import("./cohort-chat.js").then((m) => m.askCohort && m.askCohort(query)).catch(() => {});
+      (onPick || closeOverlay)();
+    });
+    container.appendChild(row);
+  };
+
   const render = () => {
     const q = input.value;
     container.textContent = "";
@@ -189,8 +224,10 @@ function attachListSearch(input, container, { onPick } = {}) {
     if (!items.length) {
       const none = document.createElement("p");
       none.className = "os-find-empty";
-      none.textContent = `no matches for “${q.trim()}”`;
+      none.textContent = `no matches for “${q.trim()}” — search is keyword-only`;
       container.appendChild(none);
+      appendAskRow(q.trim(), true);
+      setActive(0);
       return;
     }
     items.forEach((it, i) => {
@@ -223,6 +260,7 @@ function attachListSearch(input, container, { onPick } = {}) {
       row.addEventListener("click", () => { it.nav(); (onPick || closeOverlay)(); });
       container.appendChild(row);
     });
+    appendAskRow(q.trim(), false);
     setActive(0);
   };
 

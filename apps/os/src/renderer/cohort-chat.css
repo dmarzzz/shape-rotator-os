@@ -242,6 +242,9 @@ body.cc-resizing .cc-resize::before { background: var(--ds-accent); }
 .cc-pane .ofr-type[data-type="person"]  { color: #8FEAF2; }
 .cc-pane .ofr-type[data-type="page"],
 .cc-pane .ofr-type[data-type="section"] { color: #C28BFF; }
+/* "ask the AI" escalation row — keyword search's hand-off into the ask view. */
+.cc-pane .ofr-type[data-type="ask"] { color: var(--ds-accent); }
+.cc-pane .os-find-ask { border-top: 1px dashed var(--ds-border); border-radius: 0 0 8px 8px; margin-top: 4px; }
 .cc-pane .ofr-main { display: flex; flex-direction: column; min-width: 0; }
 .cc-pane .ofr-title { font-size: var(--ds-text-sm); color: var(--ds-ink-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cc-pane .ofr-sub { font-size: var(--ds-text-xs); color: var(--ds-ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -299,6 +302,9 @@ body.cc-resizing .cc-resize::before { background: var(--ds-accent); }
   width: 7px; height: 7px; border-radius: 50%;
   background: var(--ds-ink-4);
 }
+/* Which local AI answers here — one succinct, non-adjustable note. */
+.cc-model-note { color: var(--ds-ink-4); white-space: nowrap; }
+.cc-model-note[hidden] { display: none; }
 .cohort-chat-dot[data-state="running"] { background: var(--ds-accent); animation: cc-pulse 1.1s ease-in-out infinite; }
 .cohort-chat-dot[data-state="error"]   { background: var(--ds-danger); }
 @keyframes cc-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
@@ -375,31 +381,8 @@ body.cc-resizing .cc-resize::before { background: var(--ds-accent); }
 @media (prefers-reduced-motion: no-preference) {
   .cc-live-line::before { animation: cc-pulse 2.4s ease-in-out infinite; }
 }
-/* Purpose outline — one line per tab so first-open answers "what does this do?" */
-.cc-purpose {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  width: min(100%, 340px);
-  margin: 0 auto 14px;
-  text-align: left;
-}
-.cc-purpose-row {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-  font-size: var(--ds-text-sm);
-  line-height: var(--ds-lh-sm);
-  color: var(--ds-ink-2);
-}
-.cc-purpose-row b {
-  flex: 0 0 64px;
-  color: var(--ds-ink-1);
-  font-family: var(--ds-font-mono);
-  font-size: var(--ds-text-xs);
-  font-weight: 600;
-  text-transform: lowercase;
-}
+/* (The always-visible purpose legend is gone — each tab's title tooltip carries
+   its one-line explanation now. 2026-07-02: "the legends are a bit heavy".) */
 .cohort-chat-egs { display: flex; flex-direction: column; gap: 7px; align-items: stretch; }
 .cc-eg {
   font-family: var(--ds-font-ui);
@@ -530,6 +513,55 @@ body.cc-resizing .cc-resize::before { background: var(--ds-accent); }
 }
 .cc-msg-body a { color: var(--ds-accent); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 
+/* ── sources — the compact list at the END of an answer (cohort-chat.js
+   decorateSources). Each row is a <details>: clicking expands what we know
+   about the cited item inline; nothing navigates away. */
+.cc-sources {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--ds-border);
+}
+.cc-sources-head {
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ds-ink-4);
+  margin-bottom: 4px;
+}
+.cc-src { margin: 0; }
+.cc-src summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 0;
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-lh-xs);
+  color: var(--ds-ink-2);
+}
+.cc-src summary::-webkit-details-marker { display: none; }
+.cc-src summary::before {
+  content: "▸";
+  flex: none;
+  font-size: var(--ds-text-2xs);
+  color: var(--ds-ink-4);
+  transition: transform 0.12s ease;
+}
+.cc-src[open] summary::before { transform: rotate(90deg); }
+.cc-src summary:hover { color: var(--ds-ink-1); }
+.cc-src-body {
+  margin: 2px 0 6px 14px;
+  padding: 6px 9px;
+  border-left: 2px solid var(--ds-border-strong);
+  background: var(--ds-surface-2);
+  border-radius: 0 8px 8px 0;
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-lh-xs);
+  color: var(--ds-ink-2);
+}
+
 /* Page-context preset chips — one tap asks about the page you came from. */
 /* display:flex would beat the UA's [hidden] rule — restate it explicitly. */
 .cc-page-presets[hidden] { display: none; }
@@ -555,6 +587,12 @@ body.cc-resizing .cc-resize::before { background: var(--ds-accent); }
   border: 1px solid var(--ds-border);
   border-radius: 999px;
   padding: 3px 10px;
+  /* A long preset must stay ONE pill — wrapped text inside a pill read as
+     overlapping rows (2026-07-02 feedback). Ellipsize instead. */
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   cursor: pointer;
   transition: border-color 0.12s ease, color 0.12s ease;
 }
@@ -1385,6 +1423,85 @@ html[data-theme="light"] .cohort-chat-dial:hover { color: var(--ds-ink-1); }
 }
 
 .cc-dial-glyph { position: relative; width: calc(var(--cc-win-corner) * 1.2); height: calc(var(--cc-win-corner) * 1.2); }
+
+/* ── first-visit page tip — slides out from behind the dial, once per
+   top-level page ever (cohort-chat-tips.js). Click asks; ✕ dismisses. */
+.cc-page-tip {
+  position: fixed;
+  right: calc(var(--cc-win-corner, 20px) * 2 + 10px);
+  bottom: 10px;
+  z-index: 1201;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  max-width: min(340px, calc(100vw - 96px));
+  border: 1px solid color-mix(in srgb, var(--ds-border-strong) 76%, transparent);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--ds-surface-1) 90%, transparent), color-mix(in srgb, var(--ds-surface-2) 94%, transparent));
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(14px);
+  opacity: 0;
+  transform: translateX(10px);
+  transition: opacity 0.2s ease, transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: auto;
+}
+.cc-page-tip.is-in { opacity: 1; transform: none; }
+.cc-page-tip-ask {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 8px 4px 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ds-ink-2);
+  font-family: var(--ds-font-ui);
+}
+.cc-page-tip-ask:hover .cc-page-tip-q { color: var(--ds-ink-1); }
+.cc-page-tip-ask:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: -2px; border-radius: 12px; }
+.cc-page-tip-lede {
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ds-accent);
+}
+.cc-page-tip-q {
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-lh-xs);
+  color: var(--ds-ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cc-page-tip-x {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0 10px;
+  color: var(--ds-ink-4);
+  font-size: var(--ds-text-2xs);
+  cursor: pointer;
+  border-radius: 0 12px 12px 0;
+}
+.cc-page-tip-x:hover { color: var(--ds-ink-1); }
+.cc-page-tip-x:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: -2px; }
+@media (prefers-reduced-motion: reduce) {
+  .cc-page-tip { transition: opacity 0.2s ease; transform: none; }
+}
+/* The tip lives on <body>, outside the panel/dial scopes that re-point the
+   surface tokens in light mode — re-point them here too so it flips with the
+   theme instead of staying a dark chip on paper. */
+html[data-theme="light"] .cc-page-tip {
+  --ds-surface-1: rgb(var(--overlay-rgb));
+  --ds-surface-2: color-mix(in srgb, rgb(var(--overlay-rgb)) 93%, rgb(var(--ink-rgb)));
+  --ds-border-strong: rgba(var(--ink-rgb), 0.22);
+  box-shadow: 0 10px 24px rgba(var(--ink-rgb), 0.16);
+}
 
 /* Press feedback for the panel's small chip-buttons (the DS family covers the
    real buttons; these are the custom micro-affordances). */

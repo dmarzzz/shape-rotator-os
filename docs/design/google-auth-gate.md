@@ -74,15 +74,14 @@ truth for "who is this writer," replacing the client-supplied `proposer_record_i
 ## Infra steps — these need you (dashboard access, not code)
 
 1. **Supabase → Auth → URL Configuration → Redirect URLs**: add
-   `sros://auth-callback` and `sros://auth-callback/`. Shape OS and Ops Engine
-   currently share the same Supabase project, but they are separate products: do
-   not change the Ops-owned Site URL just to make desktop auth work. Shape OS
-   must always pass its explicit app deep link via `redirect_to`; if that deep
-   link is missing from the allow-list, Supabase can fall back to the project
-   Site URL and send users to the private Ops surface.
+   `sros://auth-callback` and `sros://auth-callback/`. The Supabase project may
+   also serve other clients, so do not change the project Site URL just to make
+   desktop auth work. Shape OS must always pass its explicit app deep link via
+   `redirect_to`; if that deep link is missing from the allow-list, Supabase can
+   fall back to the project Site URL instead of returning to the app.
 2. **Google Cloud console**: confirm the OAuth 2.0 client used by the Supabase Google
-   provider is live (it already is, for the ops site). No new client needed unless you
-   want a separate one for the desktop app.
+   provider is live. No new client needed unless you want a separate one for the
+   desktop app.
 3. **Apply the Shape OS migration**
    `supabase/migrations/20260703000000_shape_os_app_members_auth_gate.sql`
    (Phase 1, additive, plus gated-view hardening).
@@ -91,29 +90,10 @@ truth for "who is this writer," replacing the client-supplied `proposer_record_i
    you have their emails (which sign-in itself will collect).
 5. Flip the gate flag on in the app once 1–4 are done.
 
-## Readiness checks
-
-The gate is not considered live just because the UI can open Google OAuth. The
-release proof should cover all of these:
-
-- Supabase accepts `sros://auth-callback` and returns to the desktop app instead
-  of the shared Ops Site URL.
-- `window.api.auth.getSession()` returns a valid app session after sign-in, and
-  the session can be refreshed without asking the user to sign in again.
-- `app_my_membership` returns exactly the signed-in user's row. A missing row,
-  `pending` status, or approved row without `record_id` must keep the app in the
-  request-access / needs-binding state.
-- The transcript receive doctor passes with `--require-google-session`, proving
-  that T2 evidence, distillations, and cohort insight rows are read through the
-  Google app-session path, not only through a fallback `cohort_app` key.
-- A signed-in but unapproved Google account fails closed and cannot read named
-  T2 data.
-
 ## Phasing
 
 - **Phase 1 (now)**: additive data model + client auth core + main/preload wiring +
-  gate UI (flag-off) + this doc. Nothing destructive; safe to ship. The app can
-  collect and store sessions, but the gate is not enforced for all writes yet.
+  gate UI (flag-off) + this doc. Nothing destructive; safe to ship.
 - **Phase 2**: swap write paths (`supabase-anon-write.postAnonRow`, `cohort-emit`,
   `self-report`, `context-submit`) to send the user JWT; enforce the authenticated RLS;
   flip the gate on.

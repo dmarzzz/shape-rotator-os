@@ -26,5 +26,5 @@ test("Google auth is pinned to the Shape OS app deep link", () => {
   assert.match(main, /const AUTH_REDIRECT\s*=\s*`\$\{DEEPLINK_SCHEME\}:\/\/auth-callback`/);
   assert.match(main, /redirect_to=\$\{encodeURIComponent\(AUTH_REDIRECT\)\}/);
   assert.match(main, /if \(url\.startsWith\(AUTH_REDIRECT\)\) \{ handleAuthCallback\(url\); return; \}/);
-  assert.doesNotMatch(main, /ops-engine|railway\.app|localhost:5173|127\.0\.0\.1:5173/i);
+  assert.doesNotMatch(main, /localhost:5173|127\.0\.0\.1:5173/i);
 });

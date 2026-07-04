@@ -1,8 +1,8 @@
 -- Shape OS Google auth gate and receive-route hardening.
 --
--- Shape OS and Ops Engine currently share one Supabase project. Ops may own the
--- project Site URL, but Shape OS auth must be routed by the explicit app deep
--- link allow-list plus these app-owned membership predicates.
+-- Shape OS may share one Supabase project with other clients. The project Site
+-- URL can stay web-owned, but Shape OS auth must be routed by the explicit app
+-- deep-link allow-list plus these app-owned membership predicates.
 
 create table if not exists public.app_members (
   email text primary key,
