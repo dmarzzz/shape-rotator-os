@@ -192,26 +192,6 @@ function feedIcon(kind) {
   return p ? `<span class="mfeed-icon">${LUCIDE_OPEN}${p}</svg></span>` : '';
 }
 
-function fmtTimeOnly(t) {
-  const d = new Date(t);
-  const hr = d.getHours();
-  const mn = String(d.getMinutes()).padStart(2, '0');
-  const h12 = ((hr + 11) % 12) + 1;
-  const ap = hr >= 12 ? 'pm' : 'am';
-  return `${h12}:${mn}${ap}`;
-}
-
-function fmtDayTime(t) {
-  const d = new Date(t);
-  return `${WD[d.getDay()]} ${fmtTimeOnly(t)}`;
-}
-
-function fmtFullDate(t) {
-  const d = new Date(t);
-  const dy = String(d.getDate()).padStart(2, '0');
-  return `${WD[d.getDay()]} ${MO[d.getMonth()]} ${dy} · ${fmtTimeOnly(t)}`;
-}
-
 // Per-kind action verb for the left-feed hover layer — names what a click will
 // do (the third interaction layer: glance → hover reveals destination → click
 // commits). Terse; the arrow is appended in the row markup.
@@ -244,7 +224,14 @@ const FIELD_POSTS_KEY = 'srwk:membrane:posts_v0';
 function loadFieldPosts() {
   try {
     const arr = JSON.parse(localStorage.getItem(FIELD_POSTS_KEY) || '[]');
-    return Array.isArray(arr) ? arr.filter((p) => p && p.text) : [];
+    if (!Array.isArray(arr)) return [];
+    // Sanitize ts at the load boundary: a junk/legacy ts would otherwise
+    // reach new Date(p.ts).toISOString() in renderFeed and THROW, killing
+    // the whole left rail on every render until the key is hand-cleared.
+    return arr.filter((p) => p && p.text).map((p) => ({
+      ...p,
+      ts: Number.isFinite(Number(p.ts)) ? Number(p.ts) : 0,
+    }));
   } catch { return []; }
 }
 function saveFieldPosts(posts) {
