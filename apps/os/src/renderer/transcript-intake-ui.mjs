@@ -1,8 +1,16 @@
 export const TEXT_TRANSCRIPT_EXTS = new Set([".txt", ".md", ".markdown", ".vtt", ".srt", ".csv", ".json", ".rtf"]);
 
-export const VISIBLE_TRANSCRIPT_PATH_KEYS = ["metadata", "supabase_raw", "local_agent"];
+export const VISIBLE_TRANSCRIPT_PATH_KEYS = ["drive_inbox", "metadata", "supabase_raw", "local_agent"];
 
 export const TRANSCRIPT_PATH_COPY = {
+  drive_inbox: {
+    label: "Drive inbox",
+    short: "private Drive upload",
+    note: "Uploads the original to the private Google Drive inbox. Shape OS keeps a local manifest and uses Drive pointers downstream.",
+    submit: "Send to Drive",
+    submitMany: "Send {count} files to Drive",
+    badge: "Drive inbox",
+  },
   metadata: {
     label: "Private pointer",
     short: "file stays private",

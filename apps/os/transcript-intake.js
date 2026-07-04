@@ -584,7 +584,9 @@ async function callDriveUpload({ config, staged, fetchImpl = fetch }) {
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     const error = new Error(`Google Drive upload failed: ${response.status}`);
-    error.code = "drive_upload_failed";
+    error.code = response.status === 401 || response.status === 403
+      ? "drive_auth_expired"
+      : "drive_upload_failed";
     error.status = response.status;
     error.body = data;
     throw error;

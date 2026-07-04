@@ -1350,7 +1350,7 @@ function createController() {
     let selectedFiles = [];
     const uploadConfigs = new Map();
     let activeUploadKey = "";
-    let defaultProcessingPath = "metadata";
+    let defaultProcessingPath = "drive_inbox";
     let defaultTranscriptType = "";
     try {
       const rememberedPath = localStorage.getItem("srwk:transcript_processing_path");
@@ -1773,6 +1773,7 @@ function createController() {
         const needsGoogle = res.missing.some((item) => /token|access/i.test(String(item || "")));
         return needsGoogle ? "staged locally; reconnect Drive access, then retry" : `staged locally; Drive inbox needs ${res.missing.join(", ")}`;
       }
+      if (res.reason === "drive_auth_expired") return "staged locally; reconnect Drive access, then retry";
       if (res.reason === "drive_upload_failed") {
         const detail = res.detail || "";
         return /401|403|invalid|unauthorized/i.test(detail)

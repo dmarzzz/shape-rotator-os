@@ -485,6 +485,52 @@ test("submitTranscriptIntake Drive inbox defers Supabase indexing until a sessio
   assert.equal(manifest.drive_storage_ref, "drive://drive_unmatched_1");
 });
 
+test("submitTranscriptIntake Drive inbox reports expired Google auth without dropping the staged file", async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sros-transcript-drive-auth-expired-"));
+  const source = path.join(tmp, "Expired Drive Auth.txt");
+  const intakeRoot = path.join(tmp, "private-intake");
+  fs.writeFileSync(source, "Synthetic transcript staged before Drive auth fails", "utf8");
+
+  const result = await submitTranscriptIntake({
+    filePath: source,
+    sessionType: "salon",
+    label: "Expired Drive Auth",
+    processingPath: "drive_inbox",
+    drive: {
+      accessToken: "expired-drive-token",
+      folderId: "folder_private",
+    },
+    supabase: {
+      supabaseUrl: "https://project.supabase.co",
+      supabaseAnonKey: "anon",
+      accessToken: "supabase-token",
+      orgId: "srfg",
+    },
+    intakeRoot,
+    storageRefRoot: tmp,
+    fetchImpl: async () => response({
+      error: {
+        code: 401,
+        message: "Invalid Credentials",
+        status: "UNAUTHENTICATED",
+      },
+    }, { ok: false, status: 401 }),
+    now: new Date("2026-07-04T12:15:00Z"),
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "drive_auth_expired");
+  assert.equal(result.status, 401);
+  assert.equal(result.staged, true);
+  assert.equal(result.processingPath, "drive_inbox");
+  assert.equal(result.driveUploaded, undefined);
+  assert.match(result.storageRef, /^private-intake\/2026-07-04\/salon_expired-drive-auth_/);
+  const manifest = JSON.parse(fs.readFileSync(path.join(tmp, `${result.storageRef}.manifest.json`), "utf8"));
+  assert.equal(manifest.processing_path, "drive_inbox");
+  assert.equal(manifest.drive_file_id, undefined);
+  assert.equal(manifest.drive_storage_ref, undefined);
+});
+
 test("submitTranscriptIntake Drive inbox stages locally and reports missing Drive config", async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sros-transcript-drive-missing-"));
   const source = path.join(tmp, "Raw Notes.docx");

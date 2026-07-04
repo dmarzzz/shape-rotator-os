@@ -2939,15 +2939,23 @@ ipcMain.handle("fg:transcript-intake:submit", async (e, opts = {}) => {
     // File already chosen in the renderer → submit it directly. Fall back to
     // the picker only if no path was passed (legacy callers).
     if (Array.isArray(opts.filePaths) && opts.filePaths.length) {
-      return await loadTranscriptIntake().submitTranscriptIntakeBatch({ ...args, filePaths: opts.filePaths.map((item) => String(item || "")) });
+      const result = await loadTranscriptIntake().submitTranscriptIntakeBatch({ ...args, filePaths: opts.filePaths.map((item) => String(item || "")) });
+      if (result?.reason === "drive_auth_expired" || (Array.isArray(result?.results) && result.results.some((item) => item?.reason === "drive_auth_expired"))) {
+        clearAuthProviderTokens({ reason: "drive_upload_unauthorized" });
+      }
+      return result;
     }
     if (opts.filePath) {
-      return await loadTranscriptIntake().submitTranscriptIntake({ ...args, filePath: String(opts.filePath) });
+      const result = await loadTranscriptIntake().submitTranscriptIntake({ ...args, filePath: String(opts.filePath) });
+      if (result?.reason === "drive_auth_expired") clearAuthProviderTokens({ reason: "drive_upload_unauthorized" });
+      return result;
     }
-    return await loadTranscriptIntake().pickAndSubmitTranscriptIntake({
+    const result = await loadTranscriptIntake().pickAndSubmitTranscriptIntake({
       ...args,
       browserWindow: BrowserWindow.fromWebContents(e.sender),
     });
+    if (result?.reason === "drive_auth_expired") clearAuthProviderTokens({ reason: "drive_upload_unauthorized" });
+    return result;
   } catch (error) {
     return {
       ok: false,
@@ -3604,6 +3612,21 @@ function writeAuthSession(session) {
     return true;
   } catch (e) { process.stderr.write(`[auth] session write failed: ${e.message}\n`); return false; }
 }
+function clearAuthProviderTokens({ reason = "" } = {}) {
+  const session = readAuthSession();
+  if (!session || (!session.provider_token && !session.provider_refresh_token)) return false;
+  const next = {
+    ...session,
+    provider_token: null,
+    provider_refresh_token: null,
+    provider_scopes: [],
+    provider_token_invalidated_at: new Date().toISOString(),
+    provider_token_invalidated_reason: reason || "provider_token_invalidated",
+  };
+  writeAuthSession(next);
+  broadcastAuthSession(next);
+  return true;
+}
 function broadcastAuthSession(session) {
   const win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed());
   try { win && win.webContents.send("auth:session", publicAuthSession(session)); } catch {}
@@ -3676,7 +3699,6 @@ async function refreshAuthSession() {
     const session = sessionFromTokenResponse(await res.json());
     if (session) {
       if (!session.refresh_token) session.refresh_token = cur.refresh_token;
-      if (!session.provider_token && cur.provider_token) session.provider_token = cur.provider_token;
       if (!session.provider_refresh_token && cur.provider_refresh_token) session.provider_refresh_token = cur.provider_refresh_token;
       if ((!session.provider_scopes || !session.provider_scopes.length) && cur.provider_scopes) session.provider_scopes = cur.provider_scopes;
       writeAuthSession(session);
