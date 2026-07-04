@@ -9,7 +9,7 @@ import {
   transcriptSubmitLabel,
 } from "./transcript-intake-ui.mjs";
 
-test("transcript path picker shows three human choices", () => {
+test("transcript path picker shows the three human choices", () => {
   const rows = buildVisibleTranscriptPathRows([
     { key: "drive_inbox", label: "Drive inbox" },
     { key: "metadata", label: "Pointer only" },
@@ -22,7 +22,7 @@ test("transcript path picker shows three human choices", () => {
   assert.equal(rows[0].short, "file stays private");
 });
 
-test("legacy and unknown transcript paths normalize to Private pointer", () => {
+test("legacy or backend-only transcript paths normalize to private pointer", () => {
   assert.equal(normalizeVisibleTranscriptPath("drive_inbox"), "metadata");
   assert.equal(normalizeVisibleTranscriptPath("unknown"), "metadata");
   assert.match(transcriptPathNoteText("drive_inbox"), /private source pointer/);

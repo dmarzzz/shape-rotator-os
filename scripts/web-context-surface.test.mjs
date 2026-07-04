@@ -494,7 +494,8 @@ test("gated cohort evidence hydrates member context without private provenance I
   assert.equal(merged.cohort_intel.weekly[0].top_claims[0].teams[0], "team-a");
   assert.equal(merged.cohort_intel.teams[0].team_id, "team-a");
   assert.match(html, /member context/);
-  assert.match(html, /alice@example.com/);
+  assert.doesNotMatch(html, /alice@example.com/);
+  assert.doesNotMatch(html, /record person-a/);
   assert.match(html, /Team A needs a sharper partner handoff/);
   assert.match(html, /Routing review/);
   assert.doesNotMatch(html, /source-artifact-1/);

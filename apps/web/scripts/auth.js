@@ -510,7 +510,7 @@ function esc(value) {
 
 function buttonLabel(auth) {
   if (!auth?.session) return "sign in";
-  if (auth.state === "approved") return auth.membership?.display_name || sessionEmail(auth.session) || "signed in";
+  if (auth.state === "approved") return "member context";
   if (auth.state === "pending") return "pending";
   if (auth.state === "rejected") return "declined";
   return "request access";
@@ -531,7 +531,7 @@ function renderAuthPopover(el, auth, error = "") {
   if (state === "approved") {
     return `
       <div class="site-auth-popover" role="dialog" aria-label="signed in">
-        <p><b>${esc(email)}</b><br />approved for cohort context.</p>
+        <p><b>Signed in.</b><br />Approved for cohort context.</p>
         <button type="button" class="site-auth-action" data-auth-action="signout">sign out</button>
       </div>
     `;
@@ -539,14 +539,14 @@ function renderAuthPopover(el, auth, error = "") {
   if (state === "rejected") {
     return `
       <div class="site-auth-popover" role="dialog" aria-label="access declined">
-        <p><b>${esc(email)}</b><br />this account is not approved.</p>
+        <p><b>Access declined.</b><br />This account is not approved.</p>
         <button type="button" class="site-auth-action" data-auth-action="signout">use another account</button>
       </div>
     `;
   }
   return `
     <div class="site-auth-popover" role="dialog" aria-label="request access">
-      <p><b>${esc(email)}</b><br />tell us who you are and an organizer can approve access.</p>
+      <p><b>Request access.</b><br />Tell us who you are and an organizer can approve access.</p>
       <textarea data-auth-message placeholder="name, team/project, github handle"></textarea>
       <button type="button" class="site-auth-action" data-auth-action="request">request access</button>
       <button type="button" class="site-auth-link" data-auth-action="signout">use another account</button>
