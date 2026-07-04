@@ -398,8 +398,18 @@ export function createMembraneScene(canvas, opts = {}) {
       canvas.removeEventListener('contextmenu', handleContextMenu);
       cube.dispose();
       starField.dispose();
+      // EffectComposer.dispose() only frees its own ping-pong targets — it
+      // does NOT dispose passes. UnrealBloomPass holds renderTargetBright +
+      // 5 mip pairs of HalfFloat targets and several materials (tens of MB at
+      // 2× DPR); without this, every membrane mount/destroy cycle strands a
+      // full set on the GPU.
+      bloomPass.dispose?.();
       composer.dispose?.();
       renderer.dispose();
+      // Release the GL context NOW rather than when Chrome lazily collects
+      // it — repeated page switches otherwise ratchet toward the ~16-context
+      // limit ("oldest context will be lost").
+      renderer.forceContextLoss?.();
     },
   };
 }
