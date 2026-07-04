@@ -1351,6 +1351,7 @@ function createController() {
     const uploadConfigs = new Map();
     let activeUploadKey = "";
     let defaultProcessingPath = "metadata";
+    let defaultTranscriptType = "";
     try {
       const rememberedPath = localStorage.getItem("srwk:transcript_processing_path");
       if (rememberedPath) defaultProcessingPath = normalizeVisibleTranscriptPath(rememberedPath);
@@ -1420,7 +1421,7 @@ function createController() {
     }
     function defaultUploadConfig() {
       return {
-        typeKey: "",
+        typeKey: defaultTranscriptType,
         processingPath: defaultProcessingPath,
         confidence: confidenceOptions[0]?.key || "sure",
         declaredDate: todayValue(),
@@ -1485,7 +1486,10 @@ function createController() {
       syncUploadState();
     }
     function setTranscriptType(key) {
-      updateActiveConfig({ typeKey: types.some((type) => type.key === key) ? key : "" });
+      const next = types.some((type) => type.key === key) ? key : "";
+      defaultTranscriptType = next;
+      updateActiveConfig({ typeKey: next });
+      if (!activeFile()) syncUploadState();
     }
     function pathBlocker(file = activeFile(), config = activeConfig()) {
       return transcriptPathBlocker({
