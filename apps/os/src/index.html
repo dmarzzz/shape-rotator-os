@@ -59,11 +59,6 @@
           <span class="ar-label">membrane</span>
           <span class="ar-hint">self · cohort · events · asks</span>
         </button>
-        <!-- matrix is a routed app tab, but it belongs visually next to Membrane. -->
-        <button class="nav-cat nav-cat--rail-app" data-tab="matrix" type="button" aria-selected="false">
-          <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
-          <span class="nav-cat-label ar-label">matrix</span>
-        </button>
         <!-- profile removed from the rail 2026-06 — the page is reached via
              the identity pill in the bottom-left footer (identity.js). -->
         <button class="alchemy-rail-btn" data-alch-mode="shapes" type="button" aria-selected="false">
@@ -73,6 +68,16 @@
         </button>
         <!-- pulse retired 2026-05; renderer kept in alchemy.js until we have a real activity-over-time signal worth surfacing. -->
         <!-- constellation is now a cohort sub-view; retired intel routes normalize to Context evidence. -->
+        <button class="alchemy-rail-btn" data-alch-mode="context" type="button" aria-selected="false">
+          <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg></span>
+          <span class="ar-label">context</span>
+          <span class="ar-hint">articles · transcripts · asks</span>
+        </button>
+        <!-- matrix is a routed app tab, but it belongs in the OS rail after context. -->
+        <button class="nav-cat nav-cat--rail-app" data-tab="matrix" type="button" aria-selected="false">
+          <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+          <span class="nav-cat-label ar-label">matrix</span>
+        </button>
         <button class="alchemy-rail-btn" data-alch-mode="calendar" type="button" aria-selected="false">
           <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></span>
           <span class="ar-label">calendar</span>
@@ -87,11 +92,6 @@
           <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg></span>
           <span class="ar-label">program info</span>
           <span class="ar-hint">onboarding / handbook / rules</span>
-        </button>
-        <button class="alchemy-rail-btn" data-alch-mode="context" type="button" aria-selected="false">
-          <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg></span>
-          <span class="ar-label">context</span>
-          <span class="ar-hint">articles · transcripts · asks</span>
         </button>
       </nav>
       <!-- apps — top-level destination. Network launches from the Apps grid,
