@@ -30,7 +30,7 @@ in ~43s through `runSynthesis`; parse/sanitize/merge produced 6 changed fields. 
 - `apps/os/src/renderer/supabase-self-report.mjs` — `saveSelfReportUpdate` (append) + `fetchApprovedProfileUpdates` (read).
 - `self-report.js` fires the receive on apply (additive); `cohort-source.js` `applyProfileUpdateOverlay` overlays approved rows.
 
-### To go live (needs Supabase access — Engine owns the schema)
+### To go live (needs operator DB access through Engine — not a Shape OS user login)
 1. Apply the migration to `txjntzwksiluvqcpccpc` (via the Engine migration path, like `os_feedback`/`os_spheres`).
 2. Approve a row: flip `status` `pending→approved` (Supabase dashboard, or the promote script below). The overlay then shows it cohort-wide on the next refresh — no PR.
 

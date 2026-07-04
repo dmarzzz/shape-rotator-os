@@ -89,6 +89,63 @@ The security boundary. The model emits JSON action blocks; this whitelists/sanit
 
 **P1b — autonomous loop:** ✅ bounded one-round public-tool follow-up: a github-only `request_scan` runs `scanGithubActivity` inline and re-asks with `toolResults` (`runTurn`/`runGithubFollowup`, capped by `MAX_TOOL_ROUNDS`). Private sessions scan stays on the consent modal.
 
+## P4b — agent memory + Router overlap guard (landed 2026-07-03)
+
+The Teleport Router daybook (`jameslbarnes/router-daybook`) is fully vendored in
+Shape OS at `apps/os/daybook/` and opens through the app card / command palette.
+It keeps the same `~/.router-daybook/` and `~/.routerrc` state as the standalone
+Router install; see `daybook/VENDOR.md`.
+
+This matters because the daybook and the chatbot self-report flow were drifting
+toward the same job: "look at my agent work and tell the cohort what changed."
+P4b makes the division explicit.
+
+- **Daybook: daily cohort narrative.** The vendored Router app reads the
+  member's local agent-session sources for the day, applies the Router scope and
+  redactor, drafts with the member's local `claude`, and posts only after member
+  approval. Shape OS keeps this path window-driven; the standalone app's
+  background daily precompute daemon is not ported.
+- **Chatbot sync: profile/app updater.** `scanLocalSessions()` builds the
+  scrubbed digest used by the self-report modal. It now adds two contextual
+  blocks before synthesis so the update is grounded in durable agent memory and
+  avoids repeating Router posts.
+
+The two new digest inputs are:
+
+1. **Agent memory.** `scanAgentMemory()` reads
+   `~/.claude/projects/*/memory/*.md`, with each project's `MEMORY.md` index
+   leading that project group. These files are already distilled per-project
+   notes from the member's own local agent, so they carry stronger "current
+   work" signal than raw session noise. Reads are gated by the same Teleport
+   Router scope in `daybook/scope.js`; repository excludes/overrides set in the
+   Router window apply here too, and the default scope auto-includes repos
+   active in the last 30 days. Every emitted byte is scrubbed through
+   `daybook/redact.js`. The section is capped at roughly 8k characters.
+2. **Already shared on Router.** `fetchAlreadyShared()` reads the member's own
+   recent Router feed posts through `daybook/router.js cohortFeed` with
+   `mine=true`. The call is best-effort and times out after 3.5 seconds; offline
+   mode or a missing `~/.routerrc` simply omits the block. The resulting
+   `buildAlreadySharedSection()` output is explicit "do not repeat this"
+   context for the local synthesis prompt.
+
+The member-facing consent copy now discloses both reads before the scan runs.
+No raw bodies are sent to a remote service by this path; synthesis still runs
+through the member's local CLI. The known asymmetry is deliberate for this
+landing: the raw-session digest remains consent-gated but is not yet gated by
+the Router scope, preserving existing behavior, while the new memory block does
+honor Router scope.
+
+Implementation and tests:
+
+- `apps/os/self-report-node.js`: `scanAgentMemory()`,
+  `buildAgentMemorySection()`, `fetchAlreadyShared()`,
+  `buildAlreadySharedSection()`, and the extended `scanLocalSessions()` result
+  shape (`memoryFileCount`, `memoryProjectCount`, `alreadySharedCount`).
+- `apps/os/src/renderer/self-report.js`: consent copy names agent memory and
+  recent Router posts.
+- `apps/os/self-report-node.test.mjs`: pure section builders, scope/redaction
+  behavior, and the digest metadata counters.
+
 ## The daily recompute (Engine — the reconciliation net)
 
 With self-edits auto-approving, the daily job is the safety/durability layer. It should:
