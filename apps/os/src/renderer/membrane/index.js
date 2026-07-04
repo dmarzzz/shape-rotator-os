@@ -639,6 +639,11 @@ export function mountMembrane(container, opts = {}) {
     } else if (groups.length && groups[0].items.length) {
       const it = groups[0].items[0];
       nextUp = { title: it.title, sub: `${dayLabel(groups[0].date)}${it.time ? ' · ' + it.time : ''}` };
+      // The hero IS this look-ahead item — pull it from its group so the rail
+      // never shows the same event twice (hero + identical day-card/later row).
+      // Today's-next-timed hero above keeps its axis row: the timeline is a
+      // different presentation, not a repeat.
+      groups[0].items = groups[0].items.slice(1);
     }
     if (nextUp) {
       html += `<button type="button" class="magenda-next" data-cat="${agendaCat(nextUp.title)}" title="${escHtml(`${nextUp.title || 'untitled'} — open calendar`)}">
@@ -650,7 +655,7 @@ export function mountMembrane(container, opts = {}) {
     // Today header — same chrome as the day headers below, with a "today"
     // prefix (from main). Keep the per-occurrence dateStr key on the card call
     // so same-day duplicate titles stay individually dismissable.
-    html += `<div class="magenda-day-head">${escHtml(`today - ${WD[now.getDay()]} ${MO[now.getMonth()]} ${now.getDate()}`)}</div>`;
+    html += `<div class="magenda-day-head">${escHtml(`today · ${WD[now.getDay()]} ${MO[now.getMonth()]} ${now.getDate()}`)}</div>`;
     // Today's all-day items as cards.
     for (const e of allDay) html += card(e.title, e.ongoing ? 'all day' : '', todayStr);
     // Today's timed events keep the time axis + now-line (only when present).
@@ -663,7 +668,9 @@ export function mountMembrane(container, opts = {}) {
     // as stuck to the rail bottom (2026-07-03 feedback).
     const aheadDays = (ds) => Math.round(
       (new Date(`${ds}T00:00:00`).getTime() - new Date(`${todayStr}T00:00:00`).getTime()) / 86400000);
-    const nearGroups = groups.filter((g) => aheadDays(g.date) <= 7);
+    // Drop day groups the hero dedup emptied — a day head with no cards
+    // under it reads as a rendering bug.
+    const nearGroups = groups.filter((g) => g.items.length && aheadDays(g.date) <= 7);
     const farItems = groups.filter((g) => aheadDays(g.date) > 7)
       .flatMap((g) => g.items.map((it) => ({ ...it, date: g.date })));
     for (const g of nearGroups) {
@@ -736,6 +743,13 @@ export function mountMembrane(container, opts = {}) {
   let feedPopHideTimer = null;
   let feedPopCats = [];       // categories from the last renderFeed pass
   let feedPopEl = null;
+  // Rail-level leave guard, attached ONCE to the persistent [data-feed] node.
+  // The per-row mouseenter/mouseleave pairs die whenever renderFeed rebuilds
+  // the rows (innerHTML) under the pointer — a preview whose closing
+  // mouseleave was eaten that way used to stay open forever. The rail node
+  // itself survives every rebuild, so this net always fires on the way out.
+  feedEl?.addEventListener('mouseenter', () => clearTimeout(feedPopHideTimer));
+  feedEl?.addEventListener('mouseleave', () => { if (feedPopCat && !feedPopPinned) scheduleFeedPopHide(); });
   // Hidden TYPES (filter chips at the rail top) — persisted, and separate
   // from dismissals: hiding a type is reversible, clearing is not.
   const FEED_FILTER_KEY = 'srwk:membrane:feed_filter_v0';
@@ -881,9 +895,11 @@ export function mountMembrane(container, opts = {}) {
       </div>
       <div class="mfeed-pop-list" role="list">${rows}</div>`;
     // Close = collapse, nothing else. Clear = the explicit dismissal.
-    pop.querySelector('[data-pop-close]').addEventListener('click', () => closeFeedPop());
-    pop.querySelector('[data-pop-open]').addEventListener('click', () => { openFeedCategory(cat); closeFeedPop(); });
-    pop.querySelector('[data-pop-clear]').addEventListener('click', () => {
+    // Optional-chained: if any control were ever missing from the template, a
+    // TypeError here would strand the panel open with NO close handlers at all.
+    pop.querySelector('[data-pop-close]')?.addEventListener('click', () => closeFeedPop());
+    pop.querySelector('[data-pop-open]')?.addEventListener('click', () => { openFeedCategory(cat); closeFeedPop(); });
+    pop.querySelector('[data-pop-clear]')?.addEventListener('click', () => {
       for (const member of cat.members) {
         if (member.type === 'incoming') {
           incomingDismissed.add(member.dismissKey);
@@ -1076,9 +1092,18 @@ export function mountMembrane(container, opts = {}) {
     feedEl.innerHTML = filterHtml + visible.map(feedCategoryHtml).join('');
     feedPrevKeys = markEnteringRows(feedEl, feedPrevKeys, '.mfeed-category-row');
     // Keep the open popover in sync with fresh data (or close it if its
-    // category emptied / got hidden).
+    // category emptied / got hidden). A hover PREVIEW only survives the
+    // rebuild if something is still engaging it — pointer over the rail or
+    // the panel, or keyboard focus in the rail. Re-painting an abandoned
+    // preview open on every 60s tick made it immortal (the mouseleave meant
+    // to close it died with the replaced row).
     if (feedPopCat) {
-      if (visible.some((cat) => cat.id === feedPopCat)) renderFeedPop();
+      const engaged = feedPopPinned
+        || feedEl.matches(':hover')
+        || (feedPopEl && feedPopEl.matches(':hover'))
+        || feedEl.contains(document.activeElement);
+      if (!engaged) closeFeedPop();
+      else if (visible.some((cat) => cat.id === feedPopCat)) renderFeedPop();
       else closeFeedPop();
     }
 
@@ -1226,7 +1251,9 @@ export function mountMembrane(container, opts = {}) {
     });
     capForm.addEventListener('submit', (ev) => {
       ev.preventDefault();
-      const text = (capInput?.value || '').trim();
+      // Mirror the input's maxlength here: the attribute only clamps typing,
+      // not values that arrive programmatically (paste interception, drivers).
+      const text = (capInput?.value || '').trim().slice(0, 280);
       if (text.length < 2) return;
       fieldPosts.push({ verb: capVerb, author: selfName(), text, ts: Date.now(), mine: true });
       fieldPosts = fieldPosts.slice(-50);
@@ -1344,14 +1371,17 @@ export function mountMembrane(container, opts = {}) {
   const feedback = setupFeedbackBox(container);
 
   // Popover escape hatches — Esc always closes; a click anywhere outside the
-  // panel and the rail closes a PINNED panel (hover previews go on their own
-  // grace timer). Both removed in destroy(); container listeners would
-  // otherwise stack across re-mounts of this page.
+  // panel and the rail closes ANY open panel, pinned or preview. Previews
+  // normally close on their own grace timer, but that depends on a mouseleave
+  // that the 60s rail rebuild can eat (innerHTML replaces the hovered row) —
+  // when that happens the preview is stranded, and "click elsewhere" is the
+  // gesture everyone reaches for. Both removed in destroy(); container
+  // listeners would otherwise stack across re-mounts of this page.
   function onFeedPopKey(ev) {
     if (ev.key === 'Escape' && feedPopCat) { ev.stopPropagation(); closeFeedPop(); }
   }
   function onFeedPopOutside(ev) {
-    if (!feedPopCat || !feedPopPinned) return;
+    if (!feedPopCat) return;
     if (ev.target.closest('.mfeed-pop') || ev.target.closest('.mfeed-category-row')) return;
     closeFeedPop();
   }

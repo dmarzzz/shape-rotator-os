@@ -1087,11 +1087,31 @@ html[data-theme="light"] .membrane-agenda .magenda-next {
 .mfeed-category {
   min-height: 46px;
   padding: 8px 10px 8px 11px;
+  /* Two-row grid over the shared flex base: icon · label · count · age on the
+     top line, the item-preview pill spanning the FULL card width beneath.
+     Inside the flex row the pill was squeezed into the label's column
+     (~66px) and every preview truncated to noise ("late-ju…").
+     display:contents lifts label/meta out of .mfeed-body so they can land on
+     separate grid rows without touching the markup. */
+  display: grid;
+  grid-template-columns: 15px minmax(0, 1fr) auto auto;
+  column-gap: 9px;
+  row-gap: 3px;
+  align-items: start;
   transition: background 200ms cubic-bezier(0.19, 1, 0.22, 1),
               transform 200ms cubic-bezier(0.19, 1, 0.22, 1),
               border-color 200ms cubic-bezier(0.19, 1, 0.22, 1),
               box-shadow 200ms cubic-bezier(0.19, 1, 0.22, 1);
 }
+.mfeed-category > .mfeed-body { display: contents; }
+.mfeed-category .mfeed-icon  { grid-row: 1; grid-column: 1; }
+.mfeed-category .mfeed-label { grid-row: 1; grid-column: 2; }
+.mfeed-category .mfeed-inline-count { grid-row: 1; grid-column: 3; }
+.mfeed-category .mfeed-age   { grid-row: 1; grid-column: 4; margin-top: 3px; }
+.mfeed-category .mfeed-meta  { grid-row: 2; grid-column: 2 / -1; justify-self: start; }
+/* No preview → no row 2: an empty meta span would still paint its pill
+   background as a tiny blob. */
+.mfeed-meta:empty { display: none; }
 .mfeed-category:hover,
 .mfeed-category:focus-visible,
 .mfeed-category-row.is-popped .mfeed-category {
@@ -1214,6 +1234,12 @@ html[data-theme="light"] .membrane-agenda .magenda-next {
   max-height: min(46vh, 380px);
   padding: 7px;
   display: grid;
+  /* Pin the single column to the panel width. The implicit `auto` column
+     sized itself to the rows' max-content (nowrap meta pills → ~700px), so
+     every row overflowed the 306px panel and clipped hard at its right edge
+     — pill cut mid-word, age never visible. minmax(0,1fr) lets the rows'
+     ellipsis actually engage. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
   scrollbar-width: thin;
 }
@@ -1256,15 +1282,18 @@ html[data-theme="light"] .membrane-agenda .magenda-next {
 .mfeed-filter-chip {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 8px;
+  /* Metrics tuned so two typical chips ("calendar 13" + "shipping 25") share
+     a line inside the 186px column — the looser original wrapped 1-then-2,
+     which read ragged at the top of the rail. */
+  gap: 4px;
+  padding: 3px 7px;
   border: 1px solid rgba(var(--mem-ink-rgb), 0.14);
   border-radius: 999px;
   background: transparent;
   color: rgba(var(--mem-ink-rgb), 0.62);
   font: inherit;
   font-size: 9px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
   cursor: pointer;
   transition: color 150ms ease, border-color 150ms ease, opacity 150ms ease;
 }
@@ -1867,7 +1896,9 @@ html[data-theme="light"] .membrane-agenda .magenda-next {
   left: 244px;
   right: 216px;
   top: 84px;
-  bottom: 98px;
+  /* Ends just above the capture bar (bottom 16 + ~49 tall + a breath) so the
+     newest post reads as feeding INTO the composer, not floating above it. */
+  bottom: 84px;
   z-index: 3;
   /* One left-hugging column, newest at the bottom next to the capture bar —
      the die keeps the center-right of the field to itself. */
