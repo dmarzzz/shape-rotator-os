@@ -4420,6 +4420,10 @@ function wirePrimaryNavIntent(primaryNav) {
   const pinBtn = document.getElementById("nav-pin-btn");
   const syncUserPin = () => {
     primaryNav.classList.toggle("is-user-pinned", userPinned);
+    // Mirror onto <body> so CSS can reflow the content column to the right of
+    // the docked rail (feedback 2026-07-02: pinned menu must not overlap the
+    // app). index.html seeds the same attribute pre-paint from localStorage.
+    document.body.dataset.navPinned = userPinned ? "1" : "0";
     if (pinBtn) {
       pinBtn.setAttribute("aria-pressed", userPinned ? "true" : "false");
       pinBtn.title = userPinned ? "unpin the menu (Esc also unpins)" : "keep the menu open";
