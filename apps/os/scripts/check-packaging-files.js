@@ -123,7 +123,7 @@ function walkFiles(rootDir, extensions) {
 }
 
 function resolveLocalAsset(fromFile, specifier) {
-  const base = path.resolve(path.dirname(fromFile), specifier);
+  const base = path.resolve(path.dirname(fromFile), stripUrlSuffix(specifier));
   const candidates = path.extname(base)
     ? [base]
     : [base + ".js", base + ".mjs", base + ".cjs", base + ".json", base + ".css", path.join(base, "index.js"), path.join(base, "index.mjs")];
