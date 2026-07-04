@@ -85,10 +85,16 @@ function writeSeen(set) {
   try {
     let arr = [...set];
     if (arr.length > SEEN_CAP) {
-      arr = arr.slice(-SEEN_CAP);
-      // Never let FIFO eviction drop the prime sentinel — losing it would
-      // silently re-prime on the next load and dump every event as "new".
-      if (set.has('__primed__') && !arr.includes('__primed__')) arr.unshift('__primed__');
+      // Evict acknowledgements (soon:/arr:) before the event baseline: the
+      // prime sentinel and evt: entries ARE the diff baseline — FIFO-dropping
+      // an evt: entry resurrects an already-acknowledged event as a "new
+      // event" card once enough daily tea/arrival dismissals accumulate.
+      // (If the baseline alone ever exceeds the cap — a 600+ event calendar —
+      // accept the overflow rather than resurrect.)
+      const isBaseline = (e) => e === '__primed__' || e.startsWith('evt:');
+      const baseline = arr.filter(isBaseline);
+      const acks = arr.filter((e) => !isBaseline(e));
+      arr = [...acks.slice(-Math.max(0, SEEN_CAP - baseline.length)), ...baseline];
     }
     localStorage.setItem(SEEN_KEY, JSON.stringify(arr));
   } catch {}
@@ -103,6 +109,16 @@ export function acknowledgeIncoming(seenKey) {
   if (!seenKey) return;
   const s = seen();
   if (s.has(seenKey)) return;
+  // An event's ledger entry means "the time we LAST acknowledged" — drop older
+  // time-signatures for the same identity, or a move BACK to a previously-
+  // acknowledged time would match the stale entry and stay silent (user acks
+  // "18:00 → 19:00", organizer reverts to 18:00, user never hears — and shows
+  // up an hour late believing the 19:00 they were last told).
+  const at = seenKey.lastIndexOf('@');
+  if (seenKey.startsWith('evt:') && at > 4) {
+    const prefix = seenKey.slice(0, at + 1);   // 'evt:<key>@'
+    for (const entry of [...s]) if (entry.startsWith(prefix)) s.delete(entry);
+  }
   s.add(seenKey);
   writeSeen(s);
 }
@@ -182,13 +198,17 @@ function diffCards(identities, nowMs) {
 function eventSoonCards({ eventsToday, nowMs }) {
   const cards = [];
   const now = new Date(nowMs);
-  const midnight = new Date(nowMs); midnight.setHours(0, 0, 0, 0);
   const winMs = WATCH_POLICY.eventSoonMinutes * 60000;
   const graceMs = WATCH_POLICY.eventSoonGraceMinutes * 60000;
   for (const e of Array.isArray(eventsToday) ? eventsToday : []) {
     const min = startMinutes(e.time);
     if (min == null || !e.title) continue;
-    const startMs = midnight.getTime() + min * 60000;
+    // Wall-clock construction (setHours), NOT midnight + min*60000: pure
+    // minute addition assumes 1440-minute days, so on a DST-transition day
+    // the card fires an hour off its label.
+    const startD = new Date(nowMs);
+    startD.setHours(Math.floor(min / 60), min % 60, 0, 0);
+    const startMs = startD.getTime();
     const delta = startMs - nowMs;
     if (delta > winMs || delta < -graceMs) continue; // outside the "incoming" window
     const mins = Math.round(delta / 60000);
@@ -208,7 +228,11 @@ function eventSoonCards({ eventsToday, nowMs }) {
 function personSoonCards({ people, nowMs }) {
   const cards = [];
   const today = new Date(nowMs); today.setHours(0, 0, 0, 0);
-  const horizon = today.getTime() + WATCH_POLICY.personSoonDays * 86400000;
+  // Calendar-day horizon via setDate (DST-safe), not days*86400000 — a
+  // fall-back transition inside the span otherwise excludes an arrival
+  // sitting exactly personSoonDays out.
+  const horizonD = new Date(today); horizonD.setDate(horizonD.getDate() + WATCH_POLICY.personSoonDays);
+  const horizon = horizonD.getTime();
   const within = (d) => d && d.getTime() >= today.getTime() && d.getTime() <= horizon;
   for (const p of Array.isArray(people) ? people : []) {
     if (!p?.record_id) continue;
