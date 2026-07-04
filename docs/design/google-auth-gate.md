@@ -74,25 +74,28 @@ truth for "who is this writer," replacing the client-supplied `proposer_record_i
 ## Infra steps — these need you (dashboard access, not code)
 
 1. **Supabase → Auth → URL Configuration**:
-   - Site URL: use the public Shape OS web fallback, `https://os-web.shaperotator.xyz`.
-   - Redirect URLs: include `sros://auth-callback` and `sros://auth-callback/`.
+   - Site URL: this shared Supabase project may keep another app's fallback URL.
+     Shape OS must not rely on the project fallback.
+   - Redirect URLs: include the desktop callbacks `sros://auth-callback` and
+     `sros://auth-callback/`, plus the web callback origin
+     `https://os-web.shaperotator.xyz/`.
 
    The Supabase project may also serve other clients, so sibling apps should keep
    their own explicit redirect URLs in the allow-list. Shape OS must always pass
-   its app deep link via `redirect_to`; if that deep link is missing from the
-   allow-list, Supabase can fall back to the project Site URL instead of returning
-   to the app.
+   its app-specific callback via `redirect_to`; if that callback is missing from
+   the allow-list, Supabase can fall back to the project Site URL instead of
+   returning to Shape OS.
 
-   For the static web app surface, also allow the web origin root used by the
-   GitHub to Vercel deploy, e.g. `https://os-web.shaperotator.xyz/`. The web app
-   redirects OAuth back to the origin root, stores the original app page locally,
-   then returns the user to that page after the PKCE token exchange. That keeps
-   the code deployable from GitHub without per-route Vercel settings.
+   For the static web app surface, the web app redirects OAuth back to the origin
+   root, stores the original app page locally, then returns the user to that page
+   after the PKCE token exchange. That keeps the code deployable from GitHub
+   without per-route Vercel settings.
    The public cohort/marketing pages should not show a login affordance; app
    pages opt into it explicitly with `data-web-app-auth`.
 2. **Google Cloud console**: confirm the OAuth 2.0 client used by the Supabase Google
-   provider is live. No new client needed unless you want a separate one for the
-   desktop app.
+   provider is live. Do not disable, rotate, or add secrets on the shared client
+   from Shape OS web-login work without coordinating with the calendar/Drive
+   pipeline owners; separate source-ingestion auth is outside this gate.
 3. **Apply the Shape OS migration**
    `supabase/migrations/20260703000000_shape_os_app_members_auth_gate.sql`
    (Phase 1, additive, plus gated-view hardening).
