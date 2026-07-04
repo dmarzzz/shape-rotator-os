@@ -1234,7 +1234,8 @@ function renderPublicCandidates(intel = {}) {
 function renderContextAuthStatus(auth = null, evidence = {}) {
   if (!auth || auth.state !== "approved") return "";
   const bits = [
-    "approved",
+    auth.email || "",
+    auth.record_id ? `record ${auth.record_id}` : "",
     evidence.gated_evidence_card_count ? `${evidence.gated_evidence_card_count} gated cards` : "",
   ].filter(Boolean);
   return `

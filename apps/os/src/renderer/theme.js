@@ -13,6 +13,7 @@
 const LS_KEY = "srwk:theme";
 const VALID = new Set(["dark", "light"]);
 const listeners = new Set();
+let transitionUnlock = 0;
 
 export function getTheme() {
   const t = document.documentElement.dataset.theme;
@@ -21,7 +22,7 @@ export function getTheme() {
 
 export function setTheme(mode) {
   const next = VALID.has(mode) ? mode : "dark";
-  document.documentElement.dataset.theme = next;
+  applyThemeDataset(next);
   try { localStorage.setItem(LS_KEY, next); } catch {}
   for (const fn of listeners) {
     try { fn(next); } catch {}
@@ -42,5 +43,19 @@ export function onThemeChange(fn) {
 export function applyStoredTheme() {
   let saved = "dark";
   try { saved = localStorage.getItem(LS_KEY) || "dark"; } catch {}
-  document.documentElement.dataset.theme = VALID.has(saved) ? saved : "dark";
+  applyThemeDataset(VALID.has(saved) ? saved : "dark");
+}
+
+function applyThemeDataset(mode) {
+  const root = document.documentElement;
+  window.clearTimeout?.(transitionUnlock);
+  root.classList.add("disable-transitions");
+  root.dataset.theme = mode;
+  const unlock = () => root.classList.remove("disable-transitions");
+  try {
+    requestAnimationFrame(() => requestAnimationFrame(unlock));
+    transitionUnlock = window.setTimeout(unlock, 80);
+  } catch {
+    unlock();
+  }
 }

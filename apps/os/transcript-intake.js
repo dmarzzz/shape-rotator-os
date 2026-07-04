@@ -8,8 +8,15 @@ const POLICY_PATH = path.join(REPO_ROOT, "cohort-data", "policies", "transcript-
 const DEFAULT_INTAKE_ROOT = path.join(REPO_ROOT, "cohort-data", ".private", "transcript-intake");
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 const CONTEXT_SUBMISSION_BODY_MAX = 180000;
+const GOOGLE_DRIVE_UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files";
+const GOOGLE_DRIVE_UPLOAD_FIELDS = "id,name,mimeType,parents,size,md5Checksum";
 const TEXT_TRANSCRIPT_EXTS = new Set([".txt", ".md", ".markdown", ".vtt", ".srt", ".csv", ".json", ".rtf"]);
 const PROCESSING_PATHS = [
+  {
+    key: "drive_inbox",
+    label: "Drive inbox",
+    description: "Upload the original file to a private Google Drive inbox and index only metadata in Shape OS.",
+  },
   {
     key: "metadata",
     label: "Pointer only",
@@ -235,6 +242,33 @@ function inspectTranscriptFile(filePath) {
   }
 }
 
+function inspectTranscriptFiles(filePaths = []) {
+  const seen = new Set();
+  const files = [];
+  const rejected = [];
+  for (const rawPath of Array.isArray(filePaths) ? filePaths : []) {
+    const value = String(rawPath || "").trim();
+    if (!value) continue;
+    const key = path.resolve(value).toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const info = inspectTranscriptFile(value);
+    if (info.ok) files.push(info);
+    else rejected.push({ ...info, filePath: value });
+  }
+  if (!files.length) {
+    const first = rejected[0] || {};
+    return {
+      ok: false,
+      reason: first.reason || "no_files",
+      detail: first.detail || "Choose at least one transcript file.",
+      files,
+      rejected,
+    };
+  }
+  return { ok: true, files, rejected };
+}
+
 function sha256File(filePath) {
   const hash = crypto.createHash("sha256");
   hash.update(fs.readFileSync(filePath));
@@ -372,6 +406,94 @@ function buildTranscriptIntakeBody({
   });
 }
 
+function buildDriveInboxIntakeBody({
+  policy = loadTranscriptPolicy(),
+  orgId,
+  sessionId = "",
+  sessionType,
+  confidence = "sure",
+  declaredDate = "",
+  label = "",
+  relatedText = "",
+  staged,
+  driveUpload,
+  driveFolderId = "",
+  now = new Date(),
+} = {}) {
+  const type = policy.session_types?.[sessionType] || {};
+  const route = routeForTranscriptType(policy, sessionType);
+  const score = confidenceShape(confidence);
+  const submittedAt = (now instanceof Date ? now : new Date(now)).toISOString();
+  const driveFileId = String(driveUpload?.id || "").trim();
+  const driveStorageRef = driveFileId ? `drive://${driveFileId}` : "";
+  const metadata = compactObject({
+    source_surface: "shape_os_chat_wheel",
+    declaration_source: "member_self_declaration",
+    processing_path: "drive_inbox",
+    declared_session_type: sessionType,
+    declared_session_type_label: type.label || sessionType,
+    declared_session_type_confidence: confidence,
+    declared_session_date: declaredDate || null,
+    declared_label: label || null,
+    related_hint: relatedText || null,
+    original_file_name: staged.originalName,
+    staged_file_name: staged.stagedName,
+    local_storage_ref: staged.storageRef,
+    target_drive_route: route.path,
+    target_drive_derived_route: route.derived_path || route.path,
+    drive_mirror_status: "uploaded",
+    drive_upload_status: "uploaded",
+    source_provider: "google_drive",
+    drive_file_id: driveFileId,
+    drive_file_name: driveUpload?.name || staged.stagedName,
+    drive_folder_id: driveFolderId || undefined,
+    processing_hint: sessionId ? "queue_drive_processing" : "needs_calendar_match",
+    policy_key: policy.policy_key || "transcript-routing",
+    policy_version: policy.version || "",
+    max_tier: type.max_tier || "",
+    cohort_mode: type.cohort_mode || "",
+    public_allowed: !!type.public_allowed,
+    route_access_note: route.access_note || type.notes || "",
+    type_confidence_pct: score.type,
+    group_confidence_pct: score.group,
+    understanding_confidence_pct: score.understanding,
+    confidence_basis: {
+      type: ["member self-declared"],
+      group: ["chat wheel transcript intake"],
+      understanding: [confidence === "needs_review" ? "member requested review" : "member supplied type"],
+    },
+    submitted_at: submittedAt,
+    privacy_note: "Original uploaded to a private Google Drive folder; Shape OS stores metadata and a private Drive file reference only.",
+  });
+  const artifact = compactObject({
+    session_id: sessionId || undefined,
+    source_kind: "drive_doc",
+    source_tier: "T0",
+    storage_mode: "external_ref",
+    storage_ref: driveStorageRef,
+    raw_available_to_server: false,
+    source_hash: staged.sourceHash,
+    mime_type: staged.mimeType,
+    size_bytes: staged.sizeBytes,
+    metadata,
+  });
+  return compactObject({
+    org_id: orgId,
+    session_id: sessionId || undefined,
+    provider: "manual",
+    processor_mode: "ordinary_cloud",
+    policy_version: policy.version || undefined,
+    manifest: {
+      provider: "manual",
+      source_provider: "google_drive",
+      source_tier: "T0",
+      storage_mode: "external_ref",
+      raw_available_to_server: false,
+      artifacts: [artifact],
+    },
+  });
+}
+
 function normalizeSupabaseConfig(config = {}) {
   return {
     supabaseUrl: String(config.supabaseUrl || config.url || "").replace(/\/+$/, ""),
@@ -381,6 +503,21 @@ function normalizeSupabaseConfig(config = {}) {
     ingestArtifactsUrl: String(config.ingestArtifactsUrl || "").trim(),
     contextSubmissionsUrl: String(config.contextSubmissionsUrl || "").trim(),
   };
+}
+
+function normalizeDriveConfig(config = {}) {
+  return {
+    accessToken: String(config.accessToken || config.access_token || config.googleAccessToken || config.google_access_token || "").trim(),
+    folderId: String(config.folderId || config.folder_id || config.driveFolderId || config.drive_folder_id || config.driveArtifactFolderId || "").trim(),
+    uploadUrl: String(config.uploadUrl || "").trim(),
+  };
+}
+
+function missingDriveFields(config) {
+  const missing = [];
+  if (!config.accessToken) missing.push("Google Drive access token");
+  if (!config.folderId) missing.push("Drive folder ID");
+  return missing;
 }
 
 function missingSupabaseFields(config) {
@@ -398,6 +535,74 @@ function missingRawSupabaseFields(config) {
   if (!config.supabaseAnonKey) missing.push("anon key");
   if (!config.orgId) missing.push("org ID");
   return missing;
+}
+
+function driveUploadUrl(config) {
+  const url = new URL(config.uploadUrl || GOOGLE_DRIVE_UPLOAD_URL);
+  url.searchParams.set("uploadType", "multipart");
+  url.searchParams.set("supportsAllDrives", "true");
+  url.searchParams.set("fields", GOOGLE_DRIVE_UPLOAD_FIELDS);
+  return url.toString();
+}
+
+function buildDriveMultipartBody({ staged, folderId }) {
+  const boundary = `sros_${crypto.randomBytes(12).toString("hex")}`;
+  const metadata = {
+    name: staged.stagedName,
+    parents: [folderId],
+    mimeType: staged.mimeType,
+    appProperties: {
+      source: "shape_os_transcript_intake",
+      source_hash: staged.sourceHash,
+    },
+  };
+  const preamble = Buffer.from([
+    `--${boundary}`,
+    "Content-Type: application/json; charset=UTF-8",
+    "",
+    JSON.stringify(metadata),
+    `--${boundary}`,
+    `Content-Type: ${staged.mimeType || "application/octet-stream"}`,
+    "",
+    "",
+  ].join("\r\n"), "utf8");
+  const file = fs.readFileSync(staged.stagedPath);
+  const close = Buffer.from(`\r\n--${boundary}--\r\n`, "utf8");
+  return { boundary, body: Buffer.concat([preamble, file, close]) };
+}
+
+async function callDriveUpload({ config, staged, fetchImpl = fetch }) {
+  const { boundary, body } = buildDriveMultipartBody({ staged, folderId: config.folderId });
+  const response = await fetchImpl(driveUploadUrl(config), {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${config.accessToken}`,
+      "content-type": `multipart/related; boundary=${boundary}`,
+    },
+    body,
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    const error = new Error(`Google Drive upload failed: ${response.status}`);
+    error.code = "drive_upload_failed";
+    error.status = response.status;
+    error.body = data;
+    throw error;
+  }
+  if (!data || !data.id) {
+    const error = new Error("Google Drive upload did not return a file id.");
+    error.code = "drive_upload_missing_file_id";
+    error.body = data;
+    throw error;
+  }
+  return {
+    id: String(data.id),
+    name: data.name || staged.stagedName,
+    mimeType: data.mimeType || staged.mimeType,
+    parents: Array.isArray(data.parents) ? data.parents : [],
+    size: data.size || "",
+    md5Checksum: data.md5Checksum || "",
+  };
 }
 
 async function callIngestArtifacts({ config, body, fetchImpl = fetch }) {
@@ -711,6 +916,7 @@ async function submitTranscriptIntake({
   agentCmd = "",
   allowRemoteAgent = false,
   supabase = {},
+  drive = {},
   now = new Date(),
   intakeRoot = DEFAULT_INTAKE_ROOT,
   storageRefRoot = REPO_ROOT,
@@ -748,6 +954,7 @@ async function submitTranscriptIntake({
   stampSidecar();
 
   const config = normalizeSupabaseConfig(supabase);
+  const driveConfig = normalizeDriveConfig(drive);
   const baseResult = {
     sessionType,
     sessionId: sessionId || null,
@@ -760,6 +967,143 @@ async function submitTranscriptIntake({
     sizeBytes: staged.sizeBytes,
     driveMirrorStatus: "pending",
   };
+
+  if (pathKey === "drive_inbox") {
+    const missingDrive = missingDriveFields(driveConfig);
+    if (missingDrive.length) {
+      return {
+        ok: false,
+        reason: "missing_drive_config",
+        detail: `Missing ${missingDrive.join(", ")}.`,
+        missing: missingDrive,
+        staged: true,
+        ...baseResult,
+      };
+    }
+
+    let driveUpload = null;
+    const driveUploadedAt = new Date().toISOString();
+    try {
+      driveUpload = await callDriveUpload({ config: driveConfig, staged, fetchImpl });
+      stampSidecar({
+        drive_uploaded_at: driveUploadedAt,
+        drive_file_id: driveUpload.id,
+        drive_file_name: driveUpload.name,
+        drive_folder_id: driveConfig.folderId,
+        drive_storage_ref: `drive://${driveUpload.id}`,
+        drive_mirror_status: "uploaded",
+        storage_mode: "google_drive_private",
+      });
+    } catch (error) {
+      return {
+        ok: false,
+        reason: error?.code || "drive_upload_failed",
+        detail: error?.message || String(error),
+        status: error?.status,
+        body: error?.body,
+        staged: true,
+        ...baseResult,
+      };
+    }
+
+    const driveResult = {
+      ...baseResult,
+      driveUploaded: true,
+      driveFileId: driveUpload.id,
+      driveFileName: driveUpload.name,
+      driveFolderId: driveConfig.folderId,
+      driveStorageRef: `drive://${driveUpload.id}`,
+      driveMirrorStatus: "uploaded",
+    };
+    if (!sessionId) {
+      stampSidecar({
+        drive_uploaded_at: driveUploadedAt,
+        drive_file_id: driveUpload.id,
+        drive_file_name: driveUpload.name,
+        drive_folder_id: driveConfig.folderId,
+        drive_storage_ref: `drive://${driveUpload.id}`,
+        drive_mirror_status: "uploaded",
+        drive_index_pending_reason: "session_match_required",
+        storage_mode: "google_drive_private",
+      });
+      return {
+        ok: true,
+        submittedToSupabase: false,
+        processingQueued: false,
+        processingJobCount: 0,
+        sourceArtifactCount: 0,
+        reason: "session_match_required",
+        detail: "Uploaded to Drive; choose a session before Shape OS indexes the Drive pointer.",
+        staged: true,
+        ...driveResult,
+      };
+    }
+    const missingSupabase = missingSupabaseFields(config);
+    if (missingSupabase.length) {
+      return {
+        ok: false,
+        reason: "missing_supabase_config",
+        detail: `Uploaded to Drive, but missing ${missingSupabase.join(", ")} for Shape OS indexing.`,
+        missing: missingSupabase,
+        staged: true,
+        ...driveResult,
+      };
+    }
+
+    const body = buildDriveInboxIntakeBody({
+      policy,
+      orgId: config.orgId,
+      sessionId,
+      sessionType,
+      confidence,
+      declaredDate,
+      label,
+      relatedText,
+      staged,
+      driveUpload,
+      driveFolderId: driveConfig.folderId,
+      now,
+    });
+
+    try {
+      const ingest = await callIngestArtifacts({ config, body, fetchImpl });
+      const persisted = ingest.persisted || {};
+      const processingJobs = Array.isArray(persisted.processingJobs) ? persisted.processingJobs : [];
+      const sourceArtifacts = Array.isArray(persisted.sourceArtifacts) ? persisted.sourceArtifacts : [];
+      const submittedAt = new Date().toISOString();
+      stampSidecar({
+        submitted_at: submittedAt,
+        drive_indexed_at: submittedAt,
+        drive_uploaded_at: driveUploadedAt,
+        drive_file_id: driveUpload.id,
+        drive_file_name: driveUpload.name,
+        drive_folder_id: driveConfig.folderId,
+        drive_storage_ref: `drive://${driveUpload.id}`,
+        drive_mirror_status: "uploaded",
+        storage_mode: "google_drive_private",
+        processing_queued: processingJobs.length > 0,
+      });
+      return {
+        ok: true,
+        submittedToSupabase: true,
+        processingQueued: processingJobs.length > 0,
+        processingJobCount: processingJobs.length,
+        sourceArtifactCount: sourceArtifacts.length || (Array.isArray(ingest.sourceArtifacts) ? ingest.sourceArtifacts.length : 0),
+        ingest,
+        ...driveResult,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        reason: error?.code || "supabase_ingest_failed",
+        detail: error?.message || String(error),
+        status: error?.status,
+        body: error?.body,
+        staged: true,
+        ...driveResult,
+      };
+    }
+  }
 
   if (pathKey === "supabase_raw") {
     const missing = missingRawSupabaseFields(config);
@@ -944,6 +1288,84 @@ async function submitTranscriptIntake({
   }
 }
 
+async function submitTranscriptIntakeBatch({
+  filePaths = [],
+  filePath = "",
+  label = "",
+  now = new Date(),
+  ...opts
+} = {}) {
+  const requestedPaths = Array.isArray(filePaths) && filePaths.length ? filePaths : [filePath];
+  const inspected = inspectTranscriptFiles(requestedPaths);
+  if (!inspected.ok) {
+    return {
+      ok: false,
+      bulk: true,
+      reason: inspected.reason || "no_files",
+      detail: inspected.detail || "Choose at least one transcript file.",
+      totalCount: inspected.rejected?.length || 0,
+      okCount: 0,
+      failedCount: inspected.rejected?.length || 0,
+      results: [],
+      rejected: inspected.rejected || [],
+    };
+  }
+
+  const results = [];
+  for (let index = 0; index < inspected.files.length; index += 1) {
+    const info = inspected.files[index];
+    try {
+      const result = await submitTranscriptIntake({
+        ...opts,
+        filePath: info.filePath,
+        label,
+        now,
+      });
+      results.push({
+        ...result,
+        bulkIndex: index,
+        bulkCount: inspected.files.length,
+        fileName: info.name,
+        filePath: info.filePath,
+      });
+    } catch (error) {
+      results.push({
+        ok: false,
+        reason: error?.code || "intake_failed",
+        detail: error?.message || String(error),
+        bulkIndex: index,
+        bulkCount: inspected.files.length,
+        fileName: info.name,
+        filePath: info.filePath,
+      });
+    }
+  }
+
+  const rejected = inspected.rejected || [];
+  const okCount = results.filter((item) => item && item.ok).length;
+  const failedCount = (results.length - okCount) + rejected.length;
+  const contextSubmissionRows = results.reduce((sum, item) => sum + (Number(item?.contextSubmissionRows) || 0), 0);
+  const localReadoutCount = results.filter((item) => item?.processedLocally).length;
+  const processingQueuedCount = results.filter((item) => item?.processingQueued).length;
+  const driveUploadCount = results.filter((item) => item?.driveUploaded).length;
+  return {
+    ok: failedCount === 0,
+    bulk: true,
+    totalCount: results.length + rejected.length,
+    submittedCount: results.length,
+    okCount,
+    failedCount,
+    contextSubmissionRows,
+    localReadoutCount,
+    driveUploadCount,
+    processingQueuedCount,
+    results,
+    rejected,
+    reason: failedCount ? "bulk_intake_partial_failed" : undefined,
+    detail: failedCount ? `${okCount} of ${results.length + rejected.length} transcript files completed.` : undefined,
+  };
+}
+
 // Open the native file picker and return the validated file's display info
 // (no staging/upload yet). The renderer calls this first so the user can see
 // what they picked before filling in metadata and submitting.
@@ -959,6 +1381,20 @@ async function pickTranscriptFile({ browserWindow, dialogImpl } = {}) {
   });
   if (selection?.canceled || !selection?.filePaths?.[0]) return { ok: false, reason: "canceled" };
   return inspectTranscriptFile(selection.filePaths[0]);
+}
+
+async function pickTranscriptFiles({ browserWindow, dialogImpl } = {}) {
+  const dialogApi = dialogImpl || require("electron").dialog;
+  const selection = await dialogApi.showOpenDialog(browserWindow, {
+    title: "Add transcripts",
+    properties: ["openFile", "multiSelections"],
+    filters: [
+      { name: "Transcripts", extensions: ["txt", "md", "markdown", "vtt", "srt", "csv", "json", "doc", "docx", "pdf", "rtf"] },
+      { name: "All files", extensions: ["*"] },
+    ],
+  });
+  if (selection?.canceled || !selection?.filePaths?.length) return { ok: false, reason: "canceled" };
+  return inspectTranscriptFiles(selection.filePaths);
 }
 
 // Recent uploads staged FROM THIS DEVICE, newest first — each entry is a
@@ -982,6 +1418,11 @@ function listTranscriptIntakeHistory({ intakeRoot = DEFAULT_INTAKE_ROOT, limit =
             staged_at: m.staged_at,
             submitted_at: m.submitted_at || null,
             raw_submitted_at: m.raw_submitted_at || null,
+            drive_uploaded_at: m.drive_uploaded_at || null,
+            drive_indexed_at: m.drive_indexed_at || null,
+            drive_file_id: m.drive_file_id || "",
+            drive_folder_id: m.drive_folder_id || "",
+            drive_storage_ref: m.drive_storage_ref || "",
             local_processed_at: m.local_processed_at || null,
             processing_queued: !!m.processing_queued,
             processing_path: m.processing_path || "metadata",
@@ -1015,18 +1456,24 @@ module.exports = {
   listTranscriptIntakeHistory,
   DEFAULT_POLICY,
   MAX_UPLOAD_BYTES,
+  buildDriveInboxIntakeBody,
   buildTranscriptIntakeBody,
+  callDriveUpload,
   buildLocalAgentPrompt,
   buildRawContextSubmissionRows,
   chunkText,
   getTranscriptIntakeOptions,
   inspectTranscriptFile,
+  inspectTranscriptFiles,
   loadTranscriptPolicy,
+  normalizeDriveConfig,
   normalizeSupabaseConfig,
   routeForTranscriptType,
   sessionTypeEntries,
   stageTranscriptFile,
   submitTranscriptIntake,
+  submitTranscriptIntakeBatch,
   pickTranscriptFile,
+  pickTranscriptFiles,
   pickAndSubmitTranscriptIntake,
 };

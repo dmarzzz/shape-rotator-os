@@ -11,11 +11,13 @@ const {
   buildTranscriptIntakeBody,
   chunkText,
   getTranscriptIntakeOptions,
+  inspectTranscriptFiles,
   listTranscriptIntakeHistory,
   loadTranscriptPolicy,
   routeForTranscriptType,
   stageTranscriptFile,
   submitTranscriptIntake,
+  submitTranscriptIntakeBatch,
 } = require("./transcript-intake.js");
 
 test("transcript type declaration uses the Engine routing categories", () => {
@@ -25,7 +27,7 @@ test("transcript type declaration uses the Engine routing categories", () => {
   assert.equal(routeForTranscriptType(policy, "leadership_meeting").path, "do_not_publish/leadership_meeting");
   const options = getTranscriptIntakeOptions();
   assert.equal(options.sessionTypes.some((type) => type.key === "leadership_meeting"), true);
-  assert.deepEqual(options.processingPaths.map((path) => path.key), ["metadata", "supabase_raw", "local_agent"]);
+  assert.deepEqual(options.processingPaths.map((path) => path.key), ["drive_inbox", "metadata", "supabase_raw", "local_agent"]);
   assert.throws(
     () => routeForTranscriptType(policy, ""),
     /Choose a transcript type/,
@@ -100,6 +102,94 @@ test("raw transcript rows chunk long bodies before the table limit", () => {
   assert.equal(rows[1].body.length, 1);
   assert.equal(rows[0].metadata.chunk_count, 2);
   assert.equal(rows[1].metadata.chunk_index, 1);
+});
+
+test("inspectTranscriptFiles accepts valid batch picks and reports skipped files", () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sros-transcript-inspect-bulk-"));
+  const first = path.join(tmp, "one.txt");
+  const second = path.join(tmp, "two.md");
+  const skipped = path.join(tmp, "image.png");
+  fs.writeFileSync(first, "one", "utf8");
+  fs.writeFileSync(second, "two", "utf8");
+  fs.writeFileSync(skipped, "png", "utf8");
+
+  const result = inspectTranscriptFiles([first, first, second, skipped]);
+  assert.equal(result.ok, true);
+  assert.equal(result.files.length, 2);
+  assert.deepEqual(result.files.map((item) => item.name), ["one.txt", "two.md"]);
+  assert.equal(result.rejected.length, 1);
+  assert.equal(result.rejected[0].reason, "unsupported_file_type");
+});
+
+test("submitTranscriptIntakeBatch sends multiple raw text transcripts", async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sros-transcript-bulk-"));
+  const first = path.join(tmp, "one.txt");
+  const second = path.join(tmp, "two.vtt");
+  const intakeRoot = path.join(tmp, "private-intake");
+  fs.writeFileSync(first, "Transcript one\n", "utf8");
+  fs.writeFileSync(second, "WEBVTT\n\n00:00.000 --> 00:01.000\nTranscript two\n", "utf8");
+
+  const calls = [];
+  const fetchImpl = async (url, options = {}) => {
+    calls.push({ url: String(url), body: JSON.parse(options.body) });
+    return response(null, { status: 201 });
+  };
+
+  const result = await submitTranscriptIntakeBatch({
+    filePaths: [first, second],
+    sessionType: "salon",
+    label: "Bulk salon",
+    processingPath: "supabase_raw",
+    supabase: {
+      supabaseUrl: "https://project.supabase.co",
+      supabaseAnonKey: "anon",
+      orgId: "srfg",
+    },
+    intakeRoot,
+    storageRefRoot: tmp,
+    fetchImpl,
+    now: new Date("2026-06-29T12:00:00Z"),
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.bulk, true);
+  assert.equal(result.totalCount, 2);
+  assert.equal(result.okCount, 2);
+  assert.equal(result.contextSubmissionRows, 2);
+  assert.equal(calls.length, 2);
+  assert.match(calls[0].body.body, /Transcript one/);
+  assert.match(calls[1].body.body, /Transcript two/);
+  assert.equal(result.results.every((item) => item.rawSubmittedToSupabase), true);
+});
+
+test("submitTranscriptIntakeBatch reports partial failures without dropping valid files", async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sros-transcript-bulk-partial-"));
+  const text = path.join(tmp, "ok.txt");
+  const pdf = path.join(tmp, "needs-pointer.pdf");
+  fs.writeFileSync(text, "Valid transcript\n", "utf8");
+  fs.writeFileSync(pdf, "%PDF-1.4 fake", "utf8");
+  let calls = 0;
+
+  const result = await submitTranscriptIntakeBatch({
+    filePaths: [text, pdf],
+    sessionType: "office_hours",
+    processingPath: "supabase_raw",
+    supabase: {
+      supabaseUrl: "https://project.supabase.co",
+      supabaseAnonKey: "anon",
+      orgId: "srfg",
+    },
+    intakeRoot: path.join(tmp, "private-intake"),
+    storageRefRoot: tmp,
+    fetchImpl: async () => { calls += 1; return response(null, { status: 201 }); },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.bulk, true);
+  assert.equal(result.okCount, 1);
+  assert.equal(result.failedCount, 1);
+  assert.equal(calls, 1);
+  assert.equal(result.results[1].reason, "text_transcript_required");
 });
 
 test("submitTranscriptIntake runs a local agent readout without calling Supabase", async () => {
@@ -254,6 +344,178 @@ test("submitTranscriptIntake calls ingest-artifacts with signed auth", async () 
   assert.equal(calls[0].body.manifest.artifacts[0].metadata.drive_mirror_status, "pending");
 });
 
+test("submitTranscriptIntake uploads originals to private Drive and indexes only a pointer", async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sros-transcript-drive-"));
+  const source = path.join(tmp, "Board Deck.pdf");
+  const intakeRoot = path.join(tmp, "private-intake");
+  fs.writeFileSync(source, "%PDF-1.4 fake private transcript deck", "utf8");
+
+  const calls = [];
+  const fetchImpl = async (url, options = {}) => {
+    const call = { url: String(url), options };
+    if (String(url).includes("googleapis.com/upload/drive")) {
+      call.bodyText = Buffer.isBuffer(options.body) ? options.body.toString("utf8") : String(options.body || "");
+      calls.push(call);
+      assert.equal(options.headers.authorization, "Bearer drive-token");
+      assert.match(options.headers["content-type"], /^multipart\/related; boundary=sros_/);
+      assert.match(call.bodyText, /"parents":\["folder_private"\]/);
+      assert.match(call.bodyText, /"source":"shape_os_transcript_intake"/);
+      return response({
+        id: "drive_file_1",
+        name: "salon_board-deck_abc.pdf",
+        mimeType: "application/pdf",
+        parents: ["folder_private"],
+        size: "35",
+      });
+    }
+    call.body = JSON.parse(options.body);
+    calls.push(call);
+    assert.equal(options.headers.authorization, "Bearer supabase-token");
+    assert.equal(options.headers.apikey, "anon");
+    return response({
+      provider: "google_drive",
+      persisted: {
+        sourceArtifacts: [{ id: "source_drive_1" }],
+        processingJobs: [{ id: "job_drive_1" }],
+      },
+    });
+  };
+
+  const result = await submitTranscriptIntake({
+    filePath: source,
+    sessionType: "salon",
+    label: "Board Deck",
+    sessionId: "22222222-2222-4222-8222-222222222222",
+    processingPath: "drive_inbox",
+    drive: {
+      accessToken: "drive-token",
+      folderId: "folder_private",
+    },
+    supabase: {
+      supabaseUrl: "https://project.supabase.co",
+      supabaseAnonKey: "anon",
+      accessToken: "supabase-token",
+      orgId: "srfg",
+    },
+    intakeRoot,
+    storageRefRoot: tmp,
+    fetchImpl,
+    now: new Date("2026-07-04T12:00:00Z"),
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.processingPath, "drive_inbox");
+  assert.equal(result.driveUploaded, true);
+  assert.equal(result.driveFileId, "drive_file_1");
+  assert.equal(result.submittedToSupabase, true);
+  assert.equal(calls.length, 2);
+  assert.match(calls[0].url, /^https:\/\/www\.googleapis\.com\/upload\/drive\/v3\/files\?/);
+  assert.equal(calls[0].url.includes("/permissions"), false);
+  assert.equal(calls[1].url, "https://project.supabase.co/functions/v1/ingest-artifacts");
+  assert.equal(calls[1].body.provider, "manual");
+  assert.equal(calls[1].body.processor_mode, "ordinary_cloud");
+  assert.equal(calls[1].body.manifest.source_provider, "google_drive");
+  const artifact = calls[1].body.manifest.artifacts[0];
+  assert.equal(artifact.source_kind, "drive_doc");
+  assert.equal(artifact.storage_mode, "external_ref");
+  assert.equal(artifact.storage_ref, "drive://drive_file_1");
+  assert.equal(artifact.raw_available_to_server, false);
+  assert.equal(calls[1].body.manifest.storage_mode, "external_ref");
+  assert.equal(artifact.metadata.source_provider, "google_drive");
+  assert.equal(artifact.metadata.drive_file_id, "drive_file_1");
+  assert.equal(artifact.metadata.local_storage_ref, result.storageRef);
+  assert.doesNotMatch(JSON.stringify(calls[1].body), /fake private transcript deck/);
+  assert.doesNotMatch(JSON.stringify(calls[1].body), /drive-token|supabase-token/);
+  const manifest = JSON.parse(fs.readFileSync(path.join(tmp, `${result.storageRef}.manifest.json`), "utf8"));
+  assert.equal(manifest.processing_path, "drive_inbox");
+  assert.equal(manifest.drive_file_id, "drive_file_1");
+  assert.equal(manifest.drive_folder_id, "folder_private");
+  assert.equal(manifest.drive_storage_ref, "drive://drive_file_1");
+  assert.equal(manifest.storage_mode, "google_drive_private");
+  assert.equal(JSON.stringify(manifest).includes("drive-token"), false);
+});
+
+test("submitTranscriptIntake Drive inbox defers Supabase indexing until a session is chosen", async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sros-transcript-drive-defer-"));
+  const source = path.join(tmp, "Unmatched Notes.txt");
+  const intakeRoot = path.join(tmp, "private-intake");
+  fs.writeFileSync(source, "Synthetic unmatched transcript", "utf8");
+
+  const calls = [];
+  const fetchImpl = async (url, options = {}) => {
+    calls.push({ url: String(url), options });
+    return response({
+      id: "drive_unmatched_1",
+      name: "salon_unmatched-notes_abc.txt",
+      mimeType: "text/plain",
+      parents: ["folder_private"],
+      size: "30",
+    });
+  };
+
+  const result = await submitTranscriptIntake({
+    filePath: source,
+    sessionType: "salon",
+    label: "Unmatched Notes",
+    processingPath: "drive_inbox",
+    drive: {
+      accessToken: "drive-token",
+      folderId: "folder_private",
+    },
+    supabase: {
+      supabaseUrl: "https://project.supabase.co",
+      supabaseAnonKey: "anon",
+      accessToken: "supabase-token",
+      orgId: "srfg",
+    },
+    intakeRoot,
+    storageRefRoot: tmp,
+    fetchImpl,
+    now: new Date("2026-07-04T12:10:00Z"),
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.reason, "session_match_required");
+  assert.equal(result.driveUploaded, true);
+  assert.equal(result.submittedToSupabase, false);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /^https:\/\/www\.googleapis\.com\/upload\/drive\/v3\/files\?/);
+  const manifest = JSON.parse(fs.readFileSync(path.join(tmp, `${result.storageRef}.manifest.json`), "utf8"));
+  assert.equal(manifest.drive_index_pending_reason, "session_match_required");
+  assert.equal(manifest.drive_storage_ref, "drive://drive_unmatched_1");
+});
+
+test("submitTranscriptIntake Drive inbox stages locally and reports missing Drive config", async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sros-transcript-drive-missing-"));
+  const source = path.join(tmp, "Raw Notes.docx");
+  const intakeRoot = path.join(tmp, "private-intake");
+  fs.writeFileSync(source, "fake docx", "utf8");
+  let fetched = false;
+
+  const result = await submitTranscriptIntake({
+    filePath: source,
+    sessionType: "office_hours",
+    processingPath: "drive_inbox",
+    drive: {},
+    supabase: {
+      supabaseUrl: "https://project.supabase.co",
+      supabaseAnonKey: "anon",
+      accessToken: "supabase-token",
+      orgId: "srfg",
+    },
+    intakeRoot,
+    storageRefRoot: tmp,
+    fetchImpl: async () => { fetched = true; throw new Error("should not fetch"); },
+    now: new Date("2026-07-04T12:00:00Z"),
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "missing_drive_config");
+  assert.equal(result.staged, true);
+  assert.equal(fetched, false);
+  assert.deepEqual(result.missing, ["Google Drive access token", "Drive folder ID"]);
+});
+
 test("submitTranscriptIntake stages locally and reports missing Supabase config", async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sros-transcript-missing-"));
   const source = path.join(tmp, "Raw Notes.txt");
@@ -289,6 +551,7 @@ test("listTranscriptIntakeHistory reads manifests newest-first with submit state
   fs.mkdirSync(sub, { recursive: true });
   fs.writeFileSync(path.join(sub, "a.txt.manifest.json"), JSON.stringify({
     staged_at: "2026-07-01T10:00:00Z", session_type: "salon", label: "older", processing_queued: true, submitted_at: "2026-07-01T10:00:05Z",
+    drive_uploaded_at: "2026-07-01T10:00:02Z", drive_file_id: "drive_older", drive_folder_id: "folder_private",
   }));
   fs.writeFileSync(path.join(sub, "b.txt.manifest.json"), JSON.stringify({
     staged_at: "2026-07-02T10:00:00Z", session_type: "salon", label: "newer, staged only",
@@ -299,6 +562,8 @@ test("listTranscriptIntakeHistory reads manifests newest-first with submit state
   assert.equal(items[0].submitted_at, null);
   assert.equal(items[1].submitted_at, "2026-07-01T10:00:05Z");
   assert.equal(items[1].processing_queued, true);
+  assert.equal(items[1].drive_uploaded_at, "2026-07-01T10:00:02Z");
+  assert.equal(items[1].drive_file_id, "drive_older");
   fs.rmSync(root, { recursive: true, force: true });
 });
 

@@ -23,8 +23,13 @@
     "check:packaging": "node scripts/check-packaging-files.js",
     "check:intel": "node scripts/check-intel-signals.cjs",
     "smoke": "electron . --smoke-test",
+    "transcripts:intake:flow-smoke": "electron . --transcript-intake-flow-smoke",
+    "transcripts:drive:consent": "electron . --transcript-drive-auth-consent",
+    "transcripts:drive:auth-smoke": "electron . --transcript-drive-auth-smoke",
+    "transcripts:drive:intake-smoke": "electron . --transcript-drive-intake-smoke",
     "transcripts:receive:selftest": "electron . --transcript-receive-selftest --require-google-session",
     "transcripts:receive:signin": "electron . --transcript-auth-proof",
+    "auth:gate:visual-smoke": "electron scripts/auth-gate-visual-smoke.cjs",
     "smoke:launcher": "electron scripts/launcher-visual-smoke.cjs",
     "bundle:check": "node scripts/bundle-renderer.cjs --check"
   },
