@@ -5919,6 +5919,11 @@ function wireCohortChatLauncher() {
       toggleCohortChatFromLauncher(e);
     }
   });
+  // First-visit-per-page teaching chip that slides out from behind the dial
+  // (once per top-level page, ever — see cohort-chat-tips.js).
+  import("./cohort-chat-tips.js")
+    .then((m) => m.initChatPageTips && m.initChatPageTips())
+    .catch(() => {});
 }
 
 function installSearchRecentStrip() {

@@ -15286,8 +15286,11 @@ function renderContextVaultRawDetail(selected) {
           <span class="alch-cv-eyebrow">transcript · txt</span>
         </div>
         <div class="alch-cv-detail-actions">
-          <button class="alch-cv-md-action" type="button" data-cv-copy-raw="${escAttr(selected.id)}" title="copy ${escAttr(title)}">
-            <span class="alch-cv-md-action-label">copy .txt</span>
+          <!-- The AI rewrite is the direct action on a RAW transcript — it was
+               buried in "more" and nobody found it (2026-07-02 feedback).
+               copy .txt moved into the menu; still one direct + one menu (#549). -->
+          <button class="alch-cv-md-action" type="button" data-cv-distill-raw="${escAttr(selected.id)}" title="your own local AI writes a distilled readout — preview only, nothing saved or published">
+            <span class="alch-cv-md-action-label">distill with your AI</span>
           </button>
           <div class="alch-cv-restyle-wrap">
             <button class="alch-cv-md-action" type="button" data-cv-more-toggle aria-expanded="false" title="more actions">
@@ -15295,7 +15298,7 @@ function renderContextVaultRawDetail(selected) {
               <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
             </button>
             <div class="alch-cv-restyle-menu" data-cv-more-menu>
-              <button class="alch-cv-restyle-opt" type="button" data-cv-distill-raw="${escAttr(selected.id)}" title="your own local AI writes a distilled readout — preview only, nothing saved or published">Distill with your AI</button>
+              <button class="alch-cv-restyle-opt" type="button" data-cv-copy-raw="${escAttr(selected.id)}" title="copy ${escAttr(title)}">Copy .txt</button>
               <button class="alch-cv-restyle-opt" type="button" data-cv-copy-raw-bundle title="copy all transcripts">Copy all transcripts</button>
             </div>
           </div>
