@@ -234,6 +234,20 @@ function createController() {
     return "the local AI exited without output — check the command in settings ⚙";
   }
 
+  function setDialState(state) {
+    const dial = document.getElementById("cohort-chat-dial");
+    if (!dial) return;
+    const next = state === "running" || state === "error" || state === "news" ? state : "idle";
+    dial.dataset.state = next;
+    const labels = {
+      idle: "ask the cohort",
+      running: "ask the cohort, agent running",
+      error: "ask the cohort, last run failed",
+      news: "ask the cohort, answer ready",
+    };
+    dial.setAttribute("aria-label", labels[next] || labels.idle);
+  }
+
   // Keep the corner dial's open/closed state in sync (gold-arc settle + no pulse)
   // AND broadcast a global "chat is open" signal on <html> so other surfaces (the
   // membrane agenda rail) can make room for the popup. Both open() and close()
@@ -255,11 +269,19 @@ function createController() {
   function setDialActivity({ running = null, news = null } = {}) {
     const dial = document.getElementById("cohort-chat-dial");
     if (!dial) return;
-    if (running != null) dial.classList.toggle("is-running", !!running);
+    let nextState = dial.dataset.state || "idle";
+    if (running != null) {
+      dial.classList.toggle("is-running", !!running);
+      if (running) nextState = "running";
+      else if (nextState === "running") nextState = "idle";
+    }
     if (news != null) {
       dial.classList.toggle("has-news", !!news);
-      dial.title = news ? "answer ready — open chat" : "Ask the cohort (Ctrl+Shift+K)";
+      dial.title = news ? "answer ready - open chat" : "Ask the cohort (Ctrl+Shift+K)";
+      if (news) nextState = "news";
+      else if (nextState === "news") nextState = dial.classList.contains("is-running") ? "running" : "idle";
     }
+    setDialState(nextState);
   }
   // Same loop for in-panel view switches: an answer that lands while you're on
   // sync/transcript/search dots the ask tab until you look.
@@ -553,7 +575,11 @@ function createController() {
     close();
   }
 
-  function setStatus(state, line) { dot.dataset.state = state; statusLine.textContent = line; }
+  function setStatus(state, line) {
+    dot.dataset.state = state;
+    statusLine.textContent = line;
+    setDialState(state);
+  }
   function setPreMsg(msg, kind) {
     preMsg.textContent = msg || "";
     preMsg.className = "cohort-chat-pre-message" + (kind ? ` is-${kind}` : "");
@@ -1639,8 +1665,9 @@ function createController() {
       } else if (s.signal === "SIGTERM" || s.signal === "SIGKILL") {
         finishRun("stopped");
       } else {
-        finishRun(`exited code=${s.exitCode}`);
-        setPreMsg("the local AI exited without output — check the command in settings ⚙", "error");
+        const msg = diagnoseFailure();
+        finishRun(`exited code=${s.exitCode}`, msg);
+        setPreMsg(msg, "error");
       }
     });
 

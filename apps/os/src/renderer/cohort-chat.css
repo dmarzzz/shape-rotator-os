@@ -1197,17 +1197,17 @@ html[data-ds] .cc-composer .cc-send[hidden] { display: none !important; }
 
 /* Persistent chat launcher in the bottom-right corner. */
 .cohort-chat-dial-wrap {
-  /* The dial sits flush in the window's bottom-right rounded corner; the window
-     masks any overflow, so the circle reads as tucked into the corner.
-     --cc-win-corner is its radius — sized for a comfortable click target (not
-     strictly the OS corner radius). */
-  --cc-win-corner: 20px;
+  --cc-dial-size: 48px;
+  --cc-dial-offset: 14px;
+  --cc-ease-overshoot: cubic-bezier(0.34, 1.2, 0.64, 1);
+  --cc-ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --cc-ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
   position: fixed;
-  right: 0;
-  bottom: 0;
+  right: var(--cc-dial-offset);
+  bottom: var(--cc-dial-offset);
   z-index: 1201;
-  width: calc(var(--cc-win-corner) * 2);
-  height: calc(var(--cc-win-corner) * 2);
+  width: var(--cc-dial-size);
+  height: var(--cc-dial-size);
   pointer-events: auto;
 }
 .cohort-chat-dial {
@@ -1216,8 +1216,8 @@ html[data-ds] .cc-composer .cc-send[hidden] { display: none !important; }
   bottom: 0;
   z-index: 2;
   box-sizing: border-box;
-  width: calc(var(--cc-win-corner) * 2);
-  height: calc(var(--cc-win-corner) * 2);
+  width: var(--cc-dial-size);
+  height: var(--cc-dial-size);
   padding: 0;
   border: 1px solid color-mix(in srgb, var(--ds-border-strong) 74%, transparent);
   border-radius: 50%;
@@ -1228,16 +1228,43 @@ html[data-ds] .cc-composer .cc-send[hidden] { display: none !important; }
   display: grid;
   place-items: center;
   pointer-events: auto;
+  isolation: isolate;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.07);
   backdrop-filter: blur(16px);
-  transition: transform 0.14s ease, border-color 0.14s ease, color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
+  transition:
+    transform 140ms var(--cc-ease-smooth),
+    border-color 140ms var(--cc-ease-smooth),
+    color 140ms var(--cc-ease-smooth),
+    background 140ms var(--cc-ease-smooth),
+    box-shadow 140ms var(--cc-ease-smooth);
+}
+.cohort-chat-dial::before {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  z-index: -1;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 58%, transparent);
+  opacity: 0;
+  transform: scale(0.88);
+  pointer-events: none;
 }
 .cohort-chat-dial[hidden] { display: none; }
-.cohort-chat-dial:hover {
-  border-color: color-mix(in srgb, var(--ds-accent) 55%, var(--ds-border-strong));
-  color: var(--ds-accent-hover);
+@media (hover: hover) {
+  .cohort-chat-dial:hover {
+    border-color: color-mix(in srgb, var(--ds-accent) 55%, var(--ds-border-strong));
+    color: var(--ds-accent-hover);
+    transform: translateY(-1px);
+  }
 }
-.cohort-chat-dial:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 3px; }
+.cohort-chat-dial:active { transform: scale(0.96); }
+.cohort-chat-dial:focus-visible {
+  outline: none;
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 0 0 3px color-mix(in srgb, var(--ds-focus) 50%, transparent);
+}
 /* Light mode: the bot glyph reads as ink (near-black), not the yellow accent.
    The hover border still lights up in accent for affordance. */
 html[data-theme="light"] .cohort-chat-dial,
@@ -1286,6 +1313,7 @@ html[data-theme="light"] .cohort-chat-dial:hover { color: var(--ds-ink-1); }
   border-color: color-mix(in srgb, var(--ds-accent) 46%, var(--ds-border-strong));
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--ds-surface-1) 94%, transparent), color-mix(in srgb, var(--ds-surface-2) 90%, transparent));
+  transform: translateY(-2px);
 }
 .cohort-chat-dial-wrap.is-suppressed .cohort-chat-action-menu {
   opacity: 0;
@@ -1399,18 +1427,18 @@ html[data-theme="light"] .cohort-chat-dial:hover { color: var(--ds-ink-1); }
   border-color: color-mix(in srgb, var(--ds-accent) 55%, var(--ds-border-strong));
 }
 @media (prefers-reduced-motion: no-preference) {
-  .cohort-chat-dial.is-running { animation: cc-dial-working 1.5s ease-in-out infinite; }
+  .cohort-chat-dial.is-running::before { animation: cc-dial-working-ring 1500ms var(--cc-ease-expo) infinite; }
 }
-@keyframes cc-dial-working {
-  0%, 100% { box-shadow: 0 10px 24px rgba(0, 0, 0, 0.34), 0 0 0 0 color-mix(in srgb, var(--ds-accent) 45%, transparent); }
-  50%      { box-shadow: 0 10px 24px rgba(0, 0, 0, 0.34), 0 0 0 5px color-mix(in srgb, var(--ds-accent) 12%, transparent); }
+@keyframes cc-dial-working-ring {
+  0%   { opacity: 0; transform: scale(0.86); }
+  36%  { opacity: 0.62; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.22); }
 }
-/* …and a badge once the answer is waiting (cleared the moment you open). The
-   dial tucks into the window corner, so the visible quadrant is its top-left. */
+/* ...and a badge once the answer is waiting (cleared the moment you open). */
 .cohort-chat-dial.has-news::after {
   content: "";
   position: absolute;
-  top: 4px; left: 4px;
+  top: 6px; left: 6px;
   width: 9px; height: 9px;
   border-radius: 50%;
   background: var(--ds-accent);
@@ -1422,14 +1450,135 @@ html[data-theme="light"] .cohort-chat-dial:hover { color: var(--ds-ink-1); }
   to   { transform: scale(1); }
 }
 
-.cc-dial-glyph { position: relative; width: calc(var(--cc-win-corner) * 1.2); height: calc(var(--cc-win-corner) * 1.2); }
+.cc-dial-glyph {
+  position: relative;
+  width: calc(var(--cc-dial-size) * 0.56);
+  height: calc(var(--cc-dial-size) * 0.56);
+  overflow: visible;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.cc-dial-glyph :is(.cc-bot-body, .cc-bot-antenna, .cc-bot-eye, .cc-bot-mouth, .cc-bot-scan) {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.cc-dial-glyph * {
+  vector-effect: non-scaling-stroke;
+}
+.cc-bot-scan {
+  opacity: 0;
+  stroke-width: 1.5;
+}
+.cc-bot-mouth {
+  opacity: 0.64;
+  stroke-width: 1.7;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cohort-chat-dial[data-state="idle"] .cc-dial-glyph {
+    animation: cc-bot-breathe 5200ms var(--cc-ease-smooth) infinite;
+  }
+  .cohort-chat-dial[data-state="idle"] .cc-bot-antenna {
+    animation: cc-bot-antenna-idle 5200ms var(--cc-ease-smooth) infinite;
+  }
+  .cohort-chat-dial[data-state="idle"] .cc-bot-eye {
+    animation: cc-bot-blink 6200ms var(--cc-ease-smooth) infinite;
+  }
+  .cohort-chat-dial[data-state="running"] .cc-dial-glyph {
+    animation: cc-bot-work 1280ms var(--cc-ease-smooth) infinite;
+  }
+  .cohort-chat-dial[data-state="running"] .cc-bot-antenna {
+    animation: cc-bot-antenna-work 760ms var(--cc-ease-smooth) infinite alternate;
+  }
+  .cohort-chat-dial[data-state="running"] .cc-bot-scan {
+    animation: cc-bot-scan 1080ms var(--cc-ease-expo) infinite;
+  }
+  .cohort-chat-dial[data-state="running"] .cc-bot-eye-left {
+    animation: cc-bot-eye-left-work 920ms var(--cc-ease-smooth) infinite;
+  }
+  .cohort-chat-dial[data-state="running"] .cc-bot-eye-right {
+    animation: cc-bot-eye-right-work 920ms var(--cc-ease-smooth) infinite;
+  }
+  .cohort-chat-dial[data-state="news"] .cc-dial-glyph {
+    animation: cc-bot-ready 1800ms var(--cc-ease-overshoot) infinite;
+  }
+  .cohort-chat-dial[data-state="news"] .cc-bot-antenna {
+    animation: cc-bot-antenna-ready 1800ms var(--cc-ease-smooth) infinite;
+  }
+  .cohort-chat-dial.is-open:not(.is-running) .cc-dial-glyph {
+    animation: cc-bot-attend 2800ms var(--cc-ease-smooth) infinite;
+  }
+}
+.cohort-chat-dial[data-state="error"] {
+  color: var(--ds-danger);
+  border-color: color-mix(in srgb, var(--ds-danger) 58%, var(--ds-border-strong));
+}
+.cohort-chat-dial[data-state="error"] .cc-dial-glyph {
+  animation: none;
+  transform: rotate(-7deg) translateY(1px);
+}
+.cohort-chat-dial[data-state="error"] .cc-bot-eye {
+  opacity: 0.75;
+  transform: scaleY(0.42);
+}
+.cohort-chat-dial[data-state="error"] .cc-bot-mouth {
+  opacity: 0.92;
+  transform: translateY(0.75px);
+}
+@keyframes cc-bot-breathe {
+  0%, 100% { transform: translateY(0) scale(1); }
+  46%      { transform: translateY(-1px) scale(1.018); }
+}
+@keyframes cc-bot-antenna-idle {
+  0%, 100% { transform: rotate(0deg); }
+  46%      { transform: rotate(-5deg); }
+}
+@keyframes cc-bot-blink {
+  0%, 88%, 100% { transform: scaleY(1); opacity: 1; }
+  91%, 93%      { transform: scaleY(0.18); opacity: 0.72; }
+}
+@keyframes cc-bot-work {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33%      { transform: translateY(-1.5px) rotate(-1.5deg); }
+  66%      { transform: translateY(-0.5px) rotate(1.5deg); }
+}
+@keyframes cc-bot-antenna-work {
+  from { transform: rotate(-7deg) translateY(-0.4px); }
+  to   { transform: rotate(7deg) translateY(0.4px); }
+}
+@keyframes cc-bot-scan {
+  0%   { opacity: 0; transform: translateX(-3px) scaleX(0.45); }
+  34%  { opacity: 0.72; }
+  100% { opacity: 0; transform: translateX(3px) scaleX(0.9); }
+}
+@keyframes cc-bot-eye-left-work {
+  0%, 100% { transform: translateX(0); }
+  50%      { transform: translateX(0.8px); }
+}
+@keyframes cc-bot-eye-right-work {
+  0%, 100% { transform: translateX(0); }
+  50%      { transform: translateX(-0.8px); }
+}
+@keyframes cc-bot-ready {
+  0%, 100% { transform: translateY(0) scale(1); }
+  38%      { transform: translateY(-2px) scale(1.08); }
+  62%      { transform: translateY(-1px) scale(1.02); }
+}
+@keyframes cc-bot-antenna-ready {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  34%      { transform: rotate(-12deg) translateY(-0.8px); }
+  58%      { transform: rotate(8deg) translateY(-0.4px); }
+}
+@keyframes cc-bot-attend {
+  0%, 100% { transform: translateY(-1px) rotate(0deg); }
+  50%      { transform: translateY(-2px) rotate(2deg); }
+}
 
 /* ── first-visit page tip — slides out from behind the dial, once per
    top-level page ever (cohort-chat-tips.js). Click asks; ✕ dismisses. */
 .cc-page-tip {
   position: fixed;
-  right: calc(var(--cc-win-corner, 20px) * 2 + 10px);
-  bottom: 10px;
+  right: calc(var(--cc-dial-offset, 14px) + var(--cc-dial-size, 48px) + 10px);
+  bottom: var(--cc-dial-offset, 14px);
   z-index: 1201;
   display: flex;
   align-items: stretch;
@@ -1525,7 +1674,13 @@ html[data-theme="light"] .cc-page-tip {
 
 @media (prefers-reduced-motion: reduce) {
   .cohort-chat-card { animation: none; }
-  .cohort-chat-dial.has-news::after, .cc-tab.has-news::after { animation: none; }
+  .cohort-chat-dial::before,
+  .cohort-chat-dial.has-news::after,
+  .cc-dial-glyph,
+  .cc-bot-antenna,
+  .cc-bot-eye,
+  .cc-bot-scan,
+  .cc-tab.has-news::after { animation: none; }
   .cohort-chat-action-menu,
   .cohort-chat-dial,
   .cc-launcher-action { transition: none; }
@@ -1552,6 +1707,8 @@ html[data-theme="light"] .cohort-chat-card { box-shadow: -16px 0 40px rgba(var(-
 html[data-theme="light"] .cc-jump-latest { box-shadow: 0 6px 16px rgba(var(--ink-rgb), 0.15); }
 html[data-theme="light"] .cohort-chat-dial { box-shadow: 0 8px 20px rgba(var(--ink-rgb), 0.16); }
 html[data-theme="light"] .cohort-chat-dial:hover { box-shadow: 0 10px 24px rgba(var(--ink-rgb), 0.20); }
+html[data-theme="light"] .cohort-chat-dial[data-state="error"],
+html[data-theme="light"] .cohort-chat-dial[data-state="error"]:hover { color: var(--ds-danger); }
 html[data-theme="light"] .cohort-chat-action-menu { box-shadow: 0 16px 36px rgba(var(--ink-rgb), 0.16); }
 html[data-theme="light"] .cc-launcher-icon { color: color-mix(in srgb, var(--cc-action-tint) 60%, rgb(var(--ink-rgb))); }
 /* Darker tab tints so the color coding reads on light paper. */
