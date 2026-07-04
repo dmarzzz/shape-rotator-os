@@ -21,12 +21,21 @@ import {
   requestAccess,
   gateState,
   sessionEmail,
+  getMatrixIdentity,
+  fetchMatrixMembership,
+  matrixGateState,
+  signInWithMatrixBrowser,
+  onMatrixChanged,
 } from "./supabase-auth.mjs";
 
 let _overlay = null;
 let _unsub = null;
+let _unsubMatrix = null;
 let _session = null;
 let _membership = null;
+let _matrixUserId = null;
+let _matrixMembership = null;
+let _matrixBusy = false;
 let _requestSent = false;
 let _signInError = "";
 
@@ -101,11 +110,23 @@ function render() {
   if (!card) return;
 
   if (state === "signed_out") {
+    // Matrix is the second front door: a chat session verified by main's OAuth
+    // maps to the roster mirror (app_matrix_members). An approved match admits
+    // in refreshMatrix() before this card ever renders; here we only offer the
+    // sign-in and explain a signed-in-but-unlisted account.
+    const matrixNote = _matrixUserId
+      ? `<p class="ag-help">Matrix account <strong>${esc(_matrixUserId)}</strong> isn't on the roster — continue with Google, or ping the contact below.</p>`
+      : "";
+    const matrixButton = _matrixBusy
+      ? `<div class="ag-ok">opening your browser for Matrix sign-in — approve there, this finishes on its own…</div>`
+      : `<button class="ag-btn" data-ag="matrix-signin"><span>Continue with Matrix</span></button>`;
     card.innerHTML = `
       <div class="ag-mark" aria-hidden="true"></div>
       <h1>Sign in to Shape Rotator</h1>
-      <p>Access is by Google sign-in. Use the email you were invited with — we'll match you to your cohort record.</p>
+      <p>Access is by Google or Matrix sign-in. Use the account you were invited with — we'll match you to your cohort record.</p>
       <button class="ag-btn ag-btn-primary" data-ag="signin">${GOOGLE_G}<span>Continue with Google</span></button>
+      ${_matrixUserId ? "" : matrixButton}
+      ${matrixNote}
       ${_signInError ? `<div class="ag-err">${esc(_signInError)}</div>` : ""}
       <p class="ag-help">Trouble signing in? Ping <strong>@mikeishiring:mtrx.shaperotator.xyz</strong> in Matrix.</p>`;
     return;
@@ -144,17 +165,32 @@ function render() {
 async function refreshMembership() {
   _membership = _session ? await fetchMyMembership(_session) : null;
   const state = gateState({ session: _session, membership: _membership });
-  if (state === "approved") { admit(); return; }
+  if (state === "approved") { admit(_membership); return; }
   render();
 }
 
-function admit() {
+// Matrix flavor of refreshMembership: the chat session (verified in main via
+// real OAuth) maps to app_matrix_members. Approved + bound admits exactly like
+// Google; anything else just re-renders with the account noted.
+async function refreshMatrix() {
+  if (!_overlay) return;
+  _matrixUserId = await getMatrixIdentity();
+  _matrixMembership = _matrixUserId ? await fetchMatrixMembership(_matrixUserId) : null;
+  if (!_overlay) return; // admitted via Google while we were fetching
+  if (matrixGateState({ userId: _matrixUserId, membership: _matrixMembership }) === "approved") {
+    admit(_matrixMembership);
+    return;
+  }
+  render();
+}
+
+function admit(membership) {
   // Bind the app's local identity to the verified record so the rest of the app
   // knows who the user is, then drop the overlay.
   try {
-    if (_membership && _membership.record_id) {
+    if (membership && membership.record_id) {
       import("./identity.js").then(({ setIdentity }) => {
-        try { setIdentity({ kind: _membership.record_type || "person", record_id: _membership.record_id, display_name: _membership.display_name || _membership.record_id }); } catch {}
+        try { setIdentity({ kind: membership.record_type || "person", record_id: membership.record_id, display_name: membership.display_name || membership.record_id }); } catch {}
       }).catch(() => {});
     }
   } catch {}
@@ -164,6 +200,8 @@ function admit() {
 function teardown() {
   try { _unsub && _unsub(); } catch {}
   _unsub = null;
+  try { _unsubMatrix && _unsubMatrix(); } catch {}
+  _unsubMatrix = null;
   if (_overlay) { try { _overlay.remove(); } catch {} _overlay = null; }
 }
 
@@ -177,6 +215,19 @@ function onClick(e) {
     signInWithGoogle().then((r) => {
       if (!r || r.ok === false) { _signInError = (r && r.error) || "Couldn't open Google sign-in."; render(); }
       // On success the browser opens; the session arrives via onAuthChanged.
+    });
+  } else if (action === "matrix-signin") {
+    _signInError = "";
+    _matrixBusy = true;
+    render();
+    signInWithMatrixBrowser().then((r) => {
+      _matrixBusy = false;
+      if (!r || r.ok === false) {
+        _signInError = (r && r.error) || "Couldn't open Matrix sign-in.";
+        render();
+        return;
+      }
+      refreshMatrix();
     });
   } else if (action === "signout") {
     signOut().then(() => { _session = null; _membership = null; _requestSent = false; render(); });
@@ -211,9 +262,15 @@ export async function mountAuthGateIfEnabled() {
     if (_session) refreshMembership();
     else render();
   });
+  // Matrix session changes (chat sign-in completing counts as a front-door
+  // credential too — "sign into chat, you're synced to your record").
+  _unsubMatrix = onMatrixChanged(() => { refreshMatrix(); });
 
   _session = await getSession();
   if (_session) await refreshMembership();
   else render();
+  // A pre-existing chat session admits without any clicks. Runs after the
+  // Google check so an already-admitted overlay isn't double-processed.
+  if (_overlay) await refreshMatrix();
   return true;
 }

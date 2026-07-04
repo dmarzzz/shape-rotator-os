@@ -9,6 +9,9 @@ import {
   sessionEmail,
   parseMembership,
   gateState,
+  normalizeMatrixId,
+  parseMatrixMembership,
+  matrixGateState,
 } from "./supabase-auth.mjs";
 
 const NOW = 1_800_000_000; // fixed clock for determinism
@@ -69,4 +72,46 @@ test("gateState: full state machine across the flow", () => {
   assert.equal(gateState({ session: validSession(), membership: { status: "approved", bound: false }, nowSec: NOW }), "needs_binding");
   // fully in
   assert.equal(gateState({ session: validSession(), membership: approved, nowSec: NOW }), "approved");
+});
+
+// ─── Matrix sign-in path ──────────────────────────────────────────────────────
+
+test("normalizeMatrixId: lowercases, trims, and validates the @local:server shape", () => {
+  assert.equal(normalizeMatrixId(" @MikeIsHiring:Matrix.org "), "@mikeishiring:matrix.org");
+  assert.equal(normalizeMatrixId("@a:b"), "@a:b");
+  assert.equal(normalizeMatrixId("mikeishiring:matrix.org"), null, "no leading @");
+  assert.equal(normalizeMatrixId("@nocolon"), null);
+  assert.equal(normalizeMatrixId("@:matrix.org"), null, "empty localpart");
+  assert.equal(normalizeMatrixId(""), null);
+  assert.equal(normalizeMatrixId(null), null);
+});
+
+test("parseMatrixMembership: reads first row, derives approved + bound", () => {
+  const m = parseMatrixMembership([{
+    matrix_id: "@Mike:matrix.org", record_id: "mikeishiring", record_type: "person",
+    role: "admin", status: "approved", display_name: "Mike",
+  }]);
+  assert.equal(m.matrix_id, "@mike:matrix.org");
+  assert.equal(m.approved, true);
+  assert.equal(m.bound, true);
+  assert.equal(m.role, "admin");
+
+  const unbound = parseMatrixMembership([{ matrix_id: "@x:y", status: "approved" }]);
+  assert.equal(unbound.approved, true);
+  assert.equal(unbound.bound, false);
+
+  assert.equal(parseMatrixMembership([]), null);
+  assert.equal(parseMatrixMembership(null), null);
+  assert.equal(parseMatrixMembership([{ status: "approved" }]), null, "row without matrix_id");
+});
+
+test("matrixGateState: full state machine across the flow", () => {
+  const approved = { status: "approved", record_id: "mikeishiring", bound: true };
+  assert.equal(matrixGateState({ userId: null, membership: approved }), "signed_out");
+  assert.equal(matrixGateState({ userId: "not-a-matrix-id", membership: approved }), "signed_out");
+  assert.equal(matrixGateState({ userId: "@m:matrix.org", membership: null }), "unapproved");
+  assert.equal(matrixGateState({ userId: "@m:matrix.org", membership: { status: "rejected" } }), "rejected");
+  assert.equal(matrixGateState({ userId: "@m:matrix.org", membership: { status: "pending" } }), "pending");
+  assert.equal(matrixGateState({ userId: "@m:matrix.org", membership: { status: "approved", bound: false } }), "needs_binding");
+  assert.equal(matrixGateState({ userId: "@m:matrix.org", membership: approved }), "approved");
 });
