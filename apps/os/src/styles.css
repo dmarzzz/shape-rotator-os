@@ -16575,7 +16575,7 @@ textarea.alch-cv-compose-body-input { min-height: 150px; line-height: 1.6; }
 .primary-nav::before {
   /* Closed-state affordance. Was a 9px glowing bar mid-strip (x 11–20px) with an
      18–24px shadow bleeding onto content — users read it as the menu overlapping
-     the app (2026-07-02 feedback). Now a slim 4px line hugging the window edge
+     the app. Now a slim 4px line hugging the window edge
      (x 3–7px when closed), no glow. */
   content: "";
   position: absolute;
@@ -16845,7 +16845,7 @@ body[data-blank] .blank-tab { display: flex; }
   color: rgba(var(--ink-rgb), 0.50);
 }
 .primary-nav .nav-cat--eyebrow:hover { color: rgba(var(--ink-rgb), 0.66); }
-/* Pin toggle — keep the drawer open permanently (2026-07-02 feedback). Lives in
+/* Pin toggle — keep the drawer open permanently. Lives in
  * the drawer FOOTER row beside the version cluster (boot.js moves it there):
  * its first home, the eyebrow row, sits inside the top tab-strip band
  * (--content-top-h) and the button visually overlapped it. */
@@ -19981,9 +19981,8 @@ html[data-theme="light"] .alch-cv-group-head { background: var(--alchemy-charcoa
 }
 
 /* Explicit heading hierarchy — the editorial `.alchemy-canvas h2` rule left
-   markdown headings italic + regular-weight, so they read as merged with the
-   body when scanning ("headings should be clearly distinct", 2026-07-02/03
-   feedback). Upright, semibold, stepped sizes, extra air above each section. */
+   markdown headings italic + regular-weight, so they read too much like body
+   text. Upright, semibold, stepped sizes, extra air above each section. */
 .alch-cv-reader .alch-prog-h1,
 .alch-cv-reader .alch-prog-h2,
 .alch-cv-reader .alch-prog-h3,
