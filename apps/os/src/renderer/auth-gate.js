@@ -81,6 +81,8 @@ function injectStyles() {
     #auth-gate .ag-row { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
     #auth-gate .ag-link { background: none; border: none; color: var(--ds-ink-3, #726c80); font-size: 12.5px; text-decoration: underline; padding: 0; }
     #auth-gate .ag-link:hover { color: var(--ds-ink-2, #a49eb0); }
+    #auth-gate .ag-help { margin: 0; color: var(--ds-ink-3, #726c80); font-size: 12.5px; }
+    #auth-gate .ag-help strong { color: var(--ds-ink-2, #a49eb0); font-weight: 600; }
     #auth-gate .ag-err { color: var(--ds-danger, #ff5063); font-size: 13px; }
     #auth-gate .ag-ok { color: var(--ds-accent, #ff7a3d); font-size: 13.5px; }
     @media (prefers-reduced-motion: no-preference) { #auth-gate .ag-mark { animation: ag-spin 24s linear infinite; } }
@@ -104,7 +106,8 @@ function render() {
       <h1>Sign in to Shape Rotator</h1>
       <p>Access is by Google sign-in. Use the email you were invited with — we'll match you to your cohort record.</p>
       <button class="ag-btn ag-btn-primary" data-ag="signin">${GOOGLE_G}<span>Continue with Google</span></button>
-      ${_signInError ? `<div class="ag-err">${esc(_signInError)}</div>` : ""}`;
+      ${_signInError ? `<div class="ag-err">${esc(_signInError)}</div>` : ""}
+      <p class="ag-help">Trouble signing in? Ping <strong>@mikeishiring:mtrx.shaperotator.xyz</strong> in Matrix.</p>`;
     return;
   }
   if (state === "rejected") {
