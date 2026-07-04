@@ -262,3 +262,20 @@ export async function requestAccess({ display_name, requested_record_id, message
     message: message || null,
   }, { bearer: session.access_token });
 }
+
+// Matrix flavor of the binding request — an approved-but-unbound Matrix member
+// has no Supabase JWT, so this rides the anon key and puts the verified matrix
+// id in the email column (it IS the contact an organizer replies to; the
+// message spells out the channel). Best-effort: the local seal (setIdentity)
+// admits the user regardless, this row is what lets an organizer make the
+// binding stick in app_matrix_members.
+export async function requestMatrixBinding({ matrixId, requested_record_id, display_name, message } = {}) {
+  const id = normalizeMatrixId(matrixId);
+  if (!id) return { ok: false, error: "no matrix session" };
+  return postAnonRow("app_access_requests", {
+    email: id,
+    display_name: display_name || null,
+    requested_record_id: requested_record_id || null,
+    message: message || `matrix-bind: ${id} self-selected ${requested_record_id || "?"} in-app`,
+  });
+}

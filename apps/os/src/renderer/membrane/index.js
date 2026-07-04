@@ -434,7 +434,13 @@ export function mountMembrane(container, opts = {}) {
            the calendar / a profile, dismiss). Hiding them from the a11y tree
            while leaving focusable buttons inside is a broken contract — they
            are named regions instead so keyboard/SR users reach them. -->
-      <div class="membrane-agenda" data-agenda role="region" aria-label="today's agenda"></div>
+      <!-- Right column pairs the compact calendar with the ask/update stack
+           beneath it (2026-07-04: "pair the bottom-left updates to the top
+           right") — one cluster, one edge. -->
+      <div class="membrane-right-col" aria-hidden="false">
+        <div class="membrane-agenda" data-agenda role="region" aria-label="today's agenda"></div>
+        <div class="membrane-field-feed" data-mfield role="region" aria-label="the cohort today"></div>
+      </div>
       <div class="membrane-feed" data-feed role="region" aria-label="what's new"></div>
       <canvas class="membrane-canvas"></canvas>
       <canvas class="membrane-rubiks-canvas" aria-hidden="true"></canvas>
@@ -462,10 +468,10 @@ export function mountMembrane(container, opts = {}) {
         <span class="msn-name" data-shape-name></span>
         <span class="msn-meta" data-shape-meta></span>
       </div>
-      <!-- hub prototype: the cohort-today feed floating over the die … -->
-      <div class="membrane-field-feed" data-mfield role="region" aria-label="the cohort today"></div>
-      <!-- … and the say/did/maybe capture bar. Type first, verb after; Tab
-           cycles the verb; Enter posts. v0 writes locally (see FIELD_VERBS). -->
+      <!-- the say/did/maybe capture bar (the field-feed itself now lives in
+           .membrane-right-col, paired under the agenda — see above). Type
+           first, verb after; Tab cycles the verb; Enter posts. v0 writes
+           locally (see FIELD_VERBS). -->
       <form class="membrane-capture" data-mcap autocomplete="off">
         <div class="mcap-verbs" role="group" aria-label="what kind of post">
           ${FIELD_VERB_ORDER.map((v, i) => `
@@ -1089,7 +1095,11 @@ export function mountMembrane(container, opts = {}) {
     // instant (no stagger-storm) rather than treating every card as "new".
     if (!categories.length) { feedEl.innerHTML = ''; closeFeedPop(); return; }
 
-    feedEl.innerHTML = filterHtml + visible.map(feedCategoryHtml).join('');
+    // Every type filtered off leaves just the ghost chips — say so, or the
+    // rail reads as broken (found via a test tab that had hidden all four).
+    feedEl.innerHTML = filterHtml + (visible.length
+      ? visible.map(feedCategoryHtml).join('')
+      : '<div class="mfeed-allhidden">all types hidden — tap a chip to bring them back</div>');
     feedPrevKeys = markEnteringRows(feedEl, feedPrevKeys, '.mfeed-category-row');
     // Keep the open popover in sync with fresh data (or close it if its
     // category emptied / got hidden). A hover PREVIEW only survives the
@@ -1198,27 +1208,33 @@ export function mountMembrane(container, opts = {}) {
     return items.slice(-6);
   }
 
-  // Rows stack up the LEFT edge of the field (membrane.css) and pop out from
-  // the left — chronological top-to-bottom, so the newest sits at the bottom
-  // right above the capture bar (your post lands where you typed it).
+  // Paired under the calendar block, right-aligned (membrane.css) — newest
+  // sits at the bottom, closest to the capture bar it feeds from. Sleeker
+  // one-line rows now (2026-07-04 polish): a colored verb dot instead of a
+  // full pill, the whole line truncates with an ellipsis, and the `title`
+  // carries the untruncated text for a hover reveal.
   function renderFieldFeed() {
     if (!fieldEl) return;
     const items = buildFieldItems();
     // Eyebrow names the surface + the live dot signals that new posts land
-    // here on their own (fresh ones slide in from the left) — answers "how
-    // does something enter this feed?" without a manual anywhere.
-    const head = '<div class="mff-head"><i class="mff-live-dot" aria-hidden="true"></i>open asks · live</div>';
+    // here on their own — answers "how does something enter this feed?"
+    // without a manual anywhere.
+    const head = '<div class="mff-head"><i class="mff-live-dot" aria-hidden="true"></i>asks · live</div>';
     if (!items.length) {
-      fieldEl.innerHTML = `${head}<div class="mff-quiet">no open asks — say something below.</div>`;
+      fieldEl.innerHTML = `${head}<div class="mff-quiet">no open asks</div>`;
       return;
     }
     fieldEl.innerHTML = head + items.map((it) => {
       const v = FIELD_VERBS[it.verb] || FIELD_VERBS.say;
       const joined = it.joined ? ` · ${it.joined} in` : '';
+      const full = `${v.label}: ${it.author} — ${it.text}${joined}`;
+      // First name only — the 196px column can't afford a full name AND the
+      // text on one line; the `title` still carries the whole thing.
+      const shortAuthor = String(it.author || '').split(/\s+/)[0] || it.author;
       return `
-        <div class="mff-row${it.mine ? ' is-mine' : ''}" style="--mff-tint:${v.tint};--mff-ink:${v.ink}">
-          <span class="mff-verb">${escHtml(v.label)}</span>
-          <span class="mff-body"><span class="mff-author">${escHtml(it.author)}</span><span class="mff-text">${escHtml(it.text)}${escHtml(joined)}</span></span>
+        <div class="mff-row${it.mine ? ' is-mine' : ''}" style="--mff-tint:${v.tint};--mff-ink:${v.ink}" title="${escHtml(full)}">
+          <i class="mff-dot" aria-hidden="true"></i>
+          <span class="mff-body"><span class="mff-author">${escHtml(shortAuthor)}</span><span class="mff-text">${escHtml(it.text)}${escHtml(joined)}</span></span>
           <span class="mff-age">${escHtml(fieldAge(it.ts))}</span>
         </div>`;
     }).join('');
