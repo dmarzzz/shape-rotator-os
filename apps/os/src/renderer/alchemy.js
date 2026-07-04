@@ -7549,7 +7549,45 @@ function cohortInsightCards(kind) {
   const cards = Array.isArray(readModelCards) && readModelCards.length
     ? readModelCards
     : (Array.isArray(insights?.cards) ? insights.cards.filter(card => card?.kind === kind) : []);
-  return cards.filter(card => card && (!kind || card.kind === kind));
+  const filtered = cards.filter(card => card && (!kind || card.kind === kind));
+  if (kind === "shape_ledger" || kind === "evidence_state") warnOrphanedInsightCards(filtered);
+  return filtered;
+}
+
+// Dev-visible signal for Engine/surface subject_ids drift: shape_ledger and
+// evidence_state cards are matched to a team purely by subject_ids containing
+// that team's record_id (see renderTeamShapeLedger / teamEvidenceStateCards).
+// If the Engine emits an id that doesn't match ANY known team record_id, the
+// card just silently never renders anywhere — warn once per distinct card id
+// so that's visible without throwing or spamming on every re-render.
+const WARNED_ORPHAN_INSIGHT_CARD_IDS = new Set();
+function warnOrphanedInsightCards(cards) {
+  if (!Array.isArray(cards) || !cards.length) return;
+  const cohortIndex = buildCohortIndex(activeDetailCohort());
+  const knownTeamIds = new Set([...cohortIndex.teamById.keys()].map(id => String(id).trim()));
+  for (const card of cards) {
+    const cardId = card?.id ?? card?.card_id ?? "(no id)";
+    if (WARNED_ORPHAN_INSIGHT_CARD_IDS.has(cardId)) continue;
+    const subjectIds = Array.isArray(card?.subject_ids) ? card.subject_ids : [];
+    const matches = subjectIds.some(sid => knownTeamIds.has(String(sid).trim()));
+    if (matches) continue;
+    WARNED_ORPHAN_INSIGHT_CARD_IDS.add(cardId);
+    console.warn(
+      `[cohort-insights] orphaned ${card?.kind || "insight"} card — no subject_ids match a known team record_id`,
+      { id: cardId, kind: card?.kind, subject_ids: subjectIds }
+    );
+  }
+}
+
+// General de-dup'd console.warn for other insight-card data problems (e.g. a
+// bad first_seen date) — keyed separately from WARNED_ORPHAN_INSIGHT_CARD_IDS
+// so an orphan warning and a bad-date warning for the same card id don't
+// suppress each other.
+const WARNED_INSIGHT_DATA_ISSUE_KEYS = new Set();
+function warnOnceInsightDataIssue(dedupeKey, message, details) {
+  if (WARNED_INSIGHT_DATA_ISSUE_KEYS.has(dedupeKey)) return;
+  WARNED_INSIGHT_DATA_ISSUE_KEYS.add(dedupeKey);
+  console.warn(message, details);
 }
 
 function cohortInsightSubjectMap(kind) {
@@ -16119,7 +16157,7 @@ function renderContextVault() {
     if (!(cv.topicKey && topics.some((t) => t.key === cv.topicKey))) cv.topicKey = topics[0]?.key || null;
     if (cv.libraryOpen && !contextRecordByRef(cv.libraryOpen.kind, cv.libraryOpen.id)) cv.libraryOpen = null;
     sourceRows = topics.map((t) => `
-      <button class="alch-cv-source alch-cv-topic${t.key === cv.topicKey ? " is-selected" : ""}" type="button" data-cv-topic="${escAttr(t.key)}" data-cv-tags="${escAttr(topicSlug(t.key))}">
+      <button class="alch-cv-source alch-cv-topic${t.key === cv.topicKey ? " is-selected" : ""}" type="button" data-cv-topic="${escAttr(t.key)}" data-cv-tags="${escAttr(topicSlug(t.key))}" title="${escAttr(t.label)}" aria-label="${escAttr(`${t.label}, ${t.total} item${t.total === 1 ? "" : "s"}`)}">
         <span class="alch-cv-topic-count">${t.total}</span>
         <strong>${escHtml(t.label)}</strong>
       </button>`).join("");
@@ -17968,16 +18006,459 @@ function renderTeamRail(team, teamPeople, fam, kind) {
   `;
 }
 
-function renderDependencyLinks(ids) {
-  const vals = detailItems(ids);
-  if (!vals.length) return "";
-  const teamsById = new Map((state.cohort?.teams || []).map(t => [t.record_id, t]));
-  return `<ul class="alch-detail-list alch-detail-list-compact">${vals.map(id => {
-    const t = teamsById.get(id);
-    const label = t ? (t.name || t.record_id) : id;
-    const role = t ? teamKind(t) : "record";
-    return `<li><button type="button" class="alch-detail-inline-link" data-directory-record="${escAttr(id)}">${escHtml(label)}</button> <span class="adl-role">${escHtml(role)}</span></li>`;
-  }).join("")}</ul>`;
+// (renderDependencyLinks retired 2026-07 — the flat coordination block it
+// served was reworked into the broker view below, which owns the
+// clickable other-team rows.)
+
+// ── peer-tier dossier (2026-07) ──────────────────────────────────────
+// The team/person detail pages are read by OTHER TEAMS and admins. The
+// grammar ported here is the evidence dossier's: per-claim provenance
+// chips (declared / observed / verified / missing), absence stated in
+// words, journey-with-markers, evidence before narrative. Deliberately
+// NO coordinator sections — no scoring, no steering advice.
+
+const PROV_CHIP_LABELS = {
+  declared: "declared",   // self/team-stated fields
+  observed: "observed",   // github-progress artifacts, session-derived signals
+  verified: "verified",   // making_signature.class === "code-verified"
+  missing:  "missing",    // absence, stated in words — never a blank
+  inferred: "inferred",   // machine-suggested connection edges
+};
+
+function provChip(kind, label = "") {
+  const k = PROV_CHIP_LABELS[kind] ? kind : "declared";
+  return `<span class="alch-prov is-${k}">${escHtml(label || PROV_CHIP_LABELS[k])}</span>`;
+}
+
+// One-line legend for the chip set — rendered once, at the top of the
+// evidence-state section (the section that leans on the chips hardest).
+function provLegend() {
+  return `<p class="alch-prov-legend">${provChip("declared")} self-stated by the team · ${provChip("observed")} seen in public artifacts or reviewed sessions · ${provChip("verified")} corroborated by code</p>`;
+}
+
+// Labeled rows with a provenance chip in the third column. Unlike
+// detailRows(), an EMPTY value with a `missing` note still renders — as
+// an explicit "none observed"-style row with the missing chip. Absence
+// in words, never a blank.
+function detailProvRows(rows) {
+  return (rows || []).filter(Boolean).map(r => {
+    const has = r.value && String(r.value).trim();
+    if (!has && !r.missing) return "";
+    if (!has) {
+      return `<div class="alch-detail-row alch-prov-row is-missing"><span class="adr-k">${escHtml(r.key)}</span><span class="adr-v alch-prov-missing">${escHtml(r.missing)}</span>${provChip("missing")}</div>`;
+    }
+    return `<div class="alch-detail-row alch-prov-row"><span class="adr-k">${escHtml(r.key)}</span><span class="adr-v">${r.value}</span>${provChip(r.prov || "declared", r.provLabel || "")}</div>`;
+  }).join("");
+}
+
+// GIST — the dossier's opening read: what the team actually does, in
+// complete plain-language sentences (journey.problem → solution → icp),
+// then the trajectory facts as one compact cell row (stage / evidence /
+// upside / bottleneck / next milestone). Owns what the old "about /
+// positioning" section and "trajectory" quick row carried, so neither
+// fact has two owners on the page.
+function renderTeamGist(team, journey) {
+  const prose = teamPositioningProse(journey)
+    || (team.focus ? detailProse(team.focus) : "");
+  const cells = [
+    { k: "stage", v: `${journey.stage}${journey.stageLabel ? ` · ${journey.stageLabel}` : ""}` },
+    { k: "evidence", v: `${journey.evidence_quality}/5${journey.evidenceLabel ? ` · ${journey.evidenceLabel}` : ""}` },
+    { k: "upside", v: `${journey.market_upside}/5` },
+    { k: "bottleneck", v: journey.primary_bottleneck || "" },
+    { k: "next milestone", v: journey.next_milestone || "" },
+  ].filter(c => String(c.v || "").trim());
+  const cellsHtml = cells.length
+    ? `<div class="alch-gist-cells">${cells.map(c => `<span class="alch-gist-cell"><span class="agc-k">${escHtml(c.k)}</span><span class="agc-v">${escHtml(c.v)}</span></span>`).join("")}</div>`
+    : "";
+  const body = `${prose}${cellsHtml}`;
+  if (!body.trim()) return "";
+  return renderFlatSection("gist", body, "alch-detail-priority");
+}
+
+// Basis-field → chip kind. The engine stamps did_basis/shipped_basis on
+// the say/did/shipped card; honor them when present (a "declared"
+// shipped line must not wear an observed chip), fall back to the
+// section's default mapping (say→declared, did/shipped→observed).
+function sdsCellProv(basisRaw, fallback) {
+  const basis = String(basisRaw || "").toLowerCase();
+  if (!basis) return fallback;
+  return basis === "declared" ? "declared" : "observed";
+}
+
+// SAY / DID / SHIPPED — the team's insight-card triple as three cells,
+// each with its provenance chip; the latest-week public-activity note
+// under them when the card carries observed GitHub signal. Renders an
+// honest empty line when no card exists. Display-only: contest/mirror
+// wiring stays where that card already renders (the member's mirror).
+function renderTeamSayDidShipped(recordId) {
+  const card = cohortInsightSubjectMap("say_did_shipped").get(recordId) || null;
+  if (!card) {
+    return renderFlatSection(
+      "say / did / shipped",
+      `<p class="alch-detail-empty">no say/did/shipped snapshot yet — the insight engine has not generated a card for this team.</p>`
+    );
+  }
+  const content = insightContent(card);
+  const act = sdsActivity(card);
+  const cells = [
+    { k: "say", v: content.say, prov: "declared" },
+    { k: "did", v: content.did, prov: sdsCellProv(content.did_basis, sdsObserved(card) ? "observed" : "declared") },
+    { k: "shipped", v: content.shipped, prov: sdsCellProv(content.shipped_basis, "observed") },
+  ];
+  const cellsHtml = cells.map(c => `
+    <div class="alch-sds-cell">
+      <div class="alch-sds-cell-head"><span class="alch-sds-k">${escHtml(c.k)}</span>${provChip(c.prov)}</div>
+      <p class="alch-sds-v">${String(c.v || "").trim() ? escHtml(c.v) : `<span class="alch-detail-empty">nothing recorded yet.</span>`}</p>
+    </div>
+  `).join("");
+  let note = "";
+  if (content.public_activity && typeof content.public_activity === "object" && act.latest_week_start) {
+    const bits = [];
+    const commits = sdsNumber(act, "useful_commit_count");
+    const releases = sdsNumber(act, "release_count");
+    if (commits) bits.push(`${commits} useful commit${commits === 1 ? "" : "s"}`);
+    bits.push(releases ? `${releases} release${releases === 1 ? "" : "s"}` : "no releases");
+    note = `<p class="alch-sds-note">latest public signal · week of ${escHtml(detailLongDate(act.latest_week_start))} — ${escHtml(bits.join(", "))}</p>`;
+  }
+  return renderFlatSection("say / did / shipped", `<div class="alch-sds-cells">${cellsHtml}</div>${note}`);
+}
+
+// JOURNEY STRIP — the 10-week program (W1 = may 18 2026 → W10 = week of
+// jul 20, demo day jul 23) as one horizontal strip. Small markers from
+// the team's dated timeline items (github progress / transcript / event
+// rows), a "now" highlight on the current week. Marker tooltip = the
+// timeline item's title. Light by design: one row of weeks, one row of
+// markers; overflow-x scrolls on narrow widths.
+function journeyStripMarkerKind(type) {
+  const t = String(type || "").toLowerCase();
+  if (t.includes("github")) return "github";
+  if (t.includes("transcript")) return "session";
+  if (t.includes("event")) return "event";
+  return "note";
+}
+function renderTeamJourneyStrip(recordId) {
+  const WK = 7 * 86400000;
+  const weekOf = (iso) => {
+    const d = isoToDate(iso);
+    if (!d) return null;
+    const i = Math.floor((d.getTime() - PROGRAM_START_MS) / WK);
+    return (i >= 0 && i < WEEKS_TOTAL) ? i : null;
+  };
+  const byWeek = new Map();
+  for (const it of detailTimelineItems("team", recordId)) {
+    if (!it || !it.date) continue;
+    const wi = weekOf(String(it.date));
+    if (wi == null) continue;
+    if (!byWeek.has(wi)) byWeek.set(wi, []);
+    byWeek.get(wi).push(it);
+  }
+  const nowIdx = weekOf(new Date().toISOString().slice(0, 10));
+  const cols = Array.from({ length: WEEKS_TOTAL }, (_, i) => {
+    const start = new Date(PROGRAM_START_MS + i * WK);
+    const label = start.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).toLowerCase();
+    const items = byWeek.get(i) || [];
+    const marks = items.slice(0, 4).map(it =>
+      `<i class="alch-jsw-mark" data-kind="${escAttr(journeyStripMarkerKind(it.type))}" title="${escAttr(`${detailTimelineDate(it.date)} — ${String(it.title || it.type || "timeline item")}`)}"></i>`
+    ).join("");
+    const more = items.length > 4 ? `<span class="alch-jsw-more">+${items.length - 4}</span>` : "";
+    return `
+      <div class="alch-jstrip-wk${i === nowIdx ? " is-now" : ""}" title="week ${i + 1} · starts ${label}${items.length ? ` · ${items.length} trail item${items.length === 1 ? "" : "s"}` : ""}">
+        <span class="alch-jsw-n">w${i + 1}</span>
+        <span class="alch-jsw-marks">${marks}${more}</span>
+        <span class="alch-jsw-date">${escHtml(label)}</span>
+      </div>
+    `;
+  }).join("");
+  const nowNote = nowIdx != null ? `now · week ${nowIdx + 1}` : "outside the program window";
+  const body = `
+    <div class="alch-jstrip-scroll"><div class="alch-jstrip" role="img" aria-label="ten-week program journey with trail markers">${cols}</div></div>
+    <p class="alch-jstrip-note">${escHtml(nowNote)} · demo day jul 23 · markers: <i class="alch-jsw-mark" data-kind="github" aria-hidden="true"></i> github <i class="alch-jsw-mark" data-kind="session" aria-hidden="true"></i> session <i class="alch-jsw-mark" data-kind="event" aria-hidden="true"></i> event</p>
+  `;
+  return renderFlatSection("journey · 10 weeks", body);
+}
+
+// SHAPE ROTATION — one row per shape_ledger insight card (kind:
+// "shape_ledger", subject_ids includes the team). Engine-fed, not yet
+// live: cohortInsightCards() returns [] until the Engine ships the kind,
+// so this returns "" today — a hard requirement, not an empty-state
+// section, since most teams won't have this for a while. Collects ALL
+// matching cards (a team can carry zero to ~5), sorted oldest-first so
+// the rotation reads as a timeline of bets.
+function renderTeamShapeLedger(recordId) {
+  const cards = cohortInsightCards("shape_ledger")
+    .filter(c => Array.isArray(c?.subject_ids) && c.subject_ids.map(String).includes(String(recordId)));
+  if (!cards.length) return "";
+  // first_seen is expected STRICT ISO 8601; a bad value must not corrupt sort
+  // order, so unparseable dates sort last (after every valid date) instead of
+  // landing wherever their raw string happens to fall lexically.
+  const shapeLedgerSortKey = (raw, cardId) => {
+    const s = String(raw || "").trim();
+    if (!s) return Infinity;
+    const t = Date.parse(s);
+    if (Number.isFinite(t)) return t;
+    warnOnceInsightDataIssue(`bad-first-seen:${cardId}`,
+      `[cohort-insights] shape_ledger card has an unparseable first_seen — sorting last`,
+      { id: cardId, first_seen: raw });
+    return Infinity;
+  };
+  const rows = cards
+    .map(c => ({ content: insightContent(c), cardId: c?.id ?? c?.card_id ?? "(no id)" }))
+    .sort((a, b) => shapeLedgerSortKey(a.content.first_seen, a.cardId) - shapeLedgerSortKey(b.content.first_seen, b.cardId))
+    .map(r => r.content);
+  const CANONICAL_VERDICTS = ["active", "merged", "killed", "parked"];
+  const verdictChip = (verdictRaw) => {
+    const v = String(verdictRaw || "").trim().toLowerCase();
+    const known = CANONICAL_VERDICTS.includes(v) ? v : "";
+    if (known) return `<span class="alch-prov is-verdict-${known}">${escHtml(known)}</span>`;
+    // Unrecognized verdict (typo, different casing that didn't normalize,
+    // future value): show the raw value instead of silently mislabeling it
+    // as "declared", and flag it with a visually louder chip treatment.
+    const label = String(verdictRaw || "").trim() || "unknown";
+    return `<span class="alch-prov is-verdict-unknown">${escHtml(label)}</span>`;
+  };
+  const rowsHtml = rows.map(r => `
+    <div class="alch-shape-row">
+      <div class="alch-shape-row-head">
+        <span class="alch-shape-bet">${escHtml(r.bet || "untitled shape")}</span>
+        ${verdictChip(r.verdict)}
+        ${r.first_seen ? `<span class="alch-shape-date">${escHtml(detailLongDate(r.first_seen))}</span>` : ""}
+      </div>
+      ${r.lesson ? `<p class="alch-shape-lesson">${escHtml(r.lesson)}</p>` : ""}
+    </div>
+  `).join("");
+  return renderFlatSection("shape rotation", rowsHtml);
+}
+
+// EVIDENCE STATE — what is REAL vs merely declared. Every row carries a
+// provenance chip, and absent data renders as an explicit missing row
+// ("releases — none observed") instead of silently dropping. Teams do
+// not carry making_signature on the surface today, so "verified" is
+// derived from the members' code-derived signatures until the Engine
+// emits a team-level one.
+//
+// Engine-fed upgrade path: once evidence_state insight cards (kind:
+// "evidence_state", one per area) exist for a team, they become the
+// PRIMARY rows — each area's known/unknown/missing_artifact text wins
+// over the old field-derived rows below. Until then (today, on every
+// real record) cohortInsightCards() returns [] and this falls through to
+// the original behavior unchanged — no regression.
+function teamEvidenceStateCards(recordId) {
+  return cohortInsightCards("evidence_state")
+    .filter(c => Array.isArray(c?.subject_ids) && c.subject_ids.map(String).includes(String(recordId)));
+}
+function renderTeamEvidenceState(team, recordId, cohortIndex) {
+  const engineCards = teamEvidenceStateCards(recordId);
+  if (engineCards.length) return renderTeamEvidenceStateFromCards(engineCards);
+  return renderTeamEvidenceStateDerived(team, recordId, cohortIndex);
+}
+// Primary path: one row per evidence_state card. "known"/"unknown" render
+// as plain body lines under the area label; a non-empty missing_artifact
+// renders as a proper missing row via the same detailProvRows() missing
+// pattern the derived path already uses, instead of a new visual.
+function renderTeamEvidenceStateFromCards(cards) {
+  const areas = cards.map(c => insightContent(c)).filter(a => a && (a.area || a.known || a.unknown || a.missing_artifact));
+  const rows = areas.map(a => {
+    const lines = [];
+    if (a.known) lines.push(`<p class="alch-evs-line"><span class="alch-evs-k">known:</span> ${escHtml(a.known)}</p>`);
+    if (a.unknown) lines.push(`<p class="alch-evs-line"><span class="alch-evs-k">unknown:</span> ${escHtml(a.unknown)}</p>`);
+    const body = lines.join("");
+    const missingRow = a.missing_artifact
+      ? detailProvRows([{ key: a.area || "missing artifact", value: "", missing: a.missing_artifact }])
+      : "";
+    return `
+      <div class="alch-evs-area">
+        <div class="alch-evs-area-head">${escHtml(a.area || "area")}</div>
+        ${body}
+      </div>
+      ${missingRow}
+    `;
+  }).join("");
+  const preview = previewSnippet(areas.map(a => a.area).filter(Boolean)) || "known vs unknown, by area";
+  return renderDisclosureSection("evidence state", provLegend() + rows, false, preview);
+}
+// Fallback path: exactly the original field-derived behavior, unchanged.
+function renderTeamEvidenceStateDerived(team, recordId, cohortIndex) {
+  const sessionsHtml = detailEvidenceSignals(recordId);
+  const releasesAll = activeConstellationCohort()?.github_releases;
+  const releases = (Array.isArray(releasesAll) ? releasesAll : [])
+    .filter(r => r && (r.nav?.recordId === recordId || r.meta === recordId) && (r.label || r.name))
+    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+  const releasesHtml = releases.length
+    ? `<ul class="alch-detail-list alch-detail-list-compact">${releases.slice(0, 3).map(r => `<li>${escHtml(detailTimelineDate(r.date))} — ${escHtml(r.label || r.name)}</li>`).join("")}</ul>`
+    : "";
+  const ghRows = detailTimelineItems("team", recordId)
+    .filter(it => it && it.date && String(it.type || "").toLowerCase().includes("github"))
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  const ghHtml = ghRows.length
+    ? `${ghRows.length} public github-progress artifact${ghRows.length === 1 ? "" : "s"} · latest ${escHtml(detailTimelineDate(ghRows[0].date))} — ${escHtml(String(ghRows[0].title || ""))}`
+    : "";
+  const teamPeople = cohortIndex.peopleByTeam.get(recordId) || [];
+  const teamSig = team.making_signature && typeof team.making_signature === "object" ? team.making_signature : null;
+  const verifiedMembers = teamPeople.filter(p => p?.making_signature?.class === "code-verified");
+  let signatureValue = "";
+  if (teamSig?.class === "code-verified") {
+    signatureValue = escHtml(teamSig.note || "stated work corroborated by the team's code");
+  } else if (verifiedMembers.length) {
+    signatureValue = `code-verified via ${verifiedMembers.map(p => escHtml(p.name || p.record_id)).join(", ")} — ${escHtml(verifiedMembers[0]?.making_signature?.note || "stated work corroborated by their code")}`;
+  }
+  const rows = [
+    { key: "traction", value: team.traction ? escHtml(team.traction) : "", prov: "declared", missing: "none declared yet" },
+    { key: "prior shipping", value: detailList(team.prior_shipping), prov: "declared", missing: "none declared yet" },
+    { key: "paper basis", value: detailList(team.paper_basis), prov: "declared", missing: "none declared" },
+    { key: "skills", value: detailChips(team.skill_areas), prov: "declared", missing: "none declared" },
+    team.hackathon_note ? { key: "hackathon note", value: escHtml(team.hackathon_note), prov: "declared" } : null,
+    { key: "github trail", value: ghHtml, prov: "observed", missing: "no public github progress observed" },
+    { key: "releases", value: releasesHtml, prov: "observed", missing: "none observed" },
+    { key: "session evidence", value: sessionsHtml, prov: "observed", missing: "none yet — no reviewed session signal for this team" },
+    { key: "making signature", value: signatureValue, prov: "verified", missing: "not code-verified yet" },
+  ];
+  const body = provLegend() + detailProvRows(rows);
+  const preview = previewSnippet(team.traction || team.paper_basis) || "declared vs observed vs verified";
+  return renderDisclosureSection("evidence state", body, false, preview);
+}
+
+// The raw connection edge list, wherever it currently lives: the active
+// surface's cohort_connections bundle first, else refolded from the
+// per-record adjacency the live Supabase overlay hangs on each record.
+function detailConnectionEdges() {
+  const sources = [activeDetailCohort(), state.cohort].filter(Boolean);
+  for (const source of sources) {
+    const edges = source?.cohort_connections?.edges;
+    if (Array.isArray(edges) && edges.length) return edges;
+  }
+  const out = [];
+  const cohort = state.cohort || {};
+  for (const r of [...(cohort.teams || []), ...(cohort.people || [])]) {
+    for (const c of (Array.isArray(r?.connections) ? r.connections : [])) {
+      if (!r.record_id || !c?.to) continue;
+      out.push({ from: r.record_id, to: c.to, kind: c.kind || "", reason: c.reason || "", basis: c.basis || "", score: c.score });
+    }
+  }
+  return out;
+}
+
+// BROKER VIEW — coordination regrouped for a trading peer: "mutual"
+// (seeking-offering edges, or both teams declare each other), "they
+// seek" (declared seeking + outbound edges incl. depends-on), "they
+// offer" (declared offering + inbound edges). Edge rows name the other
+// team (clickable), quote the edge reason, and chip the basis
+// (inferred vs declared). Empty clusters say so in words.
+function renderTeamBrokerView(team, cohortIndex) {
+  const id = team.record_id;
+  const edges = detailConnectionEdges().filter(e => e && (e.from === id || e.to === id));
+  const declaredDeps = new Set(detailItems(team.dependencies));
+  const byOther = new Map();
+  for (const e of edges) {
+    const oid = e.from === id ? e.to : e.from;
+    if (!byOther.has(oid)) byOther.set(oid, []);
+    byOther.get(oid).push(e);
+  }
+  const edgeRow = (e) => {
+    const oid = e.from === id ? e.to : e.from;
+    const t = cohortIndex.teamById.get(oid);
+    const basis = String(e.basis || "").toLowerCase() === "declared" ? "declared" : "inferred";
+    return `
+      <div class="alch-broker-row">
+        <div class="alch-broker-row-head">
+          <button type="button" class="alch-detail-inline-link" data-directory-record="${escAttr(oid)}">${escHtml(t ? (t.name || oid) : oid)}</button>
+          ${e.kind ? `<span class="alch-broker-kind">${escHtml(detailLabelize(e.kind))}</span>` : ""}
+          ${provChip(basis)}
+        </div>
+        ${e.reason ? `<p class="alch-broker-reason">${escHtml(e.reason)}</p>` : ""}
+      </div>
+    `;
+  };
+  const declaredRow = (text) => `
+    <div class="alch-broker-row is-plain">
+      <div class="alch-broker-row-head"><span class="alch-broker-decl">${escHtml(text)}</span>${provChip("declared")}</div>
+    </div>
+  `;
+  const mutual = [];
+  const seek = [];
+  const offer = [];
+  for (const [oid, list] of byOther) {
+    list.sort((a, b) => (b.score || 0) - (a.score || 0));
+    const other = cohortIndex.teamById.get(oid);
+    const otherDeclaresUs = detailItems(other?.dependencies).includes(id);
+    const isMutual = list.some(e => String(e.kind || "") === "seeking-offering")
+      || (declaredDeps.has(oid) && otherDeclaresUs);
+    if (isMutual) {
+      mutual.push(list.find(e => String(e.kind || "") === "seeking-offering") || list[0]);
+      continue;
+    }
+    const outbound = list.find(e => e.from === id);
+    const inbound = list.find(e => e.to === id);
+    if (outbound) seek.push(outbound);
+    else if (inbound) offer.push(inbound);
+  }
+  const cluster = (label, note, html, emptyText) => `
+    <div class="alch-broker-cluster">
+      <div class="alch-broker-h"><span>${escHtml(label)}</span><em>${escHtml(note)}</em></div>
+      ${html || `<p class="alch-detail-empty">${escHtml(emptyText)}</p>`}
+    </div>
+  `;
+  // Declared dependencies with no connection edge still belong in "they
+  // seek" — a declared need is a need even before the routine reasons
+  // about it.
+  const unmatchedDeps = [...declaredDeps].filter(oid => !byOther.has(oid)).map(oid => {
+    const t = cohortIndex.teamById.get(oid);
+    return `
+      <div class="alch-broker-row is-plain">
+        <div class="alch-broker-row-head">
+          <button type="button" class="alch-detail-inline-link" data-directory-record="${escAttr(oid)}">${escHtml(t ? (t.name || oid) : oid)}</button>
+          <span class="alch-broker-kind">declared dependency</span>
+          ${provChip("declared")}
+        </div>
+      </div>
+    `;
+  }).join("");
+  const seekHtml = detailItems(team.seeking).map(declaredRow).join("") + unmatchedDeps + seek.map(edgeRow).join("");
+  const offerHtml = detailItems(team.offering).map(declaredRow).join("") + offer.map(edgeRow).join("");
+  const body = [
+    cluster("mutual", "value flows both ways", mutual.map(edgeRow).join(""), "no mutual edges yet."),
+    cluster("they seek", "asks + dependencies", seekHtml, "no declared asks or outbound edges yet."),
+    cluster("they offer", "what peers can draw on", offerHtml, "no declared offers or inbound edges yet."),
+  ].join("");
+  const seekingFirst = detailItems(team.seeking)[0];
+  const dependsFirst = detailItems(team.dependencies)[0];
+  const preview = seekingFirst
+    ? `seeking ${previewSnippet(seekingFirst, 52)}`
+    : (dependsFirst ? `depends on ${previewSnippet(dependsFirst, 44)}` : previewSnippet(team.offering));
+  return renderDisclosureSection("coordination · broker view", body, false, preview);
+}
+
+// COVERAGE — one honest line on what a person's record actually rests
+// on: the profile always; direct session mentions (timeline transcript
+// rows titled "mentioned in transcript") when they exist vs team-context
+// only; a github handle when linked. States the absence of direct
+// mentions in words.
+function personCoverageLine(person, timelineItems) {
+  const rows = Array.isArray(timelineItems) ? timelineItems : [];
+  const transcriptRows = rows.filter(r => String(r?.type || "").toLowerCase() === "transcript");
+  const direct = transcriptRows.filter(r => /mentioned in transcript/i.test(String(r?.title || ""))).length;
+  const teamCtx = transcriptRows.length - direct;
+  const parts = ["profile"];
+  if (direct) parts.push(`${direct} session mention${direct === 1 ? "" : "s"}`);
+  else if (teamCtx) parts.push("team context in sessions");
+  if (detailLinkForKey(person.links || {}, "github")) parts.push("github");
+  let text = parts.join(" + ");
+  if (!direct) text += " — no direct session mentions yet";
+  return detailQuickRow("coverage", [detailQuickText("", text)]);
+}
+
+// The person's making-signature read as a chip line atop the proof
+// section: code-verified wears the verified chip; latent is honestly
+// labeled under-observed; other classes show as-is, declared-tier.
+function personSignatureChipLine(person) {
+  const sig = person?.making_signature && typeof person.making_signature === "object"
+    ? person.making_signature
+    : null;
+  if (!sig?.class) return "";
+  let chip;
+  if (sig.class === "code-verified") chip = provChip("verified", "code-verified");
+  else if (sig.class === "latent") chip = provChip("declared", "latent · under-observed");
+  else chip = provChip("declared", detailLabelize(sig.class));
+  return `<p class="alch-prov-line">${chip}${sig.note ? `<span>${escHtml(sentenceText(sig.note))}</span>` : ""}</p>`;
 }
 
 // Whether the open dossier shows the constellation time-scrubber. It belongs to
@@ -18045,9 +18526,8 @@ function renderTeamDetail(team) {
   const links = team.links || {};
   const journey = detailJourneySummary(team);
   // Stage / evidence / upside / bottleneck / next milestone live in the
-  // always-visible "trajectory" quick row; icp / problem / solution live
-  // in the "about / positioning" prose up top. This disclosure keeps the
-  // program's assessment and the declared plan.
+  // GIST's cell row up top, with icp / problem / solution as its prose.
+  // This disclosure keeps the program's assessment and the declared plan.
   const assessmentRows = [
     { key: "company type", value: journey.company_type ? escHtml(journey.company_type) : "" },
     { key: "confidence", value: journey.confidence ? escHtml(journey.confidence) : "" },
@@ -18055,35 +18535,15 @@ function renderTeamDetail(team) {
     { key: "this week", value: detailList(team.weekly_goals) },
     { key: "milestones", value: detailList(team.monthly_milestones) },
     { key: "graduation", value: team.graduation_target ? escHtml(team.graduation_target) : "" },
-  ];
-  const evidenceRows = [
-    { key: "traction", value: team.traction ? escHtml(team.traction) : "" },
-    { key: "paper basis", value: team.paper_basis ? escHtml(team.paper_basis) : "" },
-    { key: "prior shipping", value: detailList(team.prior_shipping) },
-    { key: "hackathon note", value: team.hackathon_note ? escHtml(team.hackathon_note) : "" },
-    { key: "skills", value: detailChips(team.skill_areas) },
     { key: "success", value: detailChips(team.success_dimensions, { muted: true }) },
-    { key: "from sessions", value: detailEvidenceSignals(recordId) },
-  ];
-  const coordinationRows = [
-    { key: "depends on", value: renderDependencyLinks(team.dependencies) },
-    { key: "seeking", value: detailList(team.seeking) },
-    { key: "offering", value: detailList(team.offering) },
   ];
   const nextMove = detailQuickRow("next move", [
     detailQuickText("", team.now || journey.next_milestone),
   ]);
-  // (needs / provides quick rows retired — the flat "coordination" block
-  // below now shows the full seeking/offering lists in the same frame;
-  // truncated copies above them were duplicate owners.)
+  // (needs / provides quick rows retired — the broker-view block below
+  // shows the full seeking/offering lists in the same frame; truncated
+  // copies above them were duplicate owners.)
   const guild = detailQuickRow("guild", memberClusters.map(cl => detailQuickText("", cl.label || cl.name || cl.record_id)));
-  const trajectory = detailQuickRow("trajectory", [
-    detailPill("stage", `${journey.stage} ${journey.stageLabel}`),
-    detailPill("evidence", `${journey.evidence_quality}/5${journey.evidenceLabel ? ` ${journey.evidenceLabel}` : ""}`),
-    detailPill("upside", `${journey.market_upside}/5`),
-    detailPill("bottleneck", journey.primary_bottleneck),
-    detailQuickText("next", journey.next_milestone),
-  ]);
   const exploreBar = renderExploreBar([
     exploreJump("calendar", "Calendar", "calendar", { calendarView: "cal" }),
     exploreJump("availability", "Availability", "calendar", { calendarView: "presence", presenceTeam: recordId }),
@@ -18097,17 +18557,21 @@ function renderTeamDetail(team) {
     exploreLink("deck", "Deck", detailLinkForKey(links, "deck")),
     exploreLink("source", "Edit on GitHub", editUrl),
   ]);
-  const readSection = renderFlatSection("about / positioning", teamPositioningProse(journey), "alch-detail-priority");
+  // Peer-tier dossier sections (2026-07): gist → say/did/shipped →
+  // journey strip → shape rotation → evidence state → broker view,
+  // evidence before narrative, every claim chipped with its provenance.
+  // Shape rotation is Engine-fed (shape_ledger cards) and renders "" until
+  // that kind exists on the surface — see renderTeamShapeLedger().
+  const gistSection = renderTeamGist(team, journey);
+  const sdsSection = renderTeamSayDidShipped(recordId);
+  const journeyStrip = renderTeamJourneyStrip(recordId);
+  const shapeLedger = renderTeamShapeLedger(recordId);
+  const evidenceState = renderTeamEvidenceState(team, recordId, cohortIndex);
+  const brokerView = renderTeamBrokerView(team, cohortIndex);
   const assessmentPreview = [
     journey.company_type,
     journey.confidence ? `${journey.confidence} confidence` : "",
   ].filter(Boolean).join(" · ") || previewSnippet(journey.evidence_notes);
-  const evidencePreview = previewSnippet(team.traction || team.paper_basis);
-  const seekingFirst = detailItems(team.seeking)[0];
-  const dependsFirst = detailItems(team.dependencies)[0];
-  const coordinationPreview = seekingFirst
-    ? `seeking ${previewSnippet(seekingFirst, 52)}`
-    : (dependsFirst ? `depends on ${previewSnippet(dependsFirst, 44)}` : previewSnippet(team.offering));
 
   state.canvas.innerHTML = `
     <header class="alch-detail-bar alch-trailbar">
@@ -18130,16 +18594,19 @@ function renderTeamDetail(team) {
         <div class="alch-ledger-head">
           ${exploreBar}
         </div>
-        ${readSection ? `<div class="alch-section-stack alch-priority-stack">${readSection}</div>` : ""}
-        <div class="alch-detail-quick alch-team-quick">${nextMove}${guild}${trajectory}</div>
+        ${gistSection ? `<div class="alch-section-stack alch-priority-stack">${gistSection}</div>` : ""}
+        <div class="alch-detail-quick alch-team-quick">${nextMove}${guild}</div>
         <div class="alch-section-stack">
+          ${sdsSection}
+          ${journeyStrip}
+          ${shapeLedger}
+          ${evidenceState}
+          ${brokerView}
           ${renderDisclosureSection("assessment / plan", detailRows(assessmentRows), false, assessmentPreview)}
-          ${renderDisclosureSection("evidence", detailRows(evidenceRows), false, evidencePreview)}
           ${renderTeamProgressRollup(recordId)}
           ${renderEvidenceNeighbors(recordId)}
           ${renderWorkstreamTimeline(recordId)}
           ${renderTeamReleases(recordId)}
-          ${renderDisclosureSection("coordination", detailRows(coordinationRows), false, coordinationPreview)}
           ${renderRecordTimeline("team", recordId)}
         </div>
       </section>
@@ -18187,9 +18654,10 @@ function renderPersonDetail(person) {
   const timelineItems = detailTimelineItems("person", recordId);
   const absences = Array.isArray(person.absences) ? person.absences : [];
   const bioSection = renderFlatSection("about / bio", detailProse(person.bio_md), "alch-detail-priority");
-  // Quick band = the one-frame read (first-mock lesson): what they're
-  // doing now, how to engage, what to route to them, and where their work
-  // sits — everything else is opt-in below.
+  // Quick band = the one-frame read (first-mock lesson): what the record
+  // rests on, what they're doing now, how to engage, what to route to
+  // them, and where their work sits — everything else is opt-in below.
+  const coverageRow = personCoverageLine(person, timelineItems);
   const nowRow = detailQuickRow("now", [detailQuickText("", person.now)]);
   const exploreBar = renderExploreBar([
     exploreJump("calendar", "Calendar", "calendar", { calendarView: "cal" }),
@@ -18271,10 +18739,10 @@ function renderPersonDetail(person) {
           ${exploreBar}
         </div>
         ${bioSection ? `<div class="alch-section-stack alch-priority-stack">${bioSection}</div>` : ""}
-        <div class="alch-detail-quick">${nowRow}${askMeAbout}${themes}${teamContext}</div>
+        <div class="alch-detail-quick">${coverageRow}${nowRow}${askMeAbout}${themes}${teamContext}</div>
         <div class="alch-section-stack">
           ${renderDisclosureSection("working with", detailRows(workingRows), false, workingPreview)}
-          ${renderDisclosureSection("proof / prior work", renderPersonProofRead(person), false, proofPreview)}
+          ${renderDisclosureSection("proof / prior work", [personSignatureChipLine(person), renderPersonProofRead(person)], false, proofPreview)}
           ${renderDisclosureSection("routes / asks", detailRows(routeRows), false, routesPreview)}
           ${renderRecordTimeline("person", recordId)}
         </div>

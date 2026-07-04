@@ -3,7 +3,14 @@ const ENTITY_CLAIM_LIMIT = 4;
 const DEFAULT_CONTEXT_CONFIG_KEY = "srfg:context_config";
 const CALENDAR_CONFIG_KEY = "srfg:calendar_ingress_config";
 const PUBLIC_EVIDENCE_TABLE = "public_transcript_evidence_cards";
+const GATED_EVIDENCE_TABLE = "cohort_app_transcript_evidence_cards";
+const GATED_DISTILLATIONS_TABLE = "cohort_app_transcript_distillations";
 const DEFAULT_PUBLIC_EVIDENCE_LIMIT = 200;
+const DEFAULT_GATED_EVIDENCE_LIMIT = 500;
+const DEFAULT_GATED_DISTILLATION_LIMIT = 100;
+const DEFAULT_SUPABASE_URL = "https://txjntzwksiluvqcpccpc.supabase.co";
+const DEFAULT_PUBLIC_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4am50endrc2lsdXZxY3BjY3BjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNzA1NzEsImV4cCI6MjA5Njk0NjU3MX0.XjXEUnw3jq1E7PwIOvhr7a3OpO2lyZv6S_Hn3JqogBA";
 const PUBLIC_CONTENT_KEYS = [
   "claim_type",
   "date",
@@ -22,6 +29,21 @@ const PUBLIC_FORBIDDEN_CONTENT_KEYS = [
   "processing_job_id",
   "derived_artifact_id",
   "storage_ref",
+];
+const GATED_CONTENT_KEYS = [
+  ...PUBLIC_CONTENT_KEYS,
+  "team_id",
+  "person_id",
+  "teams",
+  "people",
+  "session_kind",
+];
+const GATED_FORBIDDEN_CONTENT_KEYS = [
+  "source_artifact_id",
+  "processing_job_id",
+  "derived_artifact_id",
+  "storage_ref",
+  "drive_file_id",
 ];
 
 function escHtml(value) {
@@ -79,12 +101,13 @@ export function loadContextSupabaseConfig({
     || readJsonStorage(storage, CALENDAR_CONFIG_KEY)
     || {};
   const source = { ...stored, ...(runtime || {}) };
-  const supabaseUrl = cleanConfigValue(source.supabaseUrl || source.supabase_url);
+  const supabaseUrl = cleanConfigValue(source.supabaseUrl || source.supabase_url || source.url || DEFAULT_SUPABASE_URL);
   const supabaseAnonKey = cleanConfigValue(
     source.supabaseAnonKey
       || source.supabase_anon_key
       || source.anonKey
       || source.anon_key
+      || DEFAULT_PUBLIC_ANON_KEY
   );
   if (!supabaseUrl || !supabaseAnonKey) return null;
   return { supabaseUrl, supabaseAnonKey };
@@ -98,10 +121,11 @@ function contextSupabaseUrl(config, table, query = {}) {
   return url;
 }
 
-function contextSupabaseHeaders(config) {
+function contextSupabaseHeaders(config, bearer) {
   return {
     apikey: config.supabaseAnonKey,
-    authorization: `Bearer ${config.supabaseAnonKey}`,
+    authorization: `Bearer ${bearer || config.supabaseAnonKey}`,
+    accept: "application/json",
   };
 }
 
@@ -155,6 +179,127 @@ export async function fetchPublicTranscriptEvidence({
     throw error;
   }
   return Array.isArray(data) ? data.map(sanitizePublicEvidenceRow) : [];
+}
+
+function gatedSafeContentJson(content = {}) {
+  const source = content && typeof content === "object" && !Array.isArray(content) ? content : {};
+  const safe = {};
+  for (const key of GATED_CONTENT_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) safe[key] = source[key];
+  }
+  for (const key of GATED_FORBIDDEN_CONTENT_KEYS) delete safe[key];
+  safe.raw_allowed = false;
+  return safe;
+}
+
+export function sanitizeGatedEvidenceRow(row = {}) {
+  const content = gatedSafeContentJson(row.content_json);
+  return {
+    id: row.id || "",
+    claim_type: row.claim_type || content.claim_type || "insight",
+    title: row.title || "Cohort transcript insight",
+    claim_text: row.claim_text || row.summary || row.title || "Reviewed cohort transcript insight.",
+    summary: row.summary || "",
+    evidence_level: row.evidence_level || "reviewed",
+    confidence: row.confidence,
+    attribution_scope: row.attribution_scope || "cohort",
+    content_json: content,
+    created_at: row.created_at || "",
+    reviewed_at: row.reviewed_at || "",
+  };
+}
+
+async function fetchContextRows({
+  config,
+  table,
+  query,
+  bearer,
+  fetchImpl,
+} = {}) {
+  if (!config?.supabaseUrl || !config?.supabaseAnonKey || !bearer || typeof fetchImpl !== "function") return [];
+  const response = await fetchImpl(contextSupabaseUrl(config, table, query), {
+    headers: contextSupabaseHeaders(config, bearer),
+    cache: "no-store",
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    const error = new Error(`${table} fetch failed: ${response.status}`);
+    error.status = response.status;
+    error.body = data;
+    throw error;
+  }
+  return Array.isArray(data) ? data : [];
+}
+
+export async function fetchGatedTranscriptEvidence({
+  config,
+  session,
+  fetchImpl = globalThis.fetch,
+  limit = DEFAULT_GATED_EVIDENCE_LIMIT,
+} = {}) {
+  const rows = await fetchContextRows({
+    config,
+    table: GATED_EVIDENCE_TABLE,
+    bearer: session?.access_token,
+    fetchImpl,
+    query: {
+      select: "id,claim_type,title,claim_text,summary,evidence_level,confidence,attribution_scope,surface_tier,content_json,created_at,reviewed_at",
+      order: "created_at.desc",
+      limit,
+    },
+  });
+  return rows.map(sanitizeGatedEvidenceRow);
+}
+
+function normalizeDistillationArtifact(row = {}) {
+  const content = row.content_json && typeof row.content_json === "object" && !Array.isArray(row.content_json)
+    ? row.content_json
+    : {};
+  const md = String(row.content_md || content.markdown || "").trim();
+  const summary = asArray(content.summary || content.summaries);
+  const fallbackSummary = md
+    ? md.split(/\n{2,}/).map(item => item.replace(/^#+\s*/, "").trim()).filter(Boolean).slice(0, 4)
+    : [];
+  return {
+    artifact_id: row.id || content.artifact_id || "",
+    artifact_kind: row.artifact_kind || content.artifact_kind || "readout",
+    session_title: content.session_title || content.title || "Cohort transcript readout",
+    starts_at: content.starts_at || content.date || row.created_at || "",
+    session_type: content.session_type || content.session_kind || "",
+    tier: row.surface_tier || content.tier || "T2",
+    surface: "cohort",
+    review_status: content.review_status || "reviewed",
+    approval_state: content.approval_state || "not_required",
+    confidence: row.confidence ?? content.confidence ?? "unknown",
+    summary: summary.length ? summary : fallbackSummary,
+    themes: asArray(content.themes).slice(0, 10),
+    action_items: asArray(content.action_items).slice(0, 12),
+    open_questions: asArray(content.open_questions).slice(0, 12),
+    provenance: {
+      source_access: "reviewed cohort evidence",
+      raw_allowed: false,
+    },
+  };
+}
+
+export async function fetchGatedDistillations({
+  config,
+  session,
+  fetchImpl = globalThis.fetch,
+  limit = DEFAULT_GATED_DISTILLATION_LIMIT,
+} = {}) {
+  const rows = await fetchContextRows({
+    config,
+    table: GATED_DISTILLATIONS_TABLE,
+    bearer: session?.access_token,
+    fetchImpl,
+    query: {
+      select: "id,artifact_kind,surface_tier,confidence,content_json,content_md,created_at",
+      order: "created_at.desc",
+      limit,
+    },
+  });
+  return rows.map(normalizeDistillationArtifact);
 }
 
 function confidenceText(value) {
@@ -226,6 +371,105 @@ export function mergePublicTranscriptEvidence(cohort = {}, rows = []) {
       public_evidence_card_count: rows.length,
       source: PUBLIC_EVIDENCE_TABLE,
       raw_allowed: false,
+    },
+  };
+}
+
+function evidenceClaim(row, content) {
+  return {
+    claim_type: row.claim_type || content.claim_type || "insight",
+    evidence_level: row.evidence_level || "reviewed",
+    confidence: confidenceText(row.confidence),
+    text: row.claim_text || row.summary || row.title || "Reviewed cohort evidence.",
+    source: "reviewed cohort evidence",
+    teams: uniqueValues(content.teams || content.team_id),
+    people: uniqueValues(content.people || content.person_id),
+  };
+}
+
+function ensureEvidenceGroup(map, id, seed) {
+  const key = String(id || "undated");
+  if (!map.has(key)) {
+    map.set(key, {
+      ...seed,
+      evidence_card_count: 0,
+      claim_count: 0,
+      confidence: "unknown",
+      sharing_boundary: { max_surface: "cohort", raw_allowed: false },
+      themes: [],
+      top_claims: [],
+      source_note: "Live reviewed cohort evidence from Supabase.",
+    });
+  }
+  return map.get(key);
+}
+
+function pushEvidence(group, row, content) {
+  const confidence = confidenceText(row.confidence);
+  group.evidence_card_count += 1;
+  group.claim_count += 1;
+  if (group.confidence === "unknown" && confidence !== "unknown") group.confidence = confidence;
+  group.themes = uniqueValues([...asArray(group.themes), ...asArray(content.themes)]);
+  group.top_claims.push(evidenceClaim(row, content));
+}
+
+export function gatedEvidenceRowsToIntel(rows = []) {
+  const weekly = new Map();
+  const teams = new Map();
+  const people = new Map();
+  for (const rawRow of asArray(rows)) {
+    const row = sanitizeGatedEvidenceRow(rawRow);
+    if (!row.id && !row.claim_text) continue;
+    const content = row.content_json && typeof row.content_json === "object" ? row.content_json : {};
+    const weekStart = dateText(content.week_start || content.date || row.reviewed_at || row.created_at) || "undated";
+    pushEvidence(ensureEvidenceGroup(weekly, weekStart, { week_start: weekStart, teams: [], people: [] }), row, content);
+    for (const teamId of uniqueValues([content.team_id, ...asArray(content.teams)])) {
+      pushEvidence(ensureEvidenceGroup(teams, teamId, { team_id: teamId }), row, content);
+    }
+    for (const personId of uniqueValues([content.person_id, ...asArray(content.people)])) {
+      pushEvidence(ensureEvidenceGroup(people, personId, { person_id: personId }), row, content);
+    }
+  }
+  return {
+    weekly: [...weekly.values()].sort((a, b) => String(b.week_start).localeCompare(String(a.week_start))),
+    teams: [...teams.values()].sort((a, b) => String(a.team_id).localeCompare(String(b.team_id))),
+    people: [...people.values()].sort((a, b) => String(a.person_id).localeCompare(String(b.person_id))),
+  };
+}
+
+export function mergeGatedContext(cohort = {}, {
+  evidenceRows = [],
+  distillationArtifacts = [],
+  authState = null,
+} = {}) {
+  const grouped = gatedEvidenceRowsToIntel(evidenceRows);
+  const hasEvidence = grouped.weekly.length || grouped.teams.length || grouped.people.length;
+  const hasDistillations = distillationArtifacts.length > 0;
+  if (!hasEvidence && !hasDistillations && !authState) return cohort;
+  const currentIntel = cohort.cohort_intel || {};
+  const currentDistillations = cohort.transcript_distillations || {};
+  return {
+    ...cohort,
+    _context_auth: authState,
+    cohort_intel: {
+      ...currentIntel,
+      weekly: [...grouped.weekly, ...asArray(currentIntel.weekly)],
+      teams: [...grouped.teams, ...asArray(currentIntel.teams)],
+      people: [...grouped.people, ...asArray(currentIntel.people)],
+      raw_allowed: false,
+      generated_from: hasEvidence ? GATED_EVIDENCE_TABLE : currentIntel.generated_from,
+    },
+    transcript_evidence: {
+      ...(cohort.transcript_evidence || {}),
+      gated_evidence_card_count: evidenceRows.length,
+      source: hasEvidence ? GATED_EVIDENCE_TABLE : cohort.transcript_evidence?.source,
+    },
+    transcript_distillations: {
+      ...currentDistillations,
+      artifacts: [...distillationArtifacts, ...asArray(currentDistillations.artifacts)],
+      artifact_count: (Number(currentDistillations.artifact_count) || asArray(currentDistillations.artifacts).length) + distillationArtifacts.length,
+      cohort_count: (Number(currentDistillations.cohort_count) || 0) + distillationArtifacts.length,
+      default_export_policy: currentDistillations.default_export_policy || "reviewed cohort exports only",
     },
   };
 }
@@ -987,6 +1231,21 @@ function renderPublicCandidates(intel = {}) {
   return renderSection("public candidates", `${candidates.length} candidates`, body, "no transcript readout is public-cleared yet.");
 }
 
+function renderContextAuthStatus(auth = null, evidence = {}) {
+  if (!auth || auth.state !== "approved") return "";
+  const bits = [
+    auth.email || "",
+    auth.record_id ? `record ${auth.record_id}` : "",
+    evidence.gated_evidence_card_count ? `${evidence.gated_evidence_card_count} gated cards` : "",
+  ].filter(Boolean);
+  return `
+    <section class="context-auth-status" aria-label="member context status">
+      <span>member context</span>
+      <p>${escHtml(bits.join(" / ") || "approved")}</p>
+    </section>
+  `;
+}
+
 export function renderContextSurface(cohort) {
   const intel = cohort?.cohort_intel || {};
   const distillations = cohort?.transcript_distillations || {};
@@ -1005,6 +1264,7 @@ export function renderContextSurface(cohort) {
     .join("");
 
   return `
+    ${renderContextAuthStatus(cohort?._context_auth, cohort?.transcript_evidence || {})}
     ${renderPolicy(intel, distillations)}
     ${renderSummary(intel, distillations)}
     ${renderProjectProgressRollups(intel, maps)}
@@ -1027,9 +1287,40 @@ function addPreviewVersion(pathname) {
   return version ? `${pathname}?v=${encodeURIComponent(version)}` : pathname;
 }
 
+async function mergeApprovedGatedContext({
+  cohort,
+  config,
+  fetchImpl,
+  windowRef = globalThis,
+} = {}) {
+  const authApi = windowRef?.ShapeWebAuth || globalThis.ShapeWebAuth || null;
+  if (!authApi?.getAuthState) return cohort;
+  const auth = await authApi.getAuthState({ windowRef, fetchImpl, config });
+  const authSummary = {
+    state: auth.state,
+    email: authApi.sessionEmail ? authApi.sessionEmail(auth.session) : "",
+    record_id: auth.membership?.record_id || "",
+    role: auth.membership?.role || "",
+    status: auth.membership?.status || "",
+  };
+  if (auth.state !== "approved") {
+    return mergeGatedContext(cohort, { authState: authSummary });
+  }
+  const [evidenceRows, distillationArtifacts] = await Promise.all([
+    fetchGatedTranscriptEvidence({ config, session: auth.session, fetchImpl }),
+    fetchGatedDistillations({ config, session: auth.session, fetchImpl }),
+  ]);
+  return mergeGatedContext(cohort, {
+    evidenceRows,
+    distillationArtifacts,
+    authState: authSummary,
+  });
+}
+
 export async function initContextSurface({
   documentRef = globalThis.document,
   fetchImpl = globalThis.fetch,
+  windowRef = globalThis,
 } = {}) {
   const mount = documentRef?.getElementById?.("context-mount");
   if (!mount) return null;
@@ -1045,10 +1336,22 @@ export async function initContextSurface({
       rendered = mergePublicTranscriptEvidence(cohort, publicRows);
     } catch (error) {
       rendered = {
-        ...cohort,
+        ...rendered,
         transcript_evidence: {
-          ...(cohort.transcript_evidence || {}),
+          ...(rendered.transcript_evidence || {}),
           public_evidence_error: error?.message || String(error),
+        },
+      };
+    }
+    try {
+      const config = loadContextSupabaseConfig();
+      rendered = await mergeApprovedGatedContext({ cohort: rendered, config, fetchImpl, windowRef });
+    } catch (error) {
+      rendered = {
+        ...rendered,
+        transcript_evidence: {
+          ...(rendered.transcript_evidence || {}),
+          gated_context_error: error?.message || String(error),
         },
       };
     }

@@ -153,7 +153,9 @@ contextBridge.exposeInMainWorld("api", {
   getTranscriptIntakeOptions: () => ipcRenderer.invoke("fg:transcript-intake:options"),
   getTranscriptIntakeHistory: () => ipcRenderer.invoke("fg:transcript-intake:history"),
   pickTranscriptFile: () => ipcRenderer.invoke("fg:transcript-intake:pick"),
+  pickTranscriptFiles: () => ipcRenderer.invoke("fg:transcript-intake:pick-bulk"),
   inspectTranscriptFile: (p) => ipcRenderer.invoke("fg:transcript-intake:inspect", String(p || "")),
+  inspectTranscriptFiles: (paths) => ipcRenderer.invoke("fg:transcript-intake:inspect-bulk", Array.isArray(paths) ? paths : []),
   submitTranscriptIntake: (o) => ipcRenderer.invoke("fg:transcript-intake:submit", o || {}),
   // Resolve the real filesystem path of a drag-and-dropped File. Under context
   // isolation File.path is gone (Electron 32+), so the renderer hands the File
@@ -223,7 +225,7 @@ contextBridge.exposeInMainWorld("api", {
   // the system browser to Google consent; the session arrives asynchronously via
   // onSession after the sros://auth-callback deep link is handled in main.
   auth: {
-    signIn:     () => ipcRenderer.invoke("auth:sign-in"),
+    signIn:     (o) => ipcRenderer.invoke("auth:sign-in", o || {}),
     signOut:    () => ipcRenderer.invoke("auth:sign-out"),
     getSession: () => ipcRenderer.invoke("auth:get-session"),
     refresh:    () => ipcRenderer.invoke("auth:refresh"),

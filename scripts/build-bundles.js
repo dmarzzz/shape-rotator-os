@@ -2052,14 +2052,14 @@ function transcriptDistillationAppVisible(artifact) {
 
 function sanitizeTranscriptDistillationsForApp(manifest) {
   const base = manifest && typeof manifest === "object" ? manifest : {};
-  const artifacts = Array.isArray(base.artifacts)
-    ? base.artifacts.filter(transcriptDistillationAppVisible)
-    : [];
+  // Committed app bundles are public repo artifacts. Cohort-only transcript
+  // distillations load at runtime from the gated Supabase overlay instead.
+  const artifacts = [];
   return {
     schema_version: base.schema_version || 1,
     generated_at: base.generated_at || null,
     source: base.source || "supabase.derived_artifacts",
-    default_export_policy: "app-visible only: T2 reviewed/published and T3 published+approved",
+    default_export_policy: "runtime-only: committed app bundle carries no transcript distillations",
     source_default_export_policy: base.default_export_policy || null,
     source_artifact_count: Number(base.artifact_count || 0),
     source_operator_review_count: Number(base.operator_review_count || 0),

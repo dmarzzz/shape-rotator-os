@@ -59,6 +59,7 @@ import { loadStylesheetOnce } from "./stylesheet-loader.js";
 import { getManifest, getSyncLog, getNodeLog, getHealth } from "./sync-client.js";
 import { subscribeToCohortChanges, subscribeToSyncState, getCohortSurface } from "./cohort-source.js";
 import { buildLinkIndex, serializeLocation, parseLocation } from "./share-link.js";
+import { launcherStatus, normalizeLauncherAction } from "./cohort-launcher-actions.mjs";
 
 // ── headless smoke-test boot tracing (gated; no-op for real launches) ──
 // main.js loads index.html with ?smoke=1 for the --smoke-test boot. When set,
@@ -544,6 +545,7 @@ async function boot() {
   // then rerun the hidden transcript receive self-test against the saved session.
   try {
     const params = new URLSearchParams(location.search || "");
+    if (params.get("navAudit") === "1") localStorage.setItem("srwk:auth_gate_enabled", "0");
     if (params.get("authProof") === "1") localStorage.setItem("srwk:auth_gate_enabled", "1");
   } catch {}
 
@@ -5783,28 +5785,28 @@ function setLauncherActionState(action, { state = "", label = "", hint = "", ttl
 }
 function openCohortSyncFromLauncher(e) {
   if (e) { e.preventDefault(); e.stopPropagation(); }
-  setLauncherActionState("sync", { state: "busy", label: "syncing", hint: "opening review" });
+  setLauncherActionState("sync", launcherStatus("sync", "busy"));
   loadCohortChat()
     .then((m) => (m.openCohortUpdates ? m.openCohortUpdates() : m.openCohortChat()))
     .then(() => {
-      setLauncherActionState("sync", { state: "done", label: "sync", hint: "review draft", ttl: 5000 });
+      setLauncherActionState("sync", launcherStatus("sync", "done"));
     })
     .catch((err) => {
-      setLauncherActionState("sync", { state: "error", label: "sync", hint: "try again", ttl: 5000 });
+      setLauncherActionState("sync", launcherStatus("sync", "error"));
       console.error("[cohort-chat] sync failed:", err);
       toast({ kind: "error", message: `sync failed: ${err?.message || err}` });
     });
 }
 function openTranscriptUploadFromLauncher(e) {
   if (e) { e.preventDefault(); e.stopPropagation(); }
-  setLauncherActionState("transcript", { state: "busy", label: "opening", hint: "intake form" });
+  setLauncherActionState("transcript", launcherStatus("transcript", "busy"));
   loadCohortChat()
     .then((m) => (m.openCohortTranscriptUpload ? m.openCohortTranscriptUpload() : m.openCohortChat()))
     .then(() => {
-      setLauncherActionState("transcript", { state: "done", label: "transcript", hint: "intake ready", ttl: 5000 });
+      setLauncherActionState("transcript", launcherStatus("transcript", "done"));
     })
     .catch((err) => {
-      setLauncherActionState("transcript", { state: "error", label: "transcript", hint: "try again", ttl: 5000 });
+      setLauncherActionState("transcript", launcherStatus("transcript", "error"));
       console.error("[cohort-chat] transcript intake failed:", err);
       toast({ kind: "error", message: `transcript intake failed: ${err?.message || err}` });
     });
@@ -5820,7 +5822,7 @@ function toggleCohortChatFromLauncher(e) {
     });
 }
 function routeCohortChatAction(e) {
-  const action = e.currentTarget && e.currentTarget.getAttribute("data-cohort-chat-action");
+  const action = normalizeLauncherAction(e.currentTarget && e.currentTarget.getAttribute("data-cohort-chat-action"));
   const dialWrap = document.getElementById("cohort-chat-dial-wrap");
   const actionMenu = document.getElementById("cohort-chat-action-menu");
   const dial = document.getElementById("cohort-chat-dial");
@@ -5840,7 +5842,7 @@ function routeCohortChatAction(e) {
   for (const actionBtn of document.querySelectorAll("[data-cohort-chat-action]")) actionBtn.tabIndex = -1;
   if (action === "search") return openSearchFromLauncher(e);
   if (action === "settings") return openCohortChatSettingsFromLauncher(e);
-  if (action === "sync" || action === "updates") return openCohortSyncFromLauncher(e);
+  if (action === "sync") return openCohortSyncFromLauncher(e);
   if (action === "transcript") return openTranscriptUploadFromLauncher(e);
   return openCohortChatFromLauncher(e);
 }

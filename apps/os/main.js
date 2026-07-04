@@ -106,12 +106,36 @@ const TRANSCRIPT_RECEIVE_SELFTEST = process.argv.includes("--transcript-receive-
   || process.env.SROS_TRANSCRIPT_RECEIVE_SELFTEST === "1";
 const TRANSCRIPT_AUTH_PROOF = process.argv.includes("--transcript-auth-proof")
   || process.env.SROS_TRANSCRIPT_AUTH_PROOF === "1";
+const TRANSCRIPT_INTAKE_FLOW_SMOKE = process.argv.includes("--transcript-intake-flow-smoke")
+  || process.env.SROS_TRANSCRIPT_INTAKE_FLOW_SMOKE === "1";
+const TRANSCRIPT_DRIVE_AUTH_SMOKE = process.argv.includes("--transcript-drive-auth-smoke")
+  || process.env.SROS_TRANSCRIPT_DRIVE_AUTH_SMOKE === "1";
+const TRANSCRIPT_DRIVE_AUTH_CONSENT = process.argv.includes("--transcript-drive-auth-consent")
+  || process.env.SROS_TRANSCRIPT_DRIVE_AUTH_CONSENT === "1";
+const TRANSCRIPT_DRIVE_INTAKE_SMOKE = process.argv.includes("--transcript-drive-intake-smoke")
+  || process.env.SROS_TRANSCRIPT_DRIVE_INTAKE_SMOKE === "1";
 
 function configureSmokeUserData() {
-  if (!SMOKE_TEST) return;
+  if (!SMOKE_TEST && !TRANSCRIPT_INTAKE_FLOW_SMOKE) return;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shape-rotator-os-smoke-"));
   app.setPath("userData", dir);
   process.stderr.write(`[smoke] userData=${dir}\n`);
+}
+
+function finishSmokeProcess(code) {
+  process.exitCode = code;
+  setImmediate(() => {
+    try {
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (!win.isDestroyed()) win.destroy();
+      }
+    } catch {}
+    try { app.quit(); } catch { app.exit(code); }
+  });
+  const hardExit = setTimeout(() => {
+    try { app.exit(code); } catch {}
+  }, 1500);
+  if (typeof hardExit.unref === "function") hardExit.unref();
 }
 
 // Custom URL scheme for shareable deep-links (sros://xxxxx). See the deep-link
@@ -164,7 +188,7 @@ function runSmokeTest() {
     settled = true;
     clearTimeout(timer);
     log(code === 0 ? `PASS: ${why}` : `FAIL: ${why}`);
-    app.exit(code);
+    finishSmokeProcess(code);
   };
   const timer = setTimeout(
     () => finish(1, `renderer did not signal ready within ${TIMEOUT_MS}ms`),
@@ -262,6 +286,661 @@ function runTranscriptReceiveSelfTest() {
     }
   });
   win.loadFile(path.join(__dirname, "src", "index.html"), { query: { smoke: "1", transcriptSelftest: "1" } });
+}
+
+function runTranscriptIntakeFlowSmoke() {
+  const http = require("node:http");
+  const TIMEOUT_MS = Number(process.env.SROS_TRANSCRIPT_INTAKE_FLOW_TIMEOUT_MS || process.env.SROS_SMOKE_TIMEOUT_MS) || 60000;
+  const log = (m) => process.stdout.write(`[transcript-intake-flow] ${m}\n`);
+  const screenshotDir = String(process.env.SROS_TRANSCRIPT_INTAKE_FLOW_SCREENSHOT_DIR || "").trim()
+    ? path.resolve(String(process.env.SROS_TRANSCRIPT_INTAKE_FLOW_SCREENSHOT_DIR || "").trim())
+    : "";
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sros-transcript-flow-"));
+  const fixtures = [
+    path.join(fixtureRoot, "Bulk One.txt"),
+    path.join(fixtureRoot, "Bulk Two.vtt"),
+  ];
+  fs.writeFileSync(fixtures[0], "Bulk flow transcript one\nSpeaker: Shape OS smoke test\n", "utf8");
+  fs.writeFileSync(fixtures[1], "WEBVTT\n\n00:00.000 --> 00:01.000\nBulk flow transcript two\n", "utf8");
+
+  const captured = [];
+  const driveUploads = [];
+  const server = http.createServer((req, res) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => {
+      const raw = Buffer.concat(chunks).toString("utf8");
+      let body = null;
+      try { body = raw ? JSON.parse(raw) : null; } catch { body = raw; }
+      captured.push({ method: req.method, url: req.url, headers: req.headers, body });
+      res.writeHead(201, { "content-type": "application/json" });
+      res.end("");
+    });
+  });
+
+  let settled = false;
+  let win = null;
+  const originalShowOpenDialog = dialog.showOpenDialog;
+  const originalFetch = global.fetch;
+  const originalAuthSession = readAuthSession();
+  const cleanup = () => {
+    dialog.showOpenDialog = originalShowOpenDialog;
+    global.fetch = originalFetch;
+    writeAuthSession(originalAuthSession);
+    try { server.close(); } catch {}
+    try { fs.rmSync(fixtureRoot, { recursive: true, force: true }); } catch {}
+    try { if (win && !win.isDestroyed()) win.destroy(); } catch {}
+  };
+  const finish = (code, why, detail = null) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    if (detail) log(JSON.stringify(detail, null, 2));
+    log(code === 0 ? `PASS: ${why}` : `FAIL: ${why}`);
+    cleanup();
+    app.exit(code);
+  };
+  const timer = setTimeout(
+    () => finish(1, `flow did not complete within ${TIMEOUT_MS}ms`, { capturedCount: captured.length }),
+    TIMEOUT_MS,
+  );
+  const captureScreenshot = async (name) => {
+    if (!screenshotDir || !win || win.isDestroyed()) return "";
+    fs.mkdirSync(screenshotDir, { recursive: true });
+    await win.webContents.executeJavaScript(`new Promise((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 100)));
+    })`);
+    const image = await win.webContents.capturePage();
+    const filePath = path.join(screenshotDir, `${name}.png`);
+    fs.writeFileSync(filePath, image.toPNG());
+    log(`screenshot ${filePath}`);
+    return filePath;
+  };
+
+  server.listen(0, "127.0.0.1", () => {
+    const port = server.address().port;
+    const contextSubmissionsUrl = `http://127.0.0.1:${port}/rest/v1/context_submissions`;
+    writeAuthSession({
+      access_token: "smoke-supabase-token",
+      refresh_token: null,
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      token_type: "bearer",
+      provider_token: "smoke-drive-token",
+      provider_refresh_token: null,
+      provider_scopes: [GOOGLE_DRIVE_FILE_SCOPE],
+      user: { id: "smoke-user", email: "smoke@shaperotator.local", user_metadata: {} },
+    });
+    global.fetch = async (url, options = {}) => {
+      const href = String(url || "");
+      if (href.startsWith("https://www.googleapis.com/upload/drive/v3/files")) {
+        const id = `drive-smoke-${driveUploads.length + 1}`;
+        driveUploads.push({
+          url: href,
+          method: options.method || "GET",
+          authorization: options.headers?.authorization || options.headers?.Authorization || "",
+          contentType: options.headers?.["content-type"] || options.headers?.["Content-Type"] || "",
+          id,
+        });
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ id, name: `${id}.txt`, mimeType: "text/plain", parents: ["drive-folder-smoke"] }),
+        };
+      }
+      return originalFetch(url, options);
+    };
+    log(`booting renderer ${screenshotDir ? "visible" : "hidden"} (timeout ${TIMEOUT_MS}ms)`);
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: fixtures });
+
+    win = new BrowserWindow({
+      width: 1280, height: 900, show: !!screenshotDir,
+      webPreferences: {
+        preload: path.join(__dirname, "preload.js"),
+        contextIsolation: true, sandbox: false, nodeIntegration: false,
+      },
+    });
+    win.webContents.on("console-message", (_e, a, b) => {
+      let lvl, msg;
+      if (a && typeof a === "object") { lvl = a.level; msg = a.message; }
+      else { lvl = a; msg = b; }
+      if (lvl >= 2) log(`renderer: ${msg}`);
+    });
+    win.webContents.on("did-fail-load", (_e, ec, desc, url) =>
+      finish(1, `did-fail-load ${ec} ${desc} ${url}`));
+    win.webContents.on("render-process-gone", (_e, d) =>
+      finish(1, `render-process-gone: ${d && d.reason}`));
+    win.webContents.on("preload-error", (_e, p, err) =>
+      finish(1, `preload-error ${p}: ${err && err.message}`));
+    ipcMain.on("smoke:trace", (_e, label) => log(`cp:${label}`));
+    ipcMain.once("smoke:ready", async () => {
+      try {
+        const setup = await win.webContents.executeJavaScript(`(async () => {
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+          const waitFor = async (fn, label, timeout = 15000) => {
+            const deadline = Date.now() + timeout;
+            let last = null;
+            while (Date.now() < deadline) {
+              try {
+                const value = fn();
+                if (value) return value;
+              } catch (error) {
+                last = error;
+              }
+              await sleep(50);
+            }
+            throw new Error(label + (last ? ": " + last.message : ""));
+          };
+          const state = async () => {
+            const card = await waitFor(() => document.querySelector(".cc-card.is-transcript-intake"), "transcript intake card");
+            const submit = card.querySelector("[data-cc-transcript-submit]");
+            const statusEl = card.querySelector("[data-cc-transcript-status]");
+            const history = window.api?.getTranscriptIntakeHistory ? await window.api.getTranscriptIntakeHistory() : null;
+            return {
+              status: statusEl && !statusEl.hidden ? statusEl.textContent || "" : "",
+              selectedText: card.querySelector(".cc-upload-file-name")?.textContent || "",
+              submitText: submit?.textContent || "",
+              submitDisabled: !!submit?.disabled,
+              pathNote: card.querySelector("[data-cc-transcript-path-note]")?.textContent || "",
+              history,
+            };
+          };
+          window.__srosTranscriptFlow = { sleep, waitFor, state };
+          try { document.getElementById("auth-gate")?.remove(); } catch {}
+          const mod = await import("./renderer/cohort-chat.js");
+          await mod.openCohortTranscriptUpload();
+          const card = await waitFor(() => document.querySelector(".cc-card.is-transcript-intake"), "transcript intake card");
+          const drivePath = card.querySelector('[data-cc-transcript-path="drive_inbox"]');
+          const salonType = card.querySelector('[data-cc-transcript-type="salon"]');
+          if (!drivePath || !salonType) throw new Error("required transcript controls missing");
+          drivePath.click();
+          salonType.click();
+          const label = card.querySelector("[data-cc-transcript-label]");
+          const date = card.querySelector("[data-cc-transcript-date]");
+          const related = card.querySelector("[data-cc-transcript-related]");
+          const org = card.querySelector("[data-cc-transcript-org]");
+          const inbox = card.querySelector("[data-cc-transcript-context-url]");
+          const driveFolder = card.querySelector("[data-cc-transcript-drive-folder]");
+          if (label) label.value = "Bulk flow smoke";
+          if (date) {
+            date.value = "2026-07-04";
+            date.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+          if (related) related.value = "bulk transcript smoke";
+          if (org) org.value = "srfg";
+          if (inbox) inbox.value = ${JSON.stringify(contextSubmissionsUrl)};
+          if (driveFolder) driveFolder.value = "drive-folder-smoke";
+          return await state();
+        })()`);
+        const screenshots = [];
+        const readyShot = await captureScreenshot("01-transcript-intake-ready");
+        if (readyShot) screenshots.push(readyShot);
+
+        const picked = await win.webContents.executeJavaScript(`(async () => {
+          const { waitFor, state } = window.__srosTranscriptFlow;
+          const card = await waitFor(() => document.querySelector(".cc-card.is-transcript-intake"), "transcript intake card");
+          const dropzone = card.querySelector("[data-cc-transcript-dropzone]");
+          if (!dropzone) throw new Error("transcript dropzone missing");
+          dropzone.click();
+          await waitFor(() => {
+            const name = card.querySelector(".cc-upload-file-name")?.textContent || "";
+            return name.includes("2 transcripts") ? name : null;
+          }, "bulk file selection");
+          const submit = card.querySelector("[data-cc-transcript-submit]");
+          if (!submit) throw new Error("submit button missing");
+          if (submit.disabled) throw new Error("submit stayed disabled: " + (card.querySelector("[data-cc-transcript-path-note]")?.textContent || ""));
+          return await state();
+        })()`);
+        const pickedShot = await captureScreenshot("02-transcript-intake-bulk-selected");
+        if (pickedShot) screenshots.push(pickedShot);
+
+        const result = await win.webContents.executeJavaScript(`(async () => {
+          const { waitFor, state } = window.__srosTranscriptFlow;
+          const card = await waitFor(() => document.querySelector(".cc-card.is-transcript-intake"), "transcript intake card");
+          const submit = card.querySelector("[data-cc-transcript-submit]");
+          if (!submit) throw new Error("submit button missing");
+          submit.click();
+          await waitFor(() => {
+            const el = card.querySelector("[data-cc-transcript-status]");
+            const text = el && !el.hidden ? el.textContent || "" : "";
+            return /uploaded 2 transcripts/.test(text) ? text : null;
+          }, "successful bulk status", 20000);
+          return await state();
+        })()`);
+        await win.webContents.executeJavaScript(`try {
+          document.querySelector("[data-cc-transcript-status]")?.scrollIntoView({ block: "center", inline: "nearest" });
+        } catch {}`);
+        const successShot = await captureScreenshot("03-transcript-intake-success");
+        if (successShot) screenshots.push(successShot);
+
+        const intakeRoot = path.join(app.getPath("userData"), "transcript-intake");
+        const manifests = [];
+        const stagedFiles = [];
+        const walk = (dir) => {
+          let entries = [];
+          try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+          for (const entry of entries) {
+            const p = path.join(dir, entry.name);
+            if (entry.isDirectory()) walk(p);
+            else if (entry.name.endsWith(".manifest.json")) manifests.push(JSON.parse(fs.readFileSync(p, "utf8")));
+            else if (!entry.name.endsWith(".local-readout.md")) stagedFiles.push(p);
+          }
+        };
+        walk(intakeRoot);
+        const userDataRoot = path.resolve(app.getPath("userData"));
+        const stagedPathSet = new Set(stagedFiles.map((item) => path.resolve(item)));
+        const storageChecks = manifests.map((item) => {
+          const storagePath = path.resolve(userDataRoot, String(item.storage_ref || ""));
+          const relativeToUserData = path.relative(userDataRoot, storagePath);
+          const exists = fs.existsSync(storagePath);
+          let sizeBytes = 0;
+          let text = "";
+          if (exists) {
+            try { sizeBytes = fs.statSync(storagePath).size; } catch {}
+            try { text = fs.readFileSync(storagePath, "utf8"); } catch {}
+          }
+          return {
+            original_file_name: item.original_file_name,
+            storage_ref: item.storage_ref,
+            path: storagePath,
+            exists,
+            underUserData: !!relativeToUserData && !relativeToUserData.startsWith("..") && !path.isAbsolute(relativeToUserData),
+            listedByWalk: stagedPathSet.has(storagePath),
+            sizeBytes,
+            manifestSizeBytes: Number(item.size_bytes) || 0,
+            text,
+          };
+        });
+        const storedText = storageChecks.map((item) => item.text).join("\n");
+        const ok = captured.length === 0
+          && driveUploads.length === 2
+          && driveUploads.every((row) => row.method === "POST" && row.authorization === "Bearer smoke-drive-token" && /^multipart\/related/.test(row.contentType))
+          && manifests.length === 2
+          && manifests.every((item) => item.processing_path === "drive_inbox" && item.drive_uploaded_at && item.drive_file_id && item.drive_storage_ref)
+          && stagedFiles.length === 2
+          && storageChecks.length === 2
+          && storageChecks.every((item) => item.exists && item.underUserData && item.listedByWalk && item.sizeBytes > 0 && item.sizeBytes === item.manifestSizeBytes)
+          && /Bulk flow transcript one/.test(storedText)
+          && /Bulk flow transcript two/.test(storedText)
+          && result?.history?.ok === true
+          && Array.isArray(result.history.items)
+          && result.history.items.length >= 2
+          && result.history.items.slice(0, 2).every((item) => item.processing_path === "drive_inbox");
+
+        finish(ok ? 0 : 1, ok ? "bulk transcript intake flow passed" : "bulk transcript intake flow failed", {
+          screenshots,
+          setup,
+          picked,
+          renderer: result,
+          capturedCount: captured.length,
+          driveUploadCount: driveUploads.length,
+          driveUploads: driveUploads.map((row) => ({
+            method: row.method,
+            url: row.url,
+            contentType: row.contentType,
+            id: row.id,
+          })),
+          capturedBodies: captured.map((row) => ({
+            method: row.method,
+            url: row.url,
+            source_kind: row.body?.source_kind,
+            org_id: row.body?.org_id,
+            title: row.body?.title,
+            raw_upload: row.body?.metadata?.raw_upload,
+            processing_path: row.body?.metadata?.processing_path,
+          })),
+          manifestCount: manifests.length,
+          manifests: manifests.map((item) => ({
+            original_file_name: item.original_file_name,
+            processing_path: item.processing_path,
+            raw_submission_rows: item.raw_submission_rows,
+            route_path: item.route_path,
+          })),
+          storedFileCount: stagedFiles.length,
+          storedFiles: storageChecks.map((item) => ({
+            original_file_name: item.original_file_name,
+            storage_ref: item.storage_ref,
+            exists: item.exists,
+            underUserData: item.underUserData,
+            listedByWalk: item.listedByWalk,
+            sizeBytes: item.sizeBytes,
+            manifestSizeBytes: item.manifestSizeBytes,
+            hasExpectedText: /Bulk flow transcript (one|two)/.test(item.text),
+          })),
+        });
+      } catch (error) {
+        finish(1, `flow execution failed: ${error?.message || String(error)}`, { capturedCount: captured.length });
+      }
+    });
+    win.loadFile(path.join(__dirname, "src", "index.html"), { query: { smoke: "1", transcriptIntakeFlow: "1", navAudit: "1" } });
+  });
+}
+
+async function runTranscriptDriveAuthConsent() {
+  const log = (m) => process.stdout.write(`[transcript-drive-auth] ${m}\n`);
+  try {
+    const { verifier, challenge } = makePkcePair();
+    pendingPkceVerifier = verifier;
+    fs.writeFileSync(AUTH_PKCE_FILE, verifier, { mode: 0o600 });
+    const authorize = buildGoogleAuthAuthorizeUrl({ challenge, promptConsent: true });
+    await shell.openExternal(authorize);
+    log(JSON.stringify({
+      ok: true,
+      opened: true,
+      redirect: AUTH_REDIRECT,
+      scopes: googleAuthScopes(),
+      userData: app.getPath("userData"),
+      note: "Approve Google Drive access in the browser; the sros:// callback stores the provider token in encrypted app auth storage.",
+    }, null, 2));
+    setTimeout(() => app.exit(0), 500);
+  } catch (error) {
+    log(JSON.stringify({ ok: false, reason: "consent_open_failed", detail: error?.message || String(error) }, null, 2));
+    app.exit(1);
+  }
+}
+
+async function runTranscriptDriveAuthSmoke() {
+  const log = (m) => process.stdout.write(`[transcript-drive-auth] ${m}\n`);
+  const live = process.env.SROS_TRANSCRIPT_DRIVE_LIVE_SMOKE === "1";
+  const folderId = String(process.env.SROS_TRANSCRIPT_DRIVE_TEST_FOLDER_ID || process.env.SROS_DRIVE_INBOX_FOLDER_ID || process.env.GOOGLE_DRIVE_FOLDER_ID || "").trim();
+  let session = readAuthSession();
+  if (session && Number(session.expires_at) <= Math.floor(Date.now() / 1000) + 120) {
+    session = await refreshAuthSession() || session;
+  }
+  const scopes = normalizeAuthScopes(session?.provider_scopes || []);
+  const providerTokenAvailable = !!session?.provider_token;
+  const hasDriveFileScope = scopes.includes(GOOGLE_DRIVE_FILE_SCOPE) || (providerTokenAvailable && scopes.length === 0);
+  const result = {
+    ok: providerTokenAvailable && hasDriveFileScope && (!live || !!folderId),
+    userData: app.getPath("userData"),
+    authSessionFileExists: fs.existsSync(AUTH_SESSION_FILE),
+    signedIn: !!session?.access_token,
+    providerTokenAvailable,
+    providerRefreshTokenAvailable: !!session?.provider_refresh_token,
+    providerScopes: scopes,
+    hasDriveFileScope,
+    folderIdConfigured: !!folderId,
+    liveUploadAttempted: false,
+  };
+
+  if (live && providerTokenAvailable && folderId) {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sros-drive-auth-smoke-"));
+    try {
+      const source = path.join(tmpRoot, "shape-os-drive-upload-smoke.txt");
+      fs.writeFileSync(source, `Shape OS Drive upload smoke\n${new Date().toISOString()}\n`, "utf8");
+      const intake = loadTranscriptIntake();
+      const staged = intake.stageTranscriptFile({
+        filePath: source,
+        sessionType: "salon",
+        label: "Drive auth smoke",
+        intakeRoot: path.join(tmpRoot, "intake"),
+        storageRefRoot: tmpRoot,
+        now: new Date(),
+      });
+      const upload = await intake.callDriveUpload({
+        config: { accessToken: session.provider_token, folderId },
+        staged,
+        fetchImpl: fetch,
+      });
+      result.liveUploadAttempted = true;
+      result.liveUploadOk = true;
+      result.driveFileId = upload.id;
+      result.driveFileName = upload.name;
+      result.ok = true;
+    } catch (error) {
+      result.liveUploadAttempted = true;
+      result.liveUploadOk = false;
+      result.ok = false;
+      result.reason = error?.code || "drive_live_upload_failed";
+      result.status = error?.status || undefined;
+      result.detail = error?.message || String(error);
+    } finally {
+      try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch {}
+    }
+  } else if (live && !folderId) {
+    result.reason = "missing_drive_test_folder_id";
+  } else if (!providerTokenAvailable) {
+    result.reason = "missing_provider_token";
+  }
+
+  log(JSON.stringify(result, null, 2));
+  app.exit(result.ok ? 0 : 1);
+}
+
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || "").trim());
+}
+
+async function fetchCurrentOrgMemberships({ accessToken, fetchImpl = fetch } = {}) {
+  if (!accessToken) return [];
+  const url = new URL(`${SUPABASE_AUTH_URL}/rest/v1/org_memberships`);
+  url.searchParams.set("select", "org_id,role");
+  url.searchParams.set("limit", "10");
+  const response = await fetchImpl(url, {
+    method: "GET",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      authorization: `Bearer ${accessToken}`,
+    },
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    const error = new Error(`Supabase org_memberships lookup failed: ${response.status}`);
+    error.code = "org_memberships_lookup_failed";
+    error.status = response.status;
+    error.body = data;
+    throw error;
+  }
+  return Array.isArray(data) ? data.filter((row) => isUuid(row?.org_id)) : [];
+}
+
+async function resolveTranscriptArtifactOrgId({ accessToken, requestedOrgId, fetchImpl = fetch } = {}) {
+  const requested = String(requestedOrgId || "").trim();
+  if (isUuid(requested)) return { orgId: requested, source: "configured", membershipCount: null };
+  const memberships = await fetchCurrentOrgMemberships({ accessToken, fetchImpl });
+  const preferred = memberships.find((row) => ["admin", "coordinator"].includes(String(row?.role || "")))
+    || memberships[0]
+    || null;
+  if (!preferred?.org_id) {
+    const error = new Error("No Supabase org membership found for artifact ingest.");
+    error.code = "org_membership_not_found";
+    error.requestedOrgId = requested || undefined;
+    throw error;
+  }
+  return {
+    orgId: String(preferred.org_id),
+    source: requested ? "org_memberships_for_alias" : "org_memberships",
+    requestedOrgId: requested || undefined,
+    role: preferred.role || undefined,
+    membershipCount: memberships.length,
+  };
+}
+
+function summarizeDriveIntakeSmokeResult(result) {
+  const safeErrorBody = (body) => {
+    if (!body || typeof body !== "object") return undefined;
+    const allowed = {};
+    for (const key of ["error", "reason", "message", "detail", "hint", "code"]) {
+      if (body[key] != null) allowed[key] = String(body[key]).slice(0, 500);
+    }
+    return Object.keys(allowed).length ? allowed : undefined;
+  };
+  if (result?.bulk) {
+    return {
+      ok: !!result.ok,
+      bulk: true,
+      totalCount: result.totalCount || 0,
+      okCount: result.okCount || 0,
+      failedCount: result.failedCount || 0,
+      driveUploadCount: result.driveUploadCount || 0,
+      processingQueuedCount: result.processingQueuedCount || 0,
+      results: (Array.isArray(result.results) ? result.results : []).map((item) => ({
+        ok: !!item?.ok,
+        fileName: item?.fileName || "",
+        reason: item?.reason || undefined,
+        status: item?.status || undefined,
+        submittedToSupabase: !!item?.submittedToSupabase,
+        processingQueued: !!item?.processingQueued,
+        sourceArtifactCount: Number(item?.sourceArtifactCount || 0),
+        processingJobCount: Number(item?.processingJobCount || 0),
+        driveUploaded: !!item?.driveUploaded,
+        driveFileId: item?.driveFileId || undefined,
+        driveFileName: item?.driveFileName || undefined,
+        driveStorageRef: item?.driveStorageRef || undefined,
+        storageRef: item?.storageRef || undefined,
+        errorBody: safeErrorBody(item?.body),
+      })),
+      rejectedCount: Array.isArray(result.rejected) ? result.rejected.length : 0,
+      reason: result.reason || undefined,
+      detail: result.detail || undefined,
+    };
+  }
+  return {
+    ok: !!result?.ok,
+    bulk: false,
+    reason: result?.reason || undefined,
+    status: result?.status || undefined,
+    submittedToSupabase: !!result?.submittedToSupabase,
+    processingQueued: !!result?.processingQueued,
+    sourceArtifactCount: Number(result?.sourceArtifactCount || 0),
+    processingJobCount: Number(result?.processingJobCount || 0),
+    driveUploaded: !!result?.driveUploaded,
+    driveFileId: result?.driveFileId || undefined,
+    driveFileName: result?.driveFileName || undefined,
+    driveStorageRef: result?.driveStorageRef || undefined,
+    storageRef: result?.storageRef || undefined,
+    detail: result?.detail || undefined,
+    errorBody: safeErrorBody(result?.body),
+  };
+}
+
+async function runTranscriptDriveIntakeSmoke() {
+  const log = (m) => process.stdout.write(`[transcript-drive-intake] ${m}\n`);
+  const folderId = String(process.env.SROS_TRANSCRIPT_DRIVE_TEST_FOLDER_ID || process.env.SROS_DRIVE_INBOX_FOLDER_ID || process.env.GOOGLE_DRIVE_FOLDER_ID || "").trim();
+  const requestedOrgId = String(process.env.SROS_TRANSCRIPT_INTAKE_SMOKE_ORG_ID || "srfg").trim();
+  const sessionId = String(process.env.SROS_TRANSCRIPT_INTAKE_SMOKE_SESSION_ID || "").trim();
+  const sessionType = String(process.env.SROS_TRANSCRIPT_INTAKE_SMOKE_SESSION_TYPE || "salon").trim() || "salon";
+  let orgId = requestedOrgId;
+  let orgResolution = { orgId, source: "configured" };
+  const bulk = process.argv.includes("--bulk") || process.env.SROS_TRANSCRIPT_DRIVE_INTAKE_BULK === "1";
+  let session = readAuthSession();
+  if (session && Number(session.expires_at) <= Math.floor(Date.now() / 1000) + 120) {
+    session = await refreshAuthSession() || session;
+  }
+  const result = {
+    ok: false,
+    userData: app.getPath("userData"),
+    authSessionFileExists: fs.existsSync(AUTH_SESSION_FILE),
+    signedIn: !!session?.access_token,
+    providerTokenAvailable: !!session?.provider_token,
+    folderIdConfigured: !!folderId,
+    requestedOrgId,
+    orgId,
+    orgIdSource: orgResolution.source,
+    sessionIdConfigured: !!sessionId,
+    sessionType,
+    bulk,
+    liveIntakeAttempted: false,
+  };
+
+  if (!session?.access_token) {
+    result.reason = "missing_supabase_session";
+    log(JSON.stringify(result, null, 2));
+    app.exit(1);
+    return;
+  }
+  if (!session?.provider_token) {
+    result.reason = "missing_provider_token";
+    log(JSON.stringify(result, null, 2));
+    app.exit(1);
+    return;
+  }
+  if (!folderId) {
+    result.reason = "missing_drive_test_folder_id";
+    log(JSON.stringify(result, null, 2));
+    app.exit(1);
+    return;
+  }
+  try {
+    orgResolution = await resolveTranscriptArtifactOrgId({
+      accessToken: session.access_token,
+      requestedOrgId,
+    });
+    orgId = orgResolution.orgId;
+    Object.assign(result, {
+      orgId,
+      orgIdSource: orgResolution.source,
+      orgMembershipCount: orgResolution.membershipCount,
+      orgMembershipRole: orgResolution.role || undefined,
+    });
+  } catch (error) {
+    Object.assign(result, {
+      reason: error?.code || "org_membership_lookup_failed",
+      status: error?.status || undefined,
+      detail: error?.message || String(error),
+    });
+    log(JSON.stringify(result, null, 2));
+    app.exit(1);
+    return;
+  }
+
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sros-drive-intake-smoke-"));
+  try {
+    const count = bulk ? 2 : 1;
+    const sourcePaths = Array.from({ length: count }, (_item, index) => {
+      const filePath = path.join(tmpRoot, `shape-os-drive-intake-smoke-${index + 1}.txt`);
+      fs.writeFileSync(filePath, [
+        `Shape OS Drive intake smoke ${index + 1}`,
+        `Generated ${new Date().toISOString()}`,
+        "This is a tiny automated storage test. No private transcript content is included.",
+        "",
+      ].join("\n"), "utf8");
+      return filePath;
+    });
+    const intake = loadTranscriptIntake();
+    const common = {
+      sessionType,
+      label: bulk ? "Drive intake smoke bulk" : "Drive intake smoke",
+      sessionId,
+      declaredDate: new Date().toISOString().slice(0, 10),
+      relatedText: "Automated Drive intake smoke",
+      confidence: "sure",
+      processingPath: "drive_inbox",
+      supabase: {
+        supabaseUrl: SUPABASE_AUTH_URL,
+        supabaseAnonKey: SUPABASE_ANON_KEY,
+        accessToken: session.access_token,
+        orgId,
+      },
+      drive: {
+        accessToken: session.provider_token,
+        folderId,
+      },
+      intakeRoot: path.join(app.getPath("userData"), "transcript-intake"),
+      storageRefRoot: app.getPath("userData"),
+      fetchImpl: fetch,
+      now: new Date(),
+    };
+    const intakeResult = bulk
+      ? await intake.submitTranscriptIntakeBatch({ ...common, filePaths: sourcePaths })
+      : await intake.submitTranscriptIntake({ ...common, filePath: sourcePaths[0] });
+    Object.assign(result, {
+      liveIntakeAttempted: true,
+      ...summarizeDriveIntakeSmokeResult(intakeResult),
+    });
+  } catch (error) {
+    Object.assign(result, {
+      liveIntakeAttempted: true,
+      ok: false,
+      reason: error?.code || "drive_intake_smoke_failed",
+      status: error?.status || undefined,
+      detail: error?.message || String(error),
+    });
+  } finally {
+    try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch {}
+  }
+
+  log(JSON.stringify(result, null, 2));
+  app.exit(result.ok ? 0 : 1);
 }
 
 // One-time userData migration. Electron resolves `app.getPath("userData")`
@@ -2176,7 +2855,14 @@ ipcMain.handle("fg:gh:scan-private", async (_e, opts) => loadGhNode().scanPrivat
 
 ipcMain.handle("fg:transcript-intake:options", async () => loadTranscriptIntake().getTranscriptIntakeOptions());
 ipcMain.handle("fg:transcript-intake:history", async () => {
-  try { return { ok: true, items: loadTranscriptIntake().listTranscriptIntakeHistory({}) }; }
+  try {
+    return {
+      ok: true,
+      items: loadTranscriptIntake().listTranscriptIntakeHistory({
+        intakeRoot: path.join(app.getPath("userData"), "transcript-intake"),
+      }),
+    };
+  }
   catch (e) { return { ok: false, error: String(e && e.message ? e.message : e), items: [] }; }
 });
 // Open the native file picker (file-first UI). Returns the validated file's
@@ -2184,6 +2870,13 @@ ipcMain.handle("fg:transcript-intake:history", async () => {
 ipcMain.handle("fg:transcript-intake:pick", async (e) => {
   try {
     return await loadTranscriptIntake().pickTranscriptFile({ browserWindow: BrowserWindow.fromWebContents(e.sender) });
+  } catch (error) {
+    return { ok: false, reason: error?.code || "pick_failed", detail: error?.message || String(error) };
+  }
+});
+ipcMain.handle("fg:transcript-intake:pick-bulk", async (e) => {
+  try {
+    return await loadTranscriptIntake().pickTranscriptFiles({ browserWindow: BrowserWindow.fromWebContents(e.sender) });
   } catch (error) {
     return { ok: false, reason: error?.code || "pick_failed", detail: error?.message || String(error) };
   }
@@ -2196,8 +2889,34 @@ ipcMain.handle("fg:transcript-intake:inspect", async (_e, filePath) => {
     return { ok: false, reason: error?.code || "invalid_file", detail: error?.message || String(error) };
   }
 });
+ipcMain.handle("fg:transcript-intake:inspect-bulk", async (_e, filePaths) => {
+  try {
+    return loadTranscriptIntake().inspectTranscriptFiles(Array.isArray(filePaths) ? filePaths : []);
+  } catch (error) {
+    return { ok: false, reason: error?.code || "invalid_file", detail: error?.message || String(error), files: [], rejected: [] };
+  }
+});
 ipcMain.handle("fg:transcript-intake:submit", async (e, opts = {}) => {
   try {
+    const userDataRoot = app.getPath("userData");
+    const intakeRoot = path.join(userDataRoot, "transcript-intake");
+    const driveConfig = { ...(opts.drive || {}) };
+    const supabaseConfig = { ...(opts.supabase || {}) };
+    if (opts.processingPath === "drive_inbox") {
+      const authSession = readAuthSession();
+      if (authSession?.provider_token) driveConfig.accessToken = authSession.provider_token;
+      if (authSession?.access_token && !isUuid(supabaseConfig.orgId || supabaseConfig.org_id)) {
+        try {
+          const resolvedOrg = await resolveTranscriptArtifactOrgId({
+            accessToken: authSession.access_token,
+            requestedOrgId: supabaseConfig.orgId || supabaseConfig.org_id,
+          });
+          supabaseConfig.orgId = resolvedOrg.orgId;
+        } catch (error) {
+          process.stderr.write(`[transcript-intake] org membership lookup failed: ${error?.message || String(error)}\n`);
+        }
+      }
+    }
     const args = {
       sessionType: opts.sessionType,
       label: opts.label,
@@ -2205,15 +2924,23 @@ ipcMain.handle("fg:transcript-intake:submit", async (e, opts = {}) => {
       relatedText: opts.relatedText,
       confidence: opts.confidence,
       sessionId: opts.sessionId,
-      supabase: opts.supabase,
+      processingPath: opts.processingPath,
+      agentCmd: typeof opts.agentCmd === "string" ? opts.agentCmd : (readCohortChatConfig().chatCmd || ""),
+      allowRemoteAgent: opts.allowRemoteAgent === true,
+      supabase: supabaseConfig,
+      drive: driveConfig,
       // Stage under userData (writable in the packaged app). The module's default
       // REPO_ROOT path resolves INSIDE the read-only install dir once packed →
       // EPERM on Windows / a signed-bundle write on macOS, throwing the whole
       // submit before it starts. See the new-user-flow audit (staging-path crash).
-      intakeRoot: path.join(app.getPath("userData"), "transcript-intake"),
+      intakeRoot,
+      storageRefRoot: userDataRoot,
     };
     // File already chosen in the renderer → submit it directly. Fall back to
     // the picker only if no path was passed (legacy callers).
+    if (Array.isArray(opts.filePaths) && opts.filePaths.length) {
+      return await loadTranscriptIntake().submitTranscriptIntakeBatch({ ...args, filePaths: opts.filePaths.map((item) => String(item || "")) });
+    }
     if (opts.filePath) {
       return await loadTranscriptIntake().submitTranscriptIntake({ ...args, filePath: String(opts.filePath) });
     }
@@ -2787,6 +3514,13 @@ const SUPABASE_ANON_KEY = process.env.SRFG_SUPABASE_ANON_KEY ||
 const AUTH_REDIRECT      = `${DEEPLINK_SCHEME}://auth-callback`;
 const AUTH_SESSION_FILE  = path.join(app.getPath("userData"), "auth-session.enc");
 const AUTH_PKCE_FILE     = path.join(app.getPath("userData"), "auth-pkce.tmp");
+const GOOGLE_DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+const GOOGLE_AUTH_SCOPES = [
+  "openid",
+  "email",
+  "profile",
+  GOOGLE_DRIVE_FILE_SCOPE,
+];
 let pendingPkceVerifier  = null;
 
 function authBase64Url(buf) {
@@ -2804,6 +3538,26 @@ function decodeJwtClaims(jwt) {
     return JSON.parse(Buffer.from(seg.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")) || {};
   } catch { return {}; }
 }
+function normalizeAuthScopes(value) {
+  const raw = Array.isArray(value) ? value.join(" ") : String(value || "");
+  return [...new Set(raw.split(/[\s,]+/).map((item) => item.trim()).filter(Boolean))];
+}
+function googleAuthScopes() {
+  const envScopes = normalizeAuthScopes(process.env.SRFG_GOOGLE_AUTH_SCOPES || process.env.SROS_GOOGLE_AUTH_SCOPES || "");
+  return envScopes.length ? envScopes : GOOGLE_AUTH_SCOPES;
+}
+function buildGoogleAuthAuthorizeUrl({ challenge, promptConsent = false } = {}) {
+  const url = new URL(`${SUPABASE_AUTH_URL}/auth/v1/authorize`);
+  url.searchParams.set("provider", "google");
+  url.searchParams.set("code_challenge", challenge || "");
+  url.searchParams.set("code_challenge_method", "s256");
+  url.searchParams.set("redirect_to", AUTH_REDIRECT);
+  url.searchParams.set("scopes", googleAuthScopes().join(" "));
+  url.searchParams.set("access_type", "offline");
+  url.searchParams.set("include_granted_scopes", "true");
+  if (promptConsent) url.searchParams.set("prompt", "consent");
+  return url.toString();
+}
 function sessionFromTokenResponse(j) {
   if (!j || !j.access_token) return null;
   const claims = decodeJwtClaims(j.access_token);
@@ -2812,11 +3566,23 @@ function sessionFromTokenResponse(j) {
     refresh_token: j.refresh_token || null,
     expires_at: Number(j.expires_at) || (Math.floor(Date.now() / 1000) + (Number(j.expires_in) || 3600)),
     token_type: j.token_type || "bearer",
+    provider_token: j.provider_token || null,
+    provider_refresh_token: j.provider_refresh_token || null,
+    provider_scopes: normalizeAuthScopes(j.provider_scopes || j.provider_scope || j.scope || ""),
     user: {
       id: (j.user && j.user.id) || claims.sub || null,
       email: (j.user && j.user.email) || claims.email || null,
       user_metadata: (j.user && j.user.user_metadata) || claims.user_metadata || {},
     },
+  };
+}
+function publicAuthSession(session) {
+  if (!session || !session.access_token) return null;
+  const { provider_token, provider_refresh_token, ...safeSession } = session;
+  return {
+    ...safeSession,
+    provider_token_available: !!provider_token,
+    provider_refresh_token_available: !!provider_refresh_token,
   };
 }
 function readAuthSession() {
@@ -2840,7 +3606,7 @@ function writeAuthSession(session) {
 }
 function broadcastAuthSession(session) {
   const win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed());
-  try { win && win.webContents.send("auth:session", session); } catch {}
+  try { win && win.webContents.send("auth:session", publicAuthSession(session)); } catch {}
 }
 async function exchangePkceCode(code, verifier) {
   if (!verifier) { process.stderr.write("[auth] pkce exchange: no verifier\n"); return null; }
@@ -2886,6 +3652,9 @@ async function handleAuthCallback(url) {
   finishAuth(sessionFromTokenResponse({
     access_token: fp.get("access_token"),
     refresh_token: fp.get("refresh_token"),
+    provider_token: fp.get("provider_token") || undefined,
+    provider_refresh_token: fp.get("provider_refresh_token") || undefined,
+    scope: fp.get("scope") || undefined,
     expires_at: Number(fp.get("expires_at")) || undefined,
     expires_in: Number(fp.get("expires_in")) || undefined,
     token_type: fp.get("token_type") || undefined,
@@ -2905,18 +3674,23 @@ async function refreshAuthSession() {
       return null;
     }
     const session = sessionFromTokenResponse(await res.json());
-    if (session) { if (!session.refresh_token) session.refresh_token = cur.refresh_token; writeAuthSession(session); }
+    if (session) {
+      if (!session.refresh_token) session.refresh_token = cur.refresh_token;
+      if (!session.provider_token && cur.provider_token) session.provider_token = cur.provider_token;
+      if (!session.provider_refresh_token && cur.provider_refresh_token) session.provider_refresh_token = cur.provider_refresh_token;
+      if ((!session.provider_scopes || !session.provider_scopes.length) && cur.provider_scopes) session.provider_scopes = cur.provider_scopes;
+      writeAuthSession(session);
+    }
     return session;
   } catch (e) { process.stderr.write(`[auth] refresh failed: ${e.message}\n`); return null; }
 }
 
-ipcMain.handle("auth:sign-in", async () => {
+ipcMain.handle("auth:sign-in", async (_e, opts = {}) => {
   const { verifier, challenge } = makePkcePair();
   pendingPkceVerifier = verifier;
   try { fs.writeFileSync(AUTH_PKCE_FILE, verifier, { mode: 0o600 }); } catch {}
-  const authorize = `${SUPABASE_AUTH_URL}/auth/v1/authorize?provider=google`
-    + `&code_challenge=${encodeURIComponent(challenge)}&code_challenge_method=s256`
-    + `&redirect_to=${encodeURIComponent(AUTH_REDIRECT)}`;
+  const promptConsent = !!(opts && (opts.prompt === "consent" || opts.drive === true || opts.forceConsent === true));
+  const authorize = buildGoogleAuthAuthorizeUrl({ challenge, promptConsent });
   try { await shell.openExternal(authorize); return { ok: true }; }
   catch (e) { return { ok: false, error: String(e && e.message ? e.message : e) }; }
 });
@@ -2928,9 +3702,9 @@ ipcMain.handle("auth:get-session", async () => {
     if (r) s = r;
     else if (Number(s.expires_at) <= Math.floor(Date.now() / 1000)) return null;
   }
-  return s;
+  return publicAuthSession(s);
 });
-ipcMain.handle("auth:refresh", async () => refreshAuthSession());
+ipcMain.handle("auth:refresh", async () => publicAuthSession(await refreshAuthSession()));
 ipcMain.handle("auth:sign-out", async () => { writeAuthSession(null); broadcastAuthSession(null); return { ok: true }; });
 
 // ─── deep links: sros://xxxxx ───────────────────────────────────────────────
@@ -2989,7 +3763,7 @@ app.on("open-url", (event, url) => { event.preventDefault(); deliverDeepLink(url
 // Windows/Linux: a second `sros://` launch spawns a new process. Take the
 // single-instance lock so it forwards into THIS instance instead of opening a
 // duplicate. Scoped to non-darwin so macOS multi-instance behaviour is unchanged.
-if (process.platform !== "darwin" && !NAV_VISUAL_AUDIT && !TRANSCRIPT_RECEIVE_SELFTEST) {
+if (process.platform !== "darwin" && !SMOKE_TEST && !NAV_VISUAL_AUDIT && !TRANSCRIPT_RECEIVE_SELFTEST && !TRANSCRIPT_INTAKE_FLOW_SMOKE && !TRANSCRIPT_DRIVE_AUTH_SMOKE && !TRANSCRIPT_DRIVE_AUTH_CONSENT && !TRANSCRIPT_DRIVE_INTAKE_SMOKE) {
   if (!app.requestSingleInstanceLock()) {
     app.quit();
   } else {
@@ -3008,6 +3782,10 @@ app.whenReady().then(() => {
   // matters for "does the renderer load without throwing".
   if (SMOKE_TEST) { runSmokeTest(); return; }
   if (TRANSCRIPT_RECEIVE_SELFTEST) { runTranscriptReceiveSelfTest(); return; }
+  if (TRANSCRIPT_INTAKE_FLOW_SMOKE) { runTranscriptIntakeFlowSmoke(); return; }
+  if (TRANSCRIPT_DRIVE_AUTH_CONSENT) { runTranscriptDriveAuthConsent(); return; }
+  if (TRANSCRIPT_DRIVE_AUTH_SMOKE) { runTranscriptDriveAuthSmoke(); return; }
+  if (TRANSCRIPT_DRIVE_INTAKE_SMOKE) { runTranscriptDriveIntakeSmoke(); return; }
 
   if (process.platform === "win32") {
     try { app.setAppUserModelId("com.shape-rotator.os"); } catch {}

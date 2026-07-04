@@ -434,6 +434,74 @@ test("public Supabase evidence hydration strips entity and private provenance ke
   assert.equal(merged.cohort_intel.weekly[0].top_claims[0].people.length, 0);
 });
 
+test("gated cohort evidence hydrates member context without private provenance IDs", () => {
+  const sandbox = loadContextSandbox();
+  const gatedRows = [{
+    id: "gated-card-1",
+    claim_type: "ask",
+    title: "Team A needs a handoff",
+    claim_text: "Team A needs a sharper partner handoff before demo day.",
+    evidence_level: "reviewed",
+    confidence: 0.73,
+    attribution_scope: "cohort",
+    content_json: {
+      week_start: "2026-06-08",
+      teams: ["team-a"],
+      people: ["person-a"],
+      themes: ["routing"],
+      source_artifact_id: "source-artifact-1",
+      storage_ref: "private-transcripts/session.txt",
+      raw_allowed: true,
+    },
+    created_at: "2026-06-10T00:00:00Z",
+  }];
+  const distillations = [{
+    artifact_id: "dist-1",
+    artifact_kind: "readout",
+    session_title: "Routing review",
+    tier: "T2",
+    surface: "cohort",
+    review_status: "reviewed",
+    confidence: 0.8,
+    summary: ["Cohort-safe readout from reviewed evidence."],
+    provenance: { source_access: "private-vault", raw_allowed: false },
+  }];
+  const merged = sandbox.mergeGatedContext({
+    teams: [{ record_id: "team-a", name: "Team A" }],
+    people: [{ record_id: "person-a", name: "Person A" }],
+    cohort_intel: {
+      raw_allowed: false,
+      weekly: [],
+      teams: [],
+      people: [],
+      card_signals: { teams: [], people: [] },
+      field_notes: [],
+      session_notes: [],
+      signal_inventory: { total_signal_count: 0 },
+      project_week_snapshots: [],
+      project_progress_rollups: [],
+    },
+    transcript_distillations: { artifact_count: 0, cohort_count: 0, artifacts: [] },
+    transcript_evidence: {},
+  }, {
+    evidenceRows: gatedRows,
+    distillationArtifacts: distillations,
+    authState: { state: "approved", email: "alice@example.com", record_id: "person-a" },
+  });
+  const html = sandbox.renderContextSurface(merged);
+
+  assert.equal(merged.transcript_evidence.gated_evidence_card_count, 1);
+  assert.equal(merged.cohort_intel.weekly[0].top_claims[0].teams[0], "team-a");
+  assert.equal(merged.cohort_intel.teams[0].team_id, "team-a");
+  assert.match(html, /member context/);
+  assert.match(html, /alice@example.com/);
+  assert.match(html, /Team A needs a sharper partner handoff/);
+  assert.match(html, /Routing review/);
+  assert.doesNotMatch(html, /source-artifact-1/);
+  assert.doesNotMatch(html, /private-transcripts/);
+  assert.doesNotMatch(html, /private-vault/);
+});
+
 test("current web bundle exposes public-safe context intel inputs", () => {
   const renderContextSurface = loadContextRenderer();
   const surface = JSON.parse(fs.readFileSync(SURFACE_JSON, "utf8"));

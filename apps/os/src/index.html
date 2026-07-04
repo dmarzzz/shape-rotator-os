@@ -59,11 +59,6 @@
           <span class="ar-label">membrane</span>
           <span class="ar-hint">self · cohort · events · asks</span>
         </button>
-        <!-- matrix is a routed app tab, but it belongs visually next to Membrane. -->
-        <button class="nav-cat nav-cat--rail-app" data-tab="matrix" type="button" aria-selected="false">
-          <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
-          <span class="nav-cat-label ar-label">matrix</span>
-        </button>
         <!-- profile removed from the rail 2026-06 — the page is reached via
              the identity pill in the bottom-left footer (identity.js). -->
         <button class="alchemy-rail-btn" data-alch-mode="shapes" type="button" aria-selected="false">
@@ -73,6 +68,16 @@
         </button>
         <!-- pulse retired 2026-05; renderer kept in alchemy.js until we have a real activity-over-time signal worth surfacing. -->
         <!-- constellation is now a cohort sub-view; retired intel routes normalize to Context evidence. -->
+        <button class="alchemy-rail-btn" data-alch-mode="context" type="button" aria-selected="false">
+          <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg></span>
+          <span class="ar-label">context</span>
+          <span class="ar-hint">articles / transcripts / asks</span>
+        </button>
+        <!-- matrix is a routed app tab, but it belongs in the OS rail after context. -->
+        <button class="nav-cat nav-cat--rail-app" data-tab="matrix" type="button" aria-selected="false">
+          <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+          <span class="nav-cat-label ar-label">matrix</span>
+        </button>
         <button class="alchemy-rail-btn" data-alch-mode="calendar" type="button" aria-selected="false">
           <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></span>
           <span class="ar-label">calendar</span>
@@ -87,11 +92,6 @@
           <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg></span>
           <span class="ar-label">program info</span>
           <span class="ar-hint">onboarding / handbook / rules</span>
-        </button>
-        <button class="alchemy-rail-btn" data-alch-mode="context" type="button" aria-selected="false">
-          <span class="ar-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg></span>
-          <span class="ar-label">context</span>
-          <span class="ar-hint">articles · transcripts · asks</span>
         </button>
       </nav>
       <!-- apps — top-level destination. Network launches from the Apps grid,
@@ -375,6 +375,10 @@
           <div class="cohort-chat-empty" id="cohort-chat-empty">
             <div class="cohort-chat-empty-lede">Ask about the cohort — or ask me to <b>do</b> something. I draft, you approve.</div>
             <div class="cc-live-line" id="cc-live-line" hidden></div>
+            <div class="cc-first-session" aria-label="first session actions">
+              <button type="button" class="cc-first-session-btn" data-cc-first-action="transcript">add transcript</button>
+              <button type="button" class="cc-first-session-btn" data-cc-first-action="sync">sync profile</button>
+            </div>
             <!-- Curated functional starters. The "…" chip fills the stem and waits
                  for a topic; the work chip is personalized to the member's own
                  project at open (cohort-chat.js). -->
@@ -449,14 +453,21 @@
     <div id="cohort-chat-dial-wrap" class="cohort-chat-dial-wrap" aria-label="cohort chat quick actions">
       <button id="cohort-chat-dial" class="cohort-chat-dial" type="button"
               aria-label="ask the cohort" aria-expanded="false" aria-haspopup="menu"
-              aria-controls="cohort-chat-action-menu cohort-chat-panel" title="Ask the cohort (Ctrl+Shift+K)">
+              aria-controls="cohort-chat-action-menu cohort-chat-panel" title="Ask the cohort (Ctrl+Shift+K)"
+              data-state="idle">
         <svg class="cc-dial-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 8V4H8"/>
-          <rect width="16" height="12" x="4" y="8" rx="2"/>
-          <path d="M2 14h2"/>
-          <path d="M20 14h2"/>
-          <path d="M15 13v2"/>
-          <path d="M9 13v2"/>
+          <g class="cc-bot-antenna">
+            <path d="M12 8V4H8"/>
+          </g>
+          <g class="cc-bot-body">
+            <rect class="cc-bot-shell" width="16" height="12" x="4" y="8" rx="2"/>
+            <path class="cc-bot-ear" d="M2 14h2"/>
+            <path class="cc-bot-ear" d="M20 14h2"/>
+            <path class="cc-bot-eye cc-bot-eye-left" d="M9 13v2"/>
+            <path class="cc-bot-eye cc-bot-eye-right" d="M15 13v2"/>
+            <path class="cc-bot-mouth" d="M10 17h4"/>
+          </g>
+          <path class="cc-bot-scan" d="M7 11h10"/>
         </svg>
       </button>
       <div id="cohort-chat-action-menu" class="cohort-chat-action-menu" role="menu" aria-label="cohort chat quick actions" aria-hidden="true" inert>
@@ -468,17 +479,17 @@
         <button class="cc-launcher-action" data-cohort-chat-action="search" type="button" role="menuitem" tabindex="-1"
                 aria-label="open global search" title="Global search">
           <span class="cc-launcher-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg></span>
-          <span class="cc-launcher-copy"><span class="cc-launcher-label">search</span><span class="cc-launcher-hint">jump anywhere</span></span>
+          <span class="cc-launcher-copy"><span class="cc-launcher-label">find</span><span class="cc-launcher-hint">global search</span></span>
         </button>
         <button class="cc-launcher-action" data-cohort-chat-action="transcript" type="button" role="menuitem" tabindex="-1"
-                aria-label="add transcript to Supabase intake" title="Add transcript">
+                aria-label="add transcript" title="Add transcript">
           <span class="cc-launcher-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></span>
-          <span class="cc-launcher-copy"><span class="cc-launcher-label">transcript</span><span class="cc-launcher-hint">typed intake</span></span>
+          <span class="cc-launcher-copy"><span class="cc-launcher-label">add</span><span class="cc-launcher-hint">transcript</span></span>
         </button>
         <button class="cc-launcher-action" data-cohort-chat-action="sync" type="button" role="menuitem" tabindex="-1"
                 aria-label="sync your profile with the platform" title="Sync">
           <span class="cc-launcher-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M16 8h5V3"/></svg></span>
-          <span class="cc-launcher-copy"><span class="cc-launcher-label">sync</span><span class="cc-launcher-hint">work -> profile</span></span>
+          <span class="cc-launcher-copy"><span class="cc-launcher-label">sync</span><span class="cc-launcher-hint">profile</span></span>
         </button>
       </div>
     </div>

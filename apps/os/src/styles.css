@@ -41,6 +41,9 @@ html[data-reduce-motion="1"] *, html[data-reduce-motion="1"] *::before, html[dat
   transition-duration: 0.001ms !important;
   scroll-behavior: auto !important;
 }
+html.disable-transitions *, html.disable-transitions *::before, html.disable-transitions *::after {
+  transition: none !important;
+}
 
 * { box-sizing: border-box; }
 html, body {
@@ -14040,17 +14043,31 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   appearance: none;
   background: transparent;
   border: 0;
-  border-bottom: 2px solid transparent;
-  padding: 10px 16px 12px 16px;
+  border-bottom: 1.5px solid transparent;
+  padding: 9px 13px 10px;
   color: var(--ed-ink-1);
-  opacity: 0.45;
+  opacity: 0.50;
   cursor: pointer;
-  display: inline-flex; gap: 10px; align-items: baseline;
+  display: inline-flex; gap: 8px; align-items: center;
+  border-radius: 0;
+  transition:
+    background 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 140ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.alch-prog-tab:hover { opacity: 0.85; }
+.alch-prog-tab:hover {
+  opacity: 0.86;
+  background: color-mix(in srgb, var(--sr-red, #EAB308) 5%, transparent);
+}
+.alch-prog-tab:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--sr-red, #EAB308) 54%, transparent);
+}
 .alch-prog-tab[aria-selected="true"] {
   opacity: 1;
   border-bottom-color: #c44025;
+  background: color-mix(in srgb, var(--sr-red, #EAB308) 7%, transparent);
 }
 .alch-prog-tab[aria-selected="true"] .alch-prog-tab-label {
   color: var(--alchemy-paper-warm);
@@ -14060,8 +14077,10 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
  * the identical font treatment — same family, style, size, spacing. */
 .alch-prog-tab-label {
   font-family: var(--ed-display);
-  font-style: italic;
-  font-size: 16.5px;
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
   color: var(--ed-ink-1);
 }
 .alch-prog-page { margin: 0; max-width: 70ch; }
@@ -14071,16 +14090,18 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 }
 .alch-prog-page-title {
   font-family: var(--ed-display);
-  font-style: italic;
-  font-size: 24px;
+  font-style: normal;
+  font-size: 26px;
+  font-weight: 650;
+  line-height: 1.08;
   margin: 0;
   color: var(--ed-ink-1);
 }
 .alch-prog-edit { margin-left: auto; }
 .alch-prog-body {
-  font-family: var(--ed-serif, "Iowan Old Style", Georgia, serif);
-  font-size: 14.5px;
-  line-height: 1.55;
+  font-family: var(--sr-font-sans, var(--ed-display));
+  font-size: 15px;
+  line-height: 1.62;
   color: var(--ed-ink-1);
 }
 
@@ -14117,15 +14138,15 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 .alch-prog-table tbody tr:last-child td { border-bottom: none; }
 .alch-prog-body code {
   font-family: var(--ed-mono);
-  font-size: 12.5px;
-  background: rgba(var(--ink-rgb), 0.06);
+  font-size: 12px;
+  background: color-mix(in srgb, var(--ed-ink-1, #f5f3ee) 6%, transparent);
   padding: 1px 5px;
-  border-radius: 2px;
+  border-radius: 4px;
 }
 .alch-prog-body a {
-  color: #c44025;
+  color: var(--sr-red, #EAB308);
   text-decoration: none;
-  border-bottom: 1px dashed rgba(196,64,37,0.40);
+  border-bottom: 1px dashed color-mix(in srgb, var(--sr-red, #EAB308) 42%, transparent);
 }
 .alch-prog-body a:hover { border-bottom-style: solid; }
 .alch-prog-page-foot {
@@ -14144,8 +14165,9 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   font-size: 10.5px;
   letter-spacing: 0;
   text-transform: none;
-  background: rgba(var(--ink-rgb), 0.04);
+  background: color-mix(in srgb, var(--ed-ink-1, #f5f3ee) 4%, transparent);
   padding: 1px 5px;
+  border-radius: 4px;
 }
 .alch-prog-empty {
   font-family: var(--ed-mono);
@@ -14577,9 +14599,9 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 .alch-page-views {
   display: flex;
   align-items: stretch;
-  gap: 4px;
-  margin: 0 0 8px 0;
-  min-height: 42px;
+  gap: 0;
+  margin: 0 0 10px 0;
+  min-height: 36px;
   overflow-x: auto;
   overflow-y: hidden;
   overscroll-behavior-x: contain;
@@ -14597,10 +14619,10 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   appearance: none;
   background: transparent;
   border: 0;
-  border-bottom: 2px solid transparent;
+  border-bottom: 1.5px solid transparent;
   flex: 0 0 auto;
-  min-height: 42px;
-  padding: 8px 13px 10px;
+  min-height: 36px;
+  padding: 7px 10px 9px;
   display: inline-flex;
   gap: 7px;
   align-items: center;
@@ -14610,22 +14632,23 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   cursor: pointer;
   white-space: nowrap;
   transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease,
-    opacity 160ms ease;
+    background 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 140ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .alch-page-view-btn:hover {
   opacity: 0.85;
-  background: rgba(var(--ink-rgb), 0.035);
+  background: color-mix(in srgb, var(--sr-red, #EAB308) 5%, transparent);
 }
 .alch-page-view-btn:focus-visible {
-  outline: 1px solid rgba(var(--ink-rgb), 0.34);
-  outline-offset: -3px;
+  outline: none;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--sr-red, #EAB308) 54%, transparent);
 }
 .alch-page-view-btn[aria-selected="true"] {
   opacity: 1;
   border-bottom-color: var(--sr-red);
+  background: color-mix(in srgb, var(--sr-red, #EAB308) 6%, transparent);
 }
 .apv-glyph {
   flex: 0 0 auto;
@@ -14635,10 +14658,10 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 .apv-label {
   font-family: var(--ed-display);
   font-style: normal;
-  font-size: 11.5px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 650;
   line-height: 1;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   text-transform: lowercase;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -15649,8 +15672,8 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
      · Wider content columns (80-88ch) so a 1900px viewport doesn't
        leave the content marooned in the middle.
      · 8px baseline spacing system (multiples of 4/8/12/16/24/32/40).
-     · Body serif at 17px / line-height 1.65 for comfortable reading at
-       desktop scale (was 14.5px / 1.55).
+     · Body sans at 15.5px / line-height 1.62 for comfortable reading without
+       turning the program page into a separate editorial surface.
      · Placeholder italics get a distinct subdued treatment so they don't
        compete with real content.
    ───────────────────────────────────────────────────────────────────── */
@@ -15663,21 +15686,21 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 /* Tab metrics mirror .alch-page-view-btn / .apv-label exactly so the
  * program tabs land at the same y and row height as the context/cohort
  * view tabs — switching rail pages must not move the tab row. */
-.alch-prog-tabs        { margin: 0 0 40px; max-width: 88ch; gap: 0; }
-.alch-prog-tab         { padding: 6px 17px 9px; gap: 8px; }
+.alch-prog-tabs        { margin: 0 0 26px; max-width: 82ch; gap: 0; }
+.alch-prog-tab         { padding: 7px 11px 9px; gap: 8px; }
 
-.alch-prog-tab-label   { font-size: 16.5px; }
+.alch-prog-tab-label   { font-size: 12px; }
 
-.alch-prog-page        { margin: 0; max-width: 80ch; padding: 0 0 96px; }
-.alch-prog-page-head   { margin-bottom: 32px; align-items: baseline; gap: 24px; }
-.alch-prog-page-title  { font-size: 32px; line-height: 1.05; margin: 0; }
+.alch-prog-page        { margin: 0; max-width: 74ch; padding: 0 0 96px; }
+.alch-prog-page-head   { margin-bottom: 22px; align-items: baseline; gap: 18px; }
+.alch-prog-page-title  { font-size: 28px; line-height: 1.08; margin: 0; }
 
-.alch-prog-body        { font-size: 17px; line-height: 1.65; }
-.alch-prog-body p, .alch-prog-p { margin: 0 0 18px 0; }
+.alch-prog-body        { font-size: 15.5px; line-height: 1.62; }
+.alch-prog-body p, .alch-prog-p { margin: 0 0 15px 0; }
 
-.alch-prog-ul, .alch-prog-ol { margin: 0 0 18px 24px; }
-.alch-prog-ul li, .alch-prog-ol li { margin: 6px 0; line-height: 1.55; }
-.alch-prog-body code   { font-size: 14px; padding: 2px 6px; }
+.alch-prog-ul, .alch-prog-ol { margin: 0 0 15px 22px; }
+.alch-prog-ul li, .alch-prog-ol li { margin: 5px 0; line-height: 1.55; }
+.alch-prog-body code   { font-size: 12.5px; padding: 1px 5px; }
 
 /* Placeholder italics — em-only paragraphs starting with "(placeholder"
    get visibly subdued + a left rule so authors know "fill me in" without
@@ -15698,7 +15721,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 }
 .alch-prog-body p:has(> em:only-child) em { font-style: italic; }
 
-.alch-prog-page-foot   { margin-top: 40px; padding-top: 16px; font-size: 11px; }
+.alch-prog-page-foot   { margin-top: 30px; padding-top: 14px; font-size: 10.5px; }
 
 /* ── asks ─────────────────────────────────────────────────────────── */
 
@@ -16545,8 +16568,8 @@ textarea.alch-cv-compose-body-input { min-height: 150px; line-height: 1.6; }
 /* primary-nav - persistent left navigation (2026-06)
    Top-level categories (operating system / apps / links) switch the active
    tab. The operating-system pages are nested beneath their category as an
-   always-expanded, indented sub-list (the rail); Matrix sits directly under
-   Membrane while Network launches from the Apps grid. */
+   always-expanded, indented sub-list (the rail); Matrix sits after the
+   Context row while Network launches from the Apps grid. */
 .primary-nav {
   position: fixed;
   left: 0;
@@ -17237,7 +17260,6 @@ html[data-reduce-motion="1"] .alch-rail-sub-btn:active { transform: none; }
 }
 
 /* Section / sub headings */
-.alch-prog-page-title,
 .alch-asks-section-title,
 .alch-onb-step-title,
 .cal-event-title,
@@ -17258,7 +17280,7 @@ html[data-reduce-motion="1"] .alch-rail-sub-btn:active { transform: none; }
   font-family: var(--sr-font-sans) !important;
   font-style: normal;
   font-weight: 400;
-  line-height: 1.55;
+  line-height: 1.62;
 }
 
 /* All mono caps / metadata text → JetBrains Mono */
@@ -17369,10 +17391,10 @@ html[data-reduce-motion="1"] .primary-nav .nav-cat--eyebrow:active { transform: 
    transition so the press eases rather than snaps. */
 .alch-page-view-btn {
   transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease,
-    opacity 160ms ease,
+    background 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 140ms cubic-bezier(0.22, 1, 0.36, 1),
     transform 110ms cubic-bezier(0.19, 1, 0.22, 1);
 }
 .alch-page-view-btn:active { transform: scale(0.97); }
@@ -17701,23 +17723,23 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
   display: grid;
   grid-template-rows: auto auto 1fr;
   align-content: start;
-  padding: 40px clamp(28px, 4vw, 56px) 48px;
+  padding: 34px clamp(24px, 3.6vw, 48px) 44px;
   overflow-y: auto;
   height: 100%;
   box-sizing: border-box;
 }
 .apps-grid-head {
   display: grid;
-  gap: 8px;
-  margin: 0 0 24px 0;
-  max-width: 760px;
-  padding: 0 0 18px 0;
+  gap: 6px;
+  margin: 0 0 18px 0;
+  max-width: 820px;
+  padding: 0 0 14px 0;
   border-bottom: 1px solid rgba(var(--ink-rgb), 0.10);
 }
 .apps-grid-title {
   font-family: var(--sr-font-sans);
   font-style: normal;
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 650;
   line-height: 1;
   letter-spacing: 0;
@@ -17727,7 +17749,7 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
 }
 .apps-grid-sub {
   font-family: var(--sr-font-sans);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.45;
   color: var(--ed-ink-3, rgba(var(--ink-rgb), 0.66));
   margin: 0;
@@ -17738,9 +17760,9 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 220px));
-  gap: 12px;
-  max-width: 760px;
+  grid-template-columns: repeat(3, minmax(0, 196px));
+  gap: 10px;
+  max-width: 820px;
 }
 .apps-grid-list > li {
   min-width: 0;
@@ -17751,20 +17773,23 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
 .app-card {
   position: relative;
   display: grid;
-  grid-template-rows: 1fr auto;
-  align-items: end;
+  grid-template-rows: auto 1fr;
+  align-items: start;
   justify-items: start;
-  gap: 14px;
-  min-height: 132px;
-  padding: 16px;
-  background:
-    linear-gradient(180deg, rgba(var(--ink-rgb), 0.050), rgba(var(--ink-rgb), 0.018));
-  border: 1px solid rgba(var(--ink-rgb), 0.105);
-  border-radius: 10px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  gap: 11px;
+  min-height: 108px;
+  padding: 14px;
+  background: color-mix(in srgb, var(--ed-ink-1, #f5f3ee) 3%, transparent);
+  border: 1px solid rgba(var(--ink-rgb), 0.085);
+  border-radius: 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
   text-align: left;
   cursor: pointer;
-  transition: transform 160ms cubic-bezier(0.19, 1, 0.22, 1);
+  transition:
+    transform 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    background 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 140ms cubic-bezier(0.22, 1, 0.36, 1);
   font: inherit;
   color: inherit;
   width: 100%;
@@ -17772,21 +17797,22 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
 .app-card::before {
   content: "";
   position: absolute;
-  left: 16px;
-  right: 16px;
-  top: 13px;
+  left: 14px;
+  right: 14px;
+  top: 11px;
   height: 1px;
-  background: linear-gradient(90deg, rgba(234, 179, 8, 0.72), rgba(var(--ink-rgb), 0.10) 54%, transparent);
-  opacity: 0.72;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--sr-red, #EAB308) 58%, transparent), rgba(var(--ink-rgb), 0.08) 50%, transparent);
+  opacity: 0.58;
   pointer-events: none;
 }
 .app-card:hover {
   transform: translateY(-1px);
-  border-color: rgba(234, 179, 8, 0.58);
-  background-color: rgba(234, 179, 8, 0.035);
+  border-color: color-mix(in srgb, var(--sr-red, #EAB308) 42%, rgba(var(--ink-rgb), 0.12));
+  background: color-mix(in srgb, var(--sr-red, #EAB308) 6%, transparent);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.055),
-    0 14px 26px rgba(0, 0, 0, 0.20);
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
+    0 8px 18px rgba(0, 0, 0, 0.14),
+    0 0 0 1px color-mix(in srgb, var(--sr-red, #EAB308) 10%, transparent);
 }
 .app-card:active {
   transform: translateY(0) scale(0.985);
@@ -17794,22 +17820,22 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
 .app-card:focus-visible {
   outline: none;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.055),
-    0 0 0 2px rgba(234, 179, 8, 0.78),
-    0 0 0 5px rgba(234, 179, 8, 0.18);
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 0 0 2px color-mix(in srgb, var(--sr-red, #EAB308) 72%, transparent),
+    0 0 0 5px color-mix(in srgb, var(--sr-red, #EAB308) 16%, transparent);
 }
 .app-card-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 58px;
-  height: 58px;
-  background: rgba(2, 1, 10, 0.76);
-  border: 1px solid rgba(var(--ink-rgb), 0.13);
-  border-radius: 12px;
+  width: 48px;
+  height: 48px;
+  background: color-mix(in srgb, rgb(2, 1, 10) 66%, transparent);
+  border: 1px solid rgba(var(--ink-rgb), 0.10);
+  border-radius: 8px;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 10px 20px rgba(0, 0, 0, 0.18);
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
+    0 7px 14px rgba(0, 0, 0, 0.14);
   overflow: hidden;
 }
 .app-card-icon svg { display: block; width: 100%; height: 100%; }
@@ -17826,16 +17852,16 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
 }
 .app-card-kind {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: 10px;
+  right: 10px;
   display: inline-flex;
   align-items: center;
   min-height: 18px;
   padding: 2px 7px;
   border-radius: 999px;
-  background: rgba(var(--ink-rgb), 0.065);
-  box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb), 0.10);
-  color: rgba(var(--ink-rgb), 0.58);
+  background: color-mix(in srgb, var(--ed-ink-1, #f5f3ee) 4%, transparent);
+  box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb), 0.08);
+  color: rgba(var(--ink-rgb), 0.46);
   font-family: var(--sr-font-mono);
   font-size: 9px;
   font-weight: 600;
@@ -17843,11 +17869,15 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
   line-height: 1;
   text-transform: lowercase;
   pointer-events: none;
-  transition: opacity 150ms cubic-bezier(0.22, 1, 0.36, 1);
+  opacity: 0.72;
+  transition:
+    opacity 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 140ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .app-card:hover .app-card-kind,
 .app-card:focus-visible .app-card-kind {
   color: rgba(var(--ink-rgb), 0.76);
+  opacity: 1;
 }
 
 @media (max-width: 860px) {
@@ -17865,7 +17895,7 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
     max-width: none;
   }
   .app-card {
-    min-height: 122px;
+    min-height: 104px;
   }
 }
 
@@ -17880,7 +17910,7 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
     grid-template-columns: 52px 1fr;
     grid-template-rows: 1fr;
     align-items: center;
-    min-height: 76px;
+    min-height: 70px;
     padding: 12px 14px;
   }
   .app-card::before {
@@ -17901,29 +17931,22 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
 .links-view {
   display: flex;
   flex-direction: column;
-  padding: 40px clamp(28px, 4vw, 56px) 48px;
+  padding: 34px clamp(24px, 3.6vw, 48px) 44px;
   overflow-y: auto;
   height: 100%;
   box-sizing: border-box;
   background:
-    linear-gradient(180deg, rgba(var(--overlay-rgb), 0.16), rgba(var(--overlay-rgb), 0.018) 42%, transparent);
+    linear-gradient(180deg, rgba(var(--overlay-rgb), 0.10), rgba(var(--overlay-rgb), 0.012) 38%, transparent);
 }
 .links-head {
-  margin: 0 0 24px 0;
-  max-width: 960px;
-  padding-bottom: 18px;
+  margin: 0 0 18px 0;
+  max-width: 880px;
+  padding-bottom: 14px;
   border-bottom: 1px solid rgba(var(--ink-rgb), 0.10);
   position: relative;
 }
 .links-head::after {
-  content: "06 routes · 02 handouts · 02 repos · 01 download";
-  display: block;
-  margin-top: 14px;
-  font-family: var(--sr-font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0;
-  text-transform: uppercase;
-  color: var(--ed-ink-3, rgba(var(--ink-rgb), 0.56));
+  display: none;
 }
 .links-eyebrow {
   font-family: var(--sr-font-mono);
@@ -17936,7 +17959,7 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
 .links-title {
   font-family: var(--sr-font-sans);
   font-style: normal;
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 650;
   line-height: 1;
   letter-spacing: 0;
@@ -17946,7 +17969,7 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
 }
 .links-sub {
   font-family: var(--sr-font-sans);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.45;
   color: var(--ed-ink-3, rgba(var(--ink-rgb), 0.68));
   margin: 0;
@@ -17958,9 +17981,9 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(292px, 1fr));
-  gap: 12px;
-  max-width: 1120px;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 10px;
+  max-width: 1040px;
 }
 .links-grid > li {
   counter-increment: link-route;
@@ -17970,23 +17993,22 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-height: 182px;
-  padding: 18px 18px 15px;
-  background:
-    linear-gradient(180deg, rgba(var(--ink-rgb), 0.040), rgba(var(--ink-rgb), 0.012));
-  border: 1px solid rgba(var(--ink-rgb), 0.12);
+  gap: 6px;
+  min-height: 126px;
+  padding: 14px 15px 13px;
+  background: color-mix(in srgb, var(--ed-ink-1, #f5f3ee) 3%, transparent);
+  border: 1px solid rgba(var(--ink-rgb), 0.095);
   border-radius: 8px;
   text-decoration: none;
   color: inherit;
   box-shadow:
-    inset 0 1px 0 rgba(var(--overlay-rgb), 0.20),
-    inset 2px 0 0 rgba(234, 179, 8, 0.30);
+    inset 0 1px 0 rgba(var(--overlay-rgb), 0.12),
+    inset 2px 0 0 color-mix(in srgb, var(--sr-red, #EAB308) 24%, transparent);
   transition:
-    transform 160ms cubic-bezier(.2, .7, .2, 1),
-    border-color 160ms cubic-bezier(.2, .7, .2, 1),
-    background 160ms cubic-bezier(.2, .7, .2, 1),
-    box-shadow 160ms cubic-bezier(.2, .7, .2, 1);
+    transform 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    background 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 140ms cubic-bezier(0.22, 1, 0.36, 1);
   height: 100%;
   box-sizing: border-box;
 }
@@ -17999,36 +18021,24 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
   color: var(--sr-red, #EAB308);
 }
 .link-card::after {
-  content: "open";
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  font-family: var(--sr-font-mono);
-  font-size: 10px;
-  letter-spacing: 0;
-  text-transform: uppercase;
-  color: var(--ed-ink-3, rgba(var(--ink-rgb), 0.50));
-  transition:
-    color 160ms cubic-bezier(.2, .7, .2, 1),
-    transform 160ms cubic-bezier(.2, .7, .2, 1);
+  display: none;
 }
 .link-card:hover {
   transform: translateY(-1px);
-  border-color: rgba(234, 179, 8, 0.58);
-  background:
-    linear-gradient(180deg, rgba(var(--ink-rgb), 0.058), rgba(234, 179, 8, 0.030));
+  border-color: color-mix(in srgb, var(--sr-red, #EAB308) 42%, rgba(var(--ink-rgb), 0.12));
+  background: color-mix(in srgb, var(--sr-red, #EAB308) 6%, transparent);
   box-shadow:
-    inset 0 1px 0 rgba(var(--overlay-rgb), 0.28),
+    inset 0 1px 0 rgba(var(--overlay-rgb), 0.18),
     inset 2px 0 0 var(--sr-red, #EAB308),
-    0 14px 28px rgba(0, 0, 0, 0.16);
-}
-.link-card:hover::after {
-  color: var(--ed-ink-2, rgba(var(--ink-rgb), 0.78));
-  transform: translateX(2px);
+    0 8px 18px rgba(0, 0, 0, 0.12);
 }
 .link-card:focus-visible {
-  outline: 2px solid rgba(234, 179, 8, 0.72);
-  outline-offset: 3px;
+  outline: none;
+  box-shadow:
+    inset 0 1px 0 rgba(var(--overlay-rgb), 0.18),
+    inset 2px 0 0 var(--sr-red, #EAB308),
+    0 0 0 2px color-mix(in srgb, var(--sr-red, #EAB308) 72%, transparent),
+    0 0 0 5px color-mix(in srgb, var(--sr-red, #EAB308) 16%, transparent);
 }
 .link-card-eyebrow {
   font-family: var(--sr-font-mono);
@@ -18039,7 +18049,7 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
 }
 .link-card-title {
   font-family: var(--sr-font-sans);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   letter-spacing: 0;
   color: var(--ed-ink-1, #f5f3ee);
@@ -18051,14 +18061,18 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
   font-size: 12.5px;
   line-height: 1.45;
   color: var(--ed-ink-3, rgba(var(--ink-rgb), 0.66));
-  margin: 2px 0 8px;
+  margin: 1px 0 5px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .link-card-desc code {
   font-family: var(--sr-font-mono);
   font-size: 11.5px;
-  background: rgba(var(--ink-rgb), 0.06);
+  background: color-mix(in srgb, var(--ed-ink-1, #f5f3ee) 6%, transparent);
   padding: 0 4px;
-  border-radius: 3px;
+  border-radius: 4px;
 }
 .link-card-url {
   font-family: var(--sr-font-mono);
@@ -18067,9 +18081,11 @@ html[data-reduce-motion="1"] .alch-page-view-btn:active { transform: none; }
   color: var(--ed-ink-3, rgba(var(--ink-rgb), 0.58));
   margin-top: auto;
   line-height: 1.45;
-  padding-top: 7px;
+  padding-top: 6px;
   border-top: 1px dashed rgba(var(--ink-rgb), 0.10);
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .link-card:hover .link-card-url { color: var(--ed-ink-1, #f5f3ee); }
 
@@ -19467,7 +19483,7 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
 .alch-cv {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
   min-height: 100%;
 }
 
@@ -19481,7 +19497,7 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   flex-wrap: wrap;
   /* right margin reserves the floating toolbar band (absolute, top-right) so
      the question can never run underneath it at narrow widths */
-  margin: -6px 300px 0 0;
+  margin: -4px min(300px, 26vw) 0 0;
 }
 .alch-cv-question h2 {
   margin: 0;
@@ -19512,10 +19528,14 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
 
 .alch-cv-layout {
   display: grid;
-  grid-template-columns: clamp(180px, var(--cv-sidebar-w, 264px), 380px) 9px minmax(0, 1fr);
+  grid-template-columns: clamp(180px, var(--cv-sidebar-w, 256px), 340px) 9px minmax(0, 1fr);
   gap: 0;
   align-items: start;
   min-height: 560px;
+}
+
+html.cohort-chat-open .alch-cv-layout {
+  grid-template-columns: clamp(176px, var(--cv-sidebar-w, 236px), 316px) 9px minmax(0, 1fr);
 }
 
 /* drag handle between the list and the reader — resize, double-click resets */
@@ -19559,8 +19579,9 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
 /* the reader keeps a left gutter now that the grid gap is gone */
 .alch-cv-layout > .alch-cv-detail,
 .alch-cv-layout > .alch-cv-empty-detail,
-.alch-cv-layout > .alch-cv-detailcol { padding-left: clamp(20px, 2.6vw, 40px); }
+.alch-cv-layout > .alch-cv-detailcol { padding-left: clamp(18px, 2.2vw, 34px); }
 .alch-cv-detailcol { min-width: 0; }
+html.cohort-chat-open .alch-cv-layout > .alch-cv-detailcol { padding-left: clamp(14px, 1.6vw, 24px); }
 
 .alch-cv-sidebar {
   position: sticky;
@@ -19569,8 +19590,8 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   flex-direction: column;
   align-self: start;
   min-height: 0;
-  max-height: calc(100vh - var(--content-top-h, 35px) - 76px);
-  padding: 14px 24px 12px 0;
+  max-height: calc(100vh - var(--content-top-h, 35px) - 64px);
+  padding: 12px 18px 12px 0;
   border-right: 1px solid var(--ds-border, rgba(241, 236, 231, 0.14));
 }
 
@@ -19578,10 +19599,10 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
-  gap: 4px;
+  gap: 2px;
   min-height: 0;
   overflow: auto;
-  padding: 2px 4px 2px 0;
+  padding: 2px 6px 2px 0;
 }
 
 .alch-cv-source {
@@ -19590,10 +19611,11 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   flex-direction: column;
   gap: 4px;
   width: 100%;
-  min-height: 54px;
-  padding: 10px 12px 10px 16px;
+  min-width: 0;
+  min-height: 0;
+  padding: 8px 9px 8px 14px;
   border: 0;
-  border-radius: var(--ds-radius, 8px);
+  border-radius: var(--ds-radius-sm, 6px);
   background: transparent;
   color: var(--ds-ink-3, rgba(241, 236, 231, 0.52));
   text-align: left;
@@ -19615,12 +19637,13 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
 }
 
 .alch-cv-source:hover {
-  background: var(--ds-surface-3, rgba(241, 236, 231, 0.045));
+  background: color-mix(in srgb, var(--ds-ink-1, rgba(241, 236, 231, 0.94)) 3%, transparent);
   color: var(--ds-ink-2, rgba(241, 236, 231, 0.74));
 }
 
 .alch-cv-source.is-selected {
-  background: var(--ds-accent-soft, color-mix(in srgb, #EAB308 16%, transparent));
+  background: color-mix(in srgb, var(--ds-accent, #EAB308) 7%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ds-accent, #EAB308) 14%, transparent);
   color: var(--ds-ink-1, rgba(241, 236, 231, 0.94));
 }
 
@@ -19628,9 +19651,11 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
 
 .alch-cv-source strong {
   display: block;
+  min-width: 0;
+  max-width: 100%;
   overflow-wrap: anywhere;
   color: var(--ds-ink-2, rgba(241, 236, 231, 0.74));
-  font: var(--ds-weight-med, 500) var(--ds-text-base, 14px)/1.3 var(--ds-font-ui, sans-serif);
+  font: var(--ds-weight-med, 500) 13px/1.28 var(--ds-font-ui, sans-serif);
   transition: color 140ms var(--ds-ease, ease);
 }
 
@@ -19638,14 +19663,18 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
 .alch-cv-source.is-selected strong { color: var(--ds-ink-1, rgba(241, 236, 231, 0.94)); }
 
 .alch-cv-transcript-source {
-  gap: 7px;
+  gap: 5px;
   min-height: auto;
-  padding-top: 13px;
-  padding-bottom: 13px;
+  padding-top: 10px;
+  padding-bottom: 10px;
 }
 
 .alch-cv-transcript-source strong {
-  font-size: 13px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 12.5px;
   line-height: 1.32;
 }
 
@@ -19661,7 +19690,7 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
 .alch-cv-source:hover .alch-cv-source-desc,
 .alch-cv-source:focus-visible .alch-cv-source-desc,
 .alch-cv-source.is-selected .alch-cv-source-desc {
-  -webkit-line-clamp: 8;
+  -webkit-line-clamp: 3;
   color: var(--ds-ink-2, rgba(241, 236, 231, 0.74));
 }
 
@@ -19669,7 +19698,9 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   display: block;
   max-width: 100%;
   line-height: 1.45;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .alch-cv-source-meta {
@@ -19692,10 +19723,12 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   margin: 0 0 4px;
   /* the group gap lives INSIDE the button (padding, not margin) so the
      sticky header's background covers it while rows scroll beneath */
-  padding: 12px 2px 4px;
+  padding: 10px 2px 5px;
   border: 0;
   appearance: none;
-  background: var(--ds-surface-1, #231F20);
+  background: color-mix(in srgb, var(--ds-surface-1, #231F20) 86%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   cursor: pointer;
   text-align: left;
   font: var(--ds-weight-med, 500) var(--ds-text-2xs, 10px)/1.3 var(--ds-font-mono, monospace);
@@ -19735,12 +19768,35 @@ html[data-theme="light"] .alch-cv-group-head { background: var(--alchemy-charcoa
 .alch-cv-conf.is-needs-review { border-color: color-mix(in srgb, var(--ds-danger, #e5484d) 45%, transparent); color: var(--ds-danger, #e5484d); }
 
 /* ── Two-lens context page (stream · library) ─────────────────────────── */
-/* library sidebar: topic rows reuse .alch-cv-source; the count sits top-right */
-.alch-cv-topic { padding-right: 40px; }
+/* library sidebar: topic rows use a stable label/count grid so long topics
+   wrap inside the row instead of painting through their neighbours. */
+.alch-cv-topic {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(2ch, auto);
+  gap: 8px;
+  align-items: start;
+  min-height: 34px;
+  padding: 8px 10px 8px 14px;
+}
+.alch-cv-topic strong {
+  grid-column: 1;
+  grid-row: 1;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  line-height: 1.28;
+}
 .alch-cv-topic-count {
-  position: absolute;
-  top: 10px; right: 12px;
+  position: static;
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  min-width: 2ch;
+  padding-top: 1px;
+  text-align: right;
   font: var(--ds-weight-med, 500) var(--ds-text-2xs, 10px)/1.4 var(--ds-font-mono, monospace);
+  font-feature-settings: var(--num-feat, "tnum" 1);
   color: var(--ds-ink-4, rgba(241, 236, 231, 0.32));
 }
 .alch-cv-source.is-selected .alch-cv-topic-count,
@@ -19877,26 +19933,27 @@ html[data-theme="light"] .alch-cv-group-head { background: var(--alchemy-charcoa
 .alch-cv-source:focus-visible,
 .alch-cv-lib-item:focus-visible,
 .alch-cv-group-head:focus-visible {
-  outline: 2px solid var(--ds-focus, #EAB308);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ds-focus, #EAB308) 72%, transparent);
 }
 
 .alch-cv-detail {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
   min-width: 0;
-  max-width: 920px;
+  max-width: 860px;
   /* bottom padding clears the corner chat dial so the last lines of a
      readout never sit under the launcher */
-  padding: 14px 0 96px;
+  padding: 4px 0 96px;
 }
 
 .alch-cv-detail-head {
   display: flex;
   justify-content: space-between;
   gap: 14px;
-  align-items: flex-start;
+  align-items: center;
+  min-height: 34px;
 }
 
 .alch-cv-detail-actions {
@@ -19905,18 +19962,22 @@ html[data-theme="light"] .alch-cv-group-head { background: var(--alchemy-charcoa
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 6px;
+  opacity: 0.72;
+  transition: opacity 140ms var(--ds-ease, ease);
 }
+.alch-cv-detail:hover .alch-cv-detail-actions,
+.alch-cv-detail-head:focus-within .alch-cv-detail-actions { opacity: 1; }
 
 .alch-cv-md-action {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: baseline;
-  gap: 10px;
-  max-width: 160px;
-  padding: 6px 12px;
+  gap: 8px;
+  max-width: 144px;
+  padding: 5px 10px;
   border: 1px solid var(--ds-border-strong, rgba(241, 236, 231, 0.26));
-  border-radius: var(--ds-radius, 8px);
-  background: var(--ds-surface-3, rgba(241, 236, 231, 0.045));
+  border-radius: var(--ds-radius-sm, 6px);
+  background: transparent;
   color: var(--ds-ink-1, rgba(241, 236, 231, 0.94));
   cursor: pointer;
   transition: background 120ms var(--ds-ease, ease), border-color 120ms var(--ds-ease, ease),
@@ -19925,7 +19986,7 @@ html[data-theme="light"] .alch-cv-group-head { background: var(--alchemy-charcoa
 
 .alch-cv-md-action:hover {
   border-color: var(--ds-ink-3, rgba(241, 236, 231, 0.52));
-  background: var(--ds-surface-4, rgba(241, 236, 231, 0.09));
+  background: var(--ds-surface-3, rgba(241, 236, 231, 0.045));
 }
 
 .alch-cv-md-action:active { transform: scale(0.96); }
@@ -19959,10 +20020,17 @@ html[data-theme="light"] .alch-cv-group-head { background: var(--alchemy-charcoa
 
 .alch-cv-reader {
   display: grid;
-  gap: 20px;
+  gap: 16px;
   /* honors the Aa reader-settings width pref (applyContextPrefs) */
   max-width: var(--cv-measure, 70ch);
-  padding: 6px 0 8px;
+  padding: 2px 0 8px;
+}
+
+.alch-cv-eyebrow {
+  color: color-mix(in srgb, var(--ds-accent, #EAB308) 68%, var(--ds-ink-3, rgba(241, 236, 231, 0.52)));
+  font: var(--ds-weight-med, 500) var(--ds-text-2xs, 10px)/1.2 var(--ds-font-mono, monospace);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
 }
 
 /* Markdown body — articles AND distilled readouts share this wrapper. */
@@ -20015,10 +20083,10 @@ html[data-theme="light"] .alch-cv-group-head { background: var(--alchemy-charcoa
   margin: 0;
   color: var(--ds-accent, #EAB308);
   font-family: var(--ds-font-mono, monospace);
-  font-size: var(--ds-text-xs, 11px);
+  font-size: var(--ds-text-2xs, 10px);
   font-weight: var(--ds-weight-med, 500);
   line-height: 1.1;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
 }
 
@@ -20031,6 +20099,31 @@ html[data-theme="light"] .alch-cv-group-head { background: var(--alchemy-charcoa
   font-weight: var(--ds-weight-semi, 600);
   line-height: 1.12;
   letter-spacing: -0.01em;
+}
+
+.alch-cv-reader-dek {
+  max-width: 62ch;
+  margin: -2px 0 0;
+  color: var(--ds-ink-2, rgba(241, 236, 231, 0.74));
+  font-family: var(--ds-font-ui, system-ui, sans-serif);
+  font-size: var(--cv-fs, 15px);
+  font-weight: var(--ds-weight-reg, 400);
+  line-height: 1.62;
+}
+
+.alch-cv .alch-ev-meta {
+  gap: 6px;
+  margin: -2px 0 4px;
+}
+
+.alch-cv .alch-ev-chip {
+  border: 1px solid var(--ds-border, rgba(241, 236, 231, 0.14));
+  border-radius: var(--ds-radius-sm, 6px);
+  background: color-mix(in srgb, var(--ds-ink-1, rgba(241, 236, 231, 0.94)) 4%, transparent);
+  color: var(--ds-ink-2, rgba(241, 236, 231, 0.74));
+  font: var(--ds-weight-med, 500) var(--ds-text-2xs, 10px)/1.4 var(--ds-font-mono, monospace);
+  letter-spacing: 0.02em;
+  padding: 2px 7px;
 }
 
 .alch-cv-reader-lede {
@@ -20277,14 +20370,18 @@ html[data-theme="light"] .alch-cv-group-head { background: var(--alchemy-charcoa
    Progress + outline consolidated onto one element. */
 .alch-cv-progress {
   position: sticky; top: 0; z-index: 4;
-  height: 2px; margin: 0 0 2px;
+  height: 1px; margin: 0 0 10px;
   border-radius: 2px;
   background: var(--ds-border, rgba(241, 236, 231, 0.14));
+  opacity: 0.52;
+  transition: opacity 140ms var(--ds-ease, ease);
 }
+.alch-cv-progress:hover,
+.alch-cv-progress:focus-within { opacity: 1; }
 .alch-cv-progress-fill {
   display: block; height: 100%;
   border-radius: 2px;
-  background: linear-gradient(90deg, var(--ds-accent, #EAB308), var(--ds-accent-hover, #FACC15));
+  background: var(--ds-accent, #EAB308);
   transform: scaleX(0); transform-origin: left;
 }
 .alch-cv-progress-tick {
@@ -20292,10 +20389,26 @@ html[data-theme="light"] .alch-cv-group-head { background: var(--alchemy-charcoa
   width: 14px; height: 14px;
   transform: translate(-50%, -50%);
   border: 0; background: transparent; padding: 0; cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms var(--ds-ease, ease);
+}
+.alch-cv-progress:hover .alch-cv-progress-tick,
+.alch-cv-progress:focus-within .alch-cv-progress-tick {
+  opacity: 1;
+  pointer-events: auto;
+}
+.alch-cv-progress-tick:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+  outline: none;
+}
+.alch-cv-progress-tick:focus-visible::after {
+  box-shadow: 0 0 0 3px var(--ds-surface-1, #231F20), 0 0 0 5px color-mix(in srgb, var(--ds-focus, #EAB308) 72%, transparent);
 }
 .alch-cv-progress-tick::after {
   content: ""; position: absolute; inset: 0; margin: auto;
-  width: 6px; height: 6px; border-radius: 50%;
+  width: 5px; height: 5px; border-radius: 50%;
   background: var(--ds-border-strong, rgba(241, 236, 231, 0.26));
   box-shadow: 0 0 0 3px var(--ds-surface-1, #231F20);
   transition: background 200ms var(--ds-ease, ease), transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -20304,6 +20417,9 @@ html[data-theme="light"] .alch-cv-group-head { background: var(--alchemy-charcoa
 .alch-cv-progress-tick.is-active::after { background: var(--ds-accent-hover, #FACC15); transform: scale(1.4); }
 /* Same unflipped --ds-surface-1 knockout ring — keep it paper on paper. */
 html[data-theme="light"] .alch-cv-progress-tick::after { box-shadow: 0 0 0 3px var(--alchemy-charcoal, #F4F4F4); }
+html[data-theme="light"] .alch-cv-progress-tick:focus-visible::after {
+  box-shadow: 0 0 0 3px var(--alchemy-charcoal, #F4F4F4), 0 0 0 5px color-mix(in srgb, var(--ds-focus, #EAB308) 72%, transparent);
+}
 
 /* detail enter — a gentle rise (transform + opacity only) */
 @keyframes alch-cv-detail-in {
@@ -20489,7 +20605,8 @@ html[data-theme="light"] .alch-cv-progress-tick::after { box-shadow: 0 0 0 3px v
   }
   .alch-cv-handle { display: none; }
   .alch-cv-layout > .alch-cv-detail,
-  .alch-cv-layout > .alch-cv-empty-detail { padding-left: 0; }
+  .alch-cv-layout > .alch-cv-empty-detail,
+  .alch-cv-layout > .alch-cv-detailcol { padding-left: 0; }
   .alch-cv-md-action {
     max-width: 100%;
   }
@@ -21434,6 +21551,413 @@ html[data-theme="light"] .alch-detail-disclosure summary:focus-visible .alch-sec
   .alch-section-preview {
     max-width: 100%;
   }
+}
+
+/* ══ Peer-tier dossier (2026-07) ═════════════════════════════════════
+ * Provenance chips + gist / say-did-shipped / journey strip / evidence
+ * state / broker view. New rules here read the design system only
+ * (--ds-* tokens; CLAUDE.md: no raw px font sizes, no hex). */
+
+/* Provenance chip set — mono, 2xs, subtle border. declared = neutral
+ * ink-3; observed = accent-tinted; verified = stronger accent; missing =
+ * danger-tinted at low intensity; inferred = neutral, dashed (machine-
+ * suggested, not stated by anyone). */
+.alch-prov {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 1px 7px;
+  border: 1px solid var(--ds-border);
+  border-radius: 3px;
+  background: var(--ds-surface-3);
+  color: var(--ds-ink-3);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.alch-prov.is-observed {
+  color: var(--ds-accent);
+  border-color: color-mix(in srgb, var(--ds-accent) 42%, transparent);
+  background: color-mix(in srgb, var(--ds-accent) 9%, transparent);
+}
+.alch-prov.is-verified {
+  color: var(--ds-accent-hover);
+  border-color: color-mix(in srgb, var(--ds-accent) 68%, transparent);
+  background: color-mix(in srgb, var(--ds-accent) 16%, transparent);
+}
+.alch-prov.is-missing {
+  color: color-mix(in srgb, var(--ds-danger) 62%, var(--ds-ink-3));
+  border-color: color-mix(in srgb, var(--ds-danger) 26%, transparent);
+  background: color-mix(in srgb, var(--ds-danger) 6%, transparent);
+}
+.alch-prov.is-inferred { border-style: dashed; }
+.alch-prov-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 2px 0 6px;
+  color: var(--ds-ink-3);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+}
+.alch-prov-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  color: var(--ds-ink-2);
+  font-size: var(--ds-text-md);
+  line-height: var(--ds-lh-md);
+}
+/* Honest absence — always words, never a blank. */
+.alch-detail-empty {
+  color: var(--ds-ink-3);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-sm);
+  line-height: var(--ds-lh-sm);
+  font-style: italic;
+  margin: 0;
+}
+.alch-prov-missing { font-style: italic; color: var(--ds-ink-3); }
+
+/* Chipped ledger rows — the detail-row grid plus a provenance column. */
+.alch-prov-row {
+  grid-template-columns: 116px minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 16px;
+}
+.alch-prov-row .alch-prov { margin-top: 1px; }
+
+/* GIST cells — the trajectory facts as one compact caption-over-value
+ * row under the opening prose. */
+.alch-gist-cells {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 26px;
+  padding: 10px 0 2px;
+  border-top: 1px dashed var(--ds-border);
+  margin-top: 12px;
+}
+.alch-gist-cell {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: 34ch;
+}
+.alch-gist-cell .agc-k {
+  color: var(--ds-ink-3);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.alch-gist-cell .agc-v {
+  color: var(--ds-ink-1);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-sm);
+  line-height: var(--ds-lh-sm);
+}
+
+/* SAY / DID / SHIPPED — three chipped cells; complete sentences inside. */
+.alch-sds-cells {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.alch-sds-cell {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  padding: 10px 12px;
+  border: 1px solid var(--ds-border);
+  border-radius: 6px;
+  background: var(--ds-surface-3);
+}
+.alch-sds-cell-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.alch-sds-k {
+  color: var(--ds-ink-3);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.alch-sds-v {
+  margin: 0;
+  color: var(--ds-ink-2);
+  font-size: var(--ds-text-md);
+  line-height: var(--ds-lh-md);
+  overflow-wrap: anywhere;
+}
+.alch-sds-note {
+  margin: 8px 0 0;
+  color: var(--ds-ink-3);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-lh-xs);
+}
+@media (max-width: 860px) {
+  .alch-sds-cells { grid-template-columns: 1fr; }
+}
+
+/* JOURNEY STRIP — W1..W10 on one row, trail markers beneath each week,
+ * "now" highlighted. Scrolls sideways rather than wrapping. */
+.alch-jstrip-scroll { overflow-x: auto; padding-bottom: 2px; }
+.alch-jstrip {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(58px, 1fr));
+  min-width: 0;
+  border: 1px solid var(--ds-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.alch-jstrip-wk {
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  gap: 5px;
+  padding: 8px 4px 7px;
+  background: transparent;
+}
+.alch-jstrip-wk + .alch-jstrip-wk { border-left: 1px solid var(--ds-border); }
+.alch-jstrip-wk.is-now {
+  background: var(--ds-accent-soft, color-mix(in srgb, var(--ds-accent) 10%, transparent));
+  box-shadow: inset 0 2px 0 var(--ds-accent);
+}
+.alch-jsw-n {
+  color: var(--ds-ink-3);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.alch-jstrip-wk.is-now .alch-jsw-n { color: var(--ds-accent); }
+.alch-jsw-marks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 3px;
+  min-height: 8px;
+}
+.alch-jsw-mark {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  border: 1px solid var(--ds-border-strong);
+  background: var(--ds-surface-4);
+}
+.alch-jsw-mark[data-kind="github"] {
+  border-color: color-mix(in srgb, var(--ds-accent) 70%, transparent);
+  background: color-mix(in srgb, var(--ds-accent) 30%, transparent);
+}
+.alch-jsw-mark[data-kind="session"] {
+  border-radius: 50%;
+  border-color: var(--ds-ink-3);
+  background: var(--ds-surface-4);
+}
+.alch-jsw-mark[data-kind="event"] {
+  transform: rotate(45deg);
+  border-color: var(--ds-ink-4);
+}
+.alch-jsw-more {
+  color: var(--ds-ink-4);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+}
+.alch-jsw-date {
+  color: var(--ds-ink-4);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+}
+.alch-jstrip-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin: 6px 0 0;
+  color: var(--ds-ink-3);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+}
+.alch-jstrip-note .alch-jsw-mark { flex: 0 0 auto; }
+
+/* BROKER VIEW — three labeled clusters of connection rows. */
+.alch-broker-cluster {
+  display: grid;
+  gap: 8px;
+  padding: 10px 0 4px;
+}
+.alch-broker-cluster + .alch-broker-cluster { border-top: 1px dashed var(--ds-border); }
+.alch-broker-h {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  color: var(--ds-ink-3);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.alch-broker-h em {
+  font-style: normal;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--ds-ink-4);
+}
+.alch-broker-row {
+  display: grid;
+  gap: 4px;
+  padding: 6px 0;
+}
+.alch-broker-row + .alch-broker-row { border-top: 1px dashed color-mix(in srgb, var(--ds-border) 60%, transparent); }
+.alch-broker-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.alch-broker-kind {
+  color: var(--ds-ink-4);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.alch-broker-reason {
+  margin: 0;
+  max-width: 78ch;
+  color: var(--ds-ink-2);
+  font-size: var(--ds-text-md);
+  line-height: var(--ds-lh-md);
+}
+.alch-broker-decl {
+  color: var(--ds-ink-2);
+  font-size: var(--ds-text-md);
+  line-height: var(--ds-lh-md);
+  max-width: 72ch;
+}
+
+/* Verdict chips (shape rotation) — same .alch-prov visual language as the
+ * provenance chips, siblings not a new component. active reads like
+ * observed (still live, in progress); merged is neutral (folded into
+ * something, not a loss); killed is muted with a strikethrough-ish
+ * treatment (decided, closed); parked borrows the missing/amber weight
+ * (shelved, not resolved). */
+.alch-prov.is-verdict-active {
+  color: var(--ds-accent);
+  border-color: color-mix(in srgb, var(--ds-accent) 42%, transparent);
+  background: color-mix(in srgb, var(--ds-accent) 9%, transparent);
+}
+.alch-prov.is-verdict-merged {
+  color: var(--ds-ink-3);
+  border-color: var(--ds-border);
+  background: var(--ds-surface-3);
+}
+.alch-prov.is-verdict-killed {
+  color: var(--ds-ink-4);
+  border-color: var(--ds-border);
+  background: var(--ds-surface-3);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--ds-ink-4) 60%, transparent);
+}
+.alch-prov.is-verdict-parked {
+  color: color-mix(in srgb, var(--ds-danger) 40%, var(--ds-ink-2));
+  border-color: color-mix(in srgb, var(--ds-danger) 26%, transparent);
+  background: color-mix(in srgb, var(--ds-danger) 6%, transparent);
+}
+/* is-verdict-unknown — a verdict value that didn't normalize to one of the
+ * four canonical strings (typo, bad casing, future value). Deliberately
+ * louder than the four valid chips above: solid danger-tone border (not the
+ * soft mix the others use) plus a dashed line, so a data problem reads as a
+ * data problem instead of blending in as another declared chip. */
+.alch-prov.is-verdict-unknown {
+  color: var(--ds-danger);
+  border-color: var(--ds-danger);
+  border-style: dashed;
+  background: color-mix(in srgb, var(--ds-danger) 12%, transparent);
+}
+
+/* SHAPE ROTATION — one compact row per shape_ledger card: bet + verdict
+ * chip + first-seen date on one line, lesson as a smaller sub-line. */
+.alch-shape-row { padding: 7px 0; }
+.alch-shape-row + .alch-shape-row { border-top: 1px dashed color-mix(in srgb, var(--ds-border) 60%, transparent); }
+.alch-shape-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.alch-shape-bet {
+  color: var(--ds-ink-1);
+  font-size: var(--ds-text-md);
+  line-height: var(--ds-lh-md);
+}
+.alch-shape-date {
+  color: var(--ds-ink-4);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+  letter-spacing: 0.06em;
+}
+.alch-shape-lesson {
+  margin: 3px 0 0;
+  color: var(--ds-ink-3);
+  font-size: var(--ds-text-sm);
+  line-height: var(--ds-lh-sm);
+}
+
+/* EVIDENCE STATE (engine-fed path) — one area block per evidence_state
+ * card: label + known/unknown lines. Sits alongside detailProvRows()
+ * missing rows, which already carry their own styling. */
+.alch-evs-area { padding: 7px 0; }
+.alch-evs-area + .alch-evs-area { border-top: 1px dashed color-mix(in srgb, var(--ds-border) 60%, transparent); }
+.alch-evs-area-head {
+  color: var(--ds-ink-1);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-lh-xs);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+.alch-evs-line {
+  margin: 0;
+  color: var(--ds-ink-2);
+  font-size: var(--ds-text-sm);
+  line-height: var(--ds-lh-sm);
+}
+.alch-evs-k {
+  color: var(--ds-ink-3);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-right: 4px;
+}
+
+@media (max-width: 720px) {
+  .alch-prov-row { grid-template-columns: 1fr; row-gap: 5px; }
+  .alch-jstrip { grid-template-columns: repeat(10, minmax(52px, 1fr)); min-width: 560px; }
 }
 
 /* ─── unified page intro — floating top-right action slot ──────────── */

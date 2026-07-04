@@ -283,6 +283,14 @@ function normalize(data) {
     // blank entirely if that fetch failed or was slow). Pass it through.
     calendar:     (data?.calendar && typeof data.calendar === "object") ? data.calendar : null,
     calendar_google_events: objectMap(data?.calendar_google_events),
+    // Precomputed connection graph (build-cohort-connections.mjs). Previously
+    // dropped here, which left applyConnectionsOverlay's documented bundle
+    // fallback reading a field that never existed — offline / first paint had
+    // no edges. Passed through so the dossier broker view and the overlay
+    // fallback can read the committed edges before the live row lands.
+    cohort_connections: (data?.cohort_connections && typeof data.cohort_connections === "object" && Array.isArray(data.cohort_connections.edges))
+      ? data.cohort_connections
+      : null,
   };
   // Derive GitHub-attested cross-team collaboration edges from the committed
   // cohort_insights bundle into dependency records so the relationship / ecosystem
