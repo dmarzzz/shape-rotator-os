@@ -82,6 +82,11 @@
 .c2-subscribe:hover .c2-subscribe-hook,
 .c2-subscribe:focus-visible .c2-subscribe-hook { opacity: 1; transform: translate(1.5px, -1.5px); }
 
+/* "suggest" wears the design-system primary button (.btn.ds-primary in
+   calendar.js — geometry, fill, hover/active/focus all come from ds.css).
+   Only the icon needs a local rule: full-strength on the accent fill. */
+.c2-suggest .c2-subscribe-ico { opacity: 1; }
+
 /* presence view — the availability gantt (styled by the .cal-* / .cav-*
  * rules in styles.css; just give it room) */
 .c2-presence { min-width: 0; padding-top: 14px; }

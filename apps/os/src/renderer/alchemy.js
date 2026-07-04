@@ -13236,23 +13236,8 @@ function cssAttr(value) {
   return raw.replace(/["\\]/g, "\\$&");
 }
 
-// Default-inspector trailer links scroll to their below-fold board section
-// (intros / underused offers / convergence) — the visible local delta is the
-// section arriving at the top of the viewport.
-function wireCollabTrailerLinks(root) {
-  if (!root) return;
-  for (const btn of root.querySelectorAll("[data-collab-scroll]")) {
-    if (btn.dataset.collabScrollWired === "1") continue;
-    btn.dataset.collabScrollWired = "1";
-    btn.addEventListener("click", () => {
-      const section = state.canvas?.querySelector(`[data-cb-section="${cssAttr(btn.dataset.collabScroll)}"]`);
-      if (!section) return;
-      const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-      section.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
-    });
-  }
-}
-
+// (wireCollabTrailerLinks was removed with the under-board sections it
+// scrolled to — nothing emits [data-collab-scroll] anymore.)
 
 function collabCell(R, C, ri, ci, m, lens = "all", detail = false, extraCls = "") {
   if (R.rid === C.rid) return `<div class="cb-cell cb-diag${extraCls}" data-row="${ri}" data-col="${ci}" aria-hidden="true"></div>`;
@@ -13602,8 +13587,10 @@ function renderCollab() {
   // The under-board extras (latent overlaps, unmatched offers, shared focus
   // areas) were removed on direct user feedback (2026-07-02 session): "beneath
   // the actual board, all that extra information is useless. Remove it." The
-  // model still computes underusedOffers/convergence — the chat context and
-  // rail nudges read them — only the page sections are gone.
+  // round-3 pass (2026-07-03) also dropped the trailing self-declared
+  // disclaimer line — the board now ends at the map. The model still computes
+  // underusedOffers/convergence — the chat context and rail nudges read them —
+  // only the page sections are gone.
 
   // The header stays calm: title + a static lead line. The team picker + intake
   // moved into the filter row (cb-maphead-left); the *adaptive* "what to do next"
@@ -13626,7 +13613,6 @@ function renderCollab() {
           ${collabRouteSheetHtml(m, focusRid)}
         </aside>
       </div>
-      <p class="alch-callout">Matches, intros, and offers are self-declared by teams.</p>
     </div>
     </div>`;
 }
@@ -13661,7 +13647,6 @@ function wireCollab() {
   wireConstellationScrubber();
   wireCollabRailResize();   // draggable help-rail width (matrix | rail workbench)
   wireCollabCohortLinks(state.canvas);
-  wireCollabTrailerLinks(state.canvas);
   for (const btn of state.canvas.querySelectorAll("[data-collab-intake-open]")) {
     btn.addEventListener("click", (event) => {
       event.preventDefault();

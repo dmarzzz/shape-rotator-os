@@ -462,9 +462,13 @@ export function renderCalendarPage({ data, calendarGoogleEvents = {}, weekIdx = 
   // Calendar views (calendar grid | presence) live in the rail sub-nav (left
   // panel), so the page renders no in-page tab strip of its own.
   // "suggest" opens the event-suggestion form (routes to the program admins
-  // through the anon Supabase inbox — see calendar-suggest.mjs).
+  // through the anon Supabase inbox — see calendar-suggest.mjs). It is the
+  // calendar's one real ACTION, so it wears the design-system primary button
+  // (.btn.ds-primary — accent fill, hover/active/focus states from ds.css)
+  // instead of the subscribe link's quiet ghost dress (2026-07-02 feedback:
+  // the old ghost read "ugly, hard to use, very static").
   const suggestAction = `
-    <button class="c2-subscribe c2-suggest" type="button" data-c2-suggest
+    <button class="btn ds-primary c2-suggest" type="button" data-c2-suggest
             aria-label="Suggest an event to the program admins"
             title="Suggest an event — goes to the program admins">
       <svg class="c2-subscribe-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M12 13v6"/><path d="M9 16h6"/></svg>
