@@ -779,8 +779,8 @@ body[data-web-app-auth] .site-nav,
 .cic-route-line {
   min-width: 0;
   display: grid;
-  grid-template-columns: 86px minmax(0, 1fr);
-  gap: var(--space-3);
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: var(--space-2);
   align-items: baseline;
   padding-block: 4px;
   color: rgba(245, 243, 238, 0.62);
@@ -789,6 +789,10 @@ body[data-web-app-auth] .site-nav,
   line-height: 1.35;
 }
 .cic-route-line > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: rgba(245, 243, 238, 0.48);
   font-size: 9.5px;
   letter-spacing: 0.12em;

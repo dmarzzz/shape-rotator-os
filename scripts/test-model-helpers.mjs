@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -20,7 +21,7 @@ const contextVault = await importRendererModule("apps/os/src/renderer/context-va
 const shapeEscape = await importRendererModule("packages/shape-ui/src/escape.js");
 const vendoredEscape = await importRendererModule("apps/os/src/vendor/shape-ui/escape.js");
 
-test("shape-ui cohort-card copies stay in sync (package vs OS vendor)", async () => {
+test("shape-ui cohort-card copies stay in sync (package vs app vendors)", async () => {
   // The OS renderer loads the vendor copy; packages/shape-ui is the canonical
   // source. They drifted once — the removed now-overlay popover lived on in the
   // package copy after the vendor moved to inline peeks. Keep them byte-identical
@@ -28,9 +29,22 @@ test("shape-ui cohort-card copies stay in sync (package vs OS vendor)", async ()
   // removed UI in any future package consumer / re-vendor.
   for (const file of ["cohort-card.js", "cohort-card.css"]) {
     const pkg = await readFile(path.join(ROOT, "packages/shape-ui/src", file), "utf8");
-    const vendor = await readFile(path.join(ROOT, "apps/os/src/vendor/shape-ui", file), "utf8");
-    assert.equal(pkg, vendor, `${file} differs between packages/shape-ui/src and apps/os/src/vendor/shape-ui — edit BOTH copies`);
+    const osVendor = await readFile(path.join(ROOT, "apps/os/src/vendor/shape-ui", file), "utf8");
+    assert.equal(pkg, osVendor, `${file} differs between packages/shape-ui/src and apps/os/src/vendor/shape-ui - edit BOTH copies`);
+    const webVendorPath = path.join(ROOT, "apps/web/shape-ui/src", file);
+    if (existsSync(webVendorPath)) {
+      const webVendor = await readFile(webVendorPath, "utf8");
+      assert.equal(pkg, webVendor, `${file} differs between packages/shape-ui/src and apps/web/shape-ui/src - run vendor:web or edit BOTH copies`);
+    }
   }
+});
+
+test("cohort card meta rows reserve space for project roster labels", async () => {
+  const css = await readFile(path.join(ROOT, "packages/shape-ui/src/cohort-card.css"), "utf8");
+
+  assert.match(css, /grid-template-columns:\s*96px minmax\(0,\s*1fr\)/);
+  assert.match(css, /\.alch-card-meta-row \.cm-k \{[\s\S]*text-overflow:\s*ellipsis;/);
+  assert.match(css, /\.alch-card-meta-row \.cm-v \{\s*min-width:\s*0;/);
 });
 
 test("cohort timeline source boundary covers snapshot collections that drive insights", async () => {
