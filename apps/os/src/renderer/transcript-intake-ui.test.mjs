@@ -9,7 +9,7 @@ import {
   transcriptSubmitLabel,
 } from "./transcript-intake-ui.mjs";
 
-test("transcript path picker shows the three human choices", () => {
+test("transcript path picker shows the Drive-first human choices", () => {
   const rows = buildVisibleTranscriptPathRows([
     { key: "drive_inbox", label: "Drive inbox" },
     { key: "metadata", label: "Pointer only" },
@@ -17,15 +17,15 @@ test("transcript path picker shows the three human choices", () => {
     { key: "local_agent", label: "Process here" },
   ]);
 
-  assert.deepEqual(rows.map((row) => row.key), ["metadata", "supabase_raw", "local_agent"]);
-  assert.deepEqual(rows.map((row) => row.label), ["Private pointer", "Send full text", "Local readout"]);
-  assert.equal(rows[0].short, "file stays private");
+  assert.deepEqual(rows.map((row) => row.key), ["drive_inbox", "metadata", "supabase_raw", "local_agent"]);
+  assert.deepEqual(rows.map((row) => row.label), ["Drive inbox", "Private pointer", "Send full text", "Local readout"]);
+  assert.equal(rows[0].short, "private Drive upload");
 });
 
-test("legacy or backend-only transcript paths normalize to private pointer", () => {
-  assert.equal(normalizeVisibleTranscriptPath("drive_inbox"), "metadata");
+test("unknown transcript paths normalize to private pointer", () => {
+  assert.equal(normalizeVisibleTranscriptPath("drive_inbox"), "drive_inbox");
   assert.equal(normalizeVisibleTranscriptPath("unknown"), "metadata");
-  assert.match(transcriptPathNoteText("drive_inbox"), /private source pointer/);
+  assert.match(transcriptPathNoteText("drive_inbox"), /Google Drive inbox/);
 });
 
 test("full-text paths reject PDFs with plain user copy", () => {
@@ -38,13 +38,19 @@ test("full-text paths reject PDFs with plain user copy", () => {
   assert.equal(transcriptPathBlocker({
     fileName: "board deck.pdf",
     ext: ".pdf",
+    processingPath: "drive_inbox",
+  }), "");
+
+  assert.equal(transcriptPathBlocker({
+    fileName: "board deck.pdf",
+    ext: ".pdf",
     processingPath: "supabase_raw",
   }), "board deck.pdf is not a text transcript. Use Private pointer for PDFs and docs.");
 });
 
 test("submit labels stay action-shaped", () => {
-  assert.equal(transcriptSubmitLabel("drive_inbox", 1), "Add pointer");
-  assert.equal(transcriptSubmitLabel("drive_inbox", 3), "Add 3 pointers");
+  assert.equal(transcriptSubmitLabel("drive_inbox", 1), "Send to Drive");
+  assert.equal(transcriptSubmitLabel("drive_inbox", 3), "Send 3 files to Drive");
   assert.equal(transcriptSubmitLabel("metadata", 1), "Add pointer");
   assert.equal(transcriptSubmitLabel("metadata", 3), "Add 3 pointers");
   assert.equal(transcriptSubmitLabel("supabase_raw", 2), "Send 2 files");

@@ -42,6 +42,9 @@ test("Google auth asks for narrow Drive upload scope without exposing provider t
   assert.match(main, /provider_token: j\.provider_token/);
   assert.match(main, /function publicAuthSession/);
   assert.match(main, /provider_token_available: !!provider_token/);
+  assert.match(main, /function clearAuthProviderTokens/);
+  assert.match(main, /reason: "drive_upload_unauthorized"/);
+  assert.doesNotMatch(main, /session\.provider_token = cur\.provider_token/);
   assert.match(main, /if \(authSession\?\.provider_token\) driveConfig\.accessToken = authSession\.provider_token/);
   assert.match(main, /function runTranscriptDriveAuthSmoke/);
   assert.match(main, /function runTranscriptDriveIntakeSmoke/);
