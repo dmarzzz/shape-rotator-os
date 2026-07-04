@@ -514,6 +514,11 @@ async function assertPointerDismissesDrawer(win) {
 
   win.webContents.sendInputEvent({ type: "mouseMove", x: target.enterX, y: target.y, movementX: 0, movementY: 0 });
   await settle(win, 260);
+  await waitFor(win, `(() => {
+    const nav = document.getElementById("primary-nav");
+    const r = nav?.getBoundingClientRect();
+    return !!r && Math.round(r.right) >= 250;
+  })()`, "pointer dismiss drawer open", 1800);
   const clickTarget = await evalIn(win, `(() => {
     const btn = document.querySelector('#primary-nav [data-tab="links"]');
     if (!btn) return null;

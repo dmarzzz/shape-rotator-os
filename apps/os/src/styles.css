@@ -21436,6 +21436,413 @@ html[data-theme="light"] .alch-detail-disclosure summary:focus-visible .alch-sec
   }
 }
 
+/* ══ Peer-tier dossier (2026-07) ═════════════════════════════════════
+ * Provenance chips + gist / say-did-shipped / journey strip / evidence
+ * state / broker view. New rules here read the design system only
+ * (--ds-* tokens; CLAUDE.md: no raw px font sizes, no hex). */
+
+/* Provenance chip set — mono, 2xs, subtle border. declared = neutral
+ * ink-3; observed = accent-tinted; verified = stronger accent; missing =
+ * danger-tinted at low intensity; inferred = neutral, dashed (machine-
+ * suggested, not stated by anyone). */
+.alch-prov {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 1px 7px;
+  border: 1px solid var(--ds-border);
+  border-radius: 3px;
+  background: var(--ds-surface-3);
+  color: var(--ds-ink-3);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.alch-prov.is-observed {
+  color: var(--ds-accent);
+  border-color: color-mix(in srgb, var(--ds-accent) 42%, transparent);
+  background: color-mix(in srgb, var(--ds-accent) 9%, transparent);
+}
+.alch-prov.is-verified {
+  color: var(--ds-accent-hover);
+  border-color: color-mix(in srgb, var(--ds-accent) 68%, transparent);
+  background: color-mix(in srgb, var(--ds-accent) 16%, transparent);
+}
+.alch-prov.is-missing {
+  color: color-mix(in srgb, var(--ds-danger) 62%, var(--ds-ink-3));
+  border-color: color-mix(in srgb, var(--ds-danger) 26%, transparent);
+  background: color-mix(in srgb, var(--ds-danger) 6%, transparent);
+}
+.alch-prov.is-inferred { border-style: dashed; }
+.alch-prov-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 2px 0 6px;
+  color: var(--ds-ink-3);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+}
+.alch-prov-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  color: var(--ds-ink-2);
+  font-size: var(--ds-text-md);
+  line-height: var(--ds-lh-md);
+}
+/* Honest absence — always words, never a blank. */
+.alch-detail-empty {
+  color: var(--ds-ink-3);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-sm);
+  line-height: var(--ds-lh-sm);
+  font-style: italic;
+  margin: 0;
+}
+.alch-prov-missing { font-style: italic; color: var(--ds-ink-3); }
+
+/* Chipped ledger rows — the detail-row grid plus a provenance column. */
+.alch-prov-row {
+  grid-template-columns: 116px minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 16px;
+}
+.alch-prov-row .alch-prov { margin-top: 1px; }
+
+/* GIST cells — the trajectory facts as one compact caption-over-value
+ * row under the opening prose. */
+.alch-gist-cells {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 26px;
+  padding: 10px 0 2px;
+  border-top: 1px dashed var(--ds-border);
+  margin-top: 12px;
+}
+.alch-gist-cell {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: 34ch;
+}
+.alch-gist-cell .agc-k {
+  color: var(--ds-ink-3);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.alch-gist-cell .agc-v {
+  color: var(--ds-ink-1);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-sm);
+  line-height: var(--ds-lh-sm);
+}
+
+/* SAY / DID / SHIPPED — three chipped cells; complete sentences inside. */
+.alch-sds-cells {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.alch-sds-cell {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  padding: 10px 12px;
+  border: 1px solid var(--ds-border);
+  border-radius: 6px;
+  background: var(--ds-surface-3);
+}
+.alch-sds-cell-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.alch-sds-k {
+  color: var(--ds-ink-3);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.alch-sds-v {
+  margin: 0;
+  color: var(--ds-ink-2);
+  font-size: var(--ds-text-md);
+  line-height: var(--ds-lh-md);
+  overflow-wrap: anywhere;
+}
+.alch-sds-note {
+  margin: 8px 0 0;
+  color: var(--ds-ink-3);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-lh-xs);
+}
+@media (max-width: 860px) {
+  .alch-sds-cells { grid-template-columns: 1fr; }
+}
+
+/* JOURNEY STRIP — W1..W10 on one row, trail markers beneath each week,
+ * "now" highlighted. Scrolls sideways rather than wrapping. */
+.alch-jstrip-scroll { overflow-x: auto; padding-bottom: 2px; }
+.alch-jstrip {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(58px, 1fr));
+  min-width: 0;
+  border: 1px solid var(--ds-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.alch-jstrip-wk {
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  gap: 5px;
+  padding: 8px 4px 7px;
+  background: transparent;
+}
+.alch-jstrip-wk + .alch-jstrip-wk { border-left: 1px solid var(--ds-border); }
+.alch-jstrip-wk.is-now {
+  background: var(--ds-accent-soft, color-mix(in srgb, var(--ds-accent) 10%, transparent));
+  box-shadow: inset 0 2px 0 var(--ds-accent);
+}
+.alch-jsw-n {
+  color: var(--ds-ink-3);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.alch-jstrip-wk.is-now .alch-jsw-n { color: var(--ds-accent); }
+.alch-jsw-marks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 3px;
+  min-height: 8px;
+}
+.alch-jsw-mark {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  border: 1px solid var(--ds-border-strong);
+  background: var(--ds-surface-4);
+}
+.alch-jsw-mark[data-kind="github"] {
+  border-color: color-mix(in srgb, var(--ds-accent) 70%, transparent);
+  background: color-mix(in srgb, var(--ds-accent) 30%, transparent);
+}
+.alch-jsw-mark[data-kind="session"] {
+  border-radius: 50%;
+  border-color: var(--ds-ink-3);
+  background: var(--ds-surface-4);
+}
+.alch-jsw-mark[data-kind="event"] {
+  transform: rotate(45deg);
+  border-color: var(--ds-ink-4);
+}
+.alch-jsw-more {
+  color: var(--ds-ink-4);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+}
+.alch-jsw-date {
+  color: var(--ds-ink-4);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+}
+.alch-jstrip-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin: 6px 0 0;
+  color: var(--ds-ink-3);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+}
+.alch-jstrip-note .alch-jsw-mark { flex: 0 0 auto; }
+
+/* BROKER VIEW — three labeled clusters of connection rows. */
+.alch-broker-cluster {
+  display: grid;
+  gap: 8px;
+  padding: 10px 0 4px;
+}
+.alch-broker-cluster + .alch-broker-cluster { border-top: 1px dashed var(--ds-border); }
+.alch-broker-h {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  color: var(--ds-ink-3);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.alch-broker-h em {
+  font-style: normal;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--ds-ink-4);
+}
+.alch-broker-row {
+  display: grid;
+  gap: 4px;
+  padding: 6px 0;
+}
+.alch-broker-row + .alch-broker-row { border-top: 1px dashed color-mix(in srgb, var(--ds-border) 60%, transparent); }
+.alch-broker-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.alch-broker-kind {
+  color: var(--ds-ink-4);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.alch-broker-reason {
+  margin: 0;
+  max-width: 78ch;
+  color: var(--ds-ink-2);
+  font-size: var(--ds-text-md);
+  line-height: var(--ds-lh-md);
+}
+.alch-broker-decl {
+  color: var(--ds-ink-2);
+  font-size: var(--ds-text-md);
+  line-height: var(--ds-lh-md);
+  max-width: 72ch;
+}
+
+/* Verdict chips (shape rotation) — same .alch-prov visual language as the
+ * provenance chips, siblings not a new component. active reads like
+ * observed (still live, in progress); merged is neutral (folded into
+ * something, not a loss); killed is muted with a strikethrough-ish
+ * treatment (decided, closed); parked borrows the missing/amber weight
+ * (shelved, not resolved). */
+.alch-prov.is-verdict-active {
+  color: var(--ds-accent);
+  border-color: color-mix(in srgb, var(--ds-accent) 42%, transparent);
+  background: color-mix(in srgb, var(--ds-accent) 9%, transparent);
+}
+.alch-prov.is-verdict-merged {
+  color: var(--ds-ink-3);
+  border-color: var(--ds-border);
+  background: var(--ds-surface-3);
+}
+.alch-prov.is-verdict-killed {
+  color: var(--ds-ink-4);
+  border-color: var(--ds-border);
+  background: var(--ds-surface-3);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--ds-ink-4) 60%, transparent);
+}
+.alch-prov.is-verdict-parked {
+  color: color-mix(in srgb, var(--ds-danger) 40%, var(--ds-ink-2));
+  border-color: color-mix(in srgb, var(--ds-danger) 26%, transparent);
+  background: color-mix(in srgb, var(--ds-danger) 6%, transparent);
+}
+/* is-verdict-unknown — a verdict value that didn't normalize to one of the
+ * four canonical strings (typo, bad casing, future value). Deliberately
+ * louder than the four valid chips above: solid danger-tone border (not the
+ * soft mix the others use) plus a dashed line, so a data problem reads as a
+ * data problem instead of blending in as another declared chip. */
+.alch-prov.is-verdict-unknown {
+  color: var(--ds-danger);
+  border-color: var(--ds-danger);
+  border-style: dashed;
+  background: color-mix(in srgb, var(--ds-danger) 12%, transparent);
+}
+
+/* SHAPE ROTATION — one compact row per shape_ledger card: bet + verdict
+ * chip + first-seen date on one line, lesson as a smaller sub-line. */
+.alch-shape-row { padding: 7px 0; }
+.alch-shape-row + .alch-shape-row { border-top: 1px dashed color-mix(in srgb, var(--ds-border) 60%, transparent); }
+.alch-shape-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.alch-shape-bet {
+  color: var(--ds-ink-1);
+  font-size: var(--ds-text-md);
+  line-height: var(--ds-lh-md);
+}
+.alch-shape-date {
+  color: var(--ds-ink-4);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: var(--ds-lh-2xs);
+  letter-spacing: 0.06em;
+}
+.alch-shape-lesson {
+  margin: 3px 0 0;
+  color: var(--ds-ink-3);
+  font-size: var(--ds-text-sm);
+  line-height: var(--ds-lh-sm);
+}
+
+/* EVIDENCE STATE (engine-fed path) — one area block per evidence_state
+ * card: label + known/unknown lines. Sits alongside detailProvRows()
+ * missing rows, which already carry their own styling. */
+.alch-evs-area { padding: 7px 0; }
+.alch-evs-area + .alch-evs-area { border-top: 1px dashed color-mix(in srgb, var(--ds-border) 60%, transparent); }
+.alch-evs-area-head {
+  color: var(--ds-ink-1);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-lh-xs);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+.alch-evs-line {
+  margin: 0;
+  color: var(--ds-ink-2);
+  font-size: var(--ds-text-sm);
+  line-height: var(--ds-lh-sm);
+}
+.alch-evs-k {
+  color: var(--ds-ink-3);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-right: 4px;
+}
+
+@media (max-width: 720px) {
+  .alch-prov-row { grid-template-columns: 1fr; row-gap: 5px; }
+  .alch-jstrip { grid-template-columns: repeat(10, minmax(52px, 1fr)); min-width: 560px; }
+}
+
 /* ─── unified page intro — floating top-right action slot ──────────── */
 /* The boxed explainer text was removed (2026-06) as clutter; the row now
  * only renders on pages with a functional element to keep top-right

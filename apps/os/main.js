@@ -2205,6 +2205,9 @@ ipcMain.handle("fg:transcript-intake:submit", async (e, opts = {}) => {
       relatedText: opts.relatedText,
       confidence: opts.confidence,
       sessionId: opts.sessionId,
+      processingPath: opts.processingPath,
+      agentCmd: typeof opts.agentCmd === "string" ? opts.agentCmd : (readCohortChatConfig().chatCmd || ""),
+      allowRemoteAgent: opts.allowRemoteAgent === true,
       supabase: opts.supabase,
       // Stage under userData (writable in the packaged app). The module's default
       // REPO_ROOT path resolves INSIDE the read-only install dir once packed →
