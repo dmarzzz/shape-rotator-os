@@ -5,9 +5,10 @@ The app reads two tiers of transcript evidence live from Supabase:
 - **T3 (public)** — person-anonymized cards, read with the baked **anon** key. These
   already show for everyone, in the app and on the public web.
 - **T2 (cohort)** — the gated `cohort_app_transcript_evidence_cards` view, read with the
-  Google-backed app session first, or a **`role=cohort_app` JWT** fallback. The fallback
-  key is deliberately *not* in source, because the repo is public — a committed key would
-  put T2 on the open web.
+  Google-backed app session plus approved/bound membership first, or a
+  **`role=cohort_app` JWT** fallback. The fallback key is deliberately *not* in
+  source, because the repo is public — a committed key would put T2 on the open
+  web.
 
 This doc is how that cohort key reaches a build when we need **a no-login fallback** —
 the normal user-facing path is still Google sign-in.
@@ -36,12 +37,20 @@ an empty file, so the cohort read no-ops and the app falls back to the anon T3 r
 ## Prerequisites (one-time, cohort DB `txjntzwksiluvqcpccpc`)
 
 1. Deploy migration `20260618000000_cohort_app_evidence_reader.sql` (creates the
-   `cohort_app` role + the gated view). Needs the cohort-Supabase login.
+   `cohort_app` role + the gated view). Needs operator Supabase project access
+   in the private/Engine lane, not a user-facing Shape OS login.
    *(As of 2026-06-21 this is already live: the `cohort_app` role + the gated views
    `cohort_app_transcript_evidence_cards` (206 rows), `cohort_app_transcript_distillations`
    (23), and `cohort_app_cohort_insight_cards` (4 collaboration_contribution) exist and grant
    SELECT to `cohort_app`.)*
 2. Mint a JWT with `role: cohort_app`, signed with the project JWT secret, long-lived.
+
+For the primary Google sign-in route, the operator DB lane also needs
+`supabase/migrations/20260703000000_shape_os_app_members_auth_gate.sql` applied
+live, and the signed-in Google email must be approved and bound in
+`app_members`. This document is only the fallback-key path; a provisioned
+fallback key proves that T2 can be read by an operator-approved build, not that
+the member Google route is ready.
 
 ## Mint + verify the key (reproducible)
 
@@ -68,6 +77,13 @@ should pass without `--allow-empty`.
 `transcripts:receive:check` is the full app receive-route doctor: it proves the public T3
 reader, the gated T2 evidence/distillation/insight readers, the packaged-key status, and
 the optional service-role privacy audit without printing keys or row text.
+
+Use the requirement flag that matches the release claim:
+
+- `--require-gated` proves the fallback cohort-key route. It may pass with a
+  packaged or env-provided `role=cohort_app` JWT.
+- `--require-google-session` proves the primary Google sign-in route. It must
+  fail if the only available T2 credential is the fallback key.
 
 ## Cut a provisioned release
 

@@ -498,7 +498,7 @@ function renderConsent(person, githubFallback) {
       <input type="checkbox" data-sr-sessions ${rememberedSessions ? "checked" : ""}>
       <span>
         <b>My local AI sessions this week</b>
-        <small>Reads your Claude Code / Codex logs <em>on this machine</em>, scrubbed into a short summary. Raw content never leaves your computer, and the draft is directed to keep only what's relevant to your cohort work — you review every field before anything sends.</small>
+        <small>Reads your Claude Code / Codex logs and agent memory <em>on this machine</em>, then scrubs them into a short summary. Agent memory honors your Teleport Router read-scope, and your own recent Router posts are used only so the draft does not repeat an update you already shared. Raw content never leaves your computer; you review every field before anything sends.</small>
       </span>
     </label>
     <label class="selfrep-consent${hasGithub ? "" : " is-disabled"}">

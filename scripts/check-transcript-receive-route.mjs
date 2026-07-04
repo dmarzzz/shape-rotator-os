@@ -25,6 +25,7 @@ import {
   cohortDistillationsUrl,
   fetchCohortDistillations,
 } from "../apps/os/src/renderer/supabase-distillations.mjs";
+import { fetchAnon } from "../apps/os/src/renderer/supabase-anon-write.mjs";
 import { runLiveEvidenceCardAudit } from "./audit-supabase-evidence-cards.mjs";
 
 const { parseEnvFile } = envFileLib;
@@ -39,6 +40,16 @@ const PRIVATE_COLUMNS = new Set([
   "storage_ref",
   "source_hash",
 ]);
+const GOOGLE_APP_SESSION_TOKEN_ENV_NAMES = [
+  "SHAPE_GOOGLE_SIGNIN_APP_SESSION_TOKEN",
+  "SHAPE_OS_GOOGLE_APP_SESSION_TOKEN",
+  "SHAPE_APP_SESSION_TOKEN",
+];
+const LEGACY_APP_SESSION_TOKEN_ENV_NAMES = [
+  "SHAPE_SUPABASE_SESSION_TOKEN",
+  "SUPABASE_ACCESS_TOKEN",
+];
+const APP_MEMBERSHIP_PATH = "app_my_membership?select=email,record_id,record_type,role,status,display_name,approved_at&limit=1";
 
 function arg(argv, name, fallback = null) {
   const index = argv.indexOf(name);
@@ -62,6 +73,23 @@ function readPackagedCohortKey(root = ROOT, filePath = DEFAULT_PACKAGED_COHORT_K
   } catch {
     return "";
   }
+}
+
+function resolveGoogleAppSessionToken(env = {}) {
+  for (const name of GOOGLE_APP_SESSION_TOKEN_ENV_NAMES) {
+    const token = String(env[name] || "").trim();
+    if (token) return { token, source: "env", env_name: name, legacy: false };
+  }
+  for (const name of LEGACY_APP_SESSION_TOKEN_ENV_NAMES) {
+    const token = String(env[name] || "").trim();
+    if (token) return { token, source: "env", env_name: name, legacy: true };
+  }
+  return { token: "", source: "none", env_name: null, legacy: false };
+}
+
+function googleAppSessionSourceFor({ auth, tokenInfo }) {
+  if (auth !== undefined) return auth ? "auth_bridge" : "none";
+  return tokenInfo.source;
 }
 
 function toIsoDate(seconds) {
@@ -146,12 +174,14 @@ function inspectRuntimeCohortKey({ key = "", expectedRef = "", minDays = 30, now
   return result;
 }
 
-function inspectGoogleSigninAppSessionCredential({ token = "", now = new Date(), source = "none" } = {}) {
+function inspectGoogleSigninAppSessionCredential({ token = "", now = new Date(), source = "none", envName = null, legacyEnv = false } = {}) {
   const result = {
     ok: false,
     ready: false,
     status: token ? "invalid" : source !== "none" ? "runtime_bridge" : "missing",
     source,
+    env_name: envName,
+    legacy_env: Boolean(legacyEnv),
     token_present: Boolean(token),
     jwt_shape: false,
     role: null,
@@ -168,6 +198,10 @@ function inspectGoogleSigninAppSessionCredential({ token = "", now = new Date(),
       result.errors.push("no Google sign-in app session token available to this verifier");
     }
     return result;
+  }
+
+  if (legacyEnv) {
+    result.warnings.push(`legacy app-session env ${envName} is supported; prefer SHAPE_GOOGLE_SIGNIN_APP_SESSION_TOKEN`);
   }
 
   result.jwt_shape = hasJwtShape(token);
@@ -276,6 +310,68 @@ async function readGatedTier(config, fetchImpl, auth) {
   };
 }
 
+function membershipResult(overrides = {}) {
+  return {
+    ok: false,
+    ready: false,
+    status: "missing",
+    source: "skipped",
+    row_count: 0,
+    email_present: false,
+    record_bound: false,
+    record_type: null,
+    role: null,
+    error: null,
+    ...overrides,
+  };
+}
+
+function summarizeMembershipRead(result = {}) {
+  if (result.source !== "supabase") {
+    return membershipResult({
+      status: result.error === "HTTP 404" ? "not_deployed" : "error",
+      source: result.source || "error",
+      error: result.error ? String(result.error) : null,
+    });
+  }
+  const rows = Array.isArray(result.rows) ? result.rows : [];
+  const row = rows[0];
+  if (!row) return membershipResult({ status: "unapproved", source: "supabase", row_count: 0 });
+  const rawStatus = String(row.status || "unknown");
+  const recordBound = Boolean(row.record_id);
+  const status = rawStatus === "approved" && !recordBound ? "needs_binding" : rawStatus;
+  return membershipResult({
+    ok: true,
+    ready: rawStatus === "approved" && recordBound,
+    status,
+    source: "supabase",
+    row_count: rows.length,
+    email_present: Boolean(row.email),
+    record_bound: recordBound,
+    record_type: row.record_type ? String(row.record_type) : null,
+    role: row.role ? String(row.role) : null,
+  });
+}
+
+async function readGoogleMembership(config, fetchImpl, auth) {
+  if (!auth || typeof auth.getSession !== "function") {
+    return membershipResult({ status: "no_auth_bridge", source: "none" });
+  }
+  let session = null;
+  try {
+    session = await auth.getSession();
+  } catch (error) {
+    return membershipResult({
+      status: "session_error",
+      source: "auth_bridge",
+      error: String(error?.message || error),
+    });
+  }
+  const token = String(session?.access_token || "").trim();
+  if (!token) return membershipResult({ status: "no_session", source: "auth_bridge" });
+  return summarizeMembershipRead(await fetchAnon(APP_MEMBERSHIP_PATH, { config, fetchImpl, bearer: token }));
+}
+
 function summarizeAudit(result) {
   if (!result) return null;
   return {
@@ -302,6 +398,7 @@ function readOptions(argv = process.argv.slice(2), env = process.env) {
     envFile,
     json: hasFlag(argv, "--json"),
     requireGated: hasFlag(argv, "--require-gated"),
+    requireGoogleSession: hasFlag(argv, "--require-google-session") || hasFlag(argv, "--require-google-signin-session"),
     strictPublicNames: hasFlag(argv, "--strict-public-names") || hasFlag(argv, "--strict"),
     live: !hasFlag(argv, "--no-live"),
     audit: !hasFlag(argv, "--skip-audit"),
@@ -323,6 +420,8 @@ function usage() {
     "",
     "Options:",
     "  --require-gated       Fail if the cohort_app key is missing or gated views do not read.",
+    "  --require-google-session",
+    "                        Fail unless gated T2 reads through the Google sign-in app session path.",
     "  --strict-public-names Fail audit on known cohort/entity names in public rows.",
     "  --skip-audit          Skip the service-role privacy audit even when a key is available.",
     "  --no-live             Check reader contracts and key packaging without touching Supabase.",
@@ -349,10 +448,11 @@ export async function checkTranscriptReceiveRoute({
   const envCohortKey = String(mergedEnv.SRFG_COHORT_KEY || mergedEnv.SHAPE_COHORT_APP_KEY || "").trim();
   const cohortKey = envCohortKey || packagedKey;
   const cohortKeySource = envCohortKey ? "env" : packagedKey ? "package" : "none";
-  const envSessionToken = String(mergedEnv.SHAPE_SUPABASE_SESSION_TOKEN || mergedEnv.SUPABASE_ACCESS_TOKEN || "").trim();
+  const envSessionTokenInfo = resolveGoogleAppSessionToken(mergedEnv);
+  const envSessionToken = envSessionTokenInfo.token;
   const envAuth = envSessionToken ? { getSession: async () => ({ access_token: envSessionToken }) } : null;
   const authBridge = auth !== undefined ? auth : envAuth;
-  const googleSigninAppSessionSource = envSessionToken ? "env" : authBridge ? "auth_bridge" : "none";
+  const googleSigninAppSessionSource = googleAppSessionSourceFor({ auth, tokenInfo: envSessionTokenInfo });
   const serviceRoleKey = String(mergedEnv.SUPABASE_SERVICE_ROLE_KEY || mergedEnv.SHAPE_SUPABASE_SERVICE_ROLE_KEY || "").trim();
   const config = { url, anonKey, cohortKey };
   const packageKey = inspectPackagedCohortKey({
@@ -372,6 +472,8 @@ export async function checkTranscriptReceiveRoute({
   const googleSigninAppSession = inspectGoogleSigninAppSessionCredential({
     token: envSessionToken,
     source: googleSigninAppSessionSource,
+    envName: auth !== undefined ? null : envSessionTokenInfo.env_name,
+    legacyEnv: auth === undefined && envSessionTokenInfo.legacy,
     now,
   });
   const gatedCredentialAvailable = Boolean(authBridge) || runtimeKey.ready;
@@ -380,6 +482,7 @@ export async function checkTranscriptReceiveRoute({
     : runtimeKey.ready
       ? `cohort_key:${cohortKeySource}`
       : "none";
+  const googleSessionCredentialActive = gatedCredentialSource.startsWith("google_signin_app_session:");
   const contract = inspectReaderContracts(config);
   const errors = [];
   const warnings = [];
@@ -401,6 +504,10 @@ export async function checkTranscriptReceiveRoute({
     distillations: { ok: false, source: "skipped", count: 0, error: null },
     cohort_insights: { ok: false, source: "skipped", count: 0, error: null },
   };
+  let googleMembership = membershipResult({
+    status: googleSessionCredentialActive ? "not_checked" : "not_applicable",
+    source: "skipped",
+  });
 
   if (options.live && url && anonKey && typeof fetchImpl === "function") {
     publicT3 = await readPublicTier(config, fetchImpl);
@@ -418,6 +525,12 @@ export async function checkTranscriptReceiveRoute({
       };
       if (!gatedReady) errors.push("one or more cohort_app gated readers failed");
     }
+    if (googleSessionCredentialActive) {
+      googleMembership = await readGoogleMembership(config, fetchImpl, authBridge);
+      if (!googleMembership.ready) {
+        warnings.push(`Google sign-in app session is not an approved/bound Shape OS member (${googleMembership.status})`);
+      }
+    }
   } else if (options.live) {
     publicT3.error = "unconfigured";
     errors.push("public T3 reader was not checked");
@@ -425,6 +538,18 @@ export async function checkTranscriptReceiveRoute({
 
   if (options.requireGated && !gatedT2.ready) {
     errors.push("gated cohort_app receive route is required but not ready");
+  }
+  if (options.requireGoogleSession) {
+    if (!googleSessionCredentialActive) {
+      errors.push("Google sign-in app session is required but the gated route is using cohort key backup or no credential");
+    }
+    if (!options.live) {
+      errors.push("Google sign-in app session proof requires a live gated read; remove --no-live");
+    } else if (!gatedT2.ready) {
+      errors.push("Google sign-in app session gated T2 read is required but not ready");
+    } else if (!googleMembership.ready) {
+      errors.push("Google sign-in app session must resolve to an approved, bound Shape OS member");
+    }
   }
 
   let audit = null;
@@ -443,7 +568,8 @@ export async function checkTranscriptReceiveRoute({
 
   const publicReady = !options.live || publicT3.ok;
   const ok = errors.length === 0 && publicReady;
-  const releaseReady = ok && gatedT2.ready && (runtimeKey.ready || Boolean(authBridge));
+  const googleSessionMembershipReady = !googleSessionCredentialActive || googleMembership.ready;
+  const releaseReady = ok && gatedT2.ready && googleSessionMembershipReady && (runtimeKey.ready || Boolean(authBridge));
   const status = errors.length ? "fail" : releaseReady ? "pass" : warnings.length ? "warn" : "pass";
 
   return {
@@ -458,7 +584,9 @@ export async function checkTranscriptReceiveRoute({
       service_role_key_present: Boolean(serviceRoleKey),
       cohort_key_source: cohortKeySource,
       google_signin_app_session_source: googleSigninAppSessionSource,
+      google_signin_app_session_env_name: googleSigninAppSession.env_name,
       gated_credential_source: gatedCredentialSource,
+      require_google_session: options.requireGoogleSession,
       live: options.live,
       audit_requested: options.audit,
       audit_attempted: Boolean(audit),
@@ -466,6 +594,7 @@ export async function checkTranscriptReceiveRoute({
     package_key: packageKey,
     runtime_key: runtimeKey,
     google_signin_app_session: googleSigninAppSession,
+    google_membership: googleMembership,
     contract,
     public_t3: publicT3,
     gated_t2: gatedT2,
@@ -494,6 +623,9 @@ function printSummary(result) {
   console.log(`packaged cohort key: ${result.package_key.status}`);
   console.log(`runtime cohort key: ${result.runtime_key.status} (${result.runtime_key.source})`);
   console.log(`Google sign-in app session: ${result.google_signin_app_session.status} (${result.google_signin_app_session.source})`);
+  if (result.google_membership?.status && result.google_membership.status !== "not_applicable") {
+    console.log(`Google membership: ${result.google_membership.status}`);
+  }
   if (result.audit) console.log(`privacy audit: ${result.audit.status}`);
   for (const warning of result.warnings || []) console.log(`WARN ${warning}`);
   for (const error of result.errors || []) console.log(`FAIL ${error}`);

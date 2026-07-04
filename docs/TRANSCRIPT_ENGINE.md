@@ -126,6 +126,13 @@ gated Supabase views and indexes them:
 - `fetchCohortDistillations()` -> `cohort_app_transcript_distillations` (T2, paraphrased) - **live when a Google sign-in app session or cohort key backup is available**
 
 The current receive contract is summarized in `docs/TRANSCRIPT_ENGINE_CONSUMER.md`.
+Use `npm run transcripts:receive:check -- --require-google-session` to prove the
+primary Google sign-in app-session T2 path and approved/bound app membership.
+Use `--require-gated` only when the `cohort_app` backup key is allowed to satisfy
+the T2 proof.
+Use `npm --workspace @shape-rotator/os run transcripts:receive:selftest` when
+the proof should run inside Electron against the real saved app session via
+`window.api.auth.getSession()`.
 
 `indexCohortEvidence()` buckets cards by team / week / claim-lane (`DID`, `PMF`, `ASK`, `RISK`,
 `EDGE`). `teamTimeline()`, `recentClaims()`, `evidenceDependencyRecords()` derive views from that

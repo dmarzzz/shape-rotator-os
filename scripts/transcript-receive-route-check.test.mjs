@@ -93,6 +93,9 @@ test("live receive route reads gated T2 with Google sign-in app session when no 
     auth: { getSession: async () => ({ access_token: googleSigninAppSession }) },
     fetchImpl: (url, opts) => {
       calls.push({ url, headers: opts.headers });
+      if (String(url).includes("app_my_membership")) {
+        return response([{ email: "member@example.com", record_id: "member-1", record_type: "person", role: "member", status: "approved" }]);
+      }
       if (String(url).includes("public_transcript_evidence_cards")) {
         return response([{ id: "pub-1", claim_type: "insight", title: "T3" }]);
       }
@@ -137,6 +140,9 @@ test("live receive route prefers Google sign-in app session over cohort key back
     auth: { getSession: async () => ({ access_token: googleSigninAppSession }) },
     fetchImpl: (url, opts) => {
       calls.push({ url, headers: opts.headers });
+      if (String(url).includes("app_my_membership")) {
+        return response([{ email: "member@example.com", record_id: "member-1", record_type: "person", role: "member", status: "approved" }]);
+      }
       if (String(url).includes("public_transcript_evidence_cards")) {
         return response([{ id: "pub-1", claim_type: "insight", title: "T3" }]);
       }
@@ -160,6 +166,116 @@ test("live receive route prefers Google sign-in app session over cohort key back
   assert.ok(gatedCalls.every((call) => call.headers.authorization === `Bearer ${googleSigninAppSession}`));
 });
 
+test("require-google-session fails when gated reads use only the cohort key backup", async () => {
+  const cohortKey = jwt();
+  const result = await checkTranscriptReceiveRoute({
+    argv: ["--require-google-session"],
+    env: {
+      SUPABASE_URL: URL,
+      SUPABASE_ANON_KEY: ANON,
+      SRFG_COHORT_KEY: cohortKey,
+    },
+    fetchImpl: (url) => {
+      if (String(url).includes("public_transcript_evidence_cards")) {
+        return response([{ id: "pub-1", claim_type: "insight", title: "T3" }]);
+      }
+      if (String(url).includes("cohort_app_transcript_evidence_cards")) {
+        return response([{ id: "t2-1", claim_type: "decision", title: "T2" }]);
+      }
+      if (String(url).includes("cohort_app_transcript_distillations")) {
+        return response([{ id: "d1", artifact_kind: "readout", content_json: {}, content_md: "# Readout" }]);
+      }
+      if (String(url).includes("cohort_app_cohort_insight_cards")) {
+        return response([{ id: "i1", kind: "collaboration_contribution", subject_ids: [] }]);
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.gated_t2.ready, true);
+  assert.equal(result.config.gated_credential_source, "cohort_key:env");
+  assert.match(result.errors.join("\n"), /Google sign-in app session is required/);
+});
+
+test("require-google-session passes with preferred Google app-session token env", async () => {
+  const googleSigninAppSession = jwt({ role: "authenticated" });
+  const calls = [];
+  const result = await checkTranscriptReceiveRoute({
+    argv: ["--require-google-session"],
+    env: {
+      SUPABASE_URL: URL,
+      SUPABASE_ANON_KEY: ANON,
+      SHAPE_GOOGLE_SIGNIN_APP_SESSION_TOKEN: googleSigninAppSession,
+    },
+    fetchImpl: (url, opts) => {
+      calls.push({ url, headers: opts.headers });
+      if (String(url).includes("app_my_membership")) {
+        return response([{ email: "member@example.com", record_id: "member-1", record_type: "person", role: "member", status: "approved" }]);
+      }
+      if (String(url).includes("public_transcript_evidence_cards")) {
+        return response([{ id: "pub-1", claim_type: "insight", title: "T3" }]);
+      }
+      if (String(url).includes("cohort_app_transcript_evidence_cards")) {
+        return response([{ id: "t2-1", claim_type: "decision", title: "T2" }]);
+      }
+      if (String(url).includes("cohort_app_transcript_distillations")) {
+        return response([{ id: "d1", artifact_kind: "readout", content_json: {}, content_md: "# Readout" }]);
+      }
+      if (String(url).includes("cohort_app_cohort_insight_cards")) {
+        return response([{ id: "i1", kind: "collaboration_contribution", subject_ids: [] }]);
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.release_ready, true);
+  assert.equal(result.config.google_signin_app_session_env_name, "SHAPE_GOOGLE_SIGNIN_APP_SESSION_TOKEN");
+  assert.equal(result.google_signin_app_session.ready, true);
+  assert.equal(result.google_membership.ready, true);
+  assert.equal(result.google_membership.status, "approved");
+  assert.equal(result.google_signin_app_session.legacy_env, false);
+  const gatedCalls = calls.filter((call) => String(call.url).includes("cohort_app_"));
+  assert.ok(gatedCalls.every((call) => call.headers.authorization === `Bearer ${googleSigninAppSession}`));
+});
+
+test("require-google-session fails when Google account is not an approved bound member", async () => {
+  const googleSigninAppSession = jwt({ role: "authenticated" });
+  const result = await checkTranscriptReceiveRoute({
+    argv: ["--require-google-session"],
+    env: {
+      SUPABASE_URL: URL,
+      SUPABASE_ANON_KEY: ANON,
+      SHAPE_GOOGLE_SIGNIN_APP_SESSION_TOKEN: googleSigninAppSession,
+    },
+    fetchImpl: (url) => {
+      if (String(url).includes("app_my_membership")) {
+        return response([{ email: "member@example.com", record_id: null, record_type: "person", role: "member", status: "approved" }]);
+      }
+      if (String(url).includes("public_transcript_evidence_cards")) {
+        return response([{ id: "pub-1", claim_type: "insight", title: "T3" }]);
+      }
+      if (String(url).includes("cohort_app_transcript_evidence_cards")) {
+        return response([{ id: "t2-1", claim_type: "decision", title: "T2" }]);
+      }
+      if (String(url).includes("cohort_app_transcript_distillations")) {
+        return response([{ id: "d1", artifact_kind: "readout", content_json: {}, content_md: "# Readout" }]);
+      }
+      if (String(url).includes("cohort_app_cohort_insight_cards")) {
+        return response([{ id: "i1", kind: "collaboration_contribution", subject_ids: [] }]);
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.gated_t2.ready, true);
+  assert.equal(result.google_membership.ready, false);
+  assert.equal(result.google_membership.status, "needs_binding");
+  assert.match(result.errors.join("\n"), /approved, bound Shape OS member/);
+});
+
 test("require-gated fails when only public fallback is available", async () => {
   const result = await checkTranscriptReceiveRoute({
     argv: ["--require-gated"],
@@ -181,9 +297,10 @@ test("receive route result does not leak keys", async () => {
       SUPABASE_ANON_KEY: ANON,
       SUPABASE_SERVICE_ROLE_KEY: "service-role-secret",
       SRFG_COHORT_KEY: cohortKey,
-      SHAPE_SUPABASE_SESSION_TOKEN: googleSigninAppSession,
+      SHAPE_GOOGLE_SIGNIN_APP_SESSION_TOKEN: googleSigninAppSession,
     },
     fetchImpl: (url) => {
+      if (String(url).includes("app_my_membership")) return response([]);
       if (String(url).includes("public_transcript_evidence_cards")) return response([]);
       if (String(url).includes("cohort_app_")) return response([]);
       throw new Error(`unexpected URL: ${url}`);
