@@ -329,13 +329,17 @@ async function collectDomState(win, stage) {
         transform: nav ? getComputedStyle(nav).transform : "",
         childOpacity: firstNavChild ? getComputedStyle(firstNavChild).opacity : "",
         hasNetworkNav: !!document.querySelector('#primary-nav [data-tab="network"], #primary-nav [data-alch-mode="network"]'),
-        matrixAfterMembrane: (() => {
-          const membrane = nav?.querySelector('[data-alch-mode="membrane"]');
-          const matrix = nav?.querySelector('[data-tab="matrix"]');
-          const cohort = nav?.querySelector('[data-alch-mode="shapes"]');
-          if (!membrane || !matrix || !cohort) return false;
-          return !!(membrane.compareDocumentPosition(matrix) & Node.DOCUMENT_POSITION_FOLLOWING)
-            && !!(matrix.compareDocumentPosition(cohort) & Node.DOCUMENT_POSITION_FOLLOWING);
+        primaryOrder: (() => {
+          const selectors = [
+            '[data-alch-mode="membrane"]',
+            '[data-alch-mode="shapes"]',
+            '[data-alch-mode="context"]',
+            '[data-tab="matrix"]',
+          ];
+          const items = selectors.map((selector) => nav?.querySelector(selector));
+          if (items.some((item) => !item)) return false;
+          return items.every((item, index) => index === 0
+            || !!(items[index - 1].compareDocumentPosition(item) & Node.DOCUMENT_POSITION_FOLLOWING));
         })(),
         rows: navRows,
       },
@@ -361,7 +365,7 @@ function assertStage(stage, dom, stats) {
   if (!dom.visibleContent || !dom.visibleContent.length) fail(`${stage.name}: no top-level content surface is visible`, dom);
   if (stats.colorBuckets < 18 || stats.stdev < 4) fail(`${stage.name}: screenshot looks blank or under-rendered`, stats);
   if (dom.nav?.hasNetworkNav) fail(`${stage.name}: network still appears in the primary nav`);
-  if (!dom.nav?.matrixAfterMembrane) fail(`${stage.name}: matrix is not directly beneath membrane`);
+  if (!dom.nav?.primaryOrder) fail(`${stage.name}: primary nav order is not membrane, cohort, context, matrix`);
   if (!String(dom.bodyGrid || "").includes("1fr") && !String(dom.bodyGrid || "").includes("px")) {
     fail(`${stage.name}: body grid columns are not measurable`, dom.bodyGrid);
   }
@@ -555,7 +559,7 @@ const stages = [
   { name: "04-calendar-closed", route: { kind: "alchemy", mode: "calendar", opts: { calendarView: "cal" } }, drawer: "closed", expectTab: "alchemy", expectAlchemyMode: "calendar", wait: 650 },
   { name: "05-mirror-closed", route: { kind: "alchemy", mode: "mirror" }, drawer: "closed", expectTab: "alchemy", expectAlchemyMode: "mirror" },
   { name: "06-program-drawer-open", route: { kind: "alchemy", mode: "program" }, drawer: "open", expectTab: "alchemy", expectAlchemyMode: "program" },
-  { name: "07-context-articles-drawer-open", route: { kind: "alchemy", mode: "context", opts: { contextView: "articles" } }, drawer: "open", expectTab: "alchemy", expectAlchemyMode: "context", expectContextView: "articles" },
+  { name: "07-context-stream-drawer-open", route: { kind: "alchemy", mode: "context", opts: { contextView: "stream" } }, drawer: "open", expectTab: "alchemy", expectAlchemyMode: "context", expectContextView: "stream" },
   { name: "08-context-activity-drawer-open", route: { kind: "alchemy", mode: "activity" }, drawer: "open", expectTab: "alchemy", expectAlchemyMode: "activity" },
   { name: "09-apps-grid-closed", route: { kind: "top", tab: "apps" }, drawer: "closed", expectTab: "apps", expectAppsView: "" },
   { name: "10-apps-grid-drawer-open", route: { kind: "top", tab: "apps" }, drawer: "open", expectTab: "apps", expectAppsView: "" },

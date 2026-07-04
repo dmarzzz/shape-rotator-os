@@ -16545,8 +16545,8 @@ textarea.alch-cv-compose-body-input { min-height: 150px; line-height: 1.6; }
 /* primary-nav - persistent left navigation (2026-06)
    Top-level categories (operating system / apps / links) switch the active
    tab. The operating-system pages are nested beneath their category as an
-   always-expanded, indented sub-list (the rail); Matrix sits directly under
-   Membrane while Network launches from the Apps grid. */
+   always-expanded, indented sub-list (the rail); Matrix sits after the
+   Context row while Network launches from the Apps grid. */
 .primary-nav {
   position: fixed;
   left: 0;
