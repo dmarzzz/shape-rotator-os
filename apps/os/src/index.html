@@ -343,12 +343,15 @@
       <div class="cohort-chat-card" role="document" data-cc-view="ask">
         <div class="cc-resize" data-cc-resize role="separator" aria-orientation="vertical" aria-label="resize chat panel" title="drag to resize"></div>
         <header class="cohort-chat-head">
+          <!-- Chevrons point the way the panel will move: collapsing sends it
+               right, so they point right (2026-07-02 feedback). -->
           <button class="cohort-chat-icon-btn cohort-chat-close-btn" type="button" data-cohort-chat-close title="collapse (Esc) — anything running keeps going" aria-label="collapse chat">
-            <span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/></svg></span>
+            <span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m13 17 5-5-5-5"/><path d="m6 17 5-5-5-5"/></svg></span>
           </button>
           <div class="cohort-chat-head-status">
             <span class="cohort-chat-dot" id="cohort-chat-dot" data-state="idle"></span>
             <span id="cohort-chat-status-line">idle</span>
+            <span class="cc-model-note" id="cohort-chat-model" hidden></span>
           </div>
           <div class="cohort-chat-head-actions">
             <button id="cohort-chat-expand" class="cohort-chat-icon-btn" type="button" title="expand to full page" aria-pressed="false" aria-label="expand chat to full page">
@@ -359,33 +362,28 @@
             </button>
           </div>
         </header>
+        <!-- What each view does lives in the tab tooltips — the always-visible
+             legend block was heavy (2026-07-02 feedback). -->
         <div class="cc-tabs" role="tablist" aria-label="chat modes">
-          <button class="cc-tab is-active" type="button" role="tab" data-cc-tab="ask" aria-selected="true">ask</button>
-          <button class="cc-tab" type="button" role="tab" data-cc-tab="search" aria-selected="false">search</button>
-          <button class="cc-tab" type="button" role="tab" data-cc-tab="transcript" aria-selected="false">transcript</button>
-          <button class="cc-tab" type="button" role="tab" data-cc-tab="sync" aria-selected="false">sync</button>
+          <button class="cc-tab is-active" type="button" role="tab" data-cc-tab="ask" aria-selected="true" title="questions about teams, people, transcripts — answered by your local AI">ask</button>
+          <button class="cc-tab" type="button" role="tab" data-cc-tab="search" aria-selected="false" title="find anything across the cohort — keyword search">search</button>
+          <button class="cc-tab" type="button" role="tab" data-cc-tab="transcript" aria-selected="false" title="upload a session transcript — you pick type + confidence, nothing publishes itself">transcript</button>
+          <button class="cc-tab" type="button" role="tab" data-cc-tab="sync" aria-selected="false" title="refresh your profile from your recent work — nothing sends until you hit send">sync</button>
         </div>
 
         <div class="cohort-chat-log" id="cohort-chat-log" role="log" aria-live="polite" aria-label="cohort chat">
           <div class="cohort-chat-empty" id="cohort-chat-empty">
             <div class="cohort-chat-empty-lede">Ask about the cohort — or ask me to <b>do</b> something. I draft, you approve.</div>
             <div class="cc-live-line" id="cc-live-line" hidden></div>
-            <div class="cc-purpose" aria-label="what this assistant does">
-              <div class="cc-purpose-row"><b>ask</b><span>questions about teams, people, transcripts, what's happening</span></div>
-              <div class="cc-purpose-row"><b>search</b><span>find anything across the cohort surface</span></div>
-              <div class="cc-purpose-row"><b>transcript</b><span>upload a session — you pick type + confidence, nothing publishes itself</span></div>
-              <div class="cc-purpose-row"><b>sync</b><span>refresh your profile from your own recent work — nothing sends until you hit send</span></div>
-              <div class="cc-purpose-row"><b>you</b><span>your profile lives in the left menu — hover the left edge, click your name at the bottom</span></div>
-            </div>
+            <!-- Curated functional starters. The "…" chip fills the stem and waits
+                 for a topic; the work chip is personalized to the member's own
+                 project at open (cohort-chat.js). -->
             <div class="cohort-chat-egs">
-              <button type="button" class="cc-eg" data-cc-eg>who should I talk to about TEE Postgres?</button>
+              <button type="button" class="cc-eg" data-cc-eg data-cc-eg-stem="who should I talk to about ">who should I talk to about …?</button>
               <button type="button" class="cc-eg" data-cc-eg>submit my own profile update without scanning private work</button>
-              <button type="button" class="cc-eg" data-cc-eg>suggest who I should connect with — and propose it</button>
-              <button type="button" class="cc-eg" data-cc-eg>check my Shape OS work and draft this week's update</button>
+              <button type="button" class="cc-eg" data-cc-eg data-cc-eg-work>check my recent work and draft this week's update</button>
             </div>
-            <small>Runs on your local AI (Claude Code / Codex) — no API key, stays on your machine.<br>
-              Your edits apply next refresh.<br>
-              Changes about others go to daily review.</small>
+            <small>Runs on your local AI (Claude Code / Codex) — no API key, nothing leaves your machine.</small>
           </div>
         </div>
 

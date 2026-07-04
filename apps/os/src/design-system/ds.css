@@ -194,7 +194,7 @@ html[data-ds] :is(.ac-sds-cell b, .ac-sds-domain, .ac-sds-foot, .ac-sds-mix,
    layouts aren't broken. */
 html[data-ds] :is(
   .btn, .ao-btn, .chat-btn, .fp-btn, .d-btn, .alch-feed-btn, .alch-submit-pr-btn,
-  .alch-explore-btn, .cdn-btn, .hm-btn, .im-btn, .mpa-btn, .azc-btn,
+  .alch-explore-btn, .cdn-btn, .hm-btn, .im-btn, .azc-btn,
   .easel-back-btn, .easel-err-btn, .easel-q-btn, .intel-copy-btn, .cal-png-btn,
   .peer-count-btn, .atlas-back-btn, .swarm-start-btn, .swarm-stop-btn,
   .alch-seal-btn, .alch-onb-action,
@@ -219,7 +219,7 @@ html[data-ds] :is(
 }
 html[data-ds] :is(
   .btn, .ao-btn, .chat-btn, .fp-btn, .d-btn, .alch-feed-btn, .alch-submit-pr-btn,
-  .alch-explore-btn, .cdn-btn, .hm-btn, .im-btn, .mpa-btn, .azc-btn,
+  .alch-explore-btn, .cdn-btn, .hm-btn, .im-btn, .azc-btn,
   .easel-back-btn, .easel-err-btn, .easel-q-btn, .intel-copy-btn, .cal-png-btn,
   .peer-count-btn, .atlas-back-btn, .swarm-start-btn, .swarm-stop-btn,
   .alch-seal-btn, .alch-onb-action,
@@ -232,7 +232,7 @@ html[data-ds] :is(
 }
 html[data-ds] :is(
   .btn, .ao-btn, .chat-btn, .fp-btn, .d-btn, .alch-feed-btn, .alch-submit-pr-btn,
-  .alch-explore-btn, .cdn-btn, .hm-btn, .im-btn, .mpa-btn, .azc-btn,
+  .alch-explore-btn, .cdn-btn, .hm-btn, .im-btn, .azc-btn,
   .easel-back-btn, .easel-err-btn, .easel-q-btn, .intel-copy-btn, .cal-png-btn,
   .peer-count-btn, .atlas-back-btn, .swarm-start-btn, .swarm-stop-btn,
   .alch-seal-btn, .alch-onb-action,
@@ -286,7 +286,7 @@ html[data-ds] :is(.fp-btn-skip, .alch-onb-secondary, .ds-ghost) {
 @media (prefers-reduced-motion: no-preference) {
   html[data-ds] :is(
     .btn, .ao-btn, .chat-btn, .fp-btn, .d-btn, .alch-feed-btn, .alch-submit-pr-btn,
-    .alch-explore-btn, .cdn-btn, .hm-btn, .im-btn, .mpa-btn, .azc-btn,
+    .alch-explore-btn, .cdn-btn, .hm-btn, .im-btn, .azc-btn,
     .easel-back-btn, .easel-err-btn, .easel-q-btn, .intel-copy-btn, .cal-png-btn,
     .peer-count-btn, .atlas-back-btn, .swarm-start-btn, .swarm-stop-btn,
     .alch-seal-btn, .alch-onb-action,
@@ -300,7 +300,7 @@ html[data-ds] :is(.fp-btn-skip, .alch-onb-secondary, .ds-ghost) {
 }
 html[data-ds] :is(
   .btn, .ao-btn, .chat-btn, .fp-btn, .d-btn, .alch-feed-btn, .alch-submit-pr-btn,
-  .alch-explore-btn, .cdn-btn, .hm-btn, .im-btn, .mpa-btn, .azc-btn,
+  .alch-explore-btn, .cdn-btn, .hm-btn, .im-btn, .azc-btn,
   .easel-back-btn, .easel-err-btn, .easel-q-btn, .intel-copy-btn, .cal-png-btn,
   .peer-count-btn, .atlas-back-btn, .swarm-start-btn, .swarm-stop-btn,
   .alch-seal-btn, .alch-onb-action,
