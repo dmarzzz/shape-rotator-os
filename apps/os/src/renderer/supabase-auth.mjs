@@ -95,6 +95,50 @@ export function gateState({ session, membership, nowSec = nowSeconds() } = {}) {
   return "approved";
 }
 
+// ─── Matrix sign-in path (pure helpers; unit-tested) ─────────────────────────
+//
+// Matrix is a second front-door identity: main.js already runs a real OAuth
+// dance against the homeserver for chat, so a signed-in Matrix userId is a
+// verified credential. app_matrix_members mirrors app_members keyed on
+// matrix_id, looked up through the app_matrix_membership RPC (anon-readable
+// point query — Matrix sign-in has no Supabase JWT to hang RLS on). Admission
+// binds the cohort record exactly like the Google path; it does NOT open the
+// gated T2 Supabase reads, which still require an email JWT or cohort key.
+
+export function normalizeMatrixId(id) {
+  const v = String(id || "").toLowerCase().trim();
+  return v.startsWith("@") && v.indexOf(":") > 1 ? v : null;
+}
+
+// Normalize an app_matrix_membership read into the same shape parseMembership
+// produces, so the gate + identity binding treat both paths identically.
+export function parseMatrixMembership(rows) {
+  const row = Array.isArray(rows) ? rows[0] : rows;
+  if (!row || typeof row !== "object" || !row.matrix_id) return null;
+  return {
+    matrix_id: normalizeMatrixId(row.matrix_id),
+    record_id: row.record_id || null,
+    record_type: row.record_type || "person",
+    role: row.role || "member",
+    status: row.status || "pending",
+    display_name: row.display_name || null,
+    approved: row.status === "approved",
+    bound: !!row.record_id,
+  };
+}
+
+// Matrix flavor of the gate state machine. "Signed in" here means the chat
+// session exists (main verified it via OAuth); there is no expiry to track —
+// matrix.js owns token refresh.
+export function matrixGateState({ userId, membership } = {}) {
+  if (!normalizeMatrixId(userId)) return "signed_out";
+  if (!membership) return "unapproved";
+  if (membership.status === "rejected") return "rejected";
+  if (membership.status !== "approved") return "pending";
+  if (!membership.bound) return "needs_binding";
+  return "approved";
+}
+
 // ─── runtime (Electron bridge; see preload.js window.api.auth) ───────────────
 
 function bridge() {
@@ -144,6 +188,53 @@ export async function fetchMyMembership(session) {
   );
   if (source !== "supabase") return null;
   return parseMembership(rows);
+}
+
+// ─── Matrix runtime (bridge to window.api.matrix; owned by matrix.js/main) ───
+
+function matrixBridge() {
+  return (typeof window !== "undefined" && window.api && window.api.matrix) || null;
+}
+
+// The signed-in Matrix userId (verified by main's OAuth session), or null.
+export async function getMatrixIdentity() {
+  const b = matrixBridge();
+  if (!b || typeof b.status !== "function") return null;
+  try {
+    const st = await b.status();
+    return normalizeMatrixId(st && st.userId);
+  } catch { return null; }
+}
+
+// Opens the system browser for the matrix.org OAuth flow (same one the chat
+// page uses). Resolves when the flow completes or fails; session state then
+// shows up via getMatrixIdentity / onMatrixChanged.
+export async function signInWithMatrixBrowser() {
+  const b = matrixBridge();
+  if (!b || typeof b.loginMatrixOrgBrowser !== "function") {
+    return { ok: false, error: "matrix sign-in unavailable in this build" };
+  }
+  try { return (await b.loginMatrixOrgBrowser()) || { ok: true }; }
+  catch (e) { return { ok: false, error: String(e && e.message ? e.message : e) }; }
+}
+
+// Subscribe to matrix session-state broadcasts. Returns an unsubscribe fn.
+export function onMatrixChanged(cb) {
+  const b = matrixBridge();
+  if (!b || typeof b.onStatus !== "function" || typeof cb !== "function") return () => {};
+  try { return b.onStatus(cb) || (() => {}); } catch { return () => {}; }
+}
+
+// Point lookup on the roster mirror. STABLE RPC → plain GET over the existing
+// anon-read primitive; no bearer needed (and none exists for Matrix users).
+export async function fetchMatrixMembership(matrixId) {
+  const id = normalizeMatrixId(matrixId);
+  if (!id) return null;
+  const { rows, source } = await fetchAnon(
+    `rpc/app_matrix_membership?p_matrix_id=${encodeURIComponent(id)}`,
+  );
+  if (source !== "supabase") return null;
+  return parseMatrixMembership(rows);
 }
 
 // Keep the shared write bearer (supabase-anon-write) in lockstep with the
