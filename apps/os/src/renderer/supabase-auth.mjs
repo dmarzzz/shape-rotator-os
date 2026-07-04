@@ -269,7 +269,7 @@ export async function requestAccess({ display_name, requested_record_id, message
 // message spells out the channel). Best-effort: the local seal (setIdentity)
 // admits the user regardless, this row is what lets an organizer make the
 // binding stick in app_matrix_members.
-export async function requestMatrixBinding({ matrixId, requested_record_id, display_name, message } = {}) {
+export async function requestMatrixBinding({ matrixId, requested_record_id, display_name, message } = {}, opts = {}) {
   const id = normalizeMatrixId(matrixId);
   if (!id) return { ok: false, error: "no matrix session" };
   return postAnonRow("app_access_requests", {
@@ -277,5 +277,5 @@ export async function requestMatrixBinding({ matrixId, requested_record_id, disp
     display_name: display_name || null,
     requested_record_id: requested_record_id || null,
     message: message || `matrix-bind: ${id} self-selected ${requested_record_id || "?"} in-app`,
-  });
+  }, opts);
 }

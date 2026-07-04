@@ -41,5 +41,21 @@ export async function paintVersion() {
   }
 }
 
+export function shouldMountWebAuth(documentRef = document) {
+  const nav = documentRef?.getElementById?.("site-nav");
+  return Boolean(
+    nav?.hasAttribute?.("data-web-app-auth")
+      || documentRef?.body?.hasAttribute?.("data-web-app-auth")
+      || documentRef?.documentElement?.hasAttribute?.("data-web-app-auth")
+  );
+}
+
+export async function mountOptInWebAuth(documentRef = document) {
+  if (!shouldMountWebAuth(documentRef)) return null;
+  const { mountWebAuth } = await import("./auth.js");
+  return mountWebAuth({ documentRef });
+}
+
 markCurrentNav();
 paintVersion();
+mountOptInWebAuth();

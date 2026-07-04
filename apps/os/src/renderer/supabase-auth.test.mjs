@@ -14,6 +14,7 @@ import {
   normalizeMatrixId,
   parseMatrixMembership,
   matrixGateState,
+  requestMatrixBinding,
 } from "./supabase-auth.mjs";
 
 const NOW = 1_800_000_000; // fixed clock for determinism
@@ -116,6 +117,32 @@ test("matrixGateState: full state machine across the flow", () => {
   assert.equal(matrixGateState({ userId: "@m:matrix.org", membership: { status: "pending" } }), "pending");
   assert.equal(matrixGateState({ userId: "@m:matrix.org", membership: { status: "approved", bound: false } }), "needs_binding");
   assert.equal(matrixGateState({ userId: "@m:matrix.org", membership: approved }), "approved");
+});
+
+test("requestMatrixBinding writes a Matrix contact request through the anon door", async () => {
+  const requests = [];
+  const result = await requestMatrixBinding({
+    matrixId: " @Mike:Matrix.org ",
+    requested_record_id: "mikeishiring",
+    display_name: "Mike",
+  }, {
+    config: { url: "https://project.supabase.co", anonKey: "anon" },
+    fetchImpl: async (url, opts) => {
+      requests.push({ url: String(url), opts });
+      return { ok: true, status: 201 };
+    },
+  });
+
+  assert.deepEqual(result, { ok: true });
+  assert.equal(requests.length, 1);
+  assert.match(requests[0].url, /\/rest\/v1\/app_access_requests$/);
+  assert.equal(requests[0].opts.headers.authorization, "Bearer anon");
+  assert.deepEqual(JSON.parse(requests[0].opts.body), {
+    email: "@mike:matrix.org",
+    display_name: "Mike",
+    requested_record_id: "mikeishiring",
+    message: "matrix-bind: @mike:matrix.org self-selected mikeishiring in-app",
+  });
 });
 
 test("isAuthGateEnabled: ON by default, '0' is the per-install kill switch", () => {

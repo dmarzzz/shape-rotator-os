@@ -59,6 +59,19 @@ const FALLBACK_TRANSCRIPT_CONFIDENCE = [
   { key: "needs_review", label: "Needs review" },
 ];
 
+const FALLBACK_TRANSCRIPT_PROCESSING_PATHS = [
+  { key: "metadata", label: "Pointer only", description: "Stage locally" },
+  { key: "supabase_raw", label: "Send full text", description: "Private Shape OS DB" },
+  { key: "local_agent", label: "Process here", description: "Local agent" },
+];
+const TRANSCRIPT_PATH_SHORT_COPY = {
+  metadata: "stage locally",
+  supabase_raw: "Shape OS DB",
+  local_agent: "local agent",
+};
+const TRANSCRIPT_PATH_ORDER = ["supabase_raw", "local_agent", "metadata"];
+const RAW_TRANSCRIPT_TEXT_EXTS = new Set([".txt", ".md", ".markdown", ".vtt", ".srt", ".csv", ".json", ".rtf"]);
+
 function $(id) { return document.getElementById(id); }
 
 // What page is the member looking at? Read from the DOM the app already stamps
@@ -1081,10 +1094,17 @@ function createController() {
           confidenceOptions: Array.isArray(res.confidenceOptions) && res.confidenceOptions.length
             ? res.confidenceOptions
             : FALLBACK_TRANSCRIPT_CONFIDENCE,
+          processingPaths: Array.isArray(res.processingPaths) && res.processingPaths.length
+            ? res.processingPaths
+            : FALLBACK_TRANSCRIPT_PROCESSING_PATHS,
         };
       }
     } catch {}
-    return { sessionTypes: FALLBACK_TRANSCRIPT_TYPES, confidenceOptions: FALLBACK_TRANSCRIPT_CONFIDENCE };
+    return {
+      sessionTypes: FALLBACK_TRANSCRIPT_TYPES,
+      confidenceOptions: FALLBACK_TRANSCRIPT_CONFIDENCE,
+      processingPaths: FALLBACK_TRANSCRIPT_PROCESSING_PATHS,
+    };
   }
 
   // The upload token resolves automatically — you're already in the app, so it
@@ -1117,11 +1137,12 @@ function createController() {
       // left to provision (until the Google-auth JWT path lands in Phase 2).
       orgId: ingress.orgId || "srfg",
       ingestArtifactsUrl: ingress.ingestArtifactsUrl || "",
+      contextSubmissionsUrl: ingress.contextSubmissionsUrl || "",
     };
   }
 
   async function renderTranscriptUploadCard() {
-    const { sessionTypes: types, confidenceOptions } = await transcriptIntakeOptions();
+    const { sessionTypes: types, confidenceOptions, processingPaths } = await transcriptIntakeOptions();
     const config = readTranscriptSupabaseConfig();
     // The transcript view hides the welcome via CSS (data-cc-view="transcript")
     // — don't destroy it, or it can't come back when you return to "ask".
@@ -1149,21 +1170,49 @@ function createController() {
         </span>
         <span class="cc-upload-file-change">Change</span>
       </span>`;
+    const rawPathRows = (Array.isArray(processingPaths) && processingPaths.length
+      ? processingPaths
+      : FALLBACK_TRANSCRIPT_PROCESSING_PATHS);
+    const pathRows = [...rawPathRows].sort((a, b) => {
+      const ai = TRANSCRIPT_PATH_ORDER.indexOf(a.key);
+      const bi = TRANSCRIPT_PATH_ORDER.indexOf(b.key);
+      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+    });
+    const pathButtonsHtml = pathRows.map((item, index) => `
+      <button type="button" class="cc-upload-path${index === 0 ? " is-on" : ""}" data-cc-transcript-path="${esc(item.key)}" role="radio" aria-checked="${index === 0 ? "true" : "false"}">
+        <strong>${esc(item.label || item.key)}</strong>
+        <small>${esc(TRANSCRIPT_PATH_SHORT_COPY[item.key] || item.description || "")}</small>
+      </button>`).join("");
+    const typeButtonsHtml = types.map((type) => `
+      <button type="button" class="cc-upload-type" data-cc-transcript-type="${esc(type.key)}" role="radio" aria-checked="false">
+        <strong>${esc(type.label || type.key)}</strong>
+        ${type.maxTier ? `<small>${esc(type.maxTier)}</small>` : ""}
+      </button>`).join("");
 
     const card = document.createElement("div");
     card.className = "cc-card is-transcript-intake";
     card.innerHTML = `
       <div class="cc-card-eyebrow">add transcript</div>
-      <p class="cc-upload-privacy">Uploads go to the program's private store and queue for processing. Nothing publishes itself; the cohort never sees the raw file. Pick a type to see where this one routes.</p>
-      <button type="button" class="cc-upload-dropzone" data-cc-transcript-dropzone aria-label="choose a transcript file"></button>
-      <div class="cc-upload-grid">
-        <label class="cc-upload-field">
-          <span>type</span>
-          <select class="cc-upload-input" data-cc-transcript-type>
-            <option value="">Choose transcript type</option>
-            ${types.map((type) => `<option value="${esc(type.key)}">${esc(type.label || type.key)}${type.maxTier ? ` / ${esc(type.maxTier)}` : ""}</option>`).join("")}
-          </select>
-        </label>
+      <p class="cc-upload-privacy">Send full text to the private Shape OS DB, or process it here with your local agent. Nothing publishes without review.</p>
+      <div class="cc-upload-steps" aria-label="transcript upload flow">
+        <span data-cc-step="destination"><b>1</b> destination</span>
+        <span data-cc-step="session"><b>2</b> session</span>
+        <span data-cc-step="file"><b>3</b> file</span>
+      </div>
+      <div class="cc-upload-section">
+        <div class="cc-upload-section-label">destination</div>
+        <div class="cc-upload-paths" role="radiogroup" aria-label="processing path">${pathButtonsHtml}</div>
+        <div class="cc-upload-path-note" data-cc-transcript-path-note></div>
+      </div>
+      <div class="cc-upload-section">
+        <div class="cc-upload-session">
+          <div class="cc-upload-section-label">session</div>
+          <div class="cc-upload-types" role="radiogroup" aria-label="transcript type">${typeButtonsHtml}</div>
+        </div>
+      </div>
+      <details class="cc-upload-details">
+        <summary>details</summary>
+        <div class="cc-upload-grid is-details">
         <label class="cc-upload-field">
           <span>confidence</span>
           <div class="cc-upload-slider">
@@ -1189,11 +1238,16 @@ function createController() {
           <span>related</span>
           <input class="cc-upload-input" data-cc-transcript-related type="text" placeholder="project, person, topic" autocomplete="off" spellcheck="false" />
         </label>
+        </div>
+      </details>
+      <div class="cc-upload-section">
+        <div class="cc-upload-section-label">file</div>
+        <button type="button" class="cc-upload-dropzone" data-cc-transcript-dropzone aria-label="choose a transcript file"></button>
       </div>
       <div class="cc-upload-route" data-cc-transcript-route></div>
       <div class="cc-upload-dup" data-cc-transcript-dup hidden></div>
       <details class="cc-upload-connection">
-        <summary>storage connection (advanced — the program's Supabase database)</summary>
+        <summary>Shape OS DB connection (advanced)</summary>
         <div class="cc-upload-grid is-connection">
           <label class="cc-upload-field">
             <span>org id</span>
@@ -1202,6 +1256,14 @@ function createController() {
           <label class="cc-upload-field">
             <span>access token</span>
             <input class="cc-upload-input" data-cc-transcript-token type="password" value="${esc(config.accessToken || "")}" autocomplete="off" spellcheck="false" />
+          </label>
+          <label class="cc-upload-field">
+            <span>raw inbox url</span>
+            <input class="cc-upload-input" data-cc-transcript-context-url type="url" value="${esc(config.contextSubmissionsUrl || "")}" placeholder="optional" autocomplete="off" spellcheck="false" />
+          </label>
+          <label class="cc-upload-field">
+            <span>local agent cmd</span>
+            <input class="cc-upload-input" data-cc-transcript-agent type="text" placeholder="ollama run qwen2.5" autocomplete="off" spellcheck="false" />
           </label>
         </div>
       </details>
@@ -1213,7 +1275,7 @@ function createController() {
       <div class="cc-upload-history" data-cc-upload-history hidden></div>`;
 
     const dropzone = card.querySelector("[data-cc-transcript-dropzone]");
-    const select = card.querySelector("[data-cc-transcript-type]");
+    const typeBtns = Array.from(card.querySelectorAll("[data-cc-transcript-type]"));
     const confidenceRange = card.querySelector("[data-cc-transcript-confidence]");
     const confidenceTicks = Array.from(card.querySelectorAll(".cc-upload-slider-tick"));
     const date = card.querySelector("[data-cc-transcript-date]");
@@ -1222,12 +1284,19 @@ function createController() {
     const related = card.querySelector("[data-cc-transcript-related]");
     const org = card.querySelector("[data-cc-transcript-org]");
     const token = card.querySelector("[data-cc-transcript-token]");
+    const contextUrl = card.querySelector("[data-cc-transcript-context-url]");
+    const agentCmd = card.querySelector("[data-cc-transcript-agent]");
+    const pathBtns = Array.from(card.querySelectorAll("[data-cc-transcript-path]"));
+    const pathNote = card.querySelector("[data-cc-transcript-path-note]");
+    const stepEls = Array.from(card.querySelectorAll("[data-cc-step]"));
     const route = card.querySelector("[data-cc-transcript-route]");
     const submit = card.querySelector("[data-cc-transcript-submit]");
     const cancel = card.querySelector("[data-cc-transcript-cancel]");
     const stat = card.querySelector("[data-cc-transcript-status]");
     let confidence = confidenceOptions[0]?.key || "sure";
     let selectedFile = null;
+    let selectedProcessingPath = pathRows[0]?.key || "metadata";
+    let selectedTypeKey = "";
     let busy = false;
 
     // Recent uploads from THIS device with their fate — staged / sent / queued /
@@ -1249,11 +1318,14 @@ function createController() {
           : it.submitted_at && it.processing_queued ? ["is-queued", "queued"]
             : it.submitted_at ? ["is-queued", "sent"]
               : ["is-staged", "staged only — didn't reach the server"];
+        const visibleState = it.local_processed_at ? ["is-done", "local readout"]
+          : it.raw_submitted_at ? ["is-queued", "raw sent"]
+            : state;
         const when = String(it.staged_at || "").slice(0, 10);
         return `<div class="cc-upload-history-row">
           <span class="cc-upload-history-label">${esc(it.label || it.session_type || "upload")}</span>
           <span class="cc-upload-history-meta">${esc([String(it.session_type || "").replace(/_/g, " "), when].filter(Boolean).join(" · "))}</span>
-          <span class="cc-upload-history-state ${state[0]}">${esc(state[1])}</span>
+          <span class="cc-upload-history-state ${visibleState[0]}">${esc(visibleState[1])}</span>
         </div>`;
       }).join("");
       historyEl.hidden = false;
@@ -1267,9 +1339,9 @@ function createController() {
     void (async () => {
       const r = await resolveIntakeToken(readTranscriptSupabaseConfig().accessToken);
       if (!connSummary) return;
-      if (r.source === "login") connSummary.textContent = "✓ uploads as you (signed in) — override (advanced)";
-      else if (r.source === "manual") connSummary.textContent = "✓ manual token set — storage connection (advanced)";
-      else connSummary.textContent = "⚠ not connected — sign in to the app, or set a token here";
+      if (r.source === "login") connSummary.textContent = "uploads as you (signed in) - Shape OS DB override";
+      else if (r.source === "manual") connSummary.textContent = "manual token set - Shape OS DB connection";
+      else connSummary.textContent = "not connected - sign in, or set a Shape OS DB token here";
     })();
 
     function setStatus(kind, text) {
@@ -1283,7 +1355,70 @@ function createController() {
       dropzone.innerHTML = selectedFile ? dropzoneFileHtml(selectedFile) : dropzoneEmptyHtml;
     }
     function selectedType() {
-      return types.find((type) => type.key === select.value) || null;
+      return types.find((type) => type.key === selectedTypeKey) || null;
+    }
+    function syncSteps() {
+      const done = {
+        destination: !!selectedProcessingPath,
+        session: !!selectedType(),
+        file: !!selectedFile,
+      };
+      const active = !done.destination ? "destination" : !done.session ? "session" : !done.file ? "file" : "";
+      stepEls.forEach((el) => {
+        const key = el.dataset.ccStep || "";
+        el.classList.toggle("is-done", !!done[key]);
+        el.classList.toggle("is-active", key === active);
+      });
+    }
+    function setTranscriptType(key) {
+      selectedTypeKey = types.some((type) => type.key === key) ? key : "";
+      typeBtns.forEach((btn) => {
+        const on = btn.dataset.ccTranscriptType === selectedTypeKey;
+        btn.classList.toggle("is-on", on);
+        btn.setAttribute("aria-checked", on ? "true" : "false");
+      });
+      syncUploadState();
+    }
+    function needsTextTranscript() {
+      return selectedProcessingPath === "supabase_raw" || selectedProcessingPath === "local_agent";
+    }
+    function isTextTranscriptFile(info) {
+      return !!info && RAW_TRANSCRIPT_TEXT_EXTS.has(String(info.ext || "").toLowerCase());
+    }
+    function pathBlocker() {
+      if (needsTextTranscript() && selectedFile && !isTextTranscriptFile(selectedFile)) {
+        return "This path needs text: txt, md, vtt, srt, csv, json, or rtf. Use Pointer only for PDFs and docs.";
+      }
+      return "";
+    }
+    function pathNoteText() {
+      if (selectedProcessingPath === "supabase_raw") return "Sends the full transcript text to the private Shape OS DB for Engine processing.";
+      if (selectedProcessingPath === "local_agent") return "Runs the Engine prompt through a local model command. Raw text stays off the Shape OS DB.";
+      return "Stages the file locally and sends the Shape OS DB only a private source pointer.";
+    }
+    function syncPathNote() {
+      const blocked = pathBlocker();
+      if (pathNote) {
+        pathNote.classList.toggle("is-warning", !!blocked);
+        pathNote.textContent = blocked || pathNoteText();
+      }
+      if (submit) {
+        submit.textContent = selectedProcessingPath === "supabase_raw"
+          ? "Send full text"
+          : selectedProcessingPath === "local_agent"
+            ? "Run local readout"
+            : "Add transcript";
+      }
+    }
+    function setProcessingPath(key) {
+      selectedProcessingPath = (pathRows.some((item) => item.key === key) ? key : "metadata");
+      pathBtns.forEach((btn) => {
+        const on = btn.dataset.ccTranscriptPath === selectedProcessingPath;
+        btn.classList.toggle("is-on", on);
+        btn.setAttribute("aria-checked", on ? "true" : "false");
+      });
+      try { localStorage.setItem("srwk:transcript_processing_path", selectedProcessingPath); } catch {}
+      syncUploadState();
     }
     // Plain-words answer to "am I just yoloing this?": what the chosen type does
     // to the file once it's queued, ahead of the machine route/tier badges.
@@ -1309,8 +1444,11 @@ function createController() {
     }
     function syncUploadState() {
       const type = selectedType();
-      submit.disabled = busy || !selectedFile || !type;
+      const blocked = pathBlocker();
+      submit.disabled = busy || !selectedFile || !type || !!blocked;
       route.innerHTML = routeBadges(type);
+      syncPathNote();
+      syncSteps();
       void warnDuplicate(type);
     }
     // "It should be already in there, but I think I can upload this" — check the
@@ -1335,7 +1473,7 @@ function createController() {
     }
     function setBusy(on) {
       busy = on;
-      for (const el of [dropzone, select, confidenceRange, date, label, session, related, org, token, cancel]) {
+      for (const el of [dropzone, confidenceRange, date, label, session, related, org, token, contextUrl, agentCmd, cancel, ...pathBtns, ...typeBtns]) {
         if (el) el.disabled = on;
       }
       syncUploadState();
@@ -1376,7 +1514,17 @@ function createController() {
       void dropFile(file);
     });
 
-    select.addEventListener("change", syncUploadState);
+    pathBtns.forEach((btn) => {
+      btn.addEventListener("click", () => setProcessingPath(btn.dataset.ccTranscriptPath || "metadata"));
+    });
+    try {
+      const rememberedPath = localStorage.getItem("srwk:transcript_processing_path");
+      if (rememberedPath) selectedProcessingPath = rememberedPath;
+    } catch {}
+
+    typeBtns.forEach((btn) => {
+      btn.addEventListener("click", () => setTranscriptType(btn.dataset.ccTranscriptType || ""));
+    });
     if (confidenceRange) {
       confidenceRange.addEventListener("input", () => {
         const idx = Math.min(confidenceOptions.length - 1, Math.max(0, parseInt(confidenceRange.value, 10) || 0));
@@ -1398,10 +1546,17 @@ function createController() {
     submit.addEventListener("click", async () => {
       if (!selectedFile) { setStatus("error", "Choose a transcript file first."); return; }
       const type = selectedType();
-      if (!type) { setStatus("error", "Choose a transcript type first."); return; }
+      if (!type) { setStatus("error", "Choose a session type first."); return; }
+      const blocked = pathBlocker();
+      if (blocked) { setStatus("error", blocked); return; }
       if (!window.api || !window.api.submitTranscriptIntake) { setStatus("error", "Transcript intake is unavailable in this build."); return; }
       setBusy(true);
-      setStatus("", "uploading…");
+      const pathKey = selectedProcessingPath;
+      setStatus("", pathKey === "supabase_raw"
+        ? "sending full text..."
+        : pathKey === "local_agent"
+          ? "processing locally..."
+          : "uploading...");
       try {
         const currentConfig = readTranscriptSupabaseConfig();
         const resolved = await resolveIntakeToken(token.value || currentConfig.accessToken);
@@ -1413,23 +1568,39 @@ function createController() {
           relatedText: (related.value || "").trim(),
           sessionId: (session.value || "").trim(),
           confidence,
+          processingPath: pathKey,
+          agentCmd: (agentCmd?.value || "").trim(),
           supabase: {
             ...currentConfig,
             orgId: (org.value || currentConfig.orgId || "").trim(),
             accessToken: resolved.token,
+            contextSubmissionsUrl: (contextUrl?.value || currentConfig.contextSubmissionsUrl || "").trim(),
           },
         });
         if (res && res.ok) {
-          setStatus("ok", res.processingQueued
-            ? `queued for processing: ${res.storageRef || type.routePath || "transcript"}`
-            : `saved to Supabase: ${res.needsSessionMatch ? "needs session match" : "Drive mirror queued"}`);
+          if (res.processingPath === "supabase_raw" || res.rawSubmittedToSupabase) {
+            const rows = Number(res.contextSubmissionRows || 1);
+            setStatus("ok", `sent full transcript to the private Shape OS DB (${rows} ${rows === 1 ? "row" : "rows"}).`);
+          } else if (res.processingPath === "local_agent" || res.processedLocally) {
+            setStatus("ok", `local readout saved: ${res.localReadoutName || "private readout"}.`);
+          } else {
+            setStatus("ok", res.processingQueued
+              ? `queued for processing: ${res.storageRef || type.routePath || "transcript"}`
+              : `saved to the Shape OS DB: ${res.needsSessionMatch ? "needs session match" : "Drive mirror queued"}`);
+          }
           card.classList.add("is-done");
           void renderUploadHistory();
           return;
         }
         const reason = res && (res.detail || res.reason);
         if (res && res.reason === "missing_supabase_config" && Array.isArray(res.missing)) {
-          setStatus("error", `staged locally; Supabase needs ${res.missing.join(", ")}.`);
+          setStatus("error", `staged locally; the Shape OS DB needs ${res.missing.join(", ")}.`);
+        } else if (res && (res.reason === "text_transcript_required" || res.reason === "empty_transcript_text")) {
+          setStatus("error", res.detail || "This path needs a text transcript.");
+        } else if (res && res.reason === "no_local_agent") {
+          setStatus("error", res.detail || "Install Ollama or set a local transcript agent command.");
+        } else if (res && res.reason === "policy_blocked") {
+          setStatus("error", res.detail || "Raw transcript processing is local-only by default.");
         } else if (res && res.reason === "canceled") {
           setStatus("", "");
         } else {
@@ -1443,6 +1614,7 @@ function createController() {
     });
 
     renderDropzone();
+    setProcessingPath(selectedProcessingPath);
     syncUploadState();
     log.appendChild(card);
     log.scrollTop = log.scrollHeight;

@@ -809,6 +809,70 @@ html[data-ds] .cc-composer .cc-send[hidden] { display: none !important; }
 }
 /* Match the sync tab's eyebrow (.selfrep-eyebrow) exactly — same weight + tracking. */
 .cc-card.is-transcript-intake .cc-card-eyebrow { font-weight: 600; letter-spacing: 0.12em; }
+.cc-upload-privacy {
+  margin: 0;
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-lh-xs);
+  color: var(--ds-ink-3);
+}
+.cc-upload-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.cc-upload-steps span {
+  min-width: 0;
+  min-height: 28px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 7px;
+  border: 1px solid var(--ds-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ds-surface-2) 58%, transparent);
+  color: var(--ds-ink-4);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.cc-upload-steps b {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ds-ink-3) 14%, transparent);
+  color: var(--ds-ink-2);
+  font-size: 10px;
+  font-weight: 700;
+}
+.cc-upload-steps span.is-active,
+.cc-upload-steps span.is-done {
+  border-color: color-mix(in srgb, var(--ds-accent) 46%, var(--ds-border));
+  background: color-mix(in srgb, var(--ds-accent) 9%, var(--ds-surface-2));
+  color: var(--ds-ink-2);
+}
+.cc-upload-steps span.is-done b {
+  background: color-mix(in srgb, var(--ds-accent) 76%, var(--ds-surface-2));
+  color: var(--ds-surface-1);
+}
+.cc-upload-section {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.cc-upload-section-label {
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ds-ink-4);
+}
 /* File-first dropzone: the primary, visible "pick a transcript" affordance.
    Click opens the native picker; dragging a file in highlights + drops it. */
 .cc-upload-dropzone {
@@ -832,7 +896,10 @@ html[data-ds] .cc-composer .cc-send[hidden] { display: none !important; }
   background: color-mix(in srgb, var(--ds-accent) 8%, var(--ds-surface-2));
   color: var(--ds-ink-1);
 }
-.cc-upload-dropzone:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 2px; }
+.cc-upload-dropzone:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ds-focus);
+}
 .cc-upload-dropzone.is-dragover {
   border-color: var(--ds-accent);
   border-style: solid;
@@ -846,6 +913,152 @@ html[data-ds] .cc-composer .cc-send[hidden] { display: none !important; }
   border-style: solid;
   border-color: color-mix(in srgb, var(--ds-accent) 45%, var(--ds-border));
   background: color-mix(in srgb, var(--ds-accent) 8%, var(--ds-surface-1));
+}
+.cc-upload-paths {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.cc-upload-path {
+  appearance: none;
+  min-width: 0;
+  min-height: 54px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 7px 8px;
+  border: 1px solid var(--ds-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ds-surface-2) 72%, transparent);
+  color: var(--ds-ink-3);
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.1s ease, border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
+}
+.cc-upload-path strong {
+  min-width: 0;
+  color: var(--ds-ink-1);
+  font-family: var(--ds-font-ui);
+  font-size: var(--ds-text-xs);
+  font-weight: 650;
+  line-height: 1.1;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+.cc-upload-path small {
+  min-width: 0;
+  color: var(--ds-ink-4);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  line-height: 1.15;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+@media (hover: hover) {
+  .cc-upload-path:hover {
+    border-color: color-mix(in srgb, var(--ds-accent) 45%, var(--ds-border));
+    background: color-mix(in srgb, var(--ds-accent) 8%, var(--ds-surface-2));
+    color: var(--ds-ink-1);
+  }
+}
+.cc-upload-path.is-on {
+  border-color: color-mix(in srgb, var(--ds-accent) 58%, var(--ds-border));
+  background: color-mix(in srgb, var(--ds-accent) 14%, var(--ds-surface-1));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ds-accent) 20%, transparent);
+}
+.cc-upload-path.is-on small { color: color-mix(in srgb, var(--ds-accent) 72%, var(--ds-ink-2)); }
+.cc-upload-path:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ds-focus), inset 0 0 0 1px color-mix(in srgb, var(--ds-accent) 20%, transparent);
+}
+.cc-upload-path:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cc-upload-path:active { transform: scale(0.97); }
+}
+.cc-upload-types {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.cc-upload-type {
+  appearance: none;
+  min-width: 0;
+  min-height: 38px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 7px 8px;
+  border: 1px solid var(--ds-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ds-surface-2) 68%, transparent);
+  color: var(--ds-ink-2);
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.1s ease, border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
+}
+.cc-upload-type strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--ds-font-ui);
+  font-size: var(--ds-text-xs);
+  font-weight: 650;
+  letter-spacing: 0;
+  color: var(--ds-ink-1);
+}
+.cc-upload-type small {
+  flex: 0 0 auto;
+  font-family: var(--ds-font-mono);
+  font-size: 10px;
+  color: var(--ds-ink-4);
+}
+@media (hover: hover) {
+  .cc-upload-type:hover {
+    border-color: color-mix(in srgb, var(--ds-accent) 45%, var(--ds-border));
+    background: color-mix(in srgb, var(--ds-accent) 8%, var(--ds-surface-2));
+  }
+}
+.cc-upload-type.is-on {
+  border-color: color-mix(in srgb, var(--ds-accent) 58%, var(--ds-border));
+  background: color-mix(in srgb, var(--ds-accent) 14%, var(--ds-surface-1));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ds-accent) 20%, transparent);
+}
+.cc-upload-type.is-on small { color: color-mix(in srgb, var(--ds-accent) 72%, var(--ds-ink-2)); }
+.cc-upload-type:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ds-focus), inset 0 0 0 1px color-mix(in srgb, var(--ds-accent) 20%, transparent);
+}
+.cc-upload-type:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cc-upload-type:active { transform: scale(0.97); }
+}
+.cc-upload-path-note {
+  min-height: 38px;
+  box-sizing: border-box;
+  padding: 7px 9px;
+  border: 1px solid color-mix(in srgb, var(--ds-border) 85%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ds-surface-2) 56%, transparent);
+  color: var(--ds-ink-3);
+  font-family: var(--ds-font-ui);
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-lh-xs);
+}
+.cc-upload-path-note.is-warning {
+  border-color: color-mix(in srgb, var(--ds-danger, #e5484d) 46%, var(--ds-border));
+  background: color-mix(in srgb, var(--ds-danger, #e5484d) 9%, var(--ds-surface-1));
+  color: var(--ds-danger, #e5484d);
 }
 .cc-upload-dz-inner {
   display: flex;
@@ -904,6 +1117,21 @@ html[data-ds] .cc-composer .cc-send[hidden] { display: none !important; }
   grid-template-columns: 1fr;        /* one field per row */
   gap: 11px;
 }
+.cc-upload-details {
+  border: 1px solid var(--ds-border);
+  border-radius: 8px;
+  padding: 7px 9px 9px;
+  background: color-mix(in srgb, var(--ds-surface-2) 58%, transparent);
+}
+.cc-upload-details summary {
+  cursor: pointer;
+  color: var(--ds-ink-3);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-2xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.cc-upload-details[open] summary { margin-bottom: 8px; }
 .cc-upload-grid.is-connection { margin-top: 8px; }
 .cc-upload-field {
   display: flex;
@@ -933,8 +1161,8 @@ html[data-ds] .cc-composer .cc-send[hidden] { display: none !important; }
   padding: 7px 9px;
 }
 .cc-upload-input:focus-visible {
-  outline: 2px solid var(--ds-focus);
-  outline-offset: 1px;
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ds-focus);
 }
 /* confidence — a minimal 3-stop slider: the three labels sit ABOVE a
    full-width track, each over its stop; the active one lights up. */
@@ -976,12 +1204,6 @@ html[data-ds] .cc-composer .cc-send[hidden] { display: none !important; }
 }
 .cc-upload-range:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 4px; }
 .cc-upload-range:disabled { opacity: 0.5; cursor: default; }
-.cc-upload-privacy {
-  margin: 0 0 10px;
-  font-size: var(--ds-text-xs);
-  line-height: var(--ds-lh-xs);
-  color: var(--ds-ink-3);
-}
 /* recent-uploads history under the intake card */
 .cc-upload-history { margin-top: 10px; border-top: 1px solid var(--ds-border); padding-top: 8px; }
 .cc-upload-history-head {
@@ -1084,6 +1306,9 @@ html[data-ds] .cc-composer .cc-send[hidden] { display: none !important; }
   text-transform: uppercase;
 }
 @media (max-width: 520px) {
+  .cc-upload-steps,
+  .cc-upload-paths,
+  .cc-upload-types { grid-template-columns: 1fr; }
   .cc-upload-grid { grid-template-columns: 1fr; }
 }
 .cc-onboard-steps {
