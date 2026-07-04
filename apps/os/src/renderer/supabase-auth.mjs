@@ -13,24 +13,21 @@
 // pure helpers below (session validity + the gate state machine) carry no Electron
 // dependency so they are unit-tested in supabase-auth.test.mjs.
 //
-// Rollout is behind isAuthGateEnabled(): OFF until the Supabase redirect URL +
-// admin seed are in place, so current users are never locked out mid-migration.
+// The gate is ON by default (2026-07-04: redirect URLs configured, both rosters
+// seeded, both sign-in paths live-verified). localStorage "0" is the per-install
+// kill switch — if a gate bug ever locks someone out, setting the flag to "0"
+// (or clearing site data won't help: absence means ON) restores the ungated app
+// without a re-release.
 
 import { fetchAnon, postAnonRow, setAmbientBearer } from "./supabase-anon-write.mjs";
 
-// localStorage "1" flips the boot gate on. Kept a soft per-install switch (not a
-// build flag) so the gate can be lit the moment the infra steps are done, and
-// killed instantly if anything is wrong, without a re-release.
 export const AUTH_GATE_FLAG = "srwk:auth_gate_enabled";
 
 export function isAuthGateEnabled(storage = globalThis.localStorage) {
-  try { return storage?.getItem?.(AUTH_GATE_FLAG) === "1"; } catch { return false; }
+  try { return storage?.getItem?.(AUTH_GATE_FLAG) !== "0"; } catch { return true; }
 }
 export function setAuthGateEnabled(on, storage = globalThis.localStorage) {
-  try {
-    if (on) storage?.setItem?.(AUTH_GATE_FLAG, "1");
-    else storage?.removeItem?.(AUTH_GATE_FLAG);
-  } catch {}
+  try { storage?.setItem?.(AUTH_GATE_FLAG, on ? "1" : "0"); } catch {}
 }
 
 // ─── pure helpers (no Electron; unit-tested) ─────────────────────────────────

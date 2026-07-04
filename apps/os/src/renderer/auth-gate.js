@@ -1,15 +1,13 @@
-// auth-gate.js — the visible front door for the "required Google gate + approval"
-// model. When the gate flag is on (isAuthGateEnabled), this mounts a full-screen
-// overlay above everything that walks the user through: sign in with Google →
+// auth-gate.js — the visible front door for the "required sign-in + approval"
+// model. On by default (isAuthGateEnabled), this mounts a full-screen overlay
+// above everything that walks the user through: sign in with Google or Matrix →
 // (if approved) bind to their cohort record and dismiss → (if not) request access.
 //
 // Design intent: it is an OVERLAY, not a rewrite of boot()'s control flow — boot
 // finishes behind it, and the overlay covers the app until the user is approved.
-// That keeps a gate bug from bricking the app (clear srwk:auth_gate_enabled to
-// escape) while the real write-side enforcement lands server-side in Phase 2.
-//
-// Flag is OFF by default; nothing here runs until the Supabase redirect URL is
-// configured and an admin flips the flag on. See docs/design/google-auth-gate.md.
+// That keeps a gate bug from bricking the app (set srwk:auth_gate_enabled to "0"
+// to escape) while the real write-side enforcement lands server-side in Phase 2.
+// See docs/design/google-auth-gate.md.
 
 import {
   isAuthGateEnabled,
