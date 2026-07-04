@@ -517,6 +517,19 @@ export function mountMembrane(container, opts = {}) {
   // once a minute (so the now-line and time window track the clock).
   const agendaEl = container.querySelector('[data-agenda]');
   const agendaDismissed = makeDismissStore('srwk:membrane:dismissed:agenda');
+  // eventsToday is derived UPSTREAM (alchemy.js) at data-push time with that
+  // moment's clock and only refreshes on the next setData — but the 60s tick
+  // keeps re-rendering with the CURRENT clock. Past midnight that combination
+  // re-keys yesterday's events under the new day: the agenda showed them under
+  // the fresh "today" header, and calendar-watch burst them out as spurious
+  // "event-new" / false "event-soon" cards. Until fresh data arrives, a stale
+  // day means NO today-events (the date-carrying upcoming list stays usable).
+  let eventsDataDay = null;   // local YMD stamped when events data arrives
+  const localDayStamp = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
+  const eventsTodayFresh = () => (
+    eventsDataDay === localDayStamp() && Array.isArray(dataStore.events?.eventsToday)
+      ? dataStore.events.eventsToday : []
+  );
   // Keys rendered last pass, so a re-render slides in only genuinely-new cards
   // (null until the first render — see markEnteringRows).
   let agendaPrevKeys = null;
@@ -527,7 +540,7 @@ export function mountMembrane(container, opts = {}) {
     // completion calls renderAgenda() after the element is gone, so nothing is
     // lost by skipping here.
     if (agendaEl.querySelector('.is-dismissing')) return;
-    const events = Array.isArray(dataStore.events?.eventsToday) ? dataStore.events.eventsToday : [];
+    const events = eventsTodayFresh();
     const now = new Date();
     const nowMin = now.getHours() * 60 + now.getMinutes();
 
@@ -785,7 +798,7 @@ export function mountMembrane(container, opts = {}) {
   function incomingCards() {
     const ev = dataStore.events || {};
     return computeIncoming({
-      eventsToday: ev.eventsToday,
+      eventsToday: eventsTodayFresh(),   // stale-day guard — see its comment
       eventsUpcoming: ev.eventsUpcoming,
       people: dataStore.people,
       nowMs: Date.now(),
@@ -1287,10 +1300,16 @@ export function mountMembrane(container, opts = {}) {
   // headless-CI render hang. The flash + late-load re-seed (rubiks.js) cover the
   // load so the cube is already spinning when the white-out clears.
   let rubiksLoading = null;   // in-flight import promise (deduped)
+  let membraneDestroyed = false;   // set in destroy(); gates the async continuations
   function ensureRubiks() {
     if (rubiks) return Promise.resolve(rubiks);
     if (!rubiksLoading) {
       rubiksLoading = import('./rubiks.js').then(({ createRubiksApp }) => {
+        // The page can be destroyed while the chunk is in flight — building
+        // the app then would spin up a zombie WebGL renderer + RAF loop +
+        // window listeners against the detached canvas, with nothing left
+        // holding a dispose handle. Callers already tolerate a null app.
+        if (membraneDestroyed) return null;
         rubiks = createRubiksApp(rubiksCanvas, {
           onCycleAway: hideRubiks,
           onSequencing(on) {
@@ -1303,6 +1322,10 @@ export function mountMembrane(container, opts = {}) {
         });
         return rubiks;
       });
+      // A transient chunk-load failure must not brick the easter egg for the
+      // rest of the mount: clear the cached rejected promise so the next
+      // reveal retries the import. (Callers attach their own .catch.)
+      rubiksLoading.catch(() => { rubiksLoading = null; });
     }
     return rubiksLoading;
   }
@@ -1333,19 +1356,31 @@ export function mountMembrane(container, opts = {}) {
   }
 
   cp('membrane:before-createScene');
-  const scene = createMembraneScene(canvas, {
-    // Start on the shape we were last showing (remembered across page switches).
-    initialFaces: savedFaces,
-    // No onEmptyClick: clicking the void no longer summons the panel. The
-    // membrane is a pure ambient view now; identity moved to profile ›
-    // "your seal". (The die still stops on click / morphs on fast spin —
-    // see scene.js.)
-    // The die changed shape (triggered by a fast spin) — update the label and
-    // remember the shape so it persists when leaving + returning to the page.
-    onFacesChange(faces) { savedFaces = faces; updateShapeName(faces); },
-    // Every shape has been seen — surface the hidden cube.
-    onRubiksReveal() { revealRubiks(); },
-  });
+  // The die is decoration; the rails + capture bar are the hub. If WebGL
+  // context creation throws (GPU blacklist, --disable-gpu, driver reset),
+  // fall back to a no-op scene rather than letting the throw escape
+  // mountMembrane — an escaped throw here leaked the already-started 60s
+  // agenda interval on EVERY visit (the caller never got the destroy handle)
+  // and left the whole landing blank.
+  let scene;
+  try {
+    scene = createMembraneScene(canvas, {
+      // Start on the shape we were last showing (remembered across page switches).
+      initialFaces: savedFaces,
+      // No onEmptyClick: clicking the void no longer summons the panel. The
+      // membrane is a pure ambient view now; identity moved to profile ›
+      // "your seal". (The die still stops on click / morphs on fast spin —
+      // see scene.js.)
+      // The die changed shape (triggered by a fast spin) — update the label and
+      // remember the shape so it persists when leaving + returning to the page.
+      onFacesChange(faces) { savedFaces = faces; updateShapeName(faces); },
+      // Every shape has been seen — surface the hidden cube.
+      onRubiksReveal() { revealRubiks(); },
+    });
+  } catch (e) {
+    console.warn('[membrane] WebGL scene unavailable — rails/capture still live:', e);
+    scene = { getFaces: () => null, resumeFromRubiks() {}, destroy() {} };
+  }
   cp('membrane:after-createScene');
   updateShapeName(scene.getFaces());
 
@@ -1377,12 +1412,16 @@ export function mountMembrane(container, opts = {}) {
 
   return {
     setData(perBlobData) {
+      if (perBlobData && perBlobData.events) eventsDataDay = localDayStamp();
       dataStore = { ...dataStore, ...perBlobData };
       renderAgenda();
       renderFeed();
       renderFieldFeed();
     },
     destroy() {
+      // Gates the in-flight rubiks import continuation (see ensureRubiks) —
+      // resolving after this point must NOT build the app on a dead canvas.
+      membraneDestroyed = true;
       clearInterval(agendaTimer);
       clearTimeout(feedPopHideTimer);
       document.removeEventListener('keydown', onFeedPopKey);
