@@ -1077,6 +1077,12 @@ html[data-reduce-motion="1"] .magenda-now::after { animation: none; opacity: 0.4
   font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
   animation: mfeed-pop-in 200ms cubic-bezier(0.19, 1, 0.22, 1);
 }
+/* closeFeedPop()/clear/close-x hide the panel via the [hidden] attribute, but the
+   display:flex above beat the UA [hidden]{display:none} (author wins at equal
+   specificity) — so the panel never actually closed: it hung around and captured
+   clicks (the "won't close / non-responsive" bug). Restate the hide, higher
+   specificity, so hidden truly hides it. */
+.mfeed-pop[hidden] { display: none !important; }
 .mfeed-pop.is-pinned { border-color: rgba(var(--mem-ink-rgb), 0.22); }
 @keyframes mfeed-pop-in {
   from { opacity: 0; transform: translateX(-6px); }
@@ -1159,6 +1165,92 @@ html[data-reduce-motion="1"] .magenda-now::after { animation: none; opacity: 0.4
   line-height: 1.5;
   color: rgba(var(--mem-ink-rgb), 0.55);
 }
+
+/* ── transcript review box ────────────────────────────────────────────────
+   Transcripts are the one kind you actually READ on hover, so their panel gets
+   more room and a comfortable reading size (title + upright, higher-contrast
+   excerpt clamped to a few lines). Scoped to data-kind="transcript" (set in
+   renderFeedPop) so calendar / shipping / asks stay compact. */
+.mfeed-pop[data-kind="transcript"] {
+  /* a real review panel: a definite default size (so it doesn't jump per
+     transcript) that you can drag-resize by the corner — index.js persists the
+     size, so the next transcript keeps the shape you set. */
+  width: 408px;
+  height: 424px;
+  resize: both;
+  min-width: 320px;
+  min-height: 220px;
+  max-width: 640px;
+  max-height: 82vh;
+}
+.mfeed-pop[data-kind="transcript"] .mfeed-pop-list {
+  /* fill the resizable height and scroll inside it (was a content-height cap) */
+  max-height: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 7px;
+  padding: 8px;
+  /* base .mfeed-pop-list sets scrollbar-width:thin, which disables the webkit
+     pseudo below in Chromium — reset to auto so our fade-in scrollbar applies. */
+  scrollbar-width: auto;
+}
+.mfeed-pop[data-kind="transcript"] .mfeed-detail-row { padding: 10px 12px; }
+/* Title leads the row: brightest, and allowed to wrap to two lines instead of
+   truncating to one (a clipped readout title conveys nothing). */
+.mfeed-pop[data-kind="transcript"] .mfeed-label {
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: rgba(var(--mem-ink-rgb), 0.94);
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.mfeed-pop[data-kind="transcript"] .mfeed-meta { font-size: 10px; }
+.mfeed-pop[data-kind="transcript"] .mfeed-pop-excerpt {
+  margin-top: 5px;
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.62;
+  color: rgba(var(--mem-ink-rgb), 0.74);
+  /* a few readable lines, not one cramped italic strip; the list scrolls */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  overflow: hidden;
+}
+/* Scroll affordance: invisible at rest, fades in when you hover the box, and
+   brightens when the pointer is actually over the list — "pops out on hover". */
+.mfeed-pop[data-kind="transcript"] .mfeed-pop-list::-webkit-scrollbar { width: 10px; }
+.mfeed-pop[data-kind="transcript"] .mfeed-pop-list::-webkit-scrollbar-track { background: transparent; }
+.mfeed-pop[data-kind="transcript"] .mfeed-pop-list::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+  transition: background-color 180ms ease;
+}
+.mfeed-pop[data-kind="transcript"]:hover .mfeed-pop-list::-webkit-scrollbar-thumb { background-color: rgba(var(--mem-ink-rgb), 0.30); }
+.mfeed-pop[data-kind="transcript"] .mfeed-pop-list:hover::-webkit-scrollbar-thumb { background-color: rgba(var(--mem-ink-rgb), 0.46); }
+/* Resize grip: hide the default webkit resizer, draw a quiet corner mark that
+   shows on hover (pointer still resizes — the mark is pointer-events:none). */
+.mfeed-pop[data-kind="transcript"]::-webkit-resizer { background: transparent; }
+.mfeed-pop[data-kind="transcript"]::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 11px;
+  height: 11px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 180ms ease;
+  background:
+    linear-gradient(135deg, transparent 46%, rgba(var(--mem-ink-rgb), 0.5) 46%, rgba(var(--mem-ink-rgb), 0.5) 54%, transparent 54%),
+    linear-gradient(135deg, transparent 72%, rgba(var(--mem-ink-rgb), 0.5) 72%, rgba(var(--mem-ink-rgb), 0.5) 80%, transparent 80%);
+}
+.mfeed-pop[data-kind="transcript"]:hover::after { opacity: 0.75; }
 .mfeed-pop-act:focus-visible,
 .mfeed-pop-x:focus-visible,
 .mfeed-pop-row:focus-visible {
