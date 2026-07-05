@@ -9,6 +9,20 @@ const DEFAULT_PUBLIC_EVIDENCE_LIMIT = 200;
 const DEFAULT_GATED_EVIDENCE_LIMIT = 500;
 const DEFAULT_GATED_DISTILLATION_LIMIT = 100;
 const DEFAULT_SUPABASE_URL = "https://txjntzwksiluvqcpccpc.supabase.co";
+const SOURCE_MIX_WEIGHTS = {
+  source_backed: 1,
+  ai_matched: 0.75,
+  metadata_inferred: 0.5,
+  ai_inferred: 0,
+  source_missing: 0,
+};
+const SOURCE_MIX_LABELS = {
+  source_backed: "From transcript",
+  ai_matched: "AI matched",
+  metadata_inferred: "From metadata",
+  ai_inferred: "AI inferred",
+  source_missing: "Needs source",
+};
 const DEFAULT_PUBLIC_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4am50endrc2lsdXZxY3BjY3BjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNzA1NzEsImV4cCI6MjA5Njk0NjU3MX0.XjXEUnw3jq1E7PwIOvhr7a3OpO2lyZv6S_Hn3JqogBA";
 const PUBLIC_CONTENT_KEYS = [
@@ -558,6 +572,134 @@ function renderSourceCards(ids, label = "sources") {
   `;
 }
 
+function sourceMixFromBlocks(blocks = []) {
+  const entries = asArray(blocks)
+    .map(sourceMixEntryForBlock)
+    .filter(Boolean);
+  if (!entries.length) return null;
+  const counts = {
+    sourceBacked: entries.filter((entry) => entry.key === "source_backed").length,
+    metadataInferred: entries.filter((entry) => entry.key === "metadata_inferred").length,
+    aiMatched: entries.filter((entry) => entry.key === "ai_matched").length,
+    aiInferred: entries.filter((entry) => entry.key === "ai_inferred").length,
+    sourceMissing: entries.filter((entry) => entry.key === "source_missing").length,
+  };
+  const weighted = entries.reduce((sum, entry) => sum + (SOURCE_MIX_WEIGHTS[entry.key] ?? 0), 0);
+  const sourceBackedPct = Math.max(0, Math.min(100, Math.round((weighted / entries.length) * 100)));
+  const inferredPct = 100 - sourceBackedPct;
+  const sourceCount = counts.sourceBacked + counts.metadataInferred + counts.aiMatched;
+  const unresolvedCount = counts.sourceMissing;
+  return {
+    sourceBackedPct,
+    inferredPct,
+    counts,
+    detail: [
+      `${inferredPct}% inferred`,
+      sourceCount ? `${sourceCount} source cue${sourceCount === 1 ? "" : "s"}` : "",
+      unresolvedCount ? `${unresolvedCount} unresolved` : "",
+    ].filter(Boolean).join(" / "),
+    hints: sourceMixHints(counts),
+  };
+}
+
+function sourceMixEntryForBlock(block = {}) {
+  if (!block || typeof block !== "object") return null;
+  const level = String(block.evidence_level || block.level || block.evidenceLevel || "").toLowerCase();
+  const hasSource = Boolean(
+    block.source
+    || block.source_card_id
+    || asArray(block.source_card_ids).length
+    || asArray(block.sources).length
+    || block.provenance?.source_access
+    || block.provenance?.source
+  );
+  if (/(grounded|reviewed|observed|verbatim|direct)/.test(level)) return { key: "source_backed" };
+  if (/(metadata|declared|aggregate)/.test(level)) return { key: "metadata_inferred" };
+  if (/(inferred|speculative|generated|synth)/.test(level)) return { key: hasSource ? "ai_matched" : "ai_inferred" };
+  if (hasSource) return { key: "ai_matched" };
+  return { key: "source_missing" };
+}
+
+function sourceMixHints(counts = {}) {
+  return [
+    ["source_backed", counts.sourceBacked, "Traces to transcript text or reviewed source evidence."],
+    ["metadata_inferred", counts.metadataInferred, "Comes from filename, folder, calendar, tags, or route metadata."],
+    ["ai_matched", counts.aiMatched, "AI matched the summary block to likely source evidence."],
+    ["ai_inferred", counts.aiInferred, "AI synthesized or generalized beyond a direct source."],
+    ["source_missing", counts.sourceMissing, "The source trail is missing or not fetched yet."],
+  ]
+    .filter(([, count]) => Number(count) > 0)
+    .map(([key, count, detail]) => ({ key, count, label: SOURCE_MIX_LABELS[key], detail }));
+}
+
+function noteSourceMixBlocks(note = {}) {
+  const parentSources = asArray(note.source_card_ids).filter(Boolean);
+  const blocks = [];
+  for (const section of asArray(note.sections)) {
+    for (const claim of asArray(section.claims)) {
+      blocks.push({ ...claim, source_card_ids: asArray(claim.source_card_ids).length ? claim.source_card_ids : parentSources });
+    }
+    for (const qa of asArray(section.qa)) {
+      blocks.push({ ...qa, evidence_level: qa.evidence_level || "inferred", source_card_ids: asArray(qa.source_card_ids).length ? qa.source_card_ids : parentSources });
+    }
+  }
+  if (!blocks.length && note.summary) {
+    blocks.push({ evidence_level: note.evidence_level || "generated", source_card_ids: parentSources });
+  }
+  return blocks;
+}
+
+function distillationSourceMixBlocks(artifact = {}) {
+  const provenance = artifact.provenance || {};
+  const sourceBlock = {
+    evidence_level: artifact.evidence_level || "generated",
+    provenance,
+  };
+  return [
+    ...asArray(artifact.summary).map(() => sourceBlock),
+    ...asArray(artifact.action_items).map(() => sourceBlock),
+    ...asArray(artifact.open_questions).map(() => sourceBlock),
+  ];
+}
+
+function contextSourceMix(intel = {}, distillations = {}) {
+  const blocks = [
+    ...asArray(intel.weekly).flatMap((item) => asArray(item.top_claims)),
+    ...asArray(intel.teams).flatMap((item) => asArray(item.top_claims)),
+    ...asArray(intel.people).flatMap((item) => asArray(item.top_claims)),
+    ...asArray(intel.field_notes).flatMap(noteSourceMixBlocks),
+    ...asArray(intel.session_notes).flatMap(noteSourceMixBlocks),
+    ...asArray(intel.signal_inventory?.sources).flatMap((source) => asArray(source.signals)),
+    ...asArray(intel.project_week_snapshots).flatMap((snapshot) => asArray(snapshot.observed_state?.top_observed_claims)),
+    ...asArray(distillations.artifacts).flatMap(distillationSourceMixBlocks),
+  ];
+  return sourceMixFromBlocks(blocks);
+}
+
+function renderSourceMixStat(mix) {
+  if (!mix) return "";
+  const detail = mix.detail || "How much of this summary traces to sources.";
+  return `
+    <div class="context-source-mix-stat" data-tip="${escAttr(detail)}" aria-label="${escAttr(`${mix.sourceBackedPct}% source-backed. ${detail}`)}">
+      <strong>${escHtml(mix.sourceBackedPct)}%</strong>
+      <span>source-backed</span>
+    </div>
+  `;
+}
+
+function renderSourceMixChips(mix) {
+  if (!mix?.hints?.length) return "";
+  return `
+    <div class="context-source-mix-chips">
+      ${mix.hints.map((hint) => `
+        <span class="context-source-chip context-source-chip-${escAttr(hint.key)}" data-tip="${escAttr(hint.detail || hint.label)}" aria-label="${escAttr(`${hint.label}: ${hint.detail || ""}`)}">
+          <i aria-hidden="true"></i>${escHtml(hint.label)}${hint.count > 1 ? ` ${escHtml(hint.count)}` : ""}
+        </span>
+      `).join("")}
+    </div>
+  `;
+}
+
 function renderProvenance(claim, boundary) {
   const source = publicSourceLabel(claim?.source || claim?.provenance?.source_access || "");
   return `
@@ -609,6 +751,7 @@ function renderEvidenceGroup(item, kind, maps, index = 0) {
     : recordName(kind === "team" ? maps.teams : maps.people, id);
   const boundary = item.sharing_boundary || { max_surface: "cohort", raw_allowed: false };
   const claims = asArray(item.top_claims);
+  const sourceMix = sourceMixFromBlocks(claims);
   const claimLimit = isWeek ? WEEKLY_CLAIM_LIMIT : ENTITY_CLAIM_LIMIT;
   const claimNote = claims.length > claimLimit
     ? `<p class="context-note">showing ${claimLimit} of ${countLabel(item.claim_count || claims.length, "claim")}.</p>`
@@ -621,6 +764,8 @@ function renderEvidenceGroup(item, kind, maps, index = 0) {
   ]);
   const body = `
     ${metrics}
+    ${renderSourceMixStat(sourceMix)}
+    ${renderSourceMixChips(sourceMix)}
     ${renderChips(item.themes, { limit: isWeek ? 14 : 8 })}
     <div class="context-linked-records">
       ${renderEntityLinks(item.teams, "team", maps.teams, isWeek ? 16 : 10)}
@@ -688,8 +833,10 @@ function renderPolicy(intel, distillations) {
 
 function renderSummary(intel, distillations) {
   const inventory = intel.signal_inventory || {};
+  const sourceMix = contextSourceMix(intel, distillations);
   return `
     <section class="context-summary" aria-label="context intel summary">
+      ${renderSourceMixStat(sourceMix)}
       ${renderMetric("weeks", asArray(intel.weekly).length)}
       ${renderMetric("team evidence", asArray(intel.teams).length)}
       ${renderMetric("person evidence", asArray(intel.people).length)}
@@ -701,6 +848,7 @@ function renderSummary(intel, distillations) {
       ${renderMetric("signals audited", inventory.total_signal_count ?? 0)}
       ${renderMetric("distillations", distillations?.artifact_count ?? asArray(distillations?.artifacts).length)}
       ${renderMetric("public candidates", asArray(intel.context_public_candidates).length)}
+      ${renderSourceMixChips(sourceMix)}
     </section>
   `;
 }
@@ -747,6 +895,7 @@ function renderNoteSection(section) {
 
 function renderFieldNote(note) {
   const boundary = note.sharing_boundary || { max_surface: "cohort", raw_allowed: false };
+  const sourceMix = sourceMixFromBlocks(noteSourceMixBlocks(note));
   const metrics = renderMetrics([
     renderMetric("week", note.week_start || "undated"),
     renderMetric("cards", note.evidence_card_count ?? ""),
@@ -763,6 +912,8 @@ function renderFieldNote(note) {
         <p>${escHtml(note.summary || "")}</p>
       </header>
       ${metrics}
+      ${renderSourceMixStat(sourceMix)}
+      ${renderSourceMixChips(sourceMix)}
       ${renderChips(note.themes, { limit: 10 })}
       ${renderSourceCards(note.source_card_ids, "source cards")}
       ${sections || `<p class="page-empty">no note sections exported.</p>`}
@@ -897,6 +1048,7 @@ function renderProjectWeekSnapshot(snapshot, maps, index = 0) {
   const evidence = snapshot.evidence || {};
   const status = drift.status || "insufficient_evidence";
   const claims = asArray(observed.top_observed_claims);
+  const sourceMix = sourceMixFromBlocks(claims);
   const summaryMeta = [
     snapshot.week_start || "undated",
     labelize(status),
@@ -918,6 +1070,8 @@ function renderProjectWeekSnapshot(snapshot, maps, index = 0) {
           renderMetric("quality", evidenceQualityText(observed.evidence_quality || "")),
           renderMetric("drift", labelize(status)),
         ])}
+        ${renderSourceMixStat(sourceMix)}
+        ${renderSourceMixChips(sourceMix)}
         <div class="context-snapshot-grid">
           <div class="context-snapshot-lane">
             <h4>declared state</h4>
@@ -969,6 +1123,7 @@ function renderProjectWeekSnapshots(intel = {}, maps = { teams: new Map(), peopl
 
 function renderSessionNote(note, maps = { teams: new Map(), people: new Map() }) {
   const boundary = note.sharing_boundary || { max_surface: "cohort", raw_allowed: false };
+  const sourceMix = sourceMixFromBlocks(noteSourceMixBlocks(note));
   const metrics = renderMetrics([
     renderMetric("date", note.date || note.week_start || "undated"),
     renderMetric("kind", labelize(note.session_kind || "session")),
@@ -989,6 +1144,8 @@ function renderSessionNote(note, maps = { teams: new Map(), people: new Map() })
           <p>${escHtml(note.summary || "")}</p>
         </header>
         ${metrics}
+        ${renderSourceMixStat(sourceMix)}
+        ${renderSourceMixChips(sourceMix)}
         ${renderChips(note.themes, { limit: 8 })}
         <div class="context-linked-records">
           ${renderEntityLinks(note.teams, "team", maps.teams, 8)}
@@ -1042,6 +1199,7 @@ function renderInventorySignal(signal) {
 
 function renderInventorySource(source, maps) {
   const boundary = source.sharing_boundary || { max_surface: "cohort", raw_allowed: false };
+  const sourceMix = sourceMixFromBlocks(asArray(source.signals));
   const summaryMeta = [
     source.date || source.week_start || "undated",
     `${source.total_signal_count ?? asArray(source.signals).length} signals`,
@@ -1063,6 +1221,8 @@ function renderInventorySource(source, maps) {
           renderMetric("confidence", labelize(source.confidence || "unknown")),
           renderMetric("boundary", boundaryText(boundary)),
         ])}
+        ${renderSourceMixStat(sourceMix)}
+        ${renderSourceMixChips(sourceMix)}
         ${renderTypeCounts(source.signal_type_counts)}
         ${renderChips(source.themes, { limit: 10 })}
         <div class="context-linked-records">
@@ -1173,6 +1333,7 @@ function renderDataContract(intel = {}) {
 
 function renderDistillationArtifact(artifact) {
   const boundary = artifact.provenance || { raw_allowed: false, source_access: "restricted" };
+  const sourceMix = sourceMixFromBlocks(distillationSourceMixBlocks(artifact));
   const metrics = renderMetrics([
     renderMetric("surface", labelize(artifact.surface || "cohort")),
     renderMetric("tier", artifact.tier || ""),
@@ -1187,6 +1348,8 @@ function renderDistillationArtifact(artifact) {
         <p>${escHtml([dateText(artifact.starts_at), artifact.session_type, artifact.artifact_kind].filter(Boolean).map(labelize).join(" / "))}</p>
       </header>
       ${metrics}
+      ${renderSourceMixStat(sourceMix)}
+      ${renderSourceMixChips(sourceMix)}
       ${renderChips(artifact.themes, { limit: 10 })}
       ${asArray(artifact.summary).length ? `<div class="context-block"><h4>summary</h4><ul>${asArray(artifact.summary).map((item) => `<li>${escHtml(item)}</li>`).join("")}</ul></div>` : ""}
       ${asArray(artifact.action_items).length ? `<div class="context-block"><h4>action items</h4><ul>${asArray(artifact.action_items).map((item) => `<li>${escHtml(item)}</li>`).join("")}</ul></div>` : ""}
@@ -1215,19 +1378,29 @@ function renderDistillations(distillations = {}) {
 
 function renderPublicCandidates(intel = {}) {
   const candidates = asArray(intel.context_public_candidates);
-  const body = candidates.map((candidate) => `
-    <article class="context-distillation">
-      <header class="context-evidence-head">
-        <h3>${escHtml(candidate.title || candidate.artifact_id || "public candidate")}</h3>
-      </header>
-      ${renderMetrics([
-        renderMetric("confidence", labelize(candidate.confidence || "unknown")),
-        renderMetric("boundary", boundaryText(candidate.sharing_boundary || { max_surface: "public", raw_allowed: false })),
-      ])}
-      ${renderChips(candidate.themes, { limit: 10 })}
-      ${candidate.summary ? `<p class="context-note">${escHtml(candidate.summary)}</p>` : ""}
-    </article>
-  `).join("");
+  const body = candidates.map((candidate) => {
+    const sourceMix = sourceMixFromBlocks([{
+      evidence_level: candidate.evidence_level || "generated",
+      source_card_ids: candidate.source_card_ids,
+      source: candidate.source,
+      provenance: candidate.provenance,
+    }]);
+    return `
+      <article class="context-distillation">
+        <header class="context-evidence-head">
+          <h3>${escHtml(candidate.title || candidate.artifact_id || "public candidate")}</h3>
+        </header>
+        ${renderMetrics([
+          renderMetric("confidence", labelize(candidate.confidence || "unknown")),
+          renderMetric("boundary", boundaryText(candidate.sharing_boundary || { max_surface: "public", raw_allowed: false })),
+        ])}
+        ${renderSourceMixStat(sourceMix)}
+        ${renderSourceMixChips(sourceMix)}
+        ${renderChips(candidate.themes, { limit: 10 })}
+        ${candidate.summary ? `<p class="context-note">${escHtml(candidate.summary)}</p>` : ""}
+      </article>
+    `;
+  }).join("");
   return renderSection("public candidates", `${candidates.length} candidates`, body, "no transcript readout is public-cleared yet.");
 }
 

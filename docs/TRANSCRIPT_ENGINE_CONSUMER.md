@@ -37,6 +37,27 @@ The app must not query private transcript tables such as `source_artifacts`,
 `capture_artifacts`, `ingestion_events`, `approval_gates`, `artifact_reviews`,
 or `audit_log`.
 
+## Source-Backing Cues
+
+Transcript-derived surfaces should expose provenance as a user-facing confidence
+cue, not as private source detail. Shape OS renders a compact `source-backed`
+percentage and safe chips:
+
+| Bucket | User label | App meaning |
+| --- | --- | --- |
+| `source_backed` | From transcript | Reviewed evidence or transcript-backed claim. |
+| `metadata_inferred` | From metadata | Filename, folder, calendar, tag, or route metadata. |
+| `ai_matched` | AI matched | Generated summary matched back to app-safe evidence. |
+| `ai_inferred` | AI inferred | Generated synthesis without direct source backing. |
+| `source_missing` | Needs source | Missing or unresolved source trail. |
+
+The engine may store richer provenance internally. When it sends a compact
+rollup such as `source_mix_json`, Shape OS can render the public label and
+percentage directly; otherwise it recomputes the same mix from app-safe evidence
+levels. App-facing rows should keep the label, percentage, confidence/review
+status, and boundary. Do not expose Drive file IDs, storage refs, raw transcript
+snippets, or private vault/session identifiers in the UI.
+
 ## Runtime path
 
 The current receive path lives in:

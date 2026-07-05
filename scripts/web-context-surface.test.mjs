@@ -372,11 +372,70 @@ test("context renderer keeps confidence and source boundary visible without priv
   assert.match(html, /project progress rollup inputs/);
   assert.match(html, /team signals/);
   assert.match(html, /1 reviewed source/);
+  assert.match(html, /source-backed/);
+  assert.match(html, /AI matched/);
   assert.doesNotMatch(html, /source-artifact-1/);
   assert.doesNotMatch(html, /private-vault:session-1/);
   assert.match(html, /medium/);
   assert.match(html, /source text hidden/);
   assert.match(html, /Cohort-safe synthesis/);
+});
+
+test("context renderer explains source backing without exposing source IDs", () => {
+  const renderContextSurface = loadContextRenderer();
+  const html = renderContextSurface({
+    cohort_intel: {
+      raw_allowed: false,
+      weekly: [{
+        week_start: "2026-06-22",
+        evidence_card_count: 5,
+        claim_count: 5,
+        confidence: "mixed",
+        sharing_boundary: { max_surface: "cohort", raw_allowed: false },
+        top_claims: [{
+          claim_type: "decision",
+          evidence_level: "reviewed",
+          text: "A reviewed transcript decision.",
+        }, {
+          claim_type: "route",
+          evidence_level: "metadata",
+          text: "A folder or calendar-derived route.",
+          source_card_id: "private-card-1",
+        }, {
+          claim_type: "summary",
+          evidence_level: "inferred",
+          text: "An inferred claim matched to evidence.",
+          source_card_id: "private-card-1",
+        }, {
+          claim_type: "summary",
+          evidence_level: "generated",
+          text: "A generated synthesis without direct backing.",
+        }, {
+          claim_type: "gap",
+          text: "A source trail still needs review.",
+        }],
+      }],
+      teams: [],
+      people: [],
+      card_signals: { teams: [], people: [] },
+      field_notes: [],
+      session_notes: [],
+      signal_inventory: { total_signal_count: 0 },
+      project_week_snapshots: [],
+      project_progress_rollups: [],
+      context_public_candidates: [],
+    },
+    transcript_distillations: { artifact_count: 0, cohort_count: 0, artifacts: [] },
+  });
+
+  assert.match(html, /45%/);
+  assert.match(html, /source-backed/);
+  assert.match(html, /From transcript/);
+  assert.match(html, /From metadata/);
+  assert.match(html, /AI matched/);
+  assert.match(html, /AI inferred/);
+  assert.match(html, /Needs source/);
+  assert.doesNotMatch(html, /private-card-1/);
 });
 
 test("public Supabase evidence hydration strips entity and private provenance keys", async () => {

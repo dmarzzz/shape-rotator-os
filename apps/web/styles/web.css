@@ -2386,6 +2386,160 @@ a.cd-timeline-title:hover {
   letter-spacing: var(--track-caps);
   text-transform: uppercase;
 }
+.context-source-mix-stat {
+  position: relative;
+  display: inline-flex;
+  justify-self: start;
+  align-items: baseline;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 26px;
+  padding: 3px 8px;
+  border: 1px solid rgba(139, 216, 209, 0.26);
+  border-radius: var(--r-sm);
+  background: rgba(139, 216, 209, 0.055);
+  color: var(--ink-1);
+  font-family: var(--font-mono);
+  font-size: var(--t-11);
+  line-height: 1.25;
+  font-feature-settings: var(--num-feat);
+  cursor: help;
+  transition: background var(--dur-base) var(--ease), border-color var(--dur-base) var(--ease), color var(--dur-base) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.context-source-mix-stat strong {
+  color: rgba(139, 216, 209, 0.92);
+  font-weight: 600;
+}
+.context-summary .context-source-mix-stat span,
+.context-source-mix-stat span {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  color: rgba(241, 236, 231, 0.62);
+  background: transparent;
+  letter-spacing: 0;
+  text-transform: lowercase;
+}
+.context-source-mix-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+}
+.context-summary .context-source-chip,
+.context-source-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  min-height: 24px;
+  padding: 3px 7px;
+  border: 1px solid rgba(241, 236, 231, 0.12);
+  border-radius: var(--r-sm);
+  background: rgba(247, 241, 236, 0.018);
+  color: rgba(241, 236, 231, 0.66);
+  font-family: var(--font-mono);
+  font-size: var(--t-11);
+  line-height: 1.25;
+  cursor: help;
+  transition: background var(--dur-base) var(--ease), border-color var(--dur-base) var(--ease), color var(--dur-base) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.context-source-chip i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(241, 236, 231, 0.34);
+  flex: 0 0 auto;
+}
+.context-summary .context-source-chip-source_backed,
+.context-source-chip-source_backed {
+  border-color: rgba(139, 216, 209, 0.30);
+  color: rgba(139, 216, 209, 0.82);
+  background: rgba(139, 216, 209, 0.045);
+}
+.context-source-chip-source_backed i {
+  background: rgba(139, 216, 209, 0.88);
+}
+.context-summary .context-source-chip-metadata_inferred,
+.context-source-chip-metadata_inferred {
+  border-color: rgba(241, 236, 231, 0.16);
+  color: rgba(241, 236, 231, 0.64);
+}
+.context-source-chip-metadata_inferred i {
+  background: rgba(241, 236, 231, 0.46);
+}
+.context-summary .context-source-chip-ai_matched,
+.context-source-chip-ai_matched {
+  border-color: rgba(231, 181, 100, 0.32);
+  color: rgba(231, 181, 100, 0.82);
+  background: rgba(231, 181, 100, 0.04);
+}
+.context-source-chip-ai_matched i {
+  background: rgba(231, 181, 100, 0.88);
+}
+.context-summary .context-source-chip-ai_inferred,
+.context-summary .context-source-chip-source_missing,
+.context-source-chip-ai_inferred,
+.context-source-chip-source_missing {
+  border-color: rgba(208, 83, 50, 0.36);
+  color: rgba(241, 155, 132, 0.84);
+  background: rgba(208, 83, 50, 0.045);
+}
+.context-source-chip-ai_inferred i,
+.context-source-chip-source_missing i {
+  background: rgba(208, 83, 50, 0.88);
+}
+.context-source-mix-stat::after,
+.context-source-chip::after {
+  content: none;
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 20;
+  width: max-content;
+  max-width: min(320px, 78vw);
+  padding: 7px 9px;
+  border: 1px solid rgba(241, 236, 231, 0.14);
+  border-radius: var(--r-sm);
+  background: rgba(23, 21, 20, 0.96);
+  color: rgba(241, 236, 231, 0.82);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(241, 236, 231, 0.045);
+  font-family: var(--font-mono);
+  font-size: var(--t-11);
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: normal;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px) scale(0.98);
+  transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+@media (hover: hover) {
+  .context-source-mix-stat:hover,
+  .context-source-chip:hover {
+    transform: translateY(-1px);
+  }
+  .context-source-mix-stat:hover {
+    border-color: rgba(139, 216, 209, 0.42);
+    background: rgba(139, 216, 209, 0.075);
+  }
+  .context-source-chip:hover {
+    border-color: rgba(241, 236, 231, 0.22);
+    background: rgba(247, 241, 236, 0.035);
+  }
+  .context-source-mix-stat:hover::after,
+  .context-source-chip:hover::after {
+    content: attr(data-tip);
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
 .context-section {
   display: grid;
   gap: var(--space-4);
