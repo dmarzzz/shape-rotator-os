@@ -215,6 +215,7 @@ function createController() {
   const dot         = $("cohort-chat-dot");
   const statusLine  = $("cohort-chat-status-line");
   const preMsg      = $("cohort-chat-pre-message");
+  const mirrorChip  = $("cohort-chat-mirror-chip");
   const settingsBtn = $("cohort-chat-settings-btn");
   const settingsEl  = $("cohort-chat-settings");
   const settingsClose = $("cohort-chat-settings-close");
@@ -807,7 +808,7 @@ function createController() {
         return;
       }
     } catch {}
-    el.textContent = "cited from the cohort context pack behind this answer.";
+    el.textContent = "from the cohort context pack.";
   }
 
   // The welcome (example prompts + info) belongs whenever the user hasn't asked
@@ -1086,6 +1087,10 @@ function createController() {
   // The first-run mirror offer (and /mirror) renders a small card with the offer
   // copy + a primary CTA that opens the consent-first self-report modal.
   function renderMirrorOffer(copy) {
+    // If a real turn already landed before this async offer resolved, don't shove
+    // a standing card above the conversation — surface the one-tap chip instead
+    // (only the ready gate has that flow; the guidance gates still render inline).
+    if (copy.primary && log.querySelector(".cc-msg")) { showMirrorChip(); return; }
     const card = document.createElement("div");
     card.className = "cc-card is-offer";
     const primary = copy.primary
@@ -1108,6 +1113,20 @@ function createController() {
     log.appendChild(card);
     log.scrollTop = log.scrollHeight;
   }
+
+  // A — the standing first-run offer gets out of the way once a real turn starts.
+  // Collapsing removes the card and returns true; the caller decides whether to
+  // surface the one-tap chip (a normal question) or stay silent (the member is
+  // already acting on the offer, e.g. /mirror). Using the card's own buttons
+  // (Not now / Choose what to share) removes it before any send, so no chip shows.
+  function collapseMirrorOfferCard() {
+    const card = log.querySelector(".cc-card.is-offer");
+    if (!card) return false;
+    card.remove();
+    return true;
+  }
+  function showMirrorChip() { if (mirrorChip) mirrorChip.hidden = false; }
+  function hideMirrorChip() { if (mirrorChip) mirrorChip.hidden = true; }
 
   async function transcriptIntakeOptions() {
     try {
@@ -1964,6 +1983,15 @@ function createController() {
     if (!q) return;
     setPreMsg("");
 
+    // A: a real turn is starting, so the standing first-run mirror offer steps
+    // aside — the answer should lead, not a proactive card. If the member is
+    // acting ON the offer (/mirror or a manual update), stay silent; a normal
+    // question leaves the one-tap "refresh my profile" chip at the composer.
+    if (collapseMirrorOfferCard()) {
+      if (parseMirrorCommand(q) || parseManualUpdateCommand(q)) hideMirrorChip();
+      else showMirrorChip();
+    }
+
     // `/mirror` is a command, not a question: route into the consent-first
     // self-report modal and never send it to the CLI (or pollute history).
     if (parseMirrorCommand(q)) {
@@ -2214,6 +2242,15 @@ function createController() {
     input.focus();
     input.setSelectionRange(input.value.length, input.value.length);
   }));
+
+  // The collapsed-offer chip opens the same consent-first mirror flow the card's
+  // primary CTA did, then hides itself.
+  if (mirrorChip) mirrorChip.addEventListener("click", async () => {
+    hideMirrorChip();
+    let surface = null; try { surface = await getCohortSurface(); } catch {}
+    const me = resolveMyPerson(surface);
+    if (me) handToSelfReport(me);
+  });
 
   function routeFirstSessionAction(action) {
     if (action === "transcript") {

@@ -53,9 +53,9 @@ export function mirrorOfferCopy(gate, { handle = "" } = {}) {
   }
   return {
     eyebrow: "mirror",
-    body: "Want me to refresh your profile from your own recent work? I can read what you've been building — your local AI sessions (summarized on this machine) and your public GitHub"
+    body: "Refresh your profile from your recent work? I'll read your local AI sessions + public GitHub"
       + (handle ? ` (@${handle})` : "")
-      + " — and draft an update. You review and approve every line before anything saves.",
+      + " and draft an update — you approve every line before it saves.",
     primary: "Choose what to share →",
     secondary: "Not now",
   };

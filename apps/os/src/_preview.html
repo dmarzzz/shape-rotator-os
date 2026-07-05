@@ -779,12 +779,12 @@
           <div class="cohort-chat-empty" id="cohort-chat-empty">
             <div class="cohort-chat-empty-lede">Ask about the cohort — or ask me to <b>do</b> something. I draft, you approve.</div>
             <div class="cc-live-line" id="cc-live-line" hidden></div>
+            <div class="cc-egs-label" aria-hidden="true">try</div>
             <div class="cohort-chat-egs">
               <button type="button" class="cc-eg" data-cc-eg data-cc-eg-stem="who should I talk to about ">who should I talk to about …?</button>
               <button type="button" class="cc-eg" data-cc-eg>submit my own profile update without scanning private work</button>
               <button type="button" class="cc-eg" data-cc-eg data-cc-eg-work>check my recent work and draft this week's update</button>
             </div>
-            <small>Runs on your local AI (Claude Code / Codex) — no API key, nothing leaves your machine.</small>
           </div>
         </div>
 
@@ -794,6 +794,12 @@
             latest
           </button>
           <div class="cc-page-presets" id="cohort-chat-presets" hidden></div>
+          <button type="button" class="cc-mirror-chip" id="cohort-chat-mirror-chip" hidden
+                  title="refresh your profile from your recent work — you approve every line before it saves">
+            <span class="cc-mirror-chip-mark" aria-hidden="true">✦</span>
+            <span class="cc-mirror-chip-label">refresh my profile</span>
+            <svg class="cc-mirror-chip-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </button>
           <div class="cohort-chat-pre-message" id="cohort-chat-pre-message"></div>
           <div class="cc-composer">
             <textarea id="cohort-chat-input" class="cohort-chat-input" rows="1"
@@ -806,6 +812,10 @@
                     title="stop generating" aria-label="stop generating">
               <span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg></span>
             </button>
+          </div>
+          <div class="cc-privacy-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <span>local &middot; nothing leaves your machine</span>
           </div>
         </form>
         <!-- In-panel hosts for the non-chat tabs; revealed by data-cc-view (CSS).

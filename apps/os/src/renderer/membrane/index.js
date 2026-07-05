@@ -749,6 +749,21 @@ export function mountMembrane(container, opts = {}) {
   let feedPopHideTimer = null;
   let feedPopCats = [];       // categories from the last renderFeed pass
   let feedPopEl = null;
+  // The transcript review box is user-resizable; its size persists (localStorage,
+  // like a window size) so the next transcript / a re-open keeps the shape you
+  // set. Bounds mirror the min/max in .mfeed-pop[data-kind="transcript"].
+  const TRANSCRIPT_POP_SIZE_KEY = 'srwk:membrane:transcript_pop_size_v1';
+  const loadTranscriptPopSize = () => {
+    try {
+      const s = JSON.parse(localStorage.getItem(TRANSCRIPT_POP_SIZE_KEY) || 'null');
+      if (s && s.w >= 320 && s.w <= 640 && s.h >= 220) return s;
+    } catch {}
+    return null;
+  };
+  const saveTranscriptPopSize = (w, h) => {
+    if (!(w > 100 && h > 100)) return; // never persist the 0×0 of a closed panel
+    try { localStorage.setItem(TRANSCRIPT_POP_SIZE_KEY, JSON.stringify({ w: Math.round(w), h: Math.round(h) })); } catch {}
+  };
   // Rail-level leave guard, attached ONCE to the persistent [data-feed] node.
   // The per-row mouseenter/mouseleave pairs die whenever renderFeed rebuilds
   // the rows (innerHTML) under the pointer — a preview whose closing
@@ -841,6 +856,14 @@ export function mountMembrane(container, opts = {}) {
     (container.querySelector('.membrane-stage') || container).appendChild(feedPopEl);
     feedPopEl.addEventListener('mouseenter', () => clearTimeout(feedPopHideTimer));
     feedPopEl.addEventListener('mouseleave', () => { if (!feedPopPinned) scheduleFeedPopHide(); });
+    // Persist a manual resize: the native corner-drag ends in a mouseup over the
+    // panel, so read the box size then and remember it (transcripts only, and
+    // never the collapsed 0×0 of a just-closed panel).
+    feedPopEl.addEventListener('mouseup', () => {
+      if (feedPopEl.dataset.kind !== 'transcript' || feedPopEl.hidden) return;
+      const r = feedPopEl.getBoundingClientRect();
+      saveTranscriptPopSize(r.width, r.height);
+    });
     return feedPopEl;
   }
   function scheduleFeedPopHide() {
@@ -867,6 +890,21 @@ export function mountMembrane(container, opts = {}) {
     if (!cat) { closeFeedPop(); return; }
     const pop = ensureFeedPop();
     pop.classList.toggle('is-pinned', feedPopPinned);
+    // Tag the panel with its kind so transcripts can render a wider, more
+    // readable review box (readouts carry excerpts worth actually reading);
+    // every other kind stays compact. See .mfeed-pop[data-kind="transcript"].
+    pop.dataset.kind = cat.kind || '';
+    // Transcripts get the resizable review box — restore the size the user last
+    // dragged it to (persists across transcripts). Every other kind clears the
+    // inline size back to its compact CSS default (the panel is a shared node).
+    if (cat.kind === 'transcript') {
+      const sz = loadTranscriptPopSize();
+      if (sz) { pop.style.width = `${sz.w}px`; pop.style.height = `${sz.h}px`; }
+      else { pop.style.removeProperty('width'); pop.style.removeProperty('height'); }
+    } else {
+      pop.style.removeProperty('width');
+      pop.style.removeProperty('height');
+    }
     pop.setAttribute('aria-label', `${cat.title} — ${categoryCountLabel(cat)}`);
     const rows = cat.members.slice(0, 30).map((m, i) => {
       const label = categoryItemLabel(m);

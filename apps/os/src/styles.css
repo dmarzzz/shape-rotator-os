@@ -10928,6 +10928,11 @@ html.jweek-vt .ac-cmp-grid { animation: none; }
    Reuses the .ac-sds-cell strip; the rest uses this view's local tokens. ── */
 /* Mirror subject switcher (you · browse · compare) + compare layout. */
 .ac-mirror-wrap { margin: 0 0 14px; }
+/* Mirror is a reading/dashboard surface, not a full-bleed grid like the cohort
+   map that shares .alch-cohort-page — cap + center it at the same measure as the
+   context + program reforms so the content's left edge stops jumping when you tab
+   between pages. Scoped to the mirror mode so the cohort card grid stays wide. */
+body[data-alch-mode="mirror"] .alch-cohort-page { max-width: 1200px; margin-inline: auto; }
 .ac-mirror-switch {
   display: inline-flex; gap: 2px; padding: 2px; margin: 0 0 12px;
   border: 1px solid var(--ds-border); border-radius: 9px; background: var(--ds-surface-3);
@@ -14083,7 +14088,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
   letter-spacing: 0.03em;
   color: var(--ed-ink-1);
 }
-.alch-prog-page { margin: 0; max-width: 70ch; }
+.alch-prog-page { margin-inline: auto; max-width: 70ch; }
 .alch-prog-page-head {
   display: flex; align-items: baseline; gap: 16px;
   margin-bottom: 16px;
@@ -15691,7 +15696,7 @@ html[data-theme="light"] .cal-section-presence .cal-scroll {
 
 .alch-prog-tab-label   { font-size: 12px; }
 
-.alch-prog-page        { margin: 0; max-width: 74ch; padding: 0 0 96px; }
+.alch-prog-page        { margin-inline: auto; max-width: 74ch; padding: 0 0 96px; }
 .alch-prog-page-head   { margin-bottom: 22px; align-items: baseline; gap: 18px; }
 .alch-prog-page-title  { font-size: 28px; line-height: 1.08; margin: 0; }
 
@@ -19485,6 +19490,22 @@ html, body, .alchemy-view, #alchemy-view, #tab-bar.tab-bar, .alchemy-rail {
   flex-direction: column;
   gap: 16px;
   min-height: 100%;
+  /* Reading surface: cap the sidebar+reader composition and center it in the
+     canvas so the content reads as an intentional column instead of hugging the
+     left edge against a wide empty void. The header + toolbar band sit above and
+     re-align to this width automatically (both live inside .alch-cv). */
+  width: 100%;
+  max-width: 1200px;
+  margin-inline: auto;
+}
+/* The page toolbar (snapshot · Aa · link) is absolute to the canvas corner, so
+   after centering .alch-cv it floated ~64px right of the content's right edge.
+   Shift its inset by the SAME centering margin the 1200px cap produces — 56px
+   canvas pad + half the leftover — so the toolbar tracks the .alch-cv right edge
+   at every width. Scoped via :has(.alch-cv) so only the context page is touched;
+   below the cap width the max(0px) collapses it back to the plain 56px corner. */
+.alchemy-canvas:has(.alch-cv) .alch-page-intro {
+  right: calc(56px + max(0px, (100% - 1312px) / 2));
 }
 
 /* The context page header now uses the shared .alch-page-head (2026-06);
@@ -19928,6 +19949,9 @@ html[data-theme="light"] .alch-cv-group-head { background: var(--alchemy-charcoa
 /* the reader already sizes type inside .alch-cv-reader; topic pages only
    need the sections to breathe */
 .alch-cv-topic-reader .alch-cv-lib-section:first-of-type { margin-top: 6px; }
+/* a topic page keeps the same centered reading measure as a prose readout, so
+   both lenses share one column rhythm (title↔date rows read tighter here than
+   stretched full-width). */
 
 /* keyboard: rows are arrow-key navigable — give them the house focus ring */
 .alch-cv-source:focus-visible,
@@ -19954,6 +19978,11 @@ html[data-theme="light"] .alch-cv-group-head { background: var(--alchemy-charcoa
   gap: 14px;
   align-items: center;
   min-height: 34px;
+  /* share the reader's centered measure so the kicker + copy/more actions line
+     up with the readout body beneath them instead of spanning the wider detail */
+  width: 100%;
+  max-width: var(--cv-measure, 70ch);
+  margin-inline: auto;
 }
 
 .alch-cv-detail-actions {
@@ -20023,6 +20052,9 @@ html[data-theme="light"] .alch-cv-group-head { background: var(--alchemy-charcoa
   gap: 16px;
   /* honors the Aa reader-settings width pref (applyContextPrefs) */
   max-width: var(--cv-measure, 70ch);
+  /* center the prose measure within its (wider) detail column so a readout
+     doesn't strand against the left with a long empty margin on the right */
+  margin-inline: auto;
   padding: 2px 0 8px;
 }
 
@@ -20364,6 +20396,10 @@ html[data-theme="light"] .alch-cv-group-head { background: var(--alchemy-charcoa
   width: 14px; height: 14px; transform: translateY(-50%);
   color: var(--ds-ink-3, rgba(241, 236, 231, 0.52)); pointer-events: none;
 }
+/* The DS input reset overrides the shorthand's 30px left pad down to 11px, so the
+   magnifier icon printed on top of the first letter of the placeholder. Restate
+   the left inset at DS weight so the text clears the icon. */
+html[data-ds] .alch-cv-search .alch-cv-search-input { padding-left: 32px !important; }
 .alch-cv-filter-empty { margin: 6px 4px; }
 
 /* reading-progress bar — sticky at the reader top, section ticks along it.
