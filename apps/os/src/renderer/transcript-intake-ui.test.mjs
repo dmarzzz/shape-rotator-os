@@ -18,14 +18,14 @@ test("transcript path picker shows the Drive-first human choices", () => {
   ]);
 
   assert.deepEqual(rows.map((row) => row.key), ["drive_inbox", "metadata", "supabase_raw", "local_agent"]);
-  assert.deepEqual(rows.map((row) => row.label), ["Drive inbox", "Private pointer", "Send full text", "Local readout"]);
-  assert.equal(rows[0].short, "private Drive upload");
+  assert.deepEqual(rows.map((row) => row.label), ["Private upload", "Private pointer", "Send full text", "Local readout"]);
+  assert.equal(rows[0].short, "quiet cloud handoff");
 });
 
 test("unknown transcript paths normalize to private pointer", () => {
   assert.equal(normalizeVisibleTranscriptPath("drive_inbox"), "drive_inbox");
   assert.equal(normalizeVisibleTranscriptPath("unknown"), "metadata");
-  assert.match(transcriptPathNoteText("drive_inbox"), /Google Drive inbox/);
+  assert.match(transcriptPathNoteText("drive_inbox"), /Stores the original privately/);
 });
 
 test("full-text paths reject PDFs with plain user copy", () => {
@@ -49,8 +49,8 @@ test("full-text paths reject PDFs with plain user copy", () => {
 });
 
 test("submit labels stay action-shaped", () => {
-  assert.equal(transcriptSubmitLabel("drive_inbox", 1), "Send to Drive");
-  assert.equal(transcriptSubmitLabel("drive_inbox", 3), "Send 3 files to Drive");
+  assert.equal(transcriptSubmitLabel("drive_inbox", 1), "Send privately");
+  assert.equal(transcriptSubmitLabel("drive_inbox", 3), "Send 3 privately");
   assert.equal(transcriptSubmitLabel("metadata", 1), "Add pointer");
   assert.equal(transcriptSubmitLabel("metadata", 3), "Add 3 pointers");
   assert.equal(transcriptSubmitLabel("supabase_raw", 2), "Send 2 files");

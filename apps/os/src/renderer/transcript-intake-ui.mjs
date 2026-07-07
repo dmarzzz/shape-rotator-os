@@ -4,12 +4,12 @@ export const VISIBLE_TRANSCRIPT_PATH_KEYS = ["drive_inbox", "metadata", "supabas
 
 export const TRANSCRIPT_PATH_COPY = {
   drive_inbox: {
-    label: "Drive inbox",
-    short: "private Drive upload",
-    note: "Uploads the original to the private Google Drive inbox. Shape OS keeps a local manifest and uses Drive pointers downstream.",
-    submit: "Send to Drive",
-    submitMany: "Send {count} files to Drive",
-    badge: "Drive inbox",
+    label: "Private upload",
+    short: "quiet cloud handoff",
+    note: "Stores the original privately and keeps only a source pointer in Shape OS.",
+    submit: "Send privately",
+    submitMany: "Send {count} privately",
+    badge: "private upload",
   },
   metadata: {
     label: "Private pointer",

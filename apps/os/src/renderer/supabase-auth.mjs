@@ -153,11 +153,25 @@ export async function getSession() {
 // Opens the system browser to Google consent (main builds the Supabase authorize
 // URL with redirect_to=sros://auth-callback). Resolves { ok } when the browser is
 // launched; the actual session arrives asynchronously via onAuthChanged.
-export async function signInWithGoogle() {
+export async function signInWithGoogle(opts = {}) {
   const b = bridge();
   if (!b || typeof b.signIn !== "function") return { ok: false, error: "auth unavailable in this build" };
-  try { return (await b.signIn()) || { ok: true }; }
+  try { return (await b.signIn(opts)) || { ok: true }; }
   catch (e) { return { ok: false, error: String(e && e.message ? e.message : e) }; }
+}
+
+export async function cancelGoogleSignIn() {
+  const b = bridge();
+  if (!b || typeof b.cancelSignIn !== "function") return { ok: false, error: "auth unavailable in this build" };
+  try { return (await b.cancelSignIn()) || { ok: true }; }
+  catch (e) { return { ok: false, error: String(e && e.message ? e.message : e) }; }
+}
+
+export async function getAuthFlow() {
+  const b = bridge();
+  if (!b || typeof b.getFlow !== "function") return { state: "idle", ok: false };
+  try { return (await b.getFlow()) || { state: "idle", ok: false }; }
+  catch { return { state: "idle", ok: false }; }
 }
 
 export async function signOut() {
@@ -172,6 +186,12 @@ export function onAuthChanged(cb) {
   const b = bridge();
   if (!b || typeof b.onSession !== "function" || typeof cb !== "function") return () => {};
   try { return b.onSession(cb) || (() => {}); } catch { return () => {}; }
+}
+
+export function onAuthFlowChanged(cb) {
+  const b = bridge();
+  if (!b || typeof b.onFlow !== "function" || typeof cb !== "function") return () => {};
+  try { return b.onFlow(cb) || (() => {}); } catch { return () => {}; }
 }
 
 // Read the caller's own membership row (RLS returns exactly their row) using their

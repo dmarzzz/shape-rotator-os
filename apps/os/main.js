@@ -322,10 +322,13 @@ function runTranscriptIntakeFlowSmoke() {
   let win = null;
   const originalShowOpenDialog = dialog.showOpenDialog;
   const originalFetch = global.fetch;
+  const originalOpenExternal = shell.openExternal;
   const originalAuthSession = readAuthSession();
+  const authOpenUrls = [];
   const cleanup = () => {
     dialog.showOpenDialog = originalShowOpenDialog;
     global.fetch = originalFetch;
+    shell.openExternal = originalOpenExternal;
     writeAuthSession(originalAuthSession);
     try { server.close(); } catch {}
     try { fs.rmSync(fixtureRoot, { recursive: true, force: true }); } catch {}
@@ -365,11 +368,27 @@ function runTranscriptIntakeFlowSmoke() {
       refresh_token: null,
       expires_at: Math.floor(Date.now() / 1000) + 3600,
       token_type: "bearer",
-      provider_token: "smoke-drive-token",
-      provider_refresh_token: null,
-      provider_scopes: [GOOGLE_DRIVE_FILE_SCOPE],
+      provider_token: null,
+      provider_refresh_token: "smoke-drive-refresh-token",
+      provider_scopes: [],
       user: { id: "smoke-user", email: "smoke@shaperotator.local", user_metadata: {} },
     });
+    shell.openExternal = async (authorizeUrl) => {
+      authOpenUrls.push(String(authorizeUrl || ""));
+      setTimeout(() => {
+        finishAuth({
+          access_token: "smoke-supabase-token",
+          refresh_token: null,
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+          token_type: "bearer",
+          provider_token: "smoke-drive-token",
+          provider_refresh_token: "smoke-drive-refresh-token",
+          provider_scopes: [GOOGLE_DRIVE_FILE_SCOPE],
+          user: { id: "smoke-user", email: "smoke@shaperotator.local", user_metadata: {} },
+        });
+      }, 80);
+      return true;
+    };
     global.fetch = async (url, options = {}) => {
       const href = String(url || "");
       if (href.startsWith("https://www.googleapis.com/upload/drive/v3/files")) {
@@ -384,7 +403,7 @@ function runTranscriptIntakeFlowSmoke() {
         return {
           ok: true,
           status: 200,
-          json: async () => ({ id, name: `${id}.txt`, mimeType: "text/plain", parents: ["drive-folder-smoke"] }),
+          json: async () => ({ id, name: `${id}.txt`, mimeType: "text/plain", parents: [] }),
         };
       }
       return originalFetch(url, options);
@@ -459,7 +478,6 @@ function runTranscriptIntakeFlowSmoke() {
           const related = card.querySelector("[data-cc-transcript-related]");
           const org = card.querySelector("[data-cc-transcript-org]");
           const inbox = card.querySelector("[data-cc-transcript-context-url]");
-          const driveFolder = card.querySelector("[data-cc-transcript-drive-folder]");
           if (label) label.value = "Bulk flow smoke";
           if (date) {
             date.value = "2026-07-04";
@@ -468,7 +486,6 @@ function runTranscriptIntakeFlowSmoke() {
           if (related) related.value = "bulk transcript smoke";
           if (org) org.value = "srfg";
           if (inbox) inbox.value = ${JSON.stringify(contextSubmissionsUrl)};
-          if (driveFolder) driveFolder.value = "drive-folder-smoke";
           return await state();
         })()`);
         const screenshots = [];
@@ -506,6 +523,8 @@ function runTranscriptIntakeFlowSmoke() {
           }, "successful bulk status", 20000);
           return await state();
         })()`);
+        if (authOpenUrls.length !== 1) throw new Error(`expected one private storage consent handoff, saw ${authOpenUrls.length}`);
+        if (!decodeURIComponent(authOpenUrls[0]).includes(GOOGLE_DRIVE_FILE_SCOPE)) throw new Error("private storage consent did not request Drive file scope");
         await win.webContents.executeJavaScript(`try {
           document.querySelector("[data-cc-transcript-status]")?.scrollIntoView({ block: "center", inline: "nearest" });
         } catch {}`);
@@ -571,6 +590,7 @@ function runTranscriptIntakeFlowSmoke() {
           setup,
           picked,
           renderer: result,
+          authOpenCount: authOpenUrls.length,
           capturedCount: captured.length,
           driveUploadCount: driveUploads.length,
           driveUploads: driveUploads.map((row) => ({
@@ -621,13 +641,13 @@ async function runTranscriptDriveAuthConsent() {
     const { verifier, challenge } = makePkcePair();
     pendingPkceVerifier = verifier;
     fs.writeFileSync(AUTH_PKCE_FILE, verifier, { mode: 0o600 });
-    const authorize = buildGoogleAuthAuthorizeUrl({ challenge, promptConsent: true });
+    const authorize = buildGoogleAuthAuthorizeUrl({ challenge, promptConsent: true, drive: true });
     await shell.openExternal(authorize);
     log(JSON.stringify({
       ok: true,
       opened: true,
       redirect: AUTH_REDIRECT,
-      scopes: googleAuthScopes(),
+      scopes: googleAuthScopes({ drive: true }),
       userData: app.getPath("userData"),
       note: "Approve Google Drive access in the browser; the sros:// callback stores the provider token in encrypted app auth storage.",
     }, null, 2));
@@ -643,14 +663,14 @@ async function runTranscriptDriveAuthSmoke() {
   const live = process.env.SROS_TRANSCRIPT_DRIVE_LIVE_SMOKE === "1";
   const folderId = String(process.env.SROS_TRANSCRIPT_DRIVE_TEST_FOLDER_ID || process.env.SROS_DRIVE_INBOX_FOLDER_ID || process.env.GOOGLE_DRIVE_FOLDER_ID || "").trim();
   let session = readAuthSession();
-  if (session && Number(session.expires_at) <= Math.floor(Date.now() / 1000) + 120) {
+  if (session && (!session.provider_token || Number(session.expires_at) <= Math.floor(Date.now() / 1000) + 120)) {
     session = await refreshAuthSession() || session;
   }
   const scopes = normalizeAuthScopes(session?.provider_scopes || []);
   const providerTokenAvailable = !!session?.provider_token;
   const hasDriveFileScope = scopes.includes(GOOGLE_DRIVE_FILE_SCOPE) || (providerTokenAvailable && scopes.length === 0);
   const result = {
-    ok: providerTokenAvailable && hasDriveFileScope && (!live || !!folderId),
+    ok: providerTokenAvailable && hasDriveFileScope,
     userData: app.getPath("userData"),
     authSessionFileExists: fs.existsSync(AUTH_SESSION_FILE),
     signedIn: !!session?.access_token,
@@ -662,7 +682,7 @@ async function runTranscriptDriveAuthSmoke() {
     liveUploadAttempted: false,
   };
 
-  if (live && providerTokenAvailable && folderId) {
+  if (live && providerTokenAvailable) {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sros-drive-auth-smoke-"));
     try {
       const source = path.join(tmpRoot, "shape-os-drive-upload-smoke.txt");
@@ -677,7 +697,7 @@ async function runTranscriptDriveAuthSmoke() {
         now: new Date(),
       });
       const upload = await intake.callDriveUpload({
-        config: { accessToken: session.provider_token, folderId },
+        config: { accessToken: session.provider_token, ...(folderId ? { folderId } : {}) },
         staged,
         fetchImpl: fetch,
       });
@@ -696,8 +716,6 @@ async function runTranscriptDriveAuthSmoke() {
     } finally {
       try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch {}
     }
-  } else if (live && !folderId) {
-    result.reason = "missing_drive_test_folder_id";
   } else if (!providerTokenAvailable) {
     result.reason = "missing_provider_token";
   }
@@ -823,7 +841,7 @@ async function runTranscriptDriveIntakeSmoke() {
   let orgResolution = { orgId, source: "configured" };
   const bulk = process.argv.includes("--bulk") || process.env.SROS_TRANSCRIPT_DRIVE_INTAKE_BULK === "1";
   let session = readAuthSession();
-  if (session && Number(session.expires_at) <= Math.floor(Date.now() / 1000) + 120) {
+  if (session && (!session.provider_token || Number(session.expires_at) <= Math.floor(Date.now() / 1000) + 120)) {
     session = await refreshAuthSession() || session;
   }
   const result = {
@@ -850,12 +868,6 @@ async function runTranscriptDriveIntakeSmoke() {
   }
   if (!session?.provider_token) {
     result.reason = "missing_provider_token";
-    log(JSON.stringify(result, null, 2));
-    app.exit(1);
-    return;
-  }
-  if (!folderId) {
-    result.reason = "missing_drive_test_folder_id";
     log(JSON.stringify(result, null, 2));
     app.exit(1);
     return;
@@ -913,7 +925,7 @@ async function runTranscriptDriveIntakeSmoke() {
       },
       drive: {
         accessToken: session.provider_token,
-        folderId,
+        ...(folderId ? { folderId } : {}),
       },
       intakeRoot: path.join(app.getPath("userData"), "transcript-intake"),
       storageRefRoot: app.getPath("userData"),
@@ -2903,7 +2915,14 @@ ipcMain.handle("fg:transcript-intake:submit", async (e, opts = {}) => {
     const driveConfig = { ...(opts.drive || {}) };
     const supabaseConfig = { ...(opts.supabase || {}) };
     if (opts.processingPath === "drive_inbox") {
-      const authSession = readAuthSession();
+      if (!driveConfig.folderId && !driveConfig.folder_id && !driveConfig.driveFolderId && !driveConfig.drive_folder_id) {
+        const configuredFolderId = String(process.env.SROS_DRIVE_INBOX_FOLDER_ID || process.env.SROS_TRANSCRIPT_DRIVE_TEST_FOLDER_ID || process.env.GOOGLE_DRIVE_FOLDER_ID || "").trim();
+        if (configuredFolderId) driveConfig.folderId = configuredFolderId;
+      }
+      let authSession = readAuthSession();
+      if (authSession && (!authSession.provider_token || Number(authSession.expires_at) <= Math.floor(Date.now() / 1000) + 120)) {
+        authSession = await refreshAuthSession() || authSession;
+      }
       if (authSession?.provider_token) driveConfig.accessToken = authSession.provider_token;
       if (authSession?.access_token && !isUuid(supabaseConfig.orgId || supabaseConfig.org_id)) {
         try {
@@ -3522,14 +3541,22 @@ const SUPABASE_ANON_KEY = process.env.SRFG_SUPABASE_ANON_KEY ||
 const AUTH_REDIRECT      = `${DEEPLINK_SCHEME}://auth-callback`;
 const AUTH_SESSION_FILE  = path.join(app.getPath("userData"), "auth-session.enc");
 const AUTH_PKCE_FILE     = path.join(app.getPath("userData"), "auth-pkce.tmp");
-const GOOGLE_DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
-const GOOGLE_AUTH_SCOPES = [
+const AUTH_FLOW_TIMEOUT_MS = Math.max(
+  15000,
+  Number(process.env.SROS_AUTH_FLOW_TIMEOUT_MS || process.env.SRFG_AUTH_FLOW_TIMEOUT_MS || 120000) || 120000,
+);
+const GOOGLE_IDENTITY_SCOPES = [
   "openid",
   "email",
   "profile",
+];
+const GOOGLE_DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+const GOOGLE_DRIVE_UPLOAD_SCOPES = [
+  ...GOOGLE_IDENTITY_SCOPES,
   GOOGLE_DRIVE_FILE_SCOPE,
 ];
 let pendingPkceVerifier  = null;
+let pendingAuthFlow      = null;
 
 function authBase64Url(buf) {
   return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -3550,17 +3577,18 @@ function normalizeAuthScopes(value) {
   const raw = Array.isArray(value) ? value.join(" ") : String(value || "");
   return [...new Set(raw.split(/[\s,]+/).map((item) => item.trim()).filter(Boolean))];
 }
-function googleAuthScopes() {
+function googleAuthScopes({ drive = false } = {}) {
   const envScopes = normalizeAuthScopes(process.env.SRFG_GOOGLE_AUTH_SCOPES || process.env.SROS_GOOGLE_AUTH_SCOPES || "");
-  return envScopes.length ? envScopes : GOOGLE_AUTH_SCOPES;
+  if (drive && envScopes.length) return envScopes;
+  return drive ? GOOGLE_DRIVE_UPLOAD_SCOPES : GOOGLE_IDENTITY_SCOPES;
 }
-function buildGoogleAuthAuthorizeUrl({ challenge, promptConsent = false } = {}) {
+function buildGoogleAuthAuthorizeUrl({ challenge, promptConsent = false, drive = false } = {}) {
   const url = new URL(`${SUPABASE_AUTH_URL}/auth/v1/authorize`);
   url.searchParams.set("provider", "google");
   url.searchParams.set("code_challenge", challenge || "");
   url.searchParams.set("code_challenge_method", "s256");
   url.searchParams.set("redirect_to", AUTH_REDIRECT);
-  url.searchParams.set("scopes", googleAuthScopes().join(" "));
+  url.searchParams.set("scopes", googleAuthScopes({ drive }).join(" "));
   url.searchParams.set("access_type", "offline");
   url.searchParams.set("include_granted_scopes", "true");
   if (promptConsent) url.searchParams.set("prompt", "consent");
@@ -3631,6 +3659,60 @@ function broadcastAuthSession(session) {
   const win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed());
   try { win && win.webContents.send("auth:session", publicAuthSession(session)); } catch {}
 }
+function broadcastAuthFlow(payload) {
+  for (const win of BrowserWindow.getAllWindows()) {
+    try { if (!win.isDestroyed()) win.webContents.send("auth:flow", payload); } catch {}
+  }
+}
+function authFlowPayload(state = "idle", flow = pendingAuthFlow, extra = {}) {
+  return {
+    ok: state === "started" || state === "complete",
+    state,
+    id: flow?.id || null,
+    drive: !!flow?.drive,
+    startedAt: flow?.startedAt || null,
+    timeoutMs: AUTH_FLOW_TIMEOUT_MS,
+    ...extra,
+  };
+}
+function clearAuthPkceVerifier() {
+  pendingPkceVerifier = null;
+  try { fs.unlinkSync(AUTH_PKCE_FILE); } catch {}
+}
+function stopPendingAuthTimer() {
+  if (pendingAuthFlow?.timer) {
+    clearTimeout(pendingAuthFlow.timer);
+    pendingAuthFlow.timer = null;
+  }
+}
+function finishPendingAuthFlow(state = "", opts = {}) {
+  const flow = pendingAuthFlow;
+  const { clearVerifier = true, ...extra } = opts;
+  stopPendingAuthTimer();
+  pendingAuthFlow = null;
+  if (clearVerifier) clearAuthPkceVerifier();
+  if (state && flow) broadcastAuthFlow(authFlowPayload(state, flow, extra));
+  return flow;
+}
+function beginAuthFlow({ drive = false } = {}) {
+  const flow = {
+    id: `auth_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`,
+    drive: !!drive,
+    startedAt: Date.now(),
+    timer: null,
+  };
+  pendingAuthFlow = flow;
+  flow.timer = setTimeout(() => {
+    finishPendingAuthFlow("timed_out", {
+      ok: false,
+      reason: "browser_closed_or_no_callback",
+      error: "Google sign-in did not finish. Try again when the browser is ready.",
+    });
+  }, AUTH_FLOW_TIMEOUT_MS);
+  const payload = authFlowPayload("started", flow);
+  broadcastAuthFlow(payload);
+  return payload;
+}
 async function exchangePkceCode(code, verifier) {
   if (!verifier) { process.stderr.write("[auth] pkce exchange: no verifier\n"); return null; }
   try {
@@ -3642,10 +3724,15 @@ async function exchangePkceCode(code, verifier) {
     if (!res.ok) { process.stderr.write(`[auth] pkce exchange HTTP ${res.status}\n`); return null; }
     return sessionFromTokenResponse(await res.json());
   } catch (e) { process.stderr.write(`[auth] pkce exchange failed: ${e.message}\n`); return null; }
-  finally { pendingPkceVerifier = null; try { fs.unlinkSync(AUTH_PKCE_FILE); } catch {} }
+  finally { clearAuthPkceVerifier(); }
 }
-function finishAuth(session) {
-  if (!session) { broadcastAuthSession(null); return; }
+function finishAuth(session, { reason = "auth_failed", error = "" } = {}) {
+  if (!session) {
+    finishPendingAuthFlow("failed", { ok: false, reason, error });
+    broadcastAuthSession(null);
+    return;
+  }
+  finishPendingAuthFlow("complete", { ok: true });
   writeAuthSession(session);
   const win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed());
   if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
@@ -3660,18 +3747,21 @@ async function handleAuthCallback(url) {
   const qp = new URLSearchParams(query);
   const fp = new URLSearchParams(frag);
   if (qp.get("error") || fp.get("error")) {
-    process.stderr.write(`[auth] callback error: ${qp.get("error_description") || qp.get("error") || fp.get("error")}\n`);
-    broadcastAuthSession(null);
+    const detail = qp.get("error_description") || qp.get("error") || fp.get("error") || "auth_error";
+    process.stderr.write(`[auth] callback error: ${detail}\n`);
+    finishAuth(null, { reason: "auth_error", error: detail });
     return;
   }
   const code = qp.get("code");
   if (code) {
+    stopPendingAuthTimer();
     const verifier = pendingPkceVerifier
       || (() => { try { return fs.readFileSync(AUTH_PKCE_FILE, "utf8"); } catch { return null; } })();
-    finishAuth(await exchangePkceCode(code, verifier));
+    finishAuth(await exchangePkceCode(code, verifier), { reason: "pkce_exchange_failed" });
     return;
   }
   // Implicit-flow fallback: tokens in the fragment.
+  stopPendingAuthTimer();
   finishAuth(sessionFromTokenResponse({
     access_token: fp.get("access_token"),
     refresh_token: fp.get("refresh_token"),
@@ -3708,17 +3798,36 @@ async function refreshAuthSession() {
 }
 
 ipcMain.handle("auth:sign-in", async (_e, opts = {}) => {
+  const drive = !!(opts && (opts.drive === true || opts.scopeProfile === "drive" || opts.scopeProfile === "drive-upload"));
+  if (pendingAuthFlow) {
+    finishPendingAuthFlow("canceled", { ok: false, reason: "superseded" });
+  }
   const { verifier, challenge } = makePkcePair();
   pendingPkceVerifier = verifier;
   try { fs.writeFileSync(AUTH_PKCE_FILE, verifier, { mode: 0o600 }); } catch {}
-  const promptConsent = !!(opts && (opts.prompt === "consent" || opts.drive === true || opts.forceConsent === true));
-  const authorize = buildGoogleAuthAuthorizeUrl({ challenge, promptConsent });
-  try { await shell.openExternal(authorize); return { ok: true }; }
-  catch (e) { return { ok: false, error: String(e && e.message ? e.message : e) }; }
+  const promptConsent = !!(opts && (opts.prompt === "consent" || drive || opts.forceConsent === true));
+  const authorize = buildGoogleAuthAuthorizeUrl({ challenge, promptConsent, drive });
+  const flow = beginAuthFlow({ drive });
+  try { await shell.openExternal(authorize); return flow; }
+  catch (e) {
+    const error = String(e && e.message ? e.message : e);
+    finishPendingAuthFlow("failed", { ok: false, reason: "open_failed", error });
+    return { ok: false, error };
+  }
+});
+ipcMain.handle("auth:get-flow", async () => pendingAuthFlow ? authFlowPayload("started", pendingAuthFlow) : authFlowPayload("idle", null));
+ipcMain.handle("auth:cancel-sign-in", async () => {
+  const flow = pendingAuthFlow;
+  finishPendingAuthFlow("canceled", { ok: false, reason: "user_canceled" });
+  return { ok: !!flow };
 });
 ipcMain.handle("auth:get-session", async () => {
   let s = readAuthSession();
   if (!s) return null;
+  if (!s.provider_token && s.provider_refresh_token) {
+    const r = await refreshAuthSession();
+    if (r) s = r;
+  }
   if (Number(s.expires_at) <= Math.floor(Date.now() / 1000) + 120) {
     const r = await refreshAuthSession();
     if (r) s = r;
@@ -3727,7 +3836,12 @@ ipcMain.handle("auth:get-session", async () => {
   return publicAuthSession(s);
 });
 ipcMain.handle("auth:refresh", async () => publicAuthSession(await refreshAuthSession()));
-ipcMain.handle("auth:sign-out", async () => { writeAuthSession(null); broadcastAuthSession(null); return { ok: true }; });
+ipcMain.handle("auth:sign-out", async () => {
+  finishPendingAuthFlow("canceled", { ok: false, reason: "signed_out" });
+  writeAuthSession(null);
+  broadcastAuthSession(null);
+  return { ok: true };
+});
 
 // ─── deep links: sros://xxxxx ───────────────────────────────────────────────
 // Register the custom scheme so the OS hands `sros://` links to us, then route

@@ -481,10 +481,10 @@ function transcriptNamingIssues(transcript) {
 
 function publicEvidenceLabel(transcript) {
   if (!transcript) return "";
-  if (["private_1on1", "planning_strategy"].includes(transcript.session_type)) {
-    return `private vault candidate (${transcript.session_type})`;
-  }
-  return transcript.preferred_drive_name || transcript.vault_id || "private vault source";
+  const type = transcript.session_type ? ` (${transcript.session_type})` : "";
+  return ["private_1on1", "planning_strategy"].includes(transcript.session_type)
+    ? `private transcript candidate${type}`
+    : `transcript source${type}`;
 }
 
 function transcriptSearchText(transcript) {
@@ -644,7 +644,7 @@ function coverageEvidence(row, { privateMode = false } = {}) {
     }
   }
   for (const item of row.readout_matches.slice(0, 2)) {
-    parts.push(privateMode ? `${item.file} (${item.vault_id || "readout"})` : item.file);
+    parts.push(privateMode ? `${item.file} (${item.vault_id || "readout"})` : "reviewed readout");
   }
   return parts.join("<br>");
 }
@@ -694,7 +694,7 @@ function renderTranscriptNamingAudit(transcripts) {
   return lines.join("\n");
 }
 
-function renderPublicDoc({ generatedAt, auditDate, calendar, importPlan, sessionMap, supabasePlan, fetchManifest, driveOperationsPlan, driveApplyResult, rows, transcripts, readouts }) {
+export function renderPublicDoc({ generatedAt, auditDate, calendar, importPlan, sessionMap, supabasePlan, fetchManifest, driveOperationsPlan, driveApplyResult, rows, transcripts, readouts }) {
   const coverageCounts = countBy(rows, (row) => row.coverage_status);
   const expectationCounts = countBy(rows, (row) => row.expectation);
   const pastTranscriptExpected = rows.filter((row) => ["expected", "expected_private"].includes(row.expectation));
@@ -798,7 +798,7 @@ function renderPublicDoc({ generatedAt, auditDate, calendar, importPlan, session
   return lines.join("\n");
 }
 
-function renderPrivateDoc({ generatedAt, auditDate, calendar, importPlan, sessionMap, supabasePlan, fetchManifest, driveOperationsPlan, driveApplyResult, rows, transcripts, readouts }) {
+export function renderPrivateDoc({ generatedAt, auditDate, calendar, importPlan, sessionMap, supabasePlan, fetchManifest, driveOperationsPlan, driveApplyResult, rows, transcripts, readouts }) {
   const manualCorrectionCount = transcripts.filter((item) => item.manual_correction).length;
   const lines = [
     "# Private Transcript Calendar Coverage Audit",

@@ -15,8 +15,11 @@ import {
   isAuthGateEnabled,
   getSession,
   signInWithGoogle,
+  cancelGoogleSignIn,
+  getAuthFlow,
   signOut,
   onAuthChanged,
+  onAuthFlowChanged,
   fetchMyMembership,
   requestAccess,
   requestMatrixBinding,
@@ -31,11 +34,13 @@ import {
 
 let _overlay = null;
 let _unsub = null;
+let _unsubAuthFlow = null;
 let _unsubMatrix = null;
 let _session = null;
 let _membership = null;
 let _matrixUserId = null;
 let _matrixMembership = null;
+let _googleFlow = { state: "idle" };
 let _matrixBusy = false;
 let _requestSent = false;
 let _signInError = "";
@@ -406,11 +411,16 @@ function render() {
     const matrixButton = _matrixBusy
       ? `<div class="ag-ok">Opening your browser for Matrix sign-in. Approve there and this will finish here.</div>`
       : `<button class="ag-btn" data-ag="matrix-signin"><span class="ag-mx" aria-hidden="true">[m]</span><span>Continue with Matrix</span></button>`;
+    const googlePending = _googleFlow && _googleFlow.state === "started";
+    const googleControl = googlePending
+      ? `<div class="ag-ok">Finish Google sign-in in your browser. This window will update when it completes.</div>
+         <div class="ag-row"><button class="ag-link" data-ag="signin-cancel">Cancel sign-in</button></div>`
+      : `<button class="ag-btn ag-btn-primary" data-ag="signin">${GOOGLE_G}<span>Continue with Google</span></button>`;
     card.innerHTML = `
       ${BRAND_ROW}
       <h1>Sign in to Shape OS</h1>
       <p>Use the Google or Matrix account you were invited with. We will match it to your cohort record.</p>
-      <button class="ag-btn ag-btn-primary" data-ag="signin">${GOOGLE_G}<span>Continue with Google</span></button>
+      ${googleControl}
       ${_matrixUserId ? "" : `<div class="ag-or"><span>or</span></div>${matrixButton}`}
       ${matrixNote}
       ${_signInError ? `<div class="ag-err">${esc(_signInError)}</div>` : ""}
@@ -514,9 +524,26 @@ async function sealTo(rec) {
 function teardown() {
   try { _unsub && _unsub(); } catch {}
   _unsub = null;
+  try { _unsubAuthFlow && _unsubAuthFlow(); } catch {}
+  _unsubAuthFlow = null;
   try { _unsubMatrix && _unsubMatrix(); } catch {}
   _unsubMatrix = null;
   if (_overlay) { try { _overlay.remove(); } catch {} _overlay = null; }
+}
+
+function applyAuthFlow(flow = {}) {
+  _googleFlow = flow && typeof flow === "object" ? flow : { state: "idle" };
+  if (_googleFlow.state === "started") {
+    _signInError = "";
+  } else if (_googleFlow.state === "timed_out") {
+    _signInError = "Google sign-in did not finish. Try again when your browser is ready.";
+  } else if (_googleFlow.state === "failed") {
+    _signInError = _googleFlow.error || "Google sign-in could not finish. Try again.";
+  } else if (_googleFlow.state === "complete" || _googleFlow.state === "canceled" || _googleFlow.state === "idle") {
+    _googleFlow = { state: "idle" };
+    _signInError = "";
+  }
+  render();
 }
 
 function onClick(e) {
@@ -531,11 +558,24 @@ function onClick(e) {
   const action = btn.dataset.ag;
   if (action === "signin") {
     _signInError = "";
+    _googleFlow = { state: "started" };
+    render();
     btn.disabled = true;
     signInWithGoogle().then((r) => {
-      if (!r || r.ok === false) { _signInError = (r && r.error) || "Couldn't open Google sign-in."; render(); }
+      if (!r || r.ok === false) {
+        _googleFlow = { state: "idle" };
+        _signInError = (r && r.error) || "Couldn't open Google sign-in.";
+        render();
+      } else if (r.state === "started") {
+        applyAuthFlow(r);
+      }
       // On success the browser opens; the session arrives via onAuthChanged.
     });
+  } else if (action === "signin-cancel") {
+    _signInError = "";
+    _googleFlow = { state: "idle" };
+    render();
+    cancelGoogleSignIn().catch(() => {});
   } else if (action === "matrix-signin") {
     _signInError = "";
     _matrixBusy = true;
@@ -630,10 +670,12 @@ export async function mountAuthGateIfEnabled() {
     if (_session) refreshMembership();
     else render();
   });
+  _unsubAuthFlow = onAuthFlowChanged(applyAuthFlow);
   // Matrix session changes (chat sign-in completing counts as a front-door
   // credential too — "sign into chat, you're synced to your record").
   _unsubMatrix = onMatrixChanged(() => { refreshMatrix(); });
 
+  _googleFlow = await getAuthFlow();
   _session = await getSession();
   if (_session) await refreshMembership();
   else render();
