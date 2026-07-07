@@ -161,19 +161,70 @@ function eventMeetUrl(event) {
   return /^https:\/\/meet\.google\.com\/[a-z]{3}-[a-z]{4}-[a-z]{3}/i.test(url) ? url : "";
 }
 
-// Block text for one event: prefer the rich description (it carries time +
-// title + bullets verbatim from the schedule); else synthesize a line. The
-// Google Meet join link is appended as a `Meet: <url>` marker the OS + web
-// renderers turn into a "join event" action; the publish leak-gate exempts
+// Strip the Markdown that Google's rich-text description editor now passes
+// through — headings ("## Topics") and bold ("**Name**") — so it renders as
+// clean text in the grid instead of literal "#"/"*" markers. Bare links (the
+// "Meet: …" markers appended below) are intentionally left intact.
+function stripMarkdown(text) {
+  return String(text || "")
+    .replace(/^\s{0,3}#{1,6}[ \t]+/gm, "")   // "## Heading"  → "Heading"
+    .replace(/\*\*([^*\n]+)\*\*/g, "$1")      // "**bold**"    → "bold"
+    .replace(/__([^_\n]+)__/g, "$1");         // "__bold__"    → "bold"
+}
+
+// Turn one event's description into a SINGLE renderer block: HTML-normalized,
+// Markdown-stripped, and — crucially — FLATTENED so no blank line survives
+// inside it. The renderer (parseWeekRow) splits a day cell into events on blank
+// lines, and buildTab joins same-day events with a blank line; a blank line
+// inside a multi-paragraph description is therefore indistinguishable from an
+// event boundary and would explode one event into many phantom "events" (the
+// bug this fixes). Collapsing internal blank lines keeps one event = one block.
+function descriptionToBlock(value) {
+  return stripMarkdown(normalizeDescription(value))
+    .replace(/\n\s*\n+/g, "\n")   // every run of blank lines → a single newline
+    .trim();
+}
+
+// Does a block's first line already lead with a clock time? Then the
+// description is self-describing (the authored "12:00–14:00 title" style) and we
+// keep it verbatim. Mirrors the renderer's leading-time rule: a colon time
+// ("16:00") stands alone; a bare military time ("1600") only counts inside a
+// range, since a lone 3–4 digit run is more likely a year.
+const LEAD_RANGE_RE  = /^(\d{1,2}:\d{2}|\d{3,4})\s*[-–—:~]\s*(\d{1,2}:\d{2}|\d{3,4})/;
+const LEAD_SINGLE_RE = /^\d{1,2}:\d{2}\b/;
+function leadsWithTime(block) {
+  const first = String(block || "").split("\n")[0].trim().replace(/^[-•*]\s+/, "");
+  return LEAD_RANGE_RE.test(first) || LEAD_SINGLE_RE.test(first);
+}
+
+// Block text for one event. Always emits a VALID single-event block whose first
+// line carries the time + title, so an event can never lose its identity to a
+// prose-only description:
+//   • no description        → synthesize "HH:MM–HH:MM summary"
+//   • self-describing desc   → keep it (already leads with its own time/title)
+//   • prose / markdown desc  → prepend a "HH:MM–HH:MM summary" lead, description
+//                              rides along as flattened detail lines
+// The description is always flattened (descriptionToBlock) so it stays ONE block
+// — otherwise a blank line inside it explodes the event across the grid.
+//
+// The Google Meet join link is then appended as a `Meet: <url>` marker the OS +
+// web renderers turn into a "join event" action; the publish leak-gate exempts
 // only this exact marker form. Private sessions never reach here
 // (visibility=private is dropped at fetch; the leak-gate still hard-fails on
 // private routing markers).
 function eventBlock(event, includeMeet = false) {
-  const desc = normalizeDescription(event.description);
   const start = fmtTime(event.start?.dateTime);
   const end = fmtTime(event.end?.dateTime);
-  const time = start && end ? `${start}–${end} ` : start ? `${start} ` : "";
-  const base = desc || `${time}${String(event.summary || "").trim()}`.trim();
+  const time = start && end ? `${start}–${end}` : start || "";
+  const title = String(event.summary || "").trim();
+  const lead = [time, title].filter(Boolean).join(" ");
+
+  const desc = descriptionToBlock(event.description);
+  let base;
+  if (!desc) base = lead;                        // synthesized time + title line
+  else if (leadsWithTime(desc)) base = desc;     // authored block — keep as-is
+  else base = lead ? `${lead}\n${desc}` : desc;  // prose desc — lead line + details
+
   // Meet markers are added ONLY for the live grid (includeMeet=true), never the
   // committed calendar.json — see LIVE_OUT in main(). Keeps the GitHub bundle
   // free of Meet join links.
@@ -319,7 +370,7 @@ async function main() {
   console.log(`[build-calendar-from-google] wrote ${path.relative(ROOT, outPath)} — ${events.length} events, ${placed} placed into ${WEEK_COUNT} weeks`);
 }
 
-module.exports = { buildTab, eventBlock, normalizeDescription, countPopulatedCells, eventDateIso, dayHeader, COHORT_START, WEEK_COUNT, DAY_NAMES };
+module.exports = { buildTab, eventBlock, normalizeDescription, descriptionToBlock, stripMarkdown, leadsWithTime, countPopulatedCells, eventDateIso, dayHeader, COHORT_START, WEEK_COUNT, DAY_NAMES };
 
 if (require.main === module) {
   main().catch((e) => {
