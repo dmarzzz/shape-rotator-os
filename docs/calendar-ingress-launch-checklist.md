@@ -184,12 +184,21 @@ returning id;
   `GOOGLE_CALENDAR_ORGANIZER_EMAIL`. Prefer a dedicated account such as
   `calendar@...`, not a human's personal calendar.
 - [ ] Create a Google Cloud OAuth client for server-side Calendar access.
-- [ ] Grant the app the scopes used by the helper:
-  `https://www.googleapis.com/auth/calendar`,
-  `https://www.googleapis.com/auth/drive`,
-  `https://www.googleapis.com/auth/meetings.space.settings`,
-  `https://www.googleapis.com/auth/meetings.space.readonly`,
-  `https://www.googleapis.com/auth/userinfo.email`, and `openid`.
+- [ ] In Google Auth Platform branding, set the app name/support email to
+  Shape Rotator OS/Shape Rotator. The consent screen should not read like a
+  Supabase project code.
+- [ ] Grant the app only the scopes needed for the flow you are running:
+  - `identity`: app login only; use `openid`, email, and profile/name scopes.
+  - `calendar`: event creation/sync only.
+  - `calendar-admin`: event creation plus calendar sharing/list repair.
+  - `meet-artifacts`: event creation plus Meet transcript settings and
+    Meet-created Drive files.
+- [ ] Do not request Calendar scopes from members who are only signing in to
+  the app. Calendar scopes are only for the trusted calendar connector or
+  operators who run calendar setup.
+- [ ] Prefer separate OAuth clients/usages: Supabase Auth login stays on
+  `identity`, while the calendar connector uses `calendar`, `calendar-admin`,
+  or `meet-artifacts`.
 - [ ] Add `http://127.0.0.1:8787/oauth2callback` or your configured
   `GOOGLE_OAUTH_REDIRECT_URI` as an authorized redirect URI on that OAuth
   client.
@@ -221,25 +230,29 @@ $env:GOOGLE_OAUTH_REDIRECT_URI = "http://127.0.0.1:8787/oauth2callback"
 npm run calendar:backfill:google -- --env-file .env.calendar.local --dry-run
 ```
 
-- [ ] Generate the Google OAuth consent URL after the OAuth client ID exists:
+- [ ] Generate the Google OAuth consent URL for the trusted calendar connector
+  after the OAuth client ID exists:
 
 ```powershell
-npm run calendar:oauth:google -- --env-file .env.calendar.local --auth-url
+npm run calendar:oauth:google -- --env-file .env.calendar.local --auth-url --scope-profile calendar
 ```
 
-- [ ] Produce a server-held access token for first testing. Open the printed
-  URL in the organizer account:
+- [ ] Produce a server-held Calendar access token for first testing. Open the
+  printed URL in the organizer account:
 
 ```powershell
-npm run calendar:oauth:google -- --env-file .env.calendar.local --listen --format summary --update-env-file .env.calendar.local
+npm run calendar:oauth:google -- --env-file .env.calendar.local --listen --scope-profile calendar --format summary --update-env-file .env.calendar.local
 ```
 
 - [ ] Confirm the command updated `GOOGLE_CALENDAR_ACCESS_TOKEN`,
   `GOOGLE_OAUTH_REFRESH_TOKEN`, and `GOOGLE_OAUTH_SCOPES` in
   `.env.calendar.local`; do not print or paste token values into docs or git.
+- [ ] Use `--scope-profile calendar-admin` only when the same token needs to
+  apply calendar ACLs or repair a direct operator's CalendarList entry.
 - [ ] Confirm the consent screen account is `cube@shaperotator.xyz`, not a
   personal Gmail account.
-- [ ] Confirm the returned `GOOGLE_OAUTH_SCOPES` includes
+- [ ] For auto-transcripts, re-consent with `--scope-profile meet-artifacts`
+  and confirm the returned `GOOGLE_OAUTH_SCOPES` includes
   `https://www.googleapis.com/auth/meetings.space.settings`; without it the app
   can create Meet links but cannot pre-enable auto transcripts/recordings.
 - [ ] Refresh the access token when needed:
@@ -250,6 +263,8 @@ npm run calendar:oauth:google -- --env-file .env.calendar.local --refresh-token 
 
 - [ ] After `GOOGLE_CALENDAR_ACCESS_TOKEN` or `GOOGLE_ACCESS_TOKEN` is
   available in the trusted shell, apply the backfill and editor ACLs together.
+  Re-consent with `--scope-profile calendar-admin` first if this token was
+  created with the default `calendar` profile.
   This command immediately reruns both operations; `"ready": true` means the
   source backfill and editor grants were idempotently verified:
 
@@ -611,12 +626,12 @@ npm run artifacts:worker -- --input worker-batch.json --transcript-root ./privat
 ### 8. App Configuration
 
 - [ ] In the web app connection panel, set:
-  - [ ] Supabase URL
-  - [ ] Supabase anon key
-  - [ ] signed-in access token for the current browser session; it is used for
+  - [ ] project URL
+  - [ ] public project key
+  - [ ] app sign-in session for the current browser session; it is used for
         calls but is not persisted when saving the connection
-  - [ ] org ID
-  - [ ] calendar connection ID
+  - [ ] workspace
+  - [ ] workspace calendar
   - [ ] create-event function URL, if different from the default Supabase
         function URL
 - [ ] Repeat the same browser-safe config in the Electron calendar tab.
@@ -763,7 +778,7 @@ npm run check:ics
 npm run check:calendar-transcripts
 npm run calendar:setup:check -- --env-file .env.calendar.local --allow-missing
 npm run calendar:setup:plan -- --env-file .env.calendar.local
-npm run calendar:oauth:google -- --env-file .env.calendar.local --auth-url
+npm run calendar:oauth:google -- --env-file .env.calendar.local --auth-url --scope-profile calendar
 npm run calendar:launch:google -- --env-file .env.calendar.local --role owner --scope-type user --dry-run
 npm run calendar:capture:audit -- --env-file .env.calendar.local
 npm run meet:auto-artifacts -- --env-file .env.calendar.local --meeting-code abc-defg-hij

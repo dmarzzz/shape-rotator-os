@@ -127,7 +127,13 @@ test("os calendar ingress panel includes local controls and no service-role fiel
   assert.match(html, /submit source/);
   assert.match(html, /operator queue/);
   assert.match(html, /refresh queue/);
+  assert.match(html, /connection/);
+  assert.match(html, /app sign-in session/);
+  assert.match(html, /workspace calendar/);
   assert.match(html, new RegExp(DEFAULT_GOOGLE_CALENDAR_ID.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.doesNotMatch(html, /supabase setup/i);
+  assert.doesNotMatch(html, /access token \(not saved\)/i);
+  assert.doesNotMatch(html, /cal-ingress-toggles/);
   assert.doesNotMatch(html, /name="calendarId"/);
   assert.doesNotMatch(html, /serviceRole/i);
   assert.doesNotMatch(html, /SUPABASE_SERVICE_ROLE_KEY/);

@@ -104,6 +104,11 @@ export function saveCalendarIngressConfig(config, storage = globalThis.localStor
 
 export function renderCalendarIngressPanel({ config = {} } = {}) {
   const c = calendarIngressConfigWithDefaults(config);
+  const readiness = calendarIngressReadiness(c);
+  const connectionState = readiness.browserReady ? "connected" : "needs sign-in";
+  const connectionMissing = readiness.missingBrowserSafe.length
+    ? readiness.missingBrowserSafe.join(" · ")
+    : "ready";
   return `
     <section class="cal-ingress" aria-label="calendar ingress">
       <header class="cal-ingress-head">
@@ -118,11 +123,6 @@ export function renderCalendarIngressPanel({ config = {} } = {}) {
         <label><span>end</span><input name="ends_at" type="datetime-local" value="${esc(defaultCalendarDateTimeValue(25))}" /></label>
         <label><span>timezone</span><input name="timezone" value="${esc(DEFAULT_CALENDAR_TIMEZONE)}" /></label>
         <label><span>attendees</span><textarea name="attendee_emails"></textarea></label>
-        <div class="cal-ingress-toggles">
-          <span>Google Meet</span>
-          <span>transcript on</span>
-          <span>Cube invited</span>
-        </div>
         <div class="cal-ingress-actions">
           <button type="submit" data-cal-action="request">submit request</button>
           <button type="button" data-cal-action="create">create invite</button>
@@ -130,12 +130,13 @@ export function renderCalendarIngressPanel({ config = {} } = {}) {
         </div>
       </form>
       <aside class="cal-ingress-config">
-        <h3>supabase setup</h3>
-        <label><span>supabase url</span><input name="supabaseUrl" value="${esc(c.supabaseUrl || "")}" /></label>
-        <label><span>anon key</span><input name="supabaseAnonKey" /></label>
-        <label><span>access token (not saved)</span><input name="accessToken" /></label>
-        <label><span>org id</span><input name="orgId" value="${esc(c.orgId || "")}" /></label>
-        <label><span>calendar connection</span><input name="calendarConnectionId" value="${esc(c.calendarConnectionId || "")}" /></label>
+        <h3>connection</h3>
+        <p class="cal-ingress-status" data-state="${esc(connectionState)}">${esc(connectionState)} · ${esc(connectionMissing)}</p>
+        <label><span>project URL</span><input name="supabaseUrl" value="${esc(c.supabaseUrl || "")}" /></label>
+        <label><span>public project key</span><input name="supabaseAnonKey" /></label>
+        <label><span>app sign-in session</span><input name="accessToken" /></label>
+        <label><span>workspace</span><input name="orgId" value="${esc(c.orgId || "")}" /></label>
+        <label><span>workspace calendar</span><input name="calendarConnectionId" value="${esc(c.calendarConnectionId || "")}" /></label>
         <label><span>capture bot email</span><input name="botEmail" value="${esc(c.botEmail || DEFAULT_CAPTURE_BOT_EMAIL)}" /></label>
         <div class="cal-ingress-managed-calendar"><span>managed event target</span><code>${esc(c.calendarId || DEFAULT_CALENDAR_ID)}</code></div>
         <button type="button" data-cal-config-save>save connection</button>

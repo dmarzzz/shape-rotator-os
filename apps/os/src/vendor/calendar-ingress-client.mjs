@@ -421,15 +421,13 @@ export function defaultCalendarDateTimeValue(offsetHours, {
 export function calendarIngressReadiness(config = {}) {
   const effectiveConfig = calendarIngressConfigWithDefaults(config);
   const browserSafe = [
-    ["Supabase URL", effectiveConfig.supabaseUrl],
-    ["Supabase anon key", effectiveConfig.supabaseAnonKey],
-    ["signed-in access token", effectiveConfig.accessToken],
-    ["org ID", effectiveConfig.orgId],
-    ["calendar connection ID", effectiveConfig.calendarConnectionId],
+    ["project connection", effectiveConfig.supabaseUrl && effectiveConfig.supabaseAnonKey],
+    ["app sign-in", effectiveConfig.accessToken],
+    ["workspace calendar", effectiveConfig.orgId && effectiveConfig.calendarConnectionId],
   ];
   const operator = [
-    ["Google calendar ID", effectiveConfig.calendarId],
-    ["Drive artifact folder", effectiveConfig.driveArtifactFolderId],
+    ["managed Google calendar", effectiveConfig.calendarId],
+    ["artifact folder", effectiveConfig.driveArtifactFolderId],
   ];
   const missingBrowserSafe = browserSafe
     .filter(([, value]) => !String(value || "").trim())

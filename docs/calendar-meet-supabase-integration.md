@@ -64,6 +64,11 @@ Use one organizer calendar for the first implementation:
 This avoids requiring every cohort member to connect Google OAuth before the
 product can send real invitations.
 
+Regular app login should stay separate from this organizer connection. Supabase
+Auth only needs Google identity scopes for member sign-in (`openid`, email, and
+profile/name); Calendar, Meet, and Drive scopes belong only to the trusted
+calendar connector or operator setup flows.
+
 ## Guest Versus Admin Editing
 
 Google Calendar has three permission/state planes:
@@ -215,10 +220,10 @@ update that setting even to OFF. The manual repair helper is:
 npm run meet:auto-artifacts -- --env-file .env.calendar.local --session-id SESSION_ID --apply
 ```
 
-The current checked-in OAuth defaults include that scope, but an already-issued
-Cube refresh token must be re-consented before it can apply Meet artifact
-settings. The Google Cloud project for the OAuth client must also have
-`meet.googleapis.com` enabled.
+The `meet-artifacts` OAuth profile includes that scope, but an already-issued
+Cube refresh token must be re-consented with that profile before it can apply
+Meet artifact settings. The Google Cloud project for the OAuth client must
+also have `meet.googleapis.com` enabled.
 
 Important retention constraint: Google Meet transcript entries exposed by the
 Meet REST API are available for a limited post-meeting window. The integration

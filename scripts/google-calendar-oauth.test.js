@@ -5,7 +5,9 @@ const os = require("node:os");
 const path = require("node:path");
 const {
   DEFAULT_REDIRECT_URI,
+  DEFAULT_SCOPE_PROFILE,
   DEFAULT_SCOPES,
+  OAUTH_SCOPE_PROFILES,
   buildGoogleOAuthUrl,
   exchangeAuthCode,
   formatTokenPayload,
@@ -13,11 +15,13 @@ const {
   listenForOAuthCallback,
   parseScopes,
   refreshAccessToken,
+  resolveScopes,
+  scopesForProfile,
   tokenRequestBody,
   updateEnvFile,
 } = require("./google-calendar-oauth.js");
 
-test("Google Calendar OAuth URL requests offline calendar access", () => {
+test("Google Calendar OAuth URL defaults to identity-only app login", () => {
   const url = new URL(buildGoogleOAuthUrl({
     clientId: "client-id",
     redirectUri: DEFAULT_REDIRECT_URI,
@@ -29,15 +33,61 @@ test("Google Calendar OAuth URL requests offline calendar access", () => {
   assert.equal(url.searchParams.get("redirect_uri"), DEFAULT_REDIRECT_URI);
   assert.equal(url.searchParams.get("response_type"), "code");
   assert.equal(url.searchParams.get("scope"), DEFAULT_SCOPES.join(" "));
+  assert.equal(DEFAULT_SCOPE_PROFILE, "identity");
+  assert.deepEqual(DEFAULT_SCOPES, [
+    "openid",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
+  ]);
+  assert.doesNotMatch(url.searchParams.get("scope"), /calendar/);
   assert.equal(url.searchParams.get("access_type"), "offline");
   assert.equal(url.searchParams.get("prompt"), "consent");
   assert.equal(url.searchParams.get("include_granted_scopes"), "true");
   assert.equal(url.searchParams.get("state"), "state-1");
 });
 
+test("Google Calendar OAuth supports explicit scope profiles", () => {
+  assert.deepEqual(scopesForProfile("identity"), [
+    "openid",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
+  ]);
+  assert.deepEqual(scopesForProfile("calendar"), [
+    "https://www.googleapis.com/auth/calendar.events",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "openid",
+  ]);
+  assert.deepEqual(scopesForProfile("calendar-admin"), [
+    "https://www.googleapis.com/auth/calendar.events",
+    "https://www.googleapis.com/auth/calendar.acls",
+    "https://www.googleapis.com/auth/calendar.calendarlist",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "openid",
+  ]);
+  assert.ok(scopesForProfile("meet-artifacts").includes("https://www.googleapis.com/auth/meetings.space.settings"));
+  assert.ok(scopesForProfile("meet-artifacts").includes("https://www.googleapis.com/auth/drive.meet.readonly"));
+  assert.ok(OAUTH_SCOPE_PROFILES.full.includes("https://www.googleapis.com/auth/drive"));
+  assert.throws(() => scopesForProfile("unknown"), /unsupported OAuth scope profile/);
+});
+
 test("Google Calendar OAuth scopes parse comma and whitespace lists", () => {
   assert.deepEqual(parseScopes("scope-a, scope-b\nscope-c"), ["scope-a", "scope-b", "scope-c"]);
   assert.deepEqual(parseScopes(""), DEFAULT_SCOPES);
+});
+
+test("Google Calendar OAuth resolves scopes from explicit values before profiles", () => {
+  assert.deepEqual(resolveScopes({
+    argv: ["node", "script", "--scope-profile", "meet-artifacts"],
+    env: {},
+  }), scopesForProfile("meet-artifacts"));
+  assert.deepEqual(resolveScopes({
+    argv: ["node", "script", "--scopes", "scope-a scope-b", "--scope-profile", "meet-artifacts"],
+    env: {},
+  }), ["scope-a", "scope-b"]);
+  assert.deepEqual(resolveScopes({
+    argv: ["node", "script"],
+    env: { GOOGLE_OAUTH_SCOPES: "env-scope" },
+  }), ["env-scope"]);
 });
 
 test("Google Calendar OAuth code exchange posts expected token body", async () => {
@@ -123,7 +173,7 @@ test("Google Calendar OAuth env output is ready for local worksheet", () => {
   assert.match(output, /GOOGLE_OAUTH_REFRESH_TOKEN="refresh-token"/);
   assert.match(output, /GOOGLE_OAUTH_ACCESS_TOKEN_EXPIRES_IN="3599"/);
   assert.match(output, /GOOGLE_OAUTH_TOKEN_TYPE="Bearer"/);
-  assert.match(output, /GOOGLE_OAUTH_SCOPES="https:\/\/www\.googleapis\.com\/auth\/calendar https:\/\/www\.googleapis\.com\/auth\/drive https:\/\/www\.googleapis\.com\/auth\/meetings\.space\.settings https:\/\/www\.googleapis\.com\/auth\/meetings\.space\.readonly https:\/\/www\.googleapis\.com\/auth\/userinfo\.email openid"/);
+  assert.match(output, /GOOGLE_OAUTH_SCOPES="openid https:\/\/www\.googleapis\.com\/auth\/userinfo\.email https:\/\/www\.googleapis\.com\/auth\/userinfo\.profile"/);
 });
 
 test("Google Calendar OAuth summary does not include secret token values", () => {
@@ -174,7 +224,9 @@ test("Google Calendar OAuth env file update replaces token keys and preserves co
   assert.match(next, /^UNCHANGED=value/m);
   assert.match(next, /^GOOGLE_CALENDAR_ACCESS_TOKEN="new-token"$/m);
   assert.match(next, /^GOOGLE_OAUTH_REFRESH_TOKEN="refresh-token"$/m);
-  assert.match(next, /meetings\.space\.settings/);
+  assert.match(next, /userinfo\.profile/);
+  assert.doesNotMatch(next, /calendar\.events/);
+  assert.doesNotMatch(next, /meetings\.space\.settings/);
 });
 
 test("Google Calendar OAuth listener generates state when caller omits it", async () => {

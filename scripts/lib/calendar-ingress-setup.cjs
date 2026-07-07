@@ -26,6 +26,7 @@ const REQUIRED_SCOPES = [
     key: "GOOGLE_OAUTH_SCOPES",
     scope: MEET_SETTINGS_SCOPE,
     purpose: "pre-enable Meet auto transcripts/recordings",
+    feature: "Meet auto-artifacts",
   },
 ];
 
@@ -182,8 +183,8 @@ function buildSetupReport({ repoRoot = path.resolve(__dirname, "..", ".."), env 
   const ok = files.every((item) => item.ok)
     && policyErrors.length === 0
     && envReport.required.every((item) => item.ok)
-    && envReport.oneOf.every((item) => item.ok)
-    && envReport.scopes.every((item) => item.ok);
+    && envReport.oneOf.every((item) => item.ok);
+  const autoArtifactsReady = envReport.scopes.every((item) => item.ok);
   const readyForLiveClient = files.every((item) => item.ok)
     && policyErrors.length === 0
     && envReport.required
@@ -199,6 +200,7 @@ function buildSetupReport({ repoRoot = path.resolve(__dirname, "..", ".."), env 
       errors: policyErrors,
     },
     env: envReport,
+    autoArtifactsReady,
   };
 }
 
@@ -220,7 +222,7 @@ function renderSetupReport(report) {
   for (const item of report.env.required) lines.push(`- ${statusMark(item.ok)} ${item.key}`);
   for (const item of report.env.oneOf) lines.push(`- ${statusMark(item.ok)} one of ${item.keys.join(", ")}`);
   lines.push("");
-  lines.push("OAuth scopes:");
+  lines.push("Feature scopes:");
   for (const item of report.env.scopes) lines.push(`- ${statusMark(item.ok)} ${item.scope} (${item.purpose})`);
   lines.push("");
   lines.push("Post-seed client config:");
@@ -230,6 +232,7 @@ function renderSetupReport(report) {
   for (const item of report.env.optional) lines.push(`- ${statusMark(item.ok)} ${item.key}`);
   lines.push("");
   lines.push(`Credential baseline: ${report.ok ? "ready" : "not ready"}`);
+  lines.push(`Meet auto-artifacts: ${report.autoArtifactsReady ? "ready" : "needs OAuth re-consent"}`);
   lines.push(`Live client config: ${report.readyForLiveClient ? "ready" : "needs seeded IDs"}`);
   return lines.join("\n");
 }
@@ -385,7 +388,7 @@ function renderDeployPlan({
   lines.push("Required values:");
   for (const item of setupReport.env.required) lines.push(`- ${item.key}: ${item.ok ? "set" : "missing"}`);
   for (const item of setupReport.env.oneOf) lines.push(`- one of ${item.keys.join(", ")}: ${item.ok ? "set" : "missing"}`);
-  for (const item of setupReport.env.scopes) lines.push(`- ${item.scope}: ${item.ok ? "granted" : "missing from GOOGLE_OAUTH_SCOPES"}`);
+  for (const item of setupReport.env.scopes) lines.push(`- ${item.feature}: ${item.ok ? "ready" : "needs OAuth re-consent"} (${item.scope})`);
   for (const item of setupReport.env.postSeed) lines.push(`- ${item.key}: ${item.ok ? "set" : "missing"}`);
   lines.push("");
 
@@ -394,7 +397,6 @@ function renderDeployPlan({
   const missing = [
     ...setupReport.env.required.filter((item) => !item.ok).map((item) => item.key),
     ...setupReport.env.oneOf.filter((item) => !item.ok).map((item) => `one of ${item.keys.join(" / ")}`),
-    ...setupReport.env.scopes.filter((item) => !item.ok).map((item) => `${item.scope} in ${item.key}`),
     ...setupReport.env.postSeed.filter((item) => !item.ok).map((item) => item.key),
   ];
   if (missing.length) {
@@ -415,11 +417,15 @@ function renderDeployPlan({
   lines.push("");
   lines.push("2. Generate or refresh the Google Calendar access token.");
   lines.push("");
-  lines.push("For first consent, create a Google OAuth client with the redirect URI in the worksheet, then run:");
+  lines.push("Regular app login should use the default `identity` profile only. The following token is for the trusted calendar connector.");
+  lines.push("");
+  lines.push("For first consent, create a Google OAuth client with the redirect URI in the worksheet, then run the smallest profile that matches the job:");
   lines.push("");
   lines.push("```bash");
-  lines.push(`npm run calendar:oauth:google -- --env-file ${worksheetTarget} --listen --format summary --update-env-file ${worksheetTarget}`);
+  lines.push(`npm run calendar:oauth:google -- --env-file ${worksheetTarget} --listen --scope-profile calendar --format summary --update-env-file ${worksheetTarget}`);
   lines.push("```");
+  lines.push("");
+  lines.push("Use `--scope-profile calendar-admin` only for direct calendar sharing/list repair, and `--scope-profile meet-artifacts` when enabling Meet transcripts or Drive-backed Meet artifact capture.");
   lines.push("");
   lines.push("Confirm the command updated token/scopes in the local worksheet without printing secret values. To refresh later:");
   lines.push("");
@@ -487,7 +493,7 @@ function renderDeployPlan({
   lines.push("");
   lines.push(`- SUPABASE_URL: ${valueStatus(env, "SUPABASE_URL")}`);
   lines.push(`- SUPABASE_ANON_KEY: ${valueStatus(env, "SUPABASE_ANON_KEY")}`);
-  lines.push("- signed-in access token: Supabase-issued app JWT from Google sign-in at runtime");
+  lines.push("- app sign-in session: Supabase-issued app JWT from Google sign-in at runtime");
   lines.push(`- ORG_ID: ${valueStatus(env, "ORG_ID")}`);
   lines.push(`- CALENDAR_CONNECTION_ID: ${valueStatus(env, "CALENDAR_CONNECTION_ID")}`);
   lines.push("");

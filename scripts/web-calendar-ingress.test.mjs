@@ -335,12 +335,11 @@ test("web calendar ingress readiness keeps browser config separate from operator
   const empty = calendarIngressReadiness({});
   assert.equal(empty.browserReady, false);
   assert.deepEqual(empty.missingBrowserSafe, [
-    "Supabase anon key",
-    "signed-in access token",
-    "org ID",
-    "calendar connection ID",
+    "project connection",
+    "app sign-in",
+    "workspace calendar",
   ]);
-  assert.deepEqual(empty.missingOperator, ["Drive artifact folder"]);
+  assert.deepEqual(empty.missingOperator, ["artifact folder"]);
 
   const ready = calendarIngressReadiness({
     supabaseUrl: "https://project.supabase.co",
