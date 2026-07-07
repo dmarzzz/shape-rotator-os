@@ -7,6 +7,7 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const {
+  callDriveUpload,
   buildRawContextSubmissionRows,
   buildTranscriptIntakeBody,
   chunkText,
@@ -14,6 +15,7 @@ const {
   inspectTranscriptFiles,
   listTranscriptIntakeHistory,
   loadTranscriptPolicy,
+  MAX_BULK_FILES,
   routeForTranscriptType,
   stageTranscriptFile,
   submitTranscriptIntake,
@@ -119,6 +121,23 @@ test("inspectTranscriptFiles accepts valid batch picks and reports skipped files
   assert.deepEqual(result.files.map((item) => item.name), ["one.txt", "two.md"]);
   assert.equal(result.rejected.length, 1);
   assert.equal(result.rejected[0].reason, "unsupported_file_type");
+});
+
+test("inspectTranscriptFiles caps oversized bulk picks", () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sros-transcript-inspect-cap-"));
+  const files = [];
+  for (let i = 0; i < MAX_BULK_FILES + 1; i += 1) {
+    const file = path.join(tmp, `notes-${i}.txt`);
+    fs.writeFileSync(file, `Transcript ${i}\n`, "utf8");
+    files.push(file);
+  }
+
+  const result = inspectTranscriptFiles(files);
+  assert.equal(result.ok, true);
+  assert.equal(result.files.length, MAX_BULK_FILES);
+  assert.equal(result.rejected.length, 1);
+  assert.equal(result.rejected[0].reason, "too_many_files");
+  assert.equal(result.limits.maxFiles, MAX_BULK_FILES);
 });
 
 test("submitTranscriptIntakeBatch sends multiple raw text transcripts", async () => {
@@ -435,6 +454,73 @@ test("submitTranscriptIntake uploads originals to private Drive and indexes only
   assert.equal(JSON.stringify(manifest).includes("drive-token"), false);
 });
 
+test("Drive upload rejects non-Google upload URLs before sending the provider token", async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sros-transcript-drive-url-"));
+  const source = path.join(tmp, "Private Notes.txt");
+  fs.writeFileSync(source, "private transcript", "utf8");
+  const staged = stageTranscriptFile({
+    filePath: source,
+    sessionType: "salon",
+    label: "Private Notes",
+    intakeRoot: path.join(tmp, "private-intake"),
+    storageRefRoot: tmp,
+    now: new Date("2026-07-04T12:05:00Z"),
+  });
+  let fetched = false;
+
+  await assert.rejects(
+    () => callDriveUpload({
+      config: {
+        accessToken: "drive-token",
+        folderId: "folder_private",
+        uploadUrl: "https://example.com/upload/drive/v3/files",
+      },
+      staged,
+      fetchImpl: async () => { fetched = true; return response({}); },
+    }),
+    (error) => {
+      assert.equal(error.code, "drive_upload_url_not_allowed");
+      return true;
+    },
+  );
+  assert.equal(fetched, false);
+});
+
+test("Drive upload can use the app default destination without a folder id", async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sros-transcript-drive-default-"));
+  const source = path.join(tmp, "Private Notes.txt");
+  fs.writeFileSync(source, "private transcript", "utf8");
+  const staged = stageTranscriptFile({
+    filePath: source,
+    sessionType: "salon",
+    label: "Private Notes",
+    intakeRoot: path.join(tmp, "private-intake"),
+    storageRefRoot: tmp,
+    now: new Date("2026-07-04T12:07:00Z"),
+  });
+  let bodyText = "";
+
+  const upload = await callDriveUpload({
+    config: { accessToken: "drive-token" },
+    staged,
+    fetchImpl: async (url, options = {}) => {
+      assert.match(String(url), /^https:\/\/www\.googleapis\.com\/upload\/drive\/v3\/files\?/);
+      assert.equal(options.headers.authorization, "Bearer drive-token");
+      bodyText = Buffer.isBuffer(options.body) ? options.body.toString("utf8") : String(options.body || "");
+      return response({
+        id: "drive_default_1",
+        name: "salon_private-notes_abc.txt",
+        mimeType: "text/plain",
+        size: "18",
+      });
+    },
+  });
+
+  assert.equal(upload.id, "drive_default_1");
+  assert.doesNotMatch(bodyText, /"parents"/);
+  assert.match(bodyText, /"source":"shape_os_transcript_intake"/);
+});
+
 test("submitTranscriptIntake Drive inbox defers Supabase indexing until a session is chosen", async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sros-transcript-drive-defer-"));
   const source = path.join(tmp, "Unmatched Notes.txt");
@@ -531,7 +617,7 @@ test("submitTranscriptIntake Drive inbox reports expired Google auth without dro
   assert.equal(manifest.drive_storage_ref, undefined);
 });
 
-test("submitTranscriptIntake Drive inbox stages locally and reports missing Drive config", async () => {
+test("submitTranscriptIntake Drive inbox stages locally and reports missing storage access", async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sros-transcript-drive-missing-"));
   const source = path.join(tmp, "Raw Notes.docx");
   const intakeRoot = path.join(tmp, "private-intake");
@@ -559,7 +645,7 @@ test("submitTranscriptIntake Drive inbox stages locally and reports missing Driv
   assert.equal(result.reason, "missing_drive_config");
   assert.equal(result.staged, true);
   assert.equal(fetched, false);
-  assert.deepEqual(result.missing, ["Google Drive access token", "Drive folder ID"]);
+  assert.deepEqual(result.missing, ["Google Drive access token"]);
 });
 
 test("submitTranscriptIntake stages locally and reports missing Supabase config", async () => {

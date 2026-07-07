@@ -32,6 +32,11 @@ const HOME = os.homedir();
 const CLAUDE_PROJECTS = path.join(HOME, '.claude', 'projects');
 const CODEX_SESSIONS = path.join(HOME, '.codex', 'sessions');
 const MAX_RAW_BYTES = 4 * 1024 * 1024; // cap a raw-log transfer
+const MAX_LINK_PREAUTH_BYTES = 4096;
+const MAX_LINK_MESSAGE_BYTES = 64 * 1024;
+const LINK_AUTH_TIMEOUT_MS = 15000;
+const MAX_RECENT_DAYS = 90;
+const MAX_RAW_DAYS = 30;
 
 let host = null;    // { server, secret, port, perms, peers:Set, onChange }
 let client = null;  // { socket, buf, pending:Map, nextId, connected, info }
@@ -50,6 +55,16 @@ function lanIP() {
 function makeCode(o) { return Buffer.from(JSON.stringify(o)).toString('base64url'); }
 function parseCode(code) { try { return JSON.parse(Buffer.from(String(code).trim(), 'base64url').toString()); } catch { return null; } }
 function send(socket, obj) { try { socket.write(JSON.stringify(obj) + '\n'); } catch { /* dropped */ } }
+function normalizeDays(value, { fallback = 30, max = MAX_RECENT_DAYS } = {}) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 1) return fallback;
+  return Math.max(1, Math.min(max, Math.floor(n)));
+}
+function linkSecretEquals(left, right) {
+  const a = Buffer.from(String(left || ''));
+  const b = Buffer.from(String(right || ''));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
 
 // Derive the FULL repo path (cwd) a raw .jsonl belongs to, so device-link can
 // gate it through the SAME scope allowlist as the daily digest (I3/I4). The
@@ -112,6 +127,7 @@ function gateRawFiles(files) {
 // and never shipped), and its content is run through the SAME deterministic
 // redact() before it leaves so device-link can never ship an unredacted secret.
 function readRawLogs({ days = 7 } = {}) {
+  days = normalizeDays(days, { fallback: 7, max: MAX_RAW_DAYS });
   const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
   const out = [];
   let total = 0;
@@ -178,7 +194,8 @@ async function handleRequest(socket, msg, perms) {
       if (!perms.recent) return reply({ type: 'error', error: 'Peer has not allowed recent-work sharing.' });
       // I4: scrub the shared digest through the SAME redact() rules before it
       // leaves this machine to the linked peer.
-      const r = await collectRecent(msg.days || 30, scope.loadRules());
+      const days = normalizeDays(msg.days, { fallback: 30, max: MAX_RECENT_DAYS });
+      const r = await collectRecent(days, scope.loadRules());
       return reply({ type: 'recent', date: r.projects && r.projectCount, projectCount: r.projectCount, projects: r.projects, digest: r.digest });
     }
     if (msg.type === 'get-raw') {
@@ -201,30 +218,49 @@ function startHost({ perms = { recent: true, raw: false }, onChange } = {}) {
   const secret = crypto.randomBytes(16).toString('hex');
   return new Promise((resolve) => {
     const server = net.createServer((socket) => {
-      let authed = false, buf = '';
-      host.peers.add(socket);
-      if (host.onChange) host.onChange(hostInfo());
+      let authed = false, buf = '', preauthBytes = 0;
+      const authTimer = setTimeout(() => {
+        if (!authed) {
+          try { socket.destroy(); } catch { /* already gone */ }
+        }
+      }, LINK_AUTH_TIMEOUT_MS);
       socket.on('data', async (d) => {
+        if (!authed) {
+          preauthBytes += d.length;
+          if (preauthBytes > MAX_LINK_PREAUTH_BYTES) { socket.destroy(); return; }
+        }
         buf += d.toString();
+        if (buf.length > MAX_LINK_MESSAGE_BYTES) { socket.destroy(); return; }
         let i;
         while ((i = buf.indexOf('\n')) >= 0) {
           const line = buf.slice(0, i); buf = buf.slice(i + 1);
           if (!line.trim()) continue;
+          if (line.length > MAX_LINK_MESSAGE_BYTES) { socket.destroy(); return; }
           let msg; try { msg = JSON.parse(line); } catch { continue; }
           if (msg.type === 'auth') {
-            authed = msg.secret === host.secret;
+            authed = linkSecretEquals(msg.secret, host.secret);
             send(socket, { id: msg.id, type: 'auth', ok: authed });
             if (!authed) socket.end();
+            else {
+              clearTimeout(authTimer);
+              host.peers.add(socket);
+              if (host.onChange) host.onChange(hostInfo());
+            }
             continue;
           }
           if (!authed) { socket.end(); return; }
           await handleRequest(socket, msg, host.perms);
         }
       });
-      const drop = () => { host && host.peers.delete(socket); if (host && host.onChange) host.onChange(hostInfo()); };
+      const drop = () => {
+        clearTimeout(authTimer);
+        host && host.peers.delete(socket);
+        if (host && host.onChange) host.onChange(hostInfo());
+      };
       socket.on('error', drop);
       socket.on('close', drop);
     });
+    server.maxConnections = 20;
     server.on('error', () => { host = null; resolve(null); });
     server.listen(0, () => {
       host = { server, secret, port: server.address().port, perms, peers: new Set(), onChange };
@@ -268,6 +304,7 @@ function connectPeer(code) {
     });
     socket.on('data', (d) => {
       client.buf += d.toString();
+      if (client.buf.length > MAX_LINK_MESSAGE_BYTES) { disconnectPeer(); return; }
       let i;
       while ((i = client.buf.indexOf('\n')) >= 0) { const line = client.buf.slice(0, i); client.buf = client.buf.slice(i + 1); if (line.trim()) dispatch(line); }
     });
@@ -279,8 +316,8 @@ function disconnectPeer() { if (client && client.socket) { try { client.socket.d
 function peerConnected() { return !!(client && client.connected); }
 
 const peerListProjects = () => sendReq('list-projects');
-const peerGetRecent = (days = 30) => sendReq('get-recent', { days });
-const peerGetRaw = (days = 7) => sendReq('get-raw', { days });
+const peerGetRecent = (days = 30) => sendReq('get-recent', { days: normalizeDays(days, { fallback: 30, max: MAX_RECENT_DAYS }) });
+const peerGetRaw = (days = 7) => sendReq('get-raw', { days: normalizeDays(days, { fallback: 7, max: MAX_RAW_DAYS }) });
 
 // ── SSH transport: read a peer's logs over an existing SSH connection ─────────
 // No Router runs on the other side; we just `ssh user@host` and read its
@@ -400,8 +437,8 @@ async function sshListProjects() {
 
 // Pull a target's recent raw .jsonl over SSH (explicit target — does not touch
 // the interactive sshPeer state, so it's safe to call for saved peers too).
-async function sshRawFor(target, days = 7, { timeoutMs = 120000 } = {}) {
-  const d = Math.max(1, Math.min(90, parseInt(days, 10) || 7));
+async function sshRawFor(target, days = 7, { timeoutMs = 120000, maxDays = MAX_RAW_DAYS } = {}) {
+  const d = normalizeDays(days, { fallback: 7, max: maxDays });
   const script =
 `H="$HOME"; cap=${MAX_RAW_BYTES}; tot=0
 find "$H/.claude/projects" "$H/.codex/sessions" -name '*.jsonl' -mtime -${d} -print 2>/dev/null | while IFS= read -r f; do
@@ -421,7 +458,7 @@ async function sshGetRaw(days = 7) {
   // defaults OFF). The digest paths (sshGetRecent/collectPeerToday) use
   // sshRawFor directly and stay available; only the raw-files surface is gated.
   if (!scope.rawSharingEnabled()) throw new Error('Raw-log sharing is off. Turn on the raw-share permission to pull raw transcripts.');
-  const r = await sshRawFor(sshPeer.target, days);
+  const r = await sshRawFor(sshPeer.target, days, { maxDays: MAX_RAW_DAYS });
   // I4: redact the pulled bytes before they reach the renderer/staging/Router.
   const rules = scope.loadRules();
   const files = (r.files || []).map((f) => ({
@@ -433,7 +470,8 @@ async function sshGetRaw(days = 7) {
 
 async function sshGetRecent(days = 30) {
   if (!sshPeer) throw new Error('Not connected over SSH.');
-  const raw = await sshRawFor(sshPeer.target, days);
+  days = normalizeDays(days, { fallback: 30, max: MAX_RECENT_DAYS });
+  const raw = await sshRawFor(sshPeer.target, days, { maxDays: MAX_RECENT_DAYS });
   const label = `the last ${days} days on ${sshPeer ? sshPeer.target : 'the peer'}`;
   // I3/I4: gate each pulled file through the SAME scope allowlist as the local
   // digest BEFORE building, then scrub the result through the SAME redact().
@@ -472,7 +510,7 @@ async function collectPeerToday(target) {
   const t = validTarget(target);
   if (!t) return { target, ok: false, error: 'Invalid saved peer.' };
   try {
-    const raw = await sshRawFor(t, 1, { timeoutMs: 25000 });
+    const raw = await sshRawFor(t, 1, { timeoutMs: 25000, maxDays: 1 });
     // I3/I4: gate each pulled file through the SAME scope allowlist as the local
     // digest BEFORE building, then scrub the result through the SAME redact()
     // before it folds into today's local digest.
@@ -492,4 +530,6 @@ module.exports = {
   sshConnect, sshDisconnect, sshConnected, sshTarget,
   sshListProjects, sshGetRecent, sshGetRaw,
   listPeers, addPeer, removePeer, collectPeerToday,
+  normalizeDays,
+  MAX_LINK_PREAUTH_BYTES, LINK_AUTH_TIMEOUT_MS, MAX_RECENT_DAYS, MAX_RAW_DAYS,
 };

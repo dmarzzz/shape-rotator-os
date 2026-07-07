@@ -123,8 +123,9 @@ function openRouterWindow() {
   hideNativeMenuBar(routerWin);
   // Voice answers use getUserMedia({audio}) in the renderer to drive the shader +
   // recording. Grant ONLY 'media' on this window's session; deny everything else.
-  routerWin.webContents.session.setPermissionRequestHandler((_wc, permission, cb) => {
-    cb(permission === 'media');
+  routerWin.webContents.session.setPermissionRequestHandler((_wc, permission, cb, details = {}) => {
+    const mediaType = details && typeof details.mediaType === 'string' ? details.mediaType : '';
+    cb(permission === 'media' && mediaType === 'audio');
   });
   routerWin.loadFile(path.join(__dirname, 'src', 'router', 'index.html'));
   routerWin.webContents.on('console-message', (_e, lvl, msg) => {
@@ -173,6 +174,9 @@ const FFMPEG = resolveBin([
 ]);
 const UV = resolveBin([path.join(os.homedir(), '.local/bin/uv'), '/opt/homebrew/bin/uv', 'uv']);
 const WHISPER_PY = path.join(__dirname, 'daybook', 'whisper_server.py');
+const FFMPEG_TIMEOUT_MS = Math.max(5000, Number(process.env.ROUTER_FFMPEG_TIMEOUT_MS || 30000) || 30000);
+const WHISPER_READY_TIMEOUT_MS = Math.max(5000, Number(process.env.ROUTER_WHISPER_READY_TIMEOUT_MS || 45000) || 45000);
+const WHISPER_TRANSCRIBE_TIMEOUT_MS = Math.max(5000, Number(process.env.ROUTER_WHISPER_TRANSCRIBE_TIMEOUT_MS || 90000) || 90000);
 
 let whisper = null;
 let whisperBroken = false; // toolchain unavailable (e.g. non-Apple-Silicon PC) — stop retrying
@@ -185,35 +189,53 @@ function ensureWhisper() {
   // re-spawning a doomed process on every mic press.
   if (whisperBroken) return Promise.resolve();
   let resolveReady;
+  let readySettled = false;
+  let readyTimer = null;
   const ready = new Promise((r) => { resolveReady = r; });
+  const settleReady = () => {
+    if (readySettled) return;
+    readySettled = true;
+    if (readyTimer) clearTimeout(readyTimer);
+    resolveReady();
+  };
   let proc;
   try {
     proc = spawn(UV, ['run', '--python', '3.12', '--with', 'mlx-whisper', 'python', WHISPER_PY],
       { env: { ...process.env, ANTHROPIC_API_KEY: '' } });
   } catch { whisperBroken = true; return Promise.resolve(); }
   let gotReady = false;
-  whisper = { proc, ready, pending: new Map(), buf: '' };
+  const state = { proc, ready, pending: new Map(), buf: '' };
+  whisper = state;
+  const fail = () => {
+    if (whisper === state) {
+      for (const r of state.pending.values()) { try { r(''); } catch { /* */ } }
+      state.pending.clear();
+      whisper = null;
+    }
+    if (!gotReady) whisperBroken = true;
+    settleReady();
+  };
+  readyTimer = setTimeout(() => {
+    whisperBroken = true;
+    try { proc.kill('SIGKILL'); } catch { /* already gone */ }
+    fail();
+  }, WHISPER_READY_TIMEOUT_MS);
   proc.stdout.on('data', (d) => {
-    whisper.buf += d.toString();
+    if (whisper !== state) return;
+    state.buf += d.toString();
     let i;
-    while ((i = whisper.buf.indexOf('\n')) >= 0) {
-      const line = whisper.buf.slice(0, i); whisper.buf = whisper.buf.slice(i + 1);
+    while ((i = state.buf.indexOf('\n')) >= 0) {
+      const line = state.buf.slice(0, i); state.buf = state.buf.slice(i + 1);
       if (!line.trim()) continue;
       let m; try { m = JSON.parse(line); } catch { continue; }
-      if (m.type === 'ready') { gotReady = true; resolveReady(); }
-      else if (m.id && whisper.pending.has(m.id)) { whisper.pending.get(m.id)(m.text || ''); whisper.pending.delete(m.id); }
+      if (m.type === 'ready') { gotReady = true; settleReady(); }
+      else if (m.id && state.pending.has(m.id)) { state.pending.get(m.id)(m.text || ''); }
     }
   });
   // On crash/exit: resolve any in-flight requests to '' AND resolve `ready` so
   // an awaiting transcribeViaSidecar unblocks (the standalone app could hang
   // here). If it died before warming, the toolchain isn't usable here — mark it
   // broken so we don't relaunch on every attempt.
-  const fail = () => {
-    if (whisper) { for (const r of whisper.pending.values()) { try { r(''); } catch { /* */ } } }
-    whisper = null;
-    if (!gotReady) whisperBroken = true;
-    resolveReady();
-  };
   proc.on('close', fail);
   proc.on('error', fail);
   return ready;
@@ -223,18 +245,45 @@ async function transcribeViaSidecar(wavPath) {
   if (!whisper) return '';
   const id = String(++whisperReqId);
   return new Promise((resolve) => {
-    whisper.pending.set(id, resolve);
-    try { whisper.proc.stdin.write(JSON.stringify({ id, path: wavPath }) + '\n'); }
-    catch { resolve(''); }
+    const state = whisper;
+    let done = false;
+    const finish = (text) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      state.pending.delete(id);
+      resolve(text || '');
+    };
+    const timer = setTimeout(() => finish(''), WHISPER_TRANSCRIBE_TIMEOUT_MS);
+    state.pending.set(id, finish);
+    try { state.proc.stdin.write(JSON.stringify({ id, path: wavPath }) + '\n'); }
+    catch { finish(''); }
   });
 }
-function runBin(cmd, args) {
+function runBin(cmd, args, { timeoutMs = FFMPEG_TIMEOUT_MS } = {}) {
   return new Promise((resolve, reject) => {
-    const c = spawn(cmd, args, { env: { ...process.env, ANTHROPIC_API_KEY: '' } });
+    let settled = false;
+    let c;
     let err = '';
+    const finish = (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (error) reject(error);
+      else resolve();
+    };
+    try {
+      c = spawn(cmd, args, { env: { ...process.env, ANTHROPIC_API_KEY: '' } });
+    } catch (error) {
+      return reject(error);
+    }
+    const timer = setTimeout(() => {
+      try { c.kill('SIGKILL'); } catch { /* already gone */ }
+      finish(new Error(`${path.basename(cmd)} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
     c.stderr.on('data', (d) => { err += d.toString(); });
-    c.on('error', reject);
-    c.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`${path.basename(cmd)} exited ${code}: ${err.slice(-300)}`))));
+    c.on('error', finish);
+    c.on('close', (code) => (code === 0 ? finish() : finish(new Error(`${path.basename(cmd)} exited ${code}: ${err.slice(-300)}`))));
   });
 }
 
@@ -463,12 +512,12 @@ ipcMain.handle('link-status', async () => ({
   sshTarget: link.sshTarget(),
 }));
 ipcMain.handle('link-peer-projects', async () => link.peerListProjects());
-ipcMain.handle('link-peer-recent', async (_evt, { days } = {}) => link.peerGetRecent(days || 30));
-ipcMain.handle('link-peer-raw', async (_evt, { days } = {}) => link.peerGetRaw(days || 7));
+ipcMain.handle('link-peer-recent', async (_evt, { days } = {}) => link.peerGetRecent(link.normalizeDays(days, { fallback: 30, max: link.MAX_RECENT_DAYS })));
+ipcMain.handle('link-peer-raw', async (_evt, { days } = {}) => link.peerGetRaw(link.normalizeDays(days, { fallback: 7, max: link.MAX_RAW_DAYS })));
 ipcMain.handle('link-ssh-connect', async (_evt, { target } = {}) => link.sshConnect(target));
 ipcMain.handle('link-ssh-disconnect', async () => { link.sshDisconnect(); return { ok: true }; });
-ipcMain.handle('link-ssh-recent', async (_evt, { days } = {}) => link.sshGetRecent(days || 30));
-ipcMain.handle('link-ssh-raw', async (_evt, { days } = {}) => link.sshGetRaw(days || 7));
+ipcMain.handle('link-ssh-recent', async (_evt, { days } = {}) => link.sshGetRecent(link.normalizeDays(days, { fallback: 30, max: link.MAX_RECENT_DAYS })));
+ipcMain.handle('link-ssh-raw', async (_evt, { days } = {}) => link.sshGetRaw(link.normalizeDays(days, { fallback: 7, max: link.MAX_RAW_DAYS })));
 ipcMain.handle('link-peers-list', async () => link.listPeers());
 ipcMain.handle('link-peer-remove', async (_evt, { target } = {}) => link.removePeer(target));
 

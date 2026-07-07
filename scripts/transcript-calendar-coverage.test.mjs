@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildTranscriptCalendarCoverageAudit } from "./audit-transcript-calendar-coverage.mjs";
+import { buildTranscriptCalendarCoverageAudit, renderPublicDoc } from "./audit-transcript-calendar-coverage.mjs";
 
 function fixtureCalendar() {
   return {
@@ -139,8 +139,8 @@ function fixtureImportPlan() {
   };
 }
 
-test("buildTranscriptCalendarCoverageAudit classifies calendar transcript coverage", () => {
-  const audit = buildTranscriptCalendarCoverageAudit({
+function fixtureAuditInputs() {
+  return {
     calendar: fixtureCalendar(),
     importPlan: fixtureImportPlan(),
     sessionMap: {
@@ -184,7 +184,11 @@ test("buildTranscriptCalendarCoverageAudit classifies calendar transcript covera
     }],
     auditDate: "2026-06-10",
     generatedAt: "2026-06-13T22:00:00.000Z",
-  });
+  };
+}
+
+test("buildTranscriptCalendarCoverageAudit classifies calendar transcript coverage", () => {
+  const audit = buildTranscriptCalendarCoverageAudit(fixtureAuditInputs());
 
   assert.equal(audit.counts.calendar_blocks, 9);
   assert.equal(audit.counts.transcript_refs, 4);
@@ -208,4 +212,23 @@ test("buildTranscriptCalendarCoverageAudit classifies calendar transcript covera
   const projectMap = audit.transcript_inventory.find((item) => item.drive_file_id === "1hadEvWnIGsmFhaWnoGFFLLx5ypghRNuW");
   assert.equal(projectMap.session_type, "salon");
   assert.equal(projectMap.preferred_drive_name, "salon_shape-rotator-project-map-guests_2026-05-22.txt");
+});
+
+test("public transcript calendar coverage redacts source filenames and readout paths", () => {
+  const inputs = fixtureAuditInputs();
+  const audit = buildTranscriptCalendarCoverageAudit(inputs);
+  const publicDoc = renderPublicDoc({
+    ...inputs,
+    rows: audit.calendar_coverage,
+    transcripts: audit.transcript_inventory,
+  });
+
+  assert.match(publicDoc, /transcript source/);
+  assert.match(publicDoc, /reviewed readout/);
+  assert.doesNotMatch(publicDoc, /weekly_standup_shaw_2026-06-08\.txt/);
+  assert.doesNotMatch(publicDoc, /user_interview_inference_unknown-date\.txt/);
+  assert.doesNotMatch(publicDoc, /salon_info-markets-design-b2b_2026-01-10\.txt/);
+  assert.doesNotMatch(publicDoc, /cohort-data\/session-readouts/);
+  assert.doesNotMatch(publicDoc, /project-intros\.md/);
+  assert.doesNotMatch(publicDoc, /shape-rotator-project-map-guests-2026-05-22\.md/);
 });

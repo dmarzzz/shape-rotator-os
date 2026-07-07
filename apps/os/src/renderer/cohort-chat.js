@@ -68,7 +68,7 @@ const FALLBACK_TRANSCRIPT_CONFIDENCE = [
 ];
 
 const FALLBACK_TRANSCRIPT_PROCESSING_PATHS = [
-  { key: "drive_inbox", label: "Drive inbox", description: "Private Google Drive" },
+  { key: "drive_inbox", label: "Private upload", description: "Quiet cloud handoff" },
   { key: "metadata", label: "Private pointer", description: "Stage locally" },
   { key: "supabase_raw", label: "Send full text", description: "Private Shape OS DB" },
   { key: "local_agent", label: "Local readout", description: "Local agent" },
@@ -1307,15 +1307,15 @@ function createController() {
       </div>
       <div class="cc-upload-dup" data-cc-transcript-dup hidden></div>
       <details class="cc-upload-connection">
-        <summary>Private storage connection (advanced)</summary>
+        <summary>Storage connection</summary>
         <div class="cc-upload-grid is-connection">
           <label class="cc-upload-field">
-            <span>Drive folder id</span>
+            <span>private folder id</span>
             <input class="cc-upload-input" data-cc-transcript-drive-folder type="text" value="${esc(driveConfig.folderId || "")}" autocomplete="off" spellcheck="false" />
           </label>
           <div class="cc-upload-field">
-            <span>Drive access</span>
-            <button type="button" class="btn ds-ghost" data-cc-transcript-drive-reconnect>Reconnect Drive</button>
+            <span>private storage</span>
+            <button type="button" class="btn ds-ghost" data-cc-transcript-drive-reconnect>Connect storage</button>
           </div>
           <label class="cc-upload-field">
             <span>org id</span>
@@ -1376,6 +1376,9 @@ function createController() {
       if (rememberedPath) defaultProcessingPath = normalizeVisibleTranscriptPath(rememberedPath);
     } catch {}
     let busy = false;
+    let driveAccessPending = false;
+    let resumeAfterDriveAccess = false;
+    let driveFlowUnsub = null;
 
     // Recent uploads from THIS device with their fate — staged / sent / queued /
     // processed — so "I wonder if it worked then" has an answer in place.
@@ -1417,9 +1420,9 @@ function createController() {
     void (async () => {
       const r = await resolveIntakeToken(readTranscriptSupabaseConfig().accessToken);
       if (!connSummary) return;
-      if (r.source === "login") connSummary.textContent = "uploads as you (signed in) - Shape OS DB override";
-      else if (r.source === "manual") connSummary.textContent = "manual token set - Shape OS DB connection";
-      else connSummary.textContent = "not connected - sign in, or set a Shape OS DB token here";
+      if (r.source === "login") connSummary.textContent = "Storage connection - connected quietly";
+      else if (r.source === "manual") connSummary.textContent = "Storage connection - manual connection set";
+      else connSummary.textContent = "Storage connection";
     })();
 
     function setStatus(kind, text) {
@@ -1535,7 +1538,7 @@ function createController() {
     function setProcessingPath(key) {
       const next = normalizeVisibleTranscriptPath(key);
       defaultProcessingPath = next;
-      try { localStorage.setItem("srwk:transcript_processing_path", next); } catch {}
+    try { localStorage.setItem("srwk:transcript_processing_path", next); } catch {}
       updateActiveConfig({ processingPath: next });
     }
     // Plain-words answer to "am I just yoloing this?": what the chosen type does
@@ -1574,7 +1577,7 @@ function createController() {
         const path = pathForConfig(config);
         const blocked = pathBlocker(file, config);
         const active = fileKey(file) === activeUploadKey;
-        return `<button type="button" class="cc-upload-row${active ? " is-active" : ""}${blocked ? " is-blocked" : ""}" data-cc-upload-index="${index}" ${busy ? "disabled" : ""}>
+        return `<button type="button" class="cc-upload-row${active ? " is-active" : ""}${blocked ? " is-blocked" : ""}" data-cc-upload-index="${index}" ${busy || driveAccessPending ? "disabled" : ""}>
           <span class="cc-upload-row-main">
             <strong>${esc(file.name || "transcript")}</strong>
             <small>${esc(type ? (type.label || type.key) : "Choose event type")}</small>
@@ -1625,7 +1628,7 @@ function createController() {
       const activeType = selectedType();
       const missingType = jobs.some((job) => !job.type);
       const blocked = jobs.some((job) => !!pathBlocker(job.file, job.config));
-      submit.disabled = busy || !jobs.length || missingType || blocked;
+      submit.disabled = busy || driveAccessPending || !jobs.length || missingType || blocked;
       renderUploadList();
       renderActiveEditor();
       syncPathNote();
@@ -1653,11 +1656,20 @@ function createController() {
         dupEl.textContent = "";
       }
     }
+    function applyUploadDisabledState() {
+      const disabled = busy || driveAccessPending;
+      for (const el of [dropzone, addMore, confidenceRange, date, label, session, related, org, token, driveFolder, driveReconnect, contextUrl, agentCmd, ...pathBtns, ...typeBtns]) {
+        if (el) el.disabled = disabled;
+      }
+    }
     function setBusy(on) {
       busy = on;
-      for (const el of [dropzone, addMore, confidenceRange, date, label, session, related, org, token, driveFolder, driveReconnect, contextUrl, agentCmd, cancel, ...pathBtns, ...typeBtns]) {
-        if (el) el.disabled = on;
-      }
+      applyUploadDisabledState();
+      syncUploadState();
+    }
+    function setDriveAccessPending(on) {
+      driveAccessPending = on;
+      applyUploadDisabledState();
       syncUploadState();
     }
     function normalizeSelectedFiles(files) {
@@ -1693,7 +1705,7 @@ function createController() {
       setStatus("error", info?.detail || "Couldn't use those files.");
     }
     async function pickFile({ append = false } = {}) {
-      if (busy) return;
+      if (busy || driveAccessPending) return;
       if (!window.api || (!window.api.pickTranscriptFiles && !window.api.pickTranscriptFile)) { setStatus("error", "File picker is unavailable in this build."); return; }
       const info = window.api.pickTranscriptFiles
         ? await window.api.pickTranscriptFiles()
@@ -1702,7 +1714,7 @@ function createController() {
       applyPickedFiles(info, { append });
     }
     async function dropFiles(fileList, { append = false } = {}) {
-      if (busy || !fileList || !fileList.length) return;
+      if (busy || driveAccessPending || !fileList || !fileList.length) return;
       const paths = Array.from(fileList)
         .map((file) => window.api && window.api.getDroppedFilePath ? window.api.getDroppedFilePath(file) : "")
         .filter(Boolean);
@@ -1726,11 +1738,11 @@ function createController() {
     if (uploadList) {
       uploadList.addEventListener("click", (ev) => {
         const row = ev.target && ev.target.closest ? ev.target.closest("[data-cc-upload-index]") : null;
-        if (!row || busy) return;
+        if (!row || busy || driveAccessPending) return;
         setActiveUploadByIndex(parseInt(row.dataset.ccUploadIndex || "0", 10) || 0);
       });
     }
-    dropzone.addEventListener("dragover", (ev) => { ev.preventDefault(); ev.stopPropagation(); if (!busy) dropzone.classList.add("is-dragover"); });
+    dropzone.addEventListener("dragover", (ev) => { ev.preventDefault(); ev.stopPropagation(); if (!busy && !driveAccessPending) dropzone.classList.add("is-dragover"); });
     dropzone.addEventListener("dragleave", (ev) => { ev.preventDefault(); ev.stopPropagation(); dropzone.classList.remove("is-dragover"); });
     dropzone.addEventListener("drop", (ev) => {
       ev.preventDefault(); ev.stopPropagation();
@@ -1759,17 +1771,81 @@ function createController() {
     if (label) label.addEventListener("input", () => updateActiveConfig({ label: label.value || "" }));
     if (session) session.addEventListener("input", () => updateActiveConfig({ sessionId: session.value || "" }));
     if (related) related.addEventListener("input", () => updateActiveConfig({ relatedText: related.value || "" }));
-    if (driveReconnect) {
-      driveReconnect.addEventListener("click", async () => {
-        if (busy) return;
-        if (!window.api?.auth?.signIn) { setStatus("error", "Google sign-in is unavailable in this build."); return; }
-        setStatus("", "opening Google Drive consent...");
-        const res = await window.api.auth.signIn({ drive: true, prompt: "consent" });
-        if (res && res.ok === false) setStatus("error", res.error || "Couldn't open Google Drive consent.");
-        else setStatus("ok", "Google opened. Approve Drive access, then retry the upload.");
+    function cleanupDriveFlowWatcher() {
+      try { if (driveFlowUnsub) driveFlowUnsub(); } catch {}
+      driveFlowUnsub = null;
+    }
+    function watchDriveAccessFlow() {
+      if (driveFlowUnsub || !window.api?.auth?.onFlow) return;
+      driveFlowUnsub = window.api.auth.onFlow((flow) => {
+        if (!flow || !flow.drive) return;
+        if (flow.state === "complete") {
+          const shouldResume = resumeAfterDriveAccess;
+          resumeAfterDriveAccess = false;
+          setDriveAccessPending(false);
+          cleanupDriveFlowWatcher();
+          if (shouldResume) {
+            setStatus("", "private storage connected - sending now...");
+            void submitTranscriptJobs({ resumed: true });
+          } else {
+            setStatus("ok", "private storage connected.");
+          }
+          return;
+        }
+        if (flow.state === "timed_out" || flow.state === "failed" || flow.state === "canceled") {
+          resumeAfterDriveAccess = false;
+          setDriveAccessPending(false);
+          cleanupDriveFlowWatcher();
+          setStatus("error", flow.error || "Storage access did not finish. Click Send when you're ready to try again.");
+        }
       });
     }
-    cancel.addEventListener("click", () => card.remove());
+    async function requestDriveAccess({ resume = false } = {}) {
+      if (!window.api?.auth?.signIn) { setStatus("error", "Private storage sign-in is unavailable in this build."); return false; }
+      const canWatch = typeof window.api.auth.onFlow === "function";
+      resumeAfterDriveAccess = canWatch && !!resume;
+      setDriveAccessPending(canWatch);
+      if (canWatch) watchDriveAccessFlow();
+      setStatus("", resume
+        ? "Finish private storage access in your browser. The upload will continue here."
+        : "Opening private storage access...");
+      const res = await window.api.auth.signIn({ drive: true, prompt: "consent" });
+      if (res && res.ok === false) {
+        resumeAfterDriveAccess = false;
+        setDriveAccessPending(false);
+        cleanupDriveFlowWatcher();
+        setStatus("error", res.error || "Couldn't open private storage access.");
+        return false;
+      }
+      if (!canWatch) {
+        setDriveAccessPending(false);
+        setStatus("ok", "Private storage access opened. Return here after it finishes.");
+      }
+      return true;
+    }
+    function isDriveAccessProblem(res) {
+      if (!res) return false;
+      if (res.reason === "drive_auth_expired") return true;
+      if (res.reason === "missing_drive_config" && Array.isArray(res.missing)) {
+        return res.missing.some((item) => /token|access/i.test(String(item || "")));
+      }
+      if (res.reason === "drive_upload_failed") {
+        return /401|403|invalid|unauthorized/i.test(String(res.detail || ""));
+      }
+      return false;
+    }
+    if (driveReconnect) {
+      driveReconnect.addEventListener("click", async () => {
+        if (busy || driveAccessPending) return;
+        await requestDriveAccess({ resume: false });
+      });
+    }
+    cancel.addEventListener("click", () => {
+      resumeAfterDriveAccess = false;
+      setDriveAccessPending(false);
+      cleanupDriveFlowWatcher();
+      card.remove();
+    });
     function uploadProgressText(jobs) {
       const count = jobs.length;
       const noun = count === 1 ? "transcript" : `${count} transcripts`;
@@ -1778,26 +1854,32 @@ function createController() {
       const pathKey = jobs[0]?.config.processingPath;
       if (pathKey === "supabase_raw") return `sending full text for ${noun}...`;
       if (pathKey === "local_agent") return `processing ${noun} locally...`;
-      if (pathKey === "drive_inbox") return `sending ${noun} to Drive inbox...`;
+      if (pathKey === "drive_inbox") return `sending ${noun} privately...`;
       return `uploading ${noun}...`;
     }
     function resultErrorText(res) {
       if (!res) return "unknown error";
+      const friendlyMissing = (items, { drive = false } = {}) => (Array.isArray(items) ? items : []).map((item) => {
+        const text = String(item || "");
+        if (/token|access/i.test(text)) return drive ? "storage access" : "signed-in access";
+        if (/folder/i.test(text)) return "private folder id";
+        return text;
+      });
       if (res.reason === "missing_supabase_config" && Array.isArray(res.missing)) {
         return res.driveUploaded
-          ? `uploaded to Drive; Shape OS indexing needs ${res.missing.join(", ")}`
-          : `staged locally; the Shape OS DB needs ${res.missing.join(", ")}`;
+          ? `sent privately; Shape OS indexing needs ${friendlyMissing(res.missing).join(", ")}`
+          : `staged locally; the Shape OS DB needs ${friendlyMissing(res.missing).join(", ")}`;
       }
       if (res.reason === "missing_drive_config" && Array.isArray(res.missing)) {
         const needsGoogle = res.missing.some((item) => /token|access/i.test(String(item || "")));
-        return needsGoogle ? "staged locally; reconnect Drive access, then retry" : `staged locally; Drive inbox needs ${res.missing.join(", ")}`;
+        return needsGoogle ? "staged locally; private storage access needs to finish" : `staged locally; private storage needs ${friendlyMissing(res.missing, { drive: true }).join(", ")}`;
       }
-      if (res.reason === "drive_auth_expired") return "staged locally; reconnect Drive access, then retry";
+      if (res.reason === "drive_auth_expired") return "staged locally; private storage access needs to refresh";
       if (res.reason === "drive_upload_failed") {
         const detail = res.detail || "";
         return /401|403|invalid|unauthorized/i.test(detail)
-          ? "Drive rejected the upload. Reconnect Drive access, then retry"
-          : (detail || "Drive upload failed");
+          ? "private storage rejected the upload. Reconnect storage access."
+          : (detail || "private upload failed");
       }
       if (res.reason === "text_transcript_required" || res.reason === "empty_transcript_text") return res.detail || "This path needs a text transcript";
       if (res.reason === "no_local_agent") return res.detail || "Install Ollama or set a local transcript agent command";
@@ -1814,8 +1896,8 @@ function createController() {
         const res = results.find((item) => item && item.ok) || {};
         if (res.processingPath === "drive_inbox" || res.driveUploaded) {
           return res.submittedToSupabase
-            ? `sent to private Drive inbox and indexed in Shape OS: ${res.driveFileName || res.driveFileId || "file"}.`
-            : `sent to private Drive inbox: ${res.driveFileName || res.driveFileId || "file"}.`;
+            ? "sent privately and indexed in Shape OS."
+            : "sent privately.";
         }
         if (res.processingPath === "supabase_raw" || res.rawSubmittedToSupabase) {
           const rows = Number(res.contextSubmissionRows || 1);
@@ -1824,17 +1906,18 @@ function createController() {
         if (res.processingPath === "local_agent" || res.processedLocally) return `local readout saved: ${res.localReadoutName || "private readout"}.`;
         return res.processingQueued
           ? `queued for processing: ${res.storageRef || "transcript"}`
-          : `saved to the Shape OS DB: ${res.needsSessionMatch ? "needs session match" : "Drive mirror queued"}`;
+          : `saved to the Shape OS DB: ${res.needsSessionMatch ? "needs session match" : "private mirror queued"}`;
       }
       const parts = [];
-      if (drive) parts.push(`${drive} Drive`);
+      if (drive) parts.push(`${drive} private`);
       if (raw) parts.push(`${raw} full text${rawRows ? ` / ${rawRows} rows` : ""}`);
       if (local) parts.push(`${local} local`);
       const pointer = Math.max(0, count - drive - raw - local);
       if (pointer) parts.push(`${pointer} pointer`);
       return `uploaded ${count} transcripts${parts.length ? ` (${parts.join(", ")})` : ""}.`;
     }
-    submit.addEventListener("click", async () => {
+    async function submitTranscriptJobs({ resumed = false } = {}) {
+      if (busy || driveAccessPending) return;
       const jobs = uploadJobs();
       if (!jobs.length) { setStatus("error", "Choose at least one transcript file first."); return; }
       const missingType = jobs.find((job) => !job.type);
@@ -1881,6 +1964,12 @@ function createController() {
           return;
         }
         const okCount = results.length - failed.length;
+        if (!resumed && okCount === 0 && failed.some(isDriveAccessProblem) && jobs.some((job) => job.config.processingPath === "drive_inbox")) {
+          void renderUploadHistory();
+          setBusy(false);
+          await requestDriveAccess({ resume: true });
+          return;
+        }
         const problem = resultErrorText(failed[0]);
         setStatus("error", `${okCount} of ${results.length} completed; ${failed.length} need attention${problem ? `: ${problem}` : "."}`);
         void renderUploadHistory();
@@ -1889,7 +1978,8 @@ function createController() {
         setStatus("error", `intake failed: ${error?.message || error}`);
         setBusy(false);
       }
-    });
+    }
+    submit.addEventListener("click", () => { void submitTranscriptJobs(); });
 
     renderDropzone();
     syncUploadState();

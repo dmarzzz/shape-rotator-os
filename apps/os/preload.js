@@ -226,9 +226,16 @@ contextBridge.exposeInMainWorld("api", {
   // onSession after the sros://auth-callback deep link is handled in main.
   auth: {
     signIn:     (o) => ipcRenderer.invoke("auth:sign-in", o || {}),
+    cancelSignIn: () => ipcRenderer.invoke("auth:cancel-sign-in"),
+    getFlow:    () => ipcRenderer.invoke("auth:get-flow"),
     signOut:    () => ipcRenderer.invoke("auth:sign-out"),
     getSession: () => ipcRenderer.invoke("auth:get-session"),
     refresh:    () => ipcRenderer.invoke("auth:refresh"),
+    onFlow: (cb) => {
+      const h = (_e, flow) => { try { cb(flow || {}); } catch {} };
+      ipcRenderer.on("auth:flow", h);
+      return () => ipcRenderer.removeListener("auth:flow", h);
+    },
     onSession: (cb) => {
       const h = (_e, s) => { try { cb(s); } catch {} };
       ipcRenderer.on("auth:session", h);

@@ -7,6 +7,11 @@ const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const POLICY_PATH = path.join(REPO_ROOT, "cohort-data", "policies", "transcript-routing-policy.json");
 const DEFAULT_INTAKE_ROOT = path.join(REPO_ROOT, "cohort-data", ".private", "transcript-intake");
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+const MAX_BULK_FILES = Math.max(1, Number(process.env.SROS_TRANSCRIPT_INTAKE_MAX_BULK_FILES || 20) || 20);
+const MAX_BULK_BYTES = Math.max(
+  MAX_UPLOAD_BYTES,
+  Number(process.env.SROS_TRANSCRIPT_INTAKE_MAX_BULK_BYTES || 250 * 1024 * 1024) || 250 * 1024 * 1024,
+);
 const CONTEXT_SUBMISSION_BODY_MAX = 180000;
 const GOOGLE_DRIVE_UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files";
 const GOOGLE_DRIVE_UPLOAD_FIELDS = "id,name,mimeType,parents,size,md5Checksum";
@@ -14,8 +19,8 @@ const TEXT_TRANSCRIPT_EXTS = new Set([".txt", ".md", ".markdown", ".vtt", ".srt"
 const PROCESSING_PATHS = [
   {
     key: "drive_inbox",
-    label: "Drive inbox",
-    description: "Upload the original file to a private Google Drive inbox and index only metadata in Shape OS.",
+    label: "Private upload",
+    description: "Store the original privately and index only metadata in Shape OS.",
   },
   {
     key: "metadata",
@@ -246,6 +251,7 @@ function inspectTranscriptFiles(filePaths = []) {
   const seen = new Set();
   const files = [];
   const rejected = [];
+  let totalSizeBytes = 0;
   for (const rawPath of Array.isArray(filePaths) ? filePaths : []) {
     const value = String(rawPath || "").trim();
     if (!value) continue;
@@ -253,8 +259,32 @@ function inspectTranscriptFiles(filePaths = []) {
     if (seen.has(key)) continue;
     seen.add(key);
     const info = inspectTranscriptFile(value);
-    if (info.ok) files.push(info);
-    else rejected.push({ ...info, filePath: value });
+    if (info.ok) {
+      if (files.length >= MAX_BULK_FILES) {
+        rejected.push({
+          ok: false,
+          reason: "too_many_files",
+          detail: `Transcript intake accepts up to ${MAX_BULK_FILES} files at a time.`,
+          filePath: info.filePath,
+          name: info.name,
+          sizeBytes: info.sizeBytes,
+        });
+        continue;
+      }
+      if (totalSizeBytes + info.sizeBytes > MAX_BULK_BYTES) {
+        rejected.push({
+          ok: false,
+          reason: "batch_too_large",
+          detail: `Transcript intake batches are limited to ${Math.round(MAX_BULK_BYTES / 1024 / 1024)} MB at a time.`,
+          filePath: info.filePath,
+          name: info.name,
+          sizeBytes: info.sizeBytes,
+        });
+        continue;
+      }
+      files.push(info);
+      totalSizeBytes += info.sizeBytes;
+    } else rejected.push({ ...info, filePath: value });
   }
   if (!files.length) {
     const first = rejected[0] || {};
@@ -264,9 +294,17 @@ function inspectTranscriptFiles(filePaths = []) {
       detail: first.detail || "Choose at least one transcript file.",
       files,
       rejected,
+      totalSizeBytes,
+      limits: { maxFiles: MAX_BULK_FILES, maxBytes: MAX_BULK_BYTES },
     };
   }
-  return { ok: true, files, rejected };
+  return {
+    ok: true,
+    files,
+    rejected,
+    totalSizeBytes,
+    limits: { maxFiles: MAX_BULK_FILES, maxBytes: MAX_BULK_BYTES },
+  };
 }
 
 function sha256File(filePath) {
@@ -516,7 +554,6 @@ function normalizeDriveConfig(config = {}) {
 function missingDriveFields(config) {
   const missing = [];
   if (!config.accessToken) missing.push("Google Drive access token");
-  if (!config.folderId) missing.push("Drive folder ID");
   return missing;
 }
 
@@ -537,8 +574,29 @@ function missingRawSupabaseFields(config) {
   return missing;
 }
 
+function parseDriveUploadUrl(value) {
+  let url = null;
+  try {
+    url = new URL(String(value || GOOGLE_DRIVE_UPLOAD_URL).trim() || GOOGLE_DRIVE_UPLOAD_URL);
+  } catch {
+    const error = new Error("Google Drive upload URL is invalid.");
+    error.code = "drive_upload_url_not_allowed";
+    throw error;
+  }
+  if (
+    url.protocol !== "https:" ||
+    url.hostname !== "www.googleapis.com" ||
+    url.pathname !== "/upload/drive/v3/files"
+  ) {
+    const error = new Error("Google Drive uploads are limited to the Google Drive upload endpoint.");
+    error.code = "drive_upload_url_not_allowed";
+    throw error;
+  }
+  return url;
+}
+
 function driveUploadUrl(config) {
-  const url = new URL(config.uploadUrl || GOOGLE_DRIVE_UPLOAD_URL);
+  const url = parseDriveUploadUrl(config.uploadUrl);
   url.searchParams.set("uploadType", "multipart");
   url.searchParams.set("supportsAllDrives", "true");
   url.searchParams.set("fields", GOOGLE_DRIVE_UPLOAD_FIELDS);
@@ -549,13 +607,13 @@ function buildDriveMultipartBody({ staged, folderId }) {
   const boundary = `sros_${crypto.randomBytes(12).toString("hex")}`;
   const metadata = {
     name: staged.stagedName,
-    parents: [folderId],
     mimeType: staged.mimeType,
     appProperties: {
       source: "shape_os_transcript_intake",
       source_hash: staged.sourceHash,
     },
   };
+  if (folderId) metadata.parents = [folderId];
   const preamble = Buffer.from([
     `--${boundary}`,
     "Content-Type: application/json; charset=UTF-8",
@@ -572,8 +630,9 @@ function buildDriveMultipartBody({ staged, folderId }) {
 }
 
 async function callDriveUpload({ config, staged, fetchImpl = fetch }) {
+  const uploadUrl = driveUploadUrl(config);
   const { boundary, body } = buildDriveMultipartBody({ staged, folderId: config.folderId });
-  const response = await fetchImpl(driveUploadUrl(config), {
+  const response = await fetchImpl(uploadUrl, {
     method: "POST",
     headers: {
       authorization: `Bearer ${config.accessToken}`,
@@ -1458,6 +1517,8 @@ module.exports = {
   listTranscriptIntakeHistory,
   DEFAULT_POLICY,
   MAX_UPLOAD_BYTES,
+  MAX_BULK_FILES,
+  MAX_BULK_BYTES,
   buildDriveInboxIntakeBody,
   buildTranscriptIntakeBody,
   callDriveUpload,
