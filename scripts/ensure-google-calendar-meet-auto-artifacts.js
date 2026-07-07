@@ -227,7 +227,7 @@ async function runEnsureGoogleCalendarMeetAutoArtifacts({
       actions: [],
     };
     if (skipIfMissingScope) return skipped;
-    throw new Error(`${MEET_SETTINGS_SCOPE} is missing from GOOGLE_OAUTH_SCOPES; re-consent Cube before applying Meet auto artifacts`);
+    throw new Error(`${MEET_SETTINGS_SCOPE} is missing from GOOGLE_OAUTH_SCOPES; re-consent Cube with --scope-profile meet-artifacts before applying Meet auto artifacts`);
   }
 
   let payload = null;

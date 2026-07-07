@@ -4,14 +4,43 @@ const http = require("node:http");
 const { loadEnvFile } = require("./lib/env-file.cjs");
 
 const DEFAULT_REDIRECT_URI = "http://127.0.0.1:8787/oauth2callback";
-const DEFAULT_SCOPES = [
-  "https://www.googleapis.com/auth/calendar",
-  "https://www.googleapis.com/auth/drive",
-  "https://www.googleapis.com/auth/meetings.space.settings",
-  "https://www.googleapis.com/auth/meetings.space.readonly",
-  "https://www.googleapis.com/auth/userinfo.email",
-  "openid",
-];
+const OAUTH_SCOPE_PROFILES = Object.freeze({
+  identity: [
+    "openid",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
+  ],
+  calendar: [
+    "https://www.googleapis.com/auth/calendar.events",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "openid",
+  ],
+  "calendar-admin": [
+    "https://www.googleapis.com/auth/calendar.events",
+    "https://www.googleapis.com/auth/calendar.acls",
+    "https://www.googleapis.com/auth/calendar.calendarlist",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "openid",
+  ],
+  "meet-artifacts": [
+    "https://www.googleapis.com/auth/calendar.events",
+    "https://www.googleapis.com/auth/meetings.space.settings",
+    "https://www.googleapis.com/auth/meetings.space.readonly",
+    "https://www.googleapis.com/auth/drive.meet.readonly",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "openid",
+  ],
+  full: [
+    "https://www.googleapis.com/auth/calendar",
+    "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/meetings.space.settings",
+    "https://www.googleapis.com/auth/meetings.space.readonly",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "openid",
+  ],
+});
+const DEFAULT_SCOPE_PROFILE = "identity";
+const DEFAULT_SCOPES = OAUTH_SCOPE_PROFILES[DEFAULT_SCOPE_PROFILE];
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 
@@ -31,7 +60,8 @@ function usage() {
     "  --client-id ID              OAuth client ID.",
     "  --client-secret SECRET      OAuth client secret.",
     `  --redirect-uri URI          Default: ${DEFAULT_REDIRECT_URI}`,
-    "  --scopes SCOPES             Space/comma separated OAuth scopes. Default: Calendar and Drive full scopes.",
+    `  --scope-profile PROFILE    identity, calendar, calendar-admin, meet-artifacts, or full. Default: ${DEFAULT_SCOPE_PROFILE}.`,
+    "  --scopes SCOPES             Space/comma separated OAuth scopes. Overrides --scope-profile.",
     "  --state STATE               Optional OAuth state. A random value is used for --listen.",
     "  --port PORT                 Local listener port. Default: port from redirect URI.",
     "  --format json|env|summary   Default: json. env prints .env.calendar.local lines.",
@@ -59,6 +89,21 @@ function parseScopes(value = DEFAULT_SCOPES) {
   const input = Array.isArray(value) ? value.join(" ") : String(value || "");
   const scopes = input.split(/[\s,]+/).map((item) => item.trim()).filter(Boolean);
   return scopes.length ? scopes : DEFAULT_SCOPES;
+}
+
+function scopesForProfile(profile = DEFAULT_SCOPE_PROFILE) {
+  const key = String(profile || DEFAULT_SCOPE_PROFILE).trim() || DEFAULT_SCOPE_PROFILE;
+  const scopes = OAUTH_SCOPE_PROFILES[key];
+  if (!scopes) {
+    throw new Error(`unsupported OAuth scope profile: ${key}`);
+  }
+  return scopes;
+}
+
+function resolveScopes({ argv = process.argv, env = process.env } = {}) {
+  const explicit = arg("--scopes", argv) || env.GOOGLE_OAUTH_SCOPES;
+  if (explicit) return parseScopes(explicit);
+  return scopesForProfile(arg("--scope-profile", argv) || env.GOOGLE_OAUTH_SCOPE_PROFILE || DEFAULT_SCOPE_PROFILE);
 }
 
 function required(value, label) {
@@ -303,7 +348,7 @@ async function main(argv = process.argv) {
   const clientId = envOrArg("--client-id", "GOOGLE_OAUTH_CLIENT_ID", argv);
   const clientSecret = envOrArg("--client-secret", "GOOGLE_OAUTH_CLIENT_SECRET", argv);
   const redirectUri = envOrArg("--redirect-uri", "GOOGLE_OAUTH_REDIRECT_URI", argv) || DEFAULT_REDIRECT_URI;
-  const scopes = parseScopes(arg("--scopes", argv) || process.env.GOOGLE_OAUTH_SCOPES || DEFAULT_SCOPES);
+  const scopes = resolveScopes({ argv, env: process.env });
   const state = arg("--state", argv);
   const format = arg("--format", argv) || "json";
   const updateEnvFilePath = arg("--update-env-file", argv);
@@ -373,7 +418,9 @@ if (require.main === module) {
 
 module.exports = {
   DEFAULT_REDIRECT_URI,
+  DEFAULT_SCOPE_PROFILE,
   DEFAULT_SCOPES,
+  OAUTH_SCOPE_PROFILES,
   buildGoogleOAuthUrl,
   exchangeAuthCode,
   formatTokenPayload,
@@ -381,6 +428,8 @@ module.exports = {
   listenForOAuthCallback,
   parseScopes,
   refreshAccessToken,
+  resolveScopes,
+  scopesForProfile,
   tokenEnvMap,
   tokenEnvLines,
   tokenRequestBody,

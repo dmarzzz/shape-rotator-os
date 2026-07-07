@@ -128,7 +128,7 @@ function meetSpacePatchUrl(spaceName, updateMask = ARTIFACT_UPDATE_MASK) {
 
 async function resolveGoogleAccessToken({ accessToken, env = process.env, fetchImpl = fetch, requireMeetSettingsScope = true } = {}) {
   if (requireMeetSettingsScope && env.GOOGLE_OAUTH_SCOPES && !hasMeetSettingsScope(env.GOOGLE_OAUTH_SCOPES)) {
-    throw new Error(`${MEET_SETTINGS_SCOPE} is missing from GOOGLE_OAUTH_SCOPES; re-consent Cube before applying Meet auto artifacts`);
+    throw new Error(`${MEET_SETTINGS_SCOPE} is missing from GOOGLE_OAUTH_SCOPES; re-consent Cube with --scope-profile meet-artifacts before applying Meet auto artifacts`);
   }
   if (accessToken) return accessToken;
   if (env.GOOGLE_OAUTH_REFRESH_TOKEN && env.GOOGLE_OAUTH_CLIENT_ID && env.GOOGLE_OAUTH_CLIENT_SECRET) {
