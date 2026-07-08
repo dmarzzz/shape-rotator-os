@@ -2575,6 +2575,21 @@ function contextCompactText(value, limit = 150) {
   return `${text.slice(0, Math.max(0, limit - 1)).trim()}…`;
 }
 
+function contextMembranePlainText(value, limit = 720) {
+  const text = String(value || "")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/!\[[^\]]*\]\([^)]+\)/g, " ")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    .replace(/[*_>#|]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return contextCompactText(text, limit);
+}
+
 function contextMembraneDateMs(value) {
   if (!value) return null;
   const ms = Date.parse(String(value));
@@ -2603,10 +2618,16 @@ function buildMembraneContextData() {
     title: contextStreamTitle(item),
     meta: contextStreamMeta(item),
     summary: contextCompactText(contextStreamDesc(item), 170),
+    body: item.kind === "article"
+      ? contextMembranePlainText(buildContextArticleMarkdown(item.record), 760)
+      : (item.kind === "readout"
+        ? contextMembranePlainText(item.record?.body_md || item.record?.summary || "", 760)
+        : contextMembranePlainText(item.record?.excerpt || "", 360)),
     dateMs: item.dateMs,
   }));
   const topics = buildTopicIndex({ articles, distilled, cards });
   const library = topics.slice(0, 12).map((topic) => {
+    const page = topicPageData(topic.key, { articles, distilled, cards });
     const bits = [];
     if (topic.hints) bits.push(`${topic.hints} hint${topic.hints === 1 ? "" : "s"}`);
     if (topic.claims) bits.push(`${topic.claims} claim${topic.claims === 1 ? "" : "s"}`);
@@ -2616,6 +2637,19 @@ function buildMembraneContextData() {
       title: topic.label,
       count: topic.total,
       meta: bits.join(" · ") || `${topic.total} item${topic.total === 1 ? "" : "s"}`,
+      hints: page.hints.slice(0, 3).map((hint) => ({
+        title: contextArticleTitle(hint),
+        summary: contextCompactText(contextArticleDek(hint), 140),
+      })),
+      claims: page.claims.slice(0, 4).map((claim) => ({
+        type: String(claim.claim_type || "insight").replace(/_/g, " "),
+        text: contextCompactText(claim.claim_text || claim.title || claim.summary || "", 170),
+      })),
+      sessions: page.sessions.slice(0, 4).map((session) => ({
+        title: distilledTranscriptTitle(session),
+        meta: distilledTranscriptMeta(session),
+        summary: contextCompactText(session.summary || session.thesis || "", 150),
+      })),
     };
   });
   const sessionRows = [
@@ -2632,10 +2666,15 @@ function buildMembraneContextData() {
         title: distilledTranscriptTitle(session),
         meta: distilledTranscriptMeta(session) || "reviewed session",
         summary: contextCompactText(session.summary || session.thesis || "", 210),
+        body: contextMembranePlainText(session.body_md || session.summary || session.thesis || "", 820),
         dateMs: contextMembraneDateMs(session.date || session.created_at || session.week_start),
         source: "transcript engine",
         sessionType,
         claims: claims.length,
+        claimPreviews: claims.slice(0, 4).map((claim) => ({
+          type: String(claim.claim_type || "insight").replace(/_/g, " "),
+          text: contextCompactText(claim.claim_text || claim.title || claim.summary || "", 170),
+        })),
         themes: themes.slice(0, 5),
         teams: teams.slice(0, 4),
       };
@@ -2648,10 +2687,12 @@ function buildMembraneContextData() {
         title: contextRawScriptTitle(raw),
         meta: [sourceKind, raw.line_count ? `${raw.line_count} lines` : ""].filter(Boolean).join(" · ") || "local transcript",
         summary: contextCompactText(raw.excerpt || "", 210),
+        body: contextMembranePlainText(raw.excerpt || "", 420),
         dateMs: contextMembraneDateMs(raw.date || raw.modified_at || raw.created_at),
         source: /claude|codex|agent|session/i.test(sourceKind) ? "local agent session" : "local notes",
         sessionType: sourceKind,
         claims: 0,
+        claimPreviews: [],
         themes: [],
         teams: [],
       };
@@ -14914,7 +14955,7 @@ function selectContextTopic(key) {
   if (!swapContextDetail(contextDetailColHtml(contextTopicPageHtml(key)))) render();
 }
 
-// A hint/session row on a topic page opens its full reader in place, with a
+// A hint/session row on a topic page opens its source detail in place, with a
 // back row to return to the topic — one pane, no third column.
 function openContextLibraryItem(key) {
   const cv = state.contextVault;

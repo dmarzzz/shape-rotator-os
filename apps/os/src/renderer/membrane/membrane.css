@@ -1460,7 +1460,7 @@ html[data-reduce-motion="1"] .magenda-now::after { animation: none; opacity: 0.4
 .membrane-context-trigger {
   position: absolute;
   top: 18px;
-  left: 20px;
+  left: max(20px, calc(var(--nav-w, 280px) + 16px));
   z-index: 7;
   display: inline-flex;
   align-items: center;
@@ -1770,6 +1770,23 @@ html[data-reduce-motion="1"] .magenda-now::after { animation: none; opacity: 0.4
   font-size: 13.5px;
   line-height: 1.55;
 }
+.mctx-reader-body {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+  padding: 14px;
+  border: 1px solid rgba(var(--mem-ink-rgb), 0.08);
+  border-radius: 13px;
+  background:
+    linear-gradient(180deg, rgba(var(--mem-ink-rgb), 0.070), rgba(var(--mem-ink-rgb), 0.035));
+  box-shadow: inset 0 1px 0 rgba(var(--mem-ink-rgb), 0.045);
+}
+.mctx-reader-body p {
+  margin: 0;
+  color: rgba(var(--mem-ink-rgb), 0.72);
+  font-size: 13px;
+  line-height: 1.62;
+}
 .mctx-chip-row {
   display: flex;
   flex-wrap: wrap;
@@ -1796,6 +1813,34 @@ html[data-reduce-motion="1"] .magenda-now::after { animation: none; opacity: 0.4
   margin-bottom: 5px;
   color: rgba(var(--mem-ink-rgb), 0.72);
   font-size: 11px;
+}
+.mctx-mini-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+.mctx-mini-row {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 11px;
+  border: 1px solid rgba(var(--mem-ink-rgb), 0.075);
+  border-radius: 10px;
+  background: rgba(var(--mem-ink-rgb), 0.045);
+}
+.mctx-mini-row b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(var(--mem-ink-rgb), 0.82);
+  font-size: 12px;
+  font-weight: 650;
+}
+.mctx-mini-row span {
+  color: rgba(var(--mem-ink-rgb), 0.60);
+  font-size: 11.5px;
+  line-height: 1.45;
 }
 .mctx-detail-actions {
   display: flex;
@@ -1878,6 +1923,10 @@ body:has(.membrane-context-open) #cohort-chat-dial-wrap {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
+}
+body:has(.membrane-context-open) #primary-nav {
+  pointer-events: none;
+  transform: translate3d(calc(-1 * var(--nav-w)), 0, 0) !important;
 }
 .membrane-context-open .membrane-rubiks-canvas {
   transform: translateX(9vw) scale(0.90);
@@ -2023,7 +2072,8 @@ html[data-theme="light"] .membrane-context-expanded .membrane-context-scrim {
   }
   .membrane-context-trigger {
     top: 12px;
-    left: 12px;
+    left: auto;
+    right: 12px;
   }
   .mctx-trigger-label { display: none; }
   .membrane-host.membrane-context-open { transform: none; }

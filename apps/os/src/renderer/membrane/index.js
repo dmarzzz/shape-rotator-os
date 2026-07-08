@@ -50,7 +50,6 @@ const DISMISS_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
 // same family as the feed icons). Tinted by the card's --c2-acc in CSS.
 const CAL_PLUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M12 14v4"/><path d="M10 16h4"/></svg>';
 const CONTEXT_BOOK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z"/><path d="M8 7h8"/><path d="M8 11h6"/></svg>';
-const CONTEXT_OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>';
 const CONTEXT_EXPAND = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
 const CONTEXT_COLLAPSE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M16 3v3a2 2 0 0 0 2 2h3"/><path d="M8 21v-3a2 2 0 0 0-2-2H3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>';
 
@@ -1254,10 +1253,6 @@ export function mountMembrane(container, opts = {}) {
     return Array.isArray(items) ? items : [];
   }
 
-  function contextFullPageView(view = contextView) {
-    return normalizeContextView(view) === 'library' ? 'library' : 'stream';
-  }
-
   function contextItemKey(item) {
     return String(item?.key || item?.title || '');
   }
@@ -1277,15 +1272,6 @@ export function mountMembrane(container, opts = {}) {
       container.classList.toggle('membrane-context-expanded', contextOpen && contextExpanded);
     }
     updateContextSurface();
-  }
-
-  function openFullContext(view = contextView) {
-    const nextView = contextFullPageView(view);
-    if (typeof window.__srwkOpenInNewTab === 'function') {
-      window.__srwkOpenInNewTab({ tab: 'alchemy', mode: 'context', contextView: nextView });
-    } else if (typeof window.__srwkAlchemyJump === 'function') {
-      window.__srwkAlchemyJump('context', { contextView: nextView });
-    }
   }
 
   function renderContextRows(view, data) {
@@ -1341,6 +1327,41 @@ export function mountMembrane(container, opts = {}) {
     }).join('');
   }
 
+  function renderDetailList(title, items, empty = '') {
+    const rows = (Array.isArray(items) ? items : []).filter(Boolean);
+    if (!rows.length) return empty ? `<div class="mctx-detail-section"><strong>${escHtml(title)}</strong><p>${escHtml(empty)}</p></div>` : '';
+    return `
+      <div class="mctx-detail-section">
+        <strong>${escHtml(title)}</strong>
+        <div class="mctx-mini-list">
+          ${rows.map((row) => `
+            <article class="mctx-mini-row">
+              <b>${escHtml(row.title || row.type || 'item')}</b>
+              ${row.summary || row.text || row.meta ? `<span>${escHtml(row.summary || row.text || row.meta)}</span>` : ''}
+            </article>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  function renderReaderBody(text) {
+    const body = String(text || '').replace(/\s+/g, ' ').trim();
+    if (!body) return '';
+    const paragraphs = [];
+    const sentences = body.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [body];
+    let paragraph = '';
+    sentences.forEach((sentence) => {
+      const next = `${paragraph} ${sentence.trim()}`.trim();
+      if (paragraph && next.length > 280) {
+        paragraphs.push(paragraph);
+        paragraph = sentence.trim();
+      } else {
+        paragraph = next;
+      }
+    });
+    if (paragraph) paragraphs.push(paragraph);
+    return `<div class="mctx-reader-body">${paragraphs.slice(0, 4).map((p) => `<p>${escHtml(p)}</p>`).join('')}</div>`;
+  }
+
   function renderContextDetail(view, data) {
     const normalized = normalizeContextView(view);
     const item = selectedContextItem(normalized, data);
@@ -1355,9 +1376,9 @@ export function mountMembrane(container, opts = {}) {
           <span class="mctx-detail-kicker">library topic</span>
           <h3>${escHtml(item.title || 'topic')}</h3>
           <p>${escHtml(item.meta || 'Hints, claims, and sessions grouped by topic.')}</p>
-          <div class="mctx-detail-actions">
-            <button type="button" class="mctx-detail-link" data-context-full>Open topic library</button>
-          </div>
+          ${renderDetailList('Start here', item.hints, 'No hints yet.')}
+          ${renderDetailList('What we know', item.claims, 'No claims yet.')}
+          ${renderDetailList('Sessions behind it', item.sessions, 'No sessions yet.')}
         </aside>`;
     }
     if (normalized === 'sessions') {
@@ -1375,24 +1396,21 @@ export function mountMembrane(container, opts = {}) {
           <h3>${escHtml(item.title || 'session')}</h3>
           ${item.summary ? `<p>${escHtml(item.summary)}</p>` : `<p>This session is in the membrane index, but does not have a summary yet.</p>`}
           ${chips.length ? `<div class="mctx-chip-row">${chips.map((c) => `<span>${escHtml(c)}</span>`).join('')}</div>` : ''}
+          ${renderReaderBody(item.body)}
+          ${renderDetailList('Claims from this session', item.claimPreviews, 'No extracted claims yet.')}
           ${themes.length ? `<div class="mctx-detail-section"><strong>Themes</strong><p>${escHtml(themes.join(' · '))}</p></div>` : ''}
           ${teams.length ? `<div class="mctx-detail-section"><strong>People / teams</strong><p>${escHtml(teams.join(' · '))}</p></div>` : ''}
-          <div class="mctx-detail-actions">
-            <button type="button" class="mctx-detail-link" data-context-full>Open transcript reader</button>
-          </div>
         </aside>`;
     }
     return `
       <aside class="mctx-detail">
         <span class="mctx-detail-kicker">${escHtml(kind)}</span>
         <h3>${escHtml(item.title || 'context item')}</h3>
-        ${item.summary ? `<p>${escHtml(item.summary)}</p>` : `<p>No summary is available yet. Open the reader for the full source.</p>`}
+        ${item.summary ? `<p>${escHtml(item.summary)}</p>` : `<p>No summary is available yet.</p>`}
         <div class="mctx-chip-row">
           ${[item.meta || kind, when].filter(Boolean).map((c) => `<span>${escHtml(c)}</span>`).join('')}
         </div>
-        <div class="mctx-detail-actions">
-          <button type="button" class="mctx-detail-link" data-context-full>Open full reader</button>
-        </div>
+        ${renderReaderBody(item.body)}
       </aside>`;
   }
 
@@ -1435,7 +1453,6 @@ export function mountMembrane(container, opts = {}) {
         </div>
         <div class="mctx-actions">
           <button type="button" class="mctx-icon-btn" data-context-expand title="${contextExpanded ? 'shrink workspace' : 'expand workspace'}" aria-label="${contextExpanded ? 'shrink context workspace' : 'expand context workspace'}" aria-pressed="${contextExpanded ? 'true' : 'false'}">${contextExpanded ? CONTEXT_COLLAPSE : CONTEXT_EXPAND}</button>
-          <button type="button" class="mctx-icon-btn" data-context-full title="open full context page" aria-label="open full context page">${CONTEXT_OPEN}</button>
           <button type="button" class="mctx-icon-btn" data-context-close title="close" aria-label="close context overlay">${DISMISS_X}</button>
         </div>
       </header>
@@ -1460,10 +1477,6 @@ export function mountMembrane(container, opts = {}) {
       });
     });
     contextCard.querySelector('[data-context-expand]')?.addEventListener('click', () => setContextExpanded(!contextExpanded));
-    contextCard.querySelector('[data-context-full]')?.addEventListener('click', () => openFullContext(contextView));
-    contextCard.querySelectorAll('.mctx-detail [data-context-full]').forEach((btn) => {
-      btn.addEventListener('click', () => openFullContext(contextView));
-    });
     contextCard.querySelectorAll('[data-mctx-row]').forEach((btn) => {
       btn.addEventListener('click', () => {
         contextView = normalizeContextView(btn.dataset.contextView || contextView);

@@ -31,6 +31,7 @@
     "transcripts:receive:signin": "electron . --transcript-auth-proof",
     "auth:gate:visual-smoke": "electron scripts/auth-gate-visual-smoke.cjs",
     "smoke:launcher": "electron scripts/launcher-visual-smoke.cjs",
+    "smoke:membrane-context": "electron scripts/membrane-context-smoke.cjs",
     "bundle:check": "node scripts/bundle-renderer.cjs --check"
   },
   "dependencies": {
