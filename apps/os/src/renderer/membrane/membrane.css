@@ -283,7 +283,7 @@ html[data-theme="light"] .membrane-agenda [data-cat="anarchy"] { --c2-acc: #8ba0
   position: absolute;
   top: 0;
   right: 0;
-  bottom: 84px;          /* clears the capture bar, same margin the old corner used */
+  bottom: 0;
   width: 196px;
   z-index: 2;
   display: flex;
@@ -1687,7 +1687,7 @@ html[data-reduce-motion="1"] .magenda-now::after { animation: none; opacity: 0.4
 .membrane-feedback-send:active:not(:disabled) { transform: translateY(1px) scale(0.98); }
 .membrane-feedback-send:disabled { opacity: 0.4; cursor: default; }
 
-/* ── Hub prototype (.membrane-hub): asks beside the shape + capture bar ───
+/* ── Hub prototype (.membrane-hub): asks beside the shape ─────────────────
    The die keeps the center as the focal anchor; open asks (say / maybe — the
    human layer) stack up the LEFT edge of the field and pop out from the left
    (2026-07-03: "instead of keeping the chat bubbles sprawled around the
@@ -1698,8 +1698,7 @@ html[data-reduce-motion="1"] .magenda-now::after { animation: none; opacity: 0.4
 /* The die is the focus again — just a whisper of dim so row text reads. */
 .membrane-hub .membrane-canvas { opacity: 0.85; }
 
-/* The feedback pill's bottom-center spot now belongs to the capture bar.
-   Direction (not built in v0): OS feedback becomes a say → "to: OS" target. */
+/* Keep membrane free of bottom-center chrome. */
 .membrane-hub .membrane-feedback { display: none; }
 
 /* Paired UNDER the agenda inside .membrane-right-col (2026-07-04) — a sleeker,
@@ -1782,138 +1781,6 @@ html[data-reduce-motion="1"] .magenda-now::after { animation: none; opacity: 0.4
   color: rgba(var(--mem-ink-rgb), 0.34);
   padding: 2px 8px;
 }
-
-/* ── capture bar ── */
-.membrane-capture {
-  position: absolute;
-  left: 50%;
-  bottom: 16px;
-  transform: translateX(-50%);
-  z-index: 6;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: min(640px, calc(100% - 452px));
-  min-width: 340px;
-  padding: 8px;
-  border: 1px solid rgba(var(--mem-ink-rgb), 0.14);
-  border-radius: 13px;
-  background: var(--membrane-card-top);
-  backdrop-filter: blur(7px);
-  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-  /* Quiet at rest, full presence once engaged (2026-07-04: "make the central
-     bar a bit more hidden unless engaged") — the composer is always-available
-     chrome, not the thing the die-centered landing wants you looking at.
-     Hover OR focus-within (typing keeps it up regardless of where the
-     pointer wanders) bring it to full opacity; unengaged, it recedes to a
-     bare presence-marker. */
-  opacity: 0.4;
-  transition: opacity 220ms ease, border-color 200ms ease, box-shadow 200ms ease;
-}
-.membrane-capture:hover,
-.membrane-capture:focus-within {
-  opacity: 1;
-}
-/* Step aside for the Rubik's easter-egg controls, like the pill did. */
-.membrane-rubiks-active .membrane-capture {
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity 300ms ease, visibility 0s linear 300ms;
-}
-
-/* The bar itself is the field: verbs sit in one segmented pill, the input is
-   borderless inside the bar, and focus lights the WHOLE bar (focus-within)
-   instead of drawing a second box within a box. */
-.membrane-capture:focus-within {
-  border-color: var(--membrane-ember-soft);
-  box-shadow: 0 10px 34px -20px var(--membrane-ember-soft);
-}
-.mcap-verbs {
-  display: flex;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid rgba(var(--mem-ink-rgb), 0.14);
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.22);
-}
-html[data-theme="light"] .mcap-verbs { background: rgba(255, 255, 255, 0.5); }
-.mcap-verb {
-  font: inherit;
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  padding: 4px 11px;
-  border-radius: 999px;
-  border: 0;
-  background: transparent;
-  color: rgba(var(--mem-ink-rgb), 0.55);
-  cursor: pointer;
-  transition: background 140ms ease, color 140ms ease;
-}
-.mcap-verb:hover { color: rgba(var(--mem-ink-rgb), 0.9); }
-.mcap-verb:focus-visible {
-  outline: 1px solid color-mix(in srgb, var(--membrane-ember) 45%, transparent);
-  outline-offset: 1px;
-}
-/* Active verb takes its intent tint (same pairs the feed rows use). */
-.mcap-verb[data-mcap-verb="say"].is-active   { background: #EADBA8; color: #5E4310; font-weight: 700; }
-.mcap-verb[data-mcap-verb="did"].is-active   { background: #CDD3EC; color: #2E3660; font-weight: 700; }
-.mcap-verb[data-mcap-verb="maybe"].is-active { background: #CAE3C8; color: #1E4A2A; font-weight: 700; }
-
-.mcap-input {
-  flex: 1 1 auto;
-  min-width: 0;
-  font: inherit;
-  font-size: 12px;
-  padding: 7px 4px;
-  border: 0;
-  background: transparent;
-  color: var(--membrane-mist);
-}
-/* The DS native-control layer (ds.css) blanket-styles every text input with
-   !important — control-height box, --ds-surface-3 fill, its own bright
-   --ds-focus border on :focus. This bar IS the control: the input stays
-   borderless inside it and focus lights the WHOLE bar (:focus-within above),
-   so the DS skin here meant a box-in-a-box with a second, clashing focus
-   ring. Same exemption precedent as .cb-intake-input; higher specificity +
-   !important is the only way past the DS layer's own !important. */
-html[data-ds] .membrane-capture .mcap-input {
-  min-height: 0 !important;
-  padding: 7px 4px !important;
-  border: 0 !important;
-  background: transparent !important;
-  color: var(--membrane-mist) !important;
-  font: inherit !important;
-  font-size: 12px !important;
-}
-html[data-ds] .membrane-capture .mcap-input:focus,
-html[data-ds] .membrane-capture .mcap-input:focus-visible {
-  outline: none !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
-}
-.mcap-input::placeholder { color: rgba(var(--mem-ink-rgb), 0.35); }
-/* the bar's :focus-within carries focus — no inner ring (plain :focus too:
-   programmatic focus, e.g. the preview's ?post driver, draws the UA ring) */
-.mcap-input:focus,
-.mcap-input:focus-visible { outline: none; }
-
-.mcap-send {
-  flex: none;
-  font: inherit;
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  padding: 6px 13px;
-  border: 1px solid var(--membrane-ember-soft);
-  border-radius: 9px;
-  background: rgba(255, 122, 61, 0.1);
-  color: var(--membrane-ember);
-  cursor: pointer;
-  transition: background 140ms ease, opacity 140ms ease;
-}
-.mcap-send:hover:not(:disabled) { background: rgba(255, 122, 61, 0.18); }
-.mcap-send:disabled { opacity: 0.35; cursor: default; }
 
 /* (the agenda "later" fold rules live with the agenda card vocabulary above,
    before the [data-cat] colour tier — see "agenda later fold".) */

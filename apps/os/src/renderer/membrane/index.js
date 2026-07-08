@@ -203,43 +203,17 @@ const FEED_CTA = {
 };
 function feedCta(kind) { return FEED_CTA[kind] || 'open'; }
 
-// ── hub prototype: the field feed + say/did/maybe capture bar ──────────────
+// ── hub prototype: the field feed ──────────────────────────────────────────
 // The membrane's center stops being pure decoration: a "cohort today" feed
-// floats over the (dimmed) die, and a capture bar sits at the bottom. Three
-// verbs, one input, zero navigation. say → an ask on the spine; maybe → a
-// tentative come_join; did → a self-report (feeds the mirror/attribution
-// direction). v0 posts are LOCAL-ONLY (localStorage) — the spine write goes
-// in with the asks migration; the point here is the interaction shape.
-// Tint/ink pairs follow the asks.js intent-color pattern (colors live in JS,
-// applied as inline CSS vars): say = ask amber, maybe = come_join green,
-// did = a new slate-lavender (no existing intent to borrow).
+// floats over the (dimmed) die. Tint/ink pairs follow the asks.js intent-color
+// pattern (colors live in JS, applied as inline CSS vars): say = ask amber,
+// maybe = come_join green.
 const FIELD_VERBS = {
-  say:   { label: 'say',   ink: '#5E4310', tint: '#EADBA8', hint: 'say it to the cohort' },
-  did:   { label: 'did',   ink: '#2E3660', tint: '#CDD3EC', hint: 'log what you did' },
-  maybe: { label: 'maybe', ink: '#1E4A2A', tint: '#CAE3C8', hint: 'float a plan — who’s in?' },
+  say:   { label: 'say',   ink: '#5E4310', tint: '#EADBA8' },
+  maybe: { label: 'maybe', ink: '#1E4A2A', tint: '#CAE3C8' },
 };
-const FIELD_VERB_ORDER = ['say', 'did', 'maybe'];
-const FIELD_POSTS_KEY = 'srwk:membrane:posts_v0';
 
-function loadFieldPosts() {
-  try {
-    const arr = JSON.parse(localStorage.getItem(FIELD_POSTS_KEY) || '[]');
-    if (!Array.isArray(arr)) return [];
-    // Sanitize ts at the load boundary: a junk/legacy ts would otherwise
-    // reach new Date(p.ts).toISOString() in renderFeed and THROW, killing
-    // the whole left rail on every render until the key is hand-cleared.
-    return arr.filter((p) => p && p.text).map((p) => ({
-      ...p,
-      ts: Number.isFinite(Number(p.ts)) ? Number(p.ts) : 0,
-    }));
-  } catch { return []; }
-}
-function saveFieldPosts(posts) {
-  try { localStorage.setItem(FIELD_POSTS_KEY, JSON.stringify(posts.slice(-50))); } catch {}
-}
-
-// Minute-level age for the field feed — local posts are fresher than the
-// day-granular feedAge() can express ("now", "12m", "3h", then days/weeks).
+// Minute-level age for the field feed ("now", "12m", "3h", then days/weeks).
 function fieldAge(ms) {
   if (!Number.isFinite(ms) || ms <= 0) return '';
   const d = Date.now() - ms;
@@ -468,21 +442,6 @@ export function mountMembrane(container, opts = {}) {
         <span class="msn-name" data-shape-name></span>
         <span class="msn-meta" data-shape-meta></span>
       </div>
-      <!-- the say/did/maybe capture bar (the field-feed itself now lives in
-           .membrane-right-col, paired under the agenda — see above). Type
-           first, verb after; Tab cycles the verb; Enter posts. v0 writes
-           locally (see FIELD_VERBS). -->
-      <form class="membrane-capture" data-mcap autocomplete="off">
-        <div class="mcap-verbs" role="group" aria-label="what kind of post">
-          ${FIELD_VERB_ORDER.map((v, i) => `
-            <button type="button" class="mcap-verb${i === 0 ? ' is-active' : ''}" data-mcap-verb="${v}" aria-pressed="${i === 0 ? 'true' : 'false'}">${FIELD_VERBS[v].label}</button>
-          `).join('')}
-        </div>
-        <input class="mcap-input" data-mcap-input type="text" maxlength="280"
-               placeholder="${FIELD_VERBS.say.hint} · tab switches verb"
-               aria-label="post to the cohort" />
-        <button type="submit" class="mcap-send" data-mcap-send disabled>post</button>
-      </form>
       <div class="membrane-feedback" data-feedback>
         <div class="membrane-feedback-card">
           <button type="button" class="membrane-feedback-pill" data-feedback-toggle
@@ -1028,9 +987,6 @@ export function mountMembrane(container, opts = {}) {
         plural: 'updates',
         cta: 'open activity',
         defaultNav: { mode: 'shapes' },
-        // Newest-first across releases + commits + captured did posts, so a
-        // just-posted did surfaces as the category's visible top row instead
-        // of hiding under the whole release backlog.
         members: [...byKind('release'), ...byKind('commit')].sort((a, b) =>
           (Date.parse(b.it?.date || '') || 0) - (Date.parse(a.it?.date || '') || 0)),
       },
@@ -1055,19 +1011,8 @@ export function mountMembrane(container, opts = {}) {
     // Don't rebuild while a card is mid-recede (see renderAgenda).
     if (feedEl.querySelector('.is-dismissing')) return;
     const incoming = incomingCards();
-    // Locally-captured "did" self-reports merge into the same left rail as the
-    // machine shipping items (kind commit → the shipping category) — the did
-    // half of the capture bar. fieldPosts is hoisted let-state from the hub
-    // block below; renderFeed only ever runs after mount finishes wiring it.
-    const didPosts = (fieldPosts || []).filter((p) => p.verb === 'did').map((p) => ({
-      kind: 'commit',
-      label: `${p.author} — ${p.text}`,
-      meta: 'self-report',
-      date: new Date(p.ts).toISOString(),
-      nav: { mode: 'mirror' },
-    }));
     const keyN = new Map();
-    const keyedFeed = [...didPosts, ...(Array.isArray(dataStore.feed) ? dataStore.feed : [])]
+    const keyedFeed = (Array.isArray(dataStore.feed) ? dataStore.feed : [])
       // Attach a collision-proof dismiss key (occurrence ordinal for any
       // identical kind|date|label|meta), then drop the already-dismissed.
       .map((it) => {
@@ -1163,30 +1108,14 @@ export function mountMembrane(container, opts = {}) {
   // (feedPinnedCategory is gone: the in-flow click-pin was replaced by the
   // .mfeed-pop popover — state lives in feedPopCat/feedPopPinned above.)
 
-  // ── hub prototype: field feed + capture bar ─────────────────────────────
+  // ── hub prototype: field feed ───────────────────────────────────────────
   // The center feed blends three sources into one "cohort today" stream:
-  // open asks (say / maybe by intent), shipping items from what's-new (did),
-  // and locally-captured posts. Oldest→newest top-to-bottom, anchored to the
-  // capture bar (your post lands right above the input).
+  // open asks (say / maybe by intent), oldest→newest top-to-bottom.
   const fieldEl = container.querySelector('[data-mfield]');
-  const capForm = container.querySelector('[data-mcap]');
-  const capInput = container.querySelector('[data-mcap-input]');
-  const capSend = container.querySelector('[data-mcap-send]');
-  const capVerbBtns = [...container.querySelectorAll('[data-mcap-verb]')];
-  let fieldPosts = loadFieldPosts();
-  let capVerb = 'say';
-
-  function selfName() {
-    const p = dataStore.self?.profile || {};
-    return p.name || p.display_name || p.handle || 'you';
-  }
 
   // Center = the HUMAN layer only: open asks (say) and tentative plans
   // (maybe), orbiting the die. Machine "did" (releases/commits) stays in the
-  // left notifications, and locally-captured did posts merge into that same
-  // rail (see the didPosts splice in renderFeed) — 2026-07-03 feedback:
-  // "put did on the left merged with the notifications, keep the asks in the
-  // centre, focus it around the shape."
+  // left notifications.
   function buildFieldItems() {
     const items = [];
     const asks = Array.isArray(dataStore.asks?.asksList) ? dataStore.asks.asksList : [];
@@ -1203,16 +1132,14 @@ export function mountMembrane(container, opts = {}) {
         joined: askJoinedBy(a).length,
       });
     }
-    for (const p of fieldPosts) { if (p.verb !== 'did') items.push(p); }
     items.sort((x, y) => (x.ts || 0) - (y.ts || 0));
     return items.slice(-6);
   }
 
   // Paired under the calendar block, right-aligned (membrane.css) — newest
-  // sits at the bottom, closest to the capture bar it feeds from. Sleeker
-  // one-line rows now (2026-07-04 polish): a colored verb dot instead of a
-  // full pill, the whole line truncates with an ellipsis, and the `title`
-  // carries the untruncated text for a hover reveal.
+  // sits at the bottom. Sleeker one-line rows now (2026-07-04 polish): a
+  // colored verb dot instead of a full pill, the whole line truncates with an
+  // ellipsis, and the `title` carries the untruncated text for a hover reveal.
   function renderFieldFeed() {
     if (!fieldEl) return;
     const items = buildFieldItems();
@@ -1238,54 +1165,6 @@ export function mountMembrane(container, opts = {}) {
           <span class="mff-age">${escHtml(fieldAge(it.ts))}</span>
         </div>`;
     }).join('');
-  }
-
-  function setCapVerb(verb) {
-    if (!FIELD_VERBS[verb]) return;
-    capVerb = verb;
-    for (const b of capVerbBtns) {
-      const on = b.dataset.mcapVerb === verb;
-      b.classList.toggle('is-active', on);
-      b.setAttribute('aria-pressed', on ? 'true' : 'false');
-    }
-    if (capInput) capInput.placeholder = `${FIELD_VERBS[verb].hint} · tab switches verb`;
-  }
-
-  if (capForm) {
-    for (const b of capVerbBtns) {
-      b.addEventListener('click', () => { setCapVerb(b.dataset.mcapVerb); capInput?.focus(); });
-    }
-    capInput?.addEventListener('input', () => {
-      capSend.disabled = capInput.value.trim().length < 2;
-    });
-    // Plain Tab cycles the verb (the bar's promised affordance); Shift+Tab
-    // still walks focus out, so keyboard users aren't trapped.
-    capInput?.addEventListener('keydown', (ev) => {
-      if (ev.key !== 'Tab' || ev.shiftKey) return;
-      ev.preventDefault();
-      setCapVerb(FIELD_VERB_ORDER[(FIELD_VERB_ORDER.indexOf(capVerb) + 1) % FIELD_VERB_ORDER.length]);
-    });
-    capForm.addEventListener('submit', (ev) => {
-      ev.preventDefault();
-      // Mirror the input's maxlength here: the attribute only clamps typing,
-      // not values that arrive programmatically (paste interception, drivers).
-      const text = (capInput?.value || '').trim().slice(0, 280);
-      if (text.length < 2) return;
-      fieldPosts.push({ verb: capVerb, author: selfName(), text, ts: Date.now(), mine: true });
-      fieldPosts = fieldPosts.slice(-50);
-      saveFieldPosts(fieldPosts);
-      capInput.value = '';
-      capSend.disabled = true;
-      if (capVerb === 'did') {
-        // did lands in the LEFT rail (merged with the shipping notifications);
-        // markEnteringRows slides the changed category in.
-        renderFeed();
-      } else {
-        renderFieldFeed();
-        const fresh = fieldEl?.lastElementChild; // bottom of the stack = the fresh post
-        if (fresh && !prefersReducedMotion()) fresh.classList.add('is-entering');
-      }
-    });
   }
 
   // ─── easter-egg Rubik's cube ───────────────────────────────────────────
@@ -1372,7 +1251,7 @@ export function mountMembrane(container, opts = {}) {
   }
 
   cp('membrane:before-createScene');
-  // The die is decoration; the rails + capture bar are the hub. If WebGL
+  // The die is decoration; the rails are the hub. If WebGL
   // context creation throws (GPU blacklist, --disable-gpu, driver reset),
   // fall back to a no-op scene rather than letting the throw escape
   // mountMembrane — an escaped throw here leaked the already-started 60s
@@ -1394,7 +1273,7 @@ export function mountMembrane(container, opts = {}) {
       onRubiksReveal() { revealRubiks(); },
     });
   } catch (e) {
-    console.warn('[membrane] WebGL scene unavailable — rails/capture still live:', e);
+    console.warn('[membrane] WebGL scene unavailable — rails still live:', e);
     scene = { getFaces: () => null, resumeFromRubiks() {}, destroy() {} };
   }
   cp('membrane:after-createScene');
