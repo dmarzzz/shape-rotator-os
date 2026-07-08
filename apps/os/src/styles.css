@@ -19936,6 +19936,45 @@ html[data-theme="light"] .alch-cv-group-head { background: var(--alchemy-charcoa
   color: var(--ds-ink-4, rgba(241, 236, 231, 0.32));
 }
 
+/* claim ledger: an always-visible grounding dot (observed = solid · declared =
+   muted · inference = amber ring) so "evidence vs inference" reads without
+   hovering, plus a per-type tint on the chip. Both are quiet by design. */
+.alch-cv-claim-ground {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--claim-accent, var(--ds-ink-4, rgba(241, 236, 231, 0.32)));
+}
+.alch-cv-claim[data-grounding="declared"] .alch-cv-claim-ground { opacity: 0.5; }
+.alch-cv-claim[data-grounding="inferred"] .alch-cv-claim-ground {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--ds-warn, #d08b2c);
+}
+.alch-cv-claim-type {
+  color: var(--claim-accent, var(--ds-accent, #EAB308));
+  border-color: color-mix(in srgb, var(--claim-accent, var(--ds-accent, #EAB308)) 35%, transparent);
+}
+/* per-type accent — muted mid-tones legible on the dark reader ground */
+.alch-cv-claim[data-claim-type="decision"],     .alch-cv-claim-group[data-claim-type="decision"]     { --claim-accent: #4c93c9; }
+.alch-cv-claim[data-claim-type="action"],        .alch-cv-claim-group[data-claim-type="action"]        { --claim-accent: #c9a13a; }
+.alch-cv-claim[data-claim-type="blocker"],       .alch-cv-claim-group[data-claim-type="blocker"]       { --claim-accent: #cf5b52; }
+.alch-cv-claim[data-claim-type="risk"],          .alch-cv-claim-group[data-claim-type="risk"]          { --claim-accent: #d07a3d; }
+.alch-cv-claim[data-claim-type="open_question"], .alch-cv-claim-group[data-claim-type="open_question"] { --claim-accent: #8f7ad4; }
+.alch-cv-claim[data-claim-type="hypothesis"],    .alch-cv-claim-group[data-claim-type="hypothesis"]    { --claim-accent: #4fa07a; }
+.alch-cv-claim[data-claim-type="fact"],          .alch-cv-claim-group[data-claim-type="fact"]          { --claim-accent: #6d93b8; }
+
+/* typed sub-groups within "what we've learned" (only when claims span >1 type) */
+.alch-cv-claim-group + .alch-cv-claim-group { margin-top: 12px; }
+.alch-cv-claim-grouphead {
+  display: flex; align-items: baseline; gap: 8px;
+  margin: 2px 0 4px;
+  font: var(--ds-weight-med, 500) var(--ds-text-2xs, 10px)/1.4 var(--ds-font-mono, monospace);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--claim-accent, var(--ds-ink-3, rgba(241, 236, 231, 0.52)));
+}
+.alch-cv-claim-groupn { color: var(--ds-ink-4, rgba(241, 236, 231, 0.32)); }
+
 /* a hint/session opened from a topic page: back row above the full reader */
 .alch-cv-libopen {
   display: flex;

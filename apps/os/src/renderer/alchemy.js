@@ -15593,28 +15593,78 @@ function cohortKeyFormHtml(configured) {
 // representation (the old full-card grid retired with the evidence view).
 // Provenance (evidence level · scope · teams · date) stays tucked under the
 // claim and reveals on hover — details without a click, noise off by default.
+// ── Claim ledger (Codex ops-engine model): a claim is a TYPED signal that
+// either carries evidence or admits it is an inference. `claim_type` → the
+// ledger family (label + sort + accent); `evidence_level` → the grounding
+// (observed / declared / inference), surfaced as an always-visible dot so the
+// honesty reads without hovering. Both axes already ride on the live cards.
+const CLAIM_LEDGER = [
+  { key: "decision",      match: /decision|decided|chose|commit/i,                       chip: "decision",      label: "decisions",               order: 1 },
+  { key: "action",        match: /action|task|todo|to-do|next[_ ]?step|follow[_ -]?up/i,  chip: "action",        label: "actions",                 order: 2 },
+  { key: "blocker",       match: /blocker|block|depend|dependenc|stuck/i,                 chip: "blocker",       label: "blockers & dependencies", order: 3 },
+  { key: "risk",          match: /risk|concern|threat|fragile/i,                          chip: "risk",          label: "risks",                   order: 4 },
+  { key: "open_question", match: /question|open[_ ]?q|unresolved|unknown/i,               chip: "open question", label: "open questions",          order: 5 },
+  { key: "hypothesis",    match: /hypothes|proposal|idea|conjecture|maybe/i,              chip: "hypothesis",    label: "hypotheses",              order: 6 },
+  { key: "fact",          match: /\bfact\b|stated|confirmed|verified/i,                   chip: "fact",          label: "facts",                   order: 7 },
+];
+function claimLedgerType(rawType) {
+  const t = String(rawType || "").toLowerCase().trim();
+  for (const row of CLAIM_LEDGER) if (row.match.test(t)) return row;
+  const named = t && t !== "insight" ? t.replace(/_/g, " ") : "read";
+  return { key: t && t !== "insight" ? t : "insight", match: null, chip: named, label: named === "read" ? "reads" : `${named}s`, order: 9 };
+}
+function evidenceGrounding(rawLevel) {
+  const v = String(rawLevel || "").toLowerCase();
+  if (/observ/.test(v)) return { family: "observed", label: "observed", isInference: false, hint: "grounded in observed public activity" };
+  if (/declar/.test(v)) return { family: "declared", label: "declared", isInference: false, hint: "self-declared by the team — attributable, not third-party verified" };
+  return { family: "inferred", label: "inference", isInference: true, hint: "an inference from public metadata — not directly evidenced" };
+}
+
 function contextClaimRowHtml(card) {
-  const type = String(card.claim_type || "insight").replace(/_/g, " ");
+  const ledger = claimLedgerType(card.claim_type);
+  const ground = evidenceGrounding(card.evidence_level);
   const text = String(card.claim_text || card.title || card.summary || "").trim();
   const confNum = Number(card.confidence);
   const conf = Number.isFinite(confNum) ? `${Math.round(confNum * 100)}%` : "";
   const teams = (Array.isArray(card.content_json?.teams) ? card.content_json.teams : [])
     .map((t) => String(t).replace(/-/g, " ").trim()).filter(Boolean).slice(0, 3).join(", ");
   const prov = [
-    String(card.evidence_level || "").replace(/_/g, " ").trim(),
+    ground.label,
     String(card.attribution_scope || "").replace(/_/g, " ").trim(),
     teams,
     contextEvidenceDate(card.created_at),
   ].filter(Boolean).join(" · ");
   return `
-    <div class="alch-cv-claim">
-      <span class="alch-cv-claim-type">${escHtml(type)}</span>
+    <div class="alch-cv-claim" data-claim-type="${escAttr(ledger.key)}" data-grounding="${escAttr(ground.family)}">
+      <span class="alch-cv-claim-ground" title="${escAttr(ground.hint)}" aria-hidden="true"></span>
+      <span class="alch-cv-claim-type">${escHtml(ledger.chip)}</span>
       <div class="alch-cv-claim-main">
         <p class="alch-cv-claim-text">${escHtml(text)}</p>
         ${prov ? `<span class="alch-cv-claim-prov">${escHtml(prov)}</span>` : ""}
       </div>
       ${conf ? `<span class="alch-cv-claim-conf" title="confidence">${escHtml(conf)}</span>` : ""}
     </div>`;
+}
+
+// Group a topic's claims into typed ledger sub-sections (decisions, actions,
+// blockers, …) — but only when the claims actually span more than one type. A
+// single-type set (the common "insight" case) renders flat, exactly as before,
+// so the ledger structure appears only when it carries information.
+function contextClaimLedgerHtml(claims) {
+  const list = Array.isArray(claims) ? claims : [];
+  const groups = new Map();
+  for (const c of list) {
+    const meta = claimLedgerType(c.claim_type);
+    if (!groups.has(meta.key)) groups.set(meta.key, { meta, cards: [] });
+    groups.get(meta.key).cards.push(c);
+  }
+  if (groups.size <= 1) return list.map(contextClaimRowHtml).join("");
+  const ordered = [...groups.values()].sort((a, b) => a.meta.order - b.meta.order || a.meta.label.localeCompare(b.meta.label));
+  return ordered.map(({ meta, cards }) => `
+    <div class="alch-cv-claim-group" data-claim-type="${escAttr(meta.key)}">
+      <div class="alch-cv-claim-grouphead"><span>${escHtml(meta.label)}</span><span class="alch-cv-claim-groupn">${cards.length}</span></div>
+      ${cards.map(contextClaimRowHtml).join("")}
+    </div>`).join("");
 }
 
 function contextLibSectionHtml(head, body, side = "", cls = "") {
@@ -16096,7 +16146,7 @@ function contextTopicPageHtml(topicKey) {
       <strong>${escHtml(contextArticleTitle(a))}</strong>
       <span>${escHtml(contextArticleDek(a))}</span>
     </button>`).join("");
-  const claimsBody = page.claims.map(contextClaimRowHtml).join("");
+  const claimsBody = contextClaimLedgerHtml(page.claims);
   const sessRows = page.sessions.map((d) => {
     const summary = String(d.summary || d.thesis || "").trim();
     return `
