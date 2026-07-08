@@ -2575,6 +2575,12 @@ function contextCompactText(value, limit = 150) {
   return `${text.slice(0, Math.max(0, limit - 1)).trim()}…`;
 }
 
+function contextMembraneDateMs(value) {
+  if (!value) return null;
+  const ms = Date.parse(String(value));
+  return Number.isFinite(ms) ? ms : null;
+}
+
 function buildMembraneContextData() {
   const cv = state.contextVault || {};
   let articles = [];
@@ -2612,6 +2618,52 @@ function buildMembraneContextData() {
       meta: bits.join(" · ") || `${topic.total} item${topic.total === 1 ? "" : "s"}`,
     };
   });
+  const sessionRows = [
+    ...distilled.map((session) => {
+      const claims = claimsForSession(cards, session);
+      const themes = (Array.isArray(session.themes) ? session.themes : [])
+        .map((t) => String(t || "").trim()).filter(Boolean);
+      const teams = (Array.isArray(session.teams) ? session.teams : [])
+        .map((t) => evTeamName(String(t || "").trim())).filter(Boolean);
+      const sessionType = String(session.session_type || session.kind || "session").replace(/_/g, " ").trim();
+      return {
+        key: `readout:${session.id}`,
+        kind: "readout",
+        title: distilledTranscriptTitle(session),
+        meta: distilledTranscriptMeta(session) || "reviewed session",
+        summary: contextCompactText(session.summary || session.thesis || "", 210),
+        dateMs: contextMembraneDateMs(session.date || session.created_at || session.week_start),
+        source: "transcript engine",
+        sessionType,
+        claims: claims.length,
+        themes: themes.slice(0, 5),
+        teams: teams.slice(0, 4),
+      };
+    }),
+    ...rawScripts.map((raw) => {
+      const sourceKind = String(raw.source_kind || "local transcript").replace(/[-_]+/g, " ").trim();
+      return {
+        key: `raw:${raw.id}`,
+        kind: "raw",
+        title: contextRawScriptTitle(raw),
+        meta: [sourceKind, raw.line_count ? `${raw.line_count} lines` : ""].filter(Boolean).join(" · ") || "local transcript",
+        summary: contextCompactText(raw.excerpt || "", 210),
+        dateMs: contextMembraneDateMs(raw.date || raw.modified_at || raw.created_at),
+        source: /claude|codex|agent|session/i.test(sourceKind) ? "local agent session" : "local notes",
+        sessionType: sourceKind,
+        claims: 0,
+        themes: [],
+        teams: [],
+      };
+    }),
+  ].sort((a, b) => ((b.dateMs ?? -Infinity) - (a.dateMs ?? -Infinity)) || String(a.title).localeCompare(String(b.title)));
+  const sourceStatus = distilled.length
+    ? `${distilled.length} reviewed readout${distilled.length === 1 ? "" : "s"} linked to the transcript engine`
+    : (rawScripts.length
+      ? `${rawScripts.length} local transcript${rawScripts.length === 1 ? "" : "s"} ready for review`
+      : (cohortKeyConfigured()
+        ? "No reviewed readouts have landed yet"
+        : "Sign in or add cohort access to unlock reviewed readouts"));
   const counts = {
     stream: streamItems.length,
     topics: topics.length,
@@ -2619,6 +2671,7 @@ function buildMembraneContextData() {
     readouts: distilled.length,
     raw: rawScripts.length,
     claims: cards.length,
+    sessions: sessionRows.length,
   };
   return {
     loaded: !!cv.loaded,
@@ -2629,7 +2682,9 @@ function buildMembraneContextData() {
     counts,
     stream,
     library,
+    sessions: sessionRows.slice(0, 16),
     evidenceTier: tier,
+    sourceStatus,
   };
 }
 

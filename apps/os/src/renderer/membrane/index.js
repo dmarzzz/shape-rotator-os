@@ -51,6 +51,8 @@ const DISMISS_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
 const CAL_PLUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M12 14v4"/><path d="M10 16h4"/></svg>';
 const CONTEXT_BOOK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z"/><path d="M8 7h8"/><path d="M8 11h6"/></svg>';
 const CONTEXT_OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>';
+const CONTEXT_EXPAND = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
+const CONTEXT_COLLAPSE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M16 3v3a2 2 0 0 0 2 2h3"/><path d="M8 21v-3a2 2 0 0 0-2-2H3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>';
 
 // Total close-animation budget (ms) — matches the membrane fold-recede in
 // membrane.css (.is-dismissing). The card is removed only after it has fully
@@ -1218,9 +1220,12 @@ export function mountMembrane(container, opts = {}) {
   let dataStore = {};
   let scene = null;
   let contextOpen = false;
+  let contextExpanded = false;
   let contextView = 'stream';
+  let contextSelectedKey = '';
   const CONTEXT_OVERLAY_VIEWS = [
-    { view: 'stream', label: 'stream' },
+    { view: 'stream', label: 'updates' },
+    { view: 'sessions', label: 'sessions' },
     { view: 'library', label: 'library' },
   ];
 
@@ -1249,8 +1254,33 @@ export function mountMembrane(container, opts = {}) {
     return Array.isArray(items) ? items : [];
   }
 
+  function contextFullPageView(view = contextView) {
+    return normalizeContextView(view) === 'library' ? 'library' : 'stream';
+  }
+
+  function contextItemKey(item) {
+    return String(item?.key || item?.title || '');
+  }
+
+  function selectedContextItem(view = contextView, data = contextData()) {
+    const normalized = normalizeContextView(view);
+    const items = contextItemsFor(normalized, data);
+    if (!items.length) return null;
+    const found = items.find((item) => contextItemKey(item) === contextSelectedKey);
+    return found || items[0];
+  }
+
+  function selectContextItem(key, expand = false) {
+    contextSelectedKey = String(key || '');
+    if (expand) {
+      contextExpanded = true;
+      container.classList.toggle('membrane-context-expanded', contextOpen && contextExpanded);
+    }
+    updateContextSurface();
+  }
+
   function openFullContext(view = contextView) {
-    const nextView = normalizeContextView(view);
+    const nextView = contextFullPageView(view);
     if (typeof window.__srwkOpenInNewTab === 'function') {
       window.__srwkOpenInNewTab({ tab: 'alchemy', mode: 'context', contextView: nextView });
     } else if (typeof window.__srwkAlchemyJump === 'function') {
@@ -1261,6 +1291,7 @@ export function mountMembrane(container, opts = {}) {
   function renderContextRows(view, data) {
     const normalized = normalizeContextView(view);
     const items = contextItemsFor(normalized, data);
+    const selectedKey = contextItemKey(selectedContextItem(normalized, data));
     if (data?.loading && !data?.loaded) {
       return `<div class="mctx-empty"><span class="mctx-empty-tag">loading</span><span>building the local index...</span></div>`;
     }
@@ -1272,7 +1303,7 @@ export function mountMembrane(container, opts = {}) {
     }
     if (normalized === 'library') {
       return items.map((it) => `
-        <button type="button" class="mctx-row" data-mctx-row data-context-view="library" aria-label="${escHtml(`${it.title || 'topic'}, ${it.meta || ''}, open context library`)}">
+        <button type="button" class="mctx-row${contextItemKey(it) === selectedKey ? ' is-selected' : ''}" data-mctx-row data-context-view="library" data-context-key="${escHtml(contextItemKey(it))}" aria-label="${escHtml(`${it.title || 'topic'}, ${it.meta || ''}, show topic`)}">
           <span class="mctx-row-head">
             <strong>${escHtml(it.title || 'topic')}</strong>
             <span>${escHtml(String(it.count || ''))}</span>
@@ -1280,11 +1311,26 @@ export function mountMembrane(container, opts = {}) {
           <span class="mctx-row-meta">${escHtml(it.meta || '')}</span>
         </button>`).join('');
     }
+    if (normalized === 'sessions') {
+      return items.map((it) => {
+        const when = formatContextDate(it.dateMs);
+        const claimText = it.claims ? `${it.claims} claim${it.claims === 1 ? '' : 's'}` : it.source;
+        return `
+          <button type="button" class="mctx-row${contextItemKey(it) === selectedKey ? ' is-selected' : ''}" data-mctx-row data-context-view="sessions" data-context-key="${escHtml(contextItemKey(it))}" aria-label="${escHtml(`${it.title || 'session'}, ${it.meta || it.source || ''}, show session`)}">
+            <span class="mctx-row-head">
+              <strong>${escHtml(it.title || 'session')}</strong>
+              <span>${escHtml(when || it.sessionType || 'session')}</span>
+            </span>
+            ${it.summary ? `<span class="mctx-row-summary">${escHtml(it.summary)}</span>` : ''}
+            <span class="mctx-row-meta">${escHtml([it.meta, claimText].filter(Boolean).join(' · '))}</span>
+          </button>`;
+      }).join('');
+    }
     return items.map((it) => {
       const when = formatContextDate(it.dateMs);
       const species = String(it.kind || 'context').replace(/_/g, ' ');
       return `
-        <button type="button" class="mctx-row" data-mctx-row data-context-view="stream" aria-label="${escHtml(`${it.title || 'context item'}, ${it.meta || species}, open context stream`)}">
+        <button type="button" class="mctx-row${contextItemKey(it) === selectedKey ? ' is-selected' : ''}" data-mctx-row data-context-view="stream" data-context-key="${escHtml(contextItemKey(it))}" aria-label="${escHtml(`${it.title || 'context item'}, ${it.meta || species}, show update`)}">
           <span class="mctx-row-head">
             <strong>${escHtml(it.title || 'context item')}</strong>
             <span>${escHtml(when || species)}</span>
@@ -1295,13 +1341,77 @@ export function mountMembrane(container, opts = {}) {
     }).join('');
   }
 
+  function renderContextDetail(view, data) {
+    const normalized = normalizeContextView(view);
+    const item = selectedContextItem(normalized, data);
+    if (!item) {
+      return `<aside class="mctx-detail"><span class="mctx-detail-kicker">detail</span><h3>Nothing selected yet</h3><p>Choose an update, session, or topic to see the readable version here.</p></aside>`;
+    }
+    const when = formatContextDate(item.dateMs);
+    const kind = String(item.kind || normalized).replace(/_/g, ' ');
+    if (normalized === 'library') {
+      return `
+        <aside class="mctx-detail">
+          <span class="mctx-detail-kicker">library topic</span>
+          <h3>${escHtml(item.title || 'topic')}</h3>
+          <p>${escHtml(item.meta || 'Hints, claims, and sessions grouped by topic.')}</p>
+          <div class="mctx-detail-actions">
+            <button type="button" class="mctx-detail-link" data-context-full>Open topic library</button>
+          </div>
+        </aside>`;
+    }
+    if (normalized === 'sessions') {
+      const chips = [
+        item.source,
+        item.sessionType,
+        item.claims ? `${item.claims} claim${item.claims === 1 ? '' : 's'}` : '',
+        when,
+      ].filter(Boolean);
+      const teams = Array.isArray(item.teams) ? item.teams : [];
+      const themes = Array.isArray(item.themes) ? item.themes : [];
+      return `
+        <aside class="mctx-detail">
+          <span class="mctx-detail-kicker">session readout</span>
+          <h3>${escHtml(item.title || 'session')}</h3>
+          ${item.summary ? `<p>${escHtml(item.summary)}</p>` : `<p>This session is in the membrane index, but does not have a summary yet.</p>`}
+          ${chips.length ? `<div class="mctx-chip-row">${chips.map((c) => `<span>${escHtml(c)}</span>`).join('')}</div>` : ''}
+          ${themes.length ? `<div class="mctx-detail-section"><strong>Themes</strong><p>${escHtml(themes.join(' · '))}</p></div>` : ''}
+          ${teams.length ? `<div class="mctx-detail-section"><strong>People / teams</strong><p>${escHtml(teams.join(' · '))}</p></div>` : ''}
+          <div class="mctx-detail-actions">
+            <button type="button" class="mctx-detail-link" data-context-full>Open transcript reader</button>
+          </div>
+        </aside>`;
+    }
+    return `
+      <aside class="mctx-detail">
+        <span class="mctx-detail-kicker">${escHtml(kind)}</span>
+        <h3>${escHtml(item.title || 'context item')}</h3>
+        ${item.summary ? `<p>${escHtml(item.summary)}</p>` : `<p>No summary is available yet. Open the reader for the full source.</p>`}
+        <div class="mctx-chip-row">
+          ${[item.meta || kind, when].filter(Boolean).map((c) => `<span>${escHtml(c)}</span>`).join('')}
+        </div>
+        <div class="mctx-detail-actions">
+          <button type="button" class="mctx-detail-link" data-context-full>Open full reader</button>
+        </div>
+      </aside>`;
+  }
+
+  function setContextExpanded(expanded) {
+    contextExpanded = !!expanded;
+    container.classList.toggle('membrane-context-expanded', contextOpen && contextExpanded);
+    updateContextSurface();
+  }
+
   function updateContextSurface() {
     const data = contextData();
     contextView = normalizeContextView(contextView || data.activeView);
+    const selected = selectedContextItem(contextView, data);
+    if (selected) contextSelectedKey = contextItemKey(selected);
     const counts = data.counts || {};
     const streamCount = numberOrZero(counts.stream);
     const topicCount = numberOrZero(counts.topics);
     const claimCount = numberOrZero(counts.claims);
+    const sessionCount = numberOrZero(counts.sessions);
     const totalCount = streamCount || (numberOrZero(counts.articles) + numberOrZero(counts.readouts) + numberOrZero(counts.raw));
     if (contextCountEl) contextCountEl.textContent = String(totalCount);
     if (contextTrigger) {
@@ -1316,43 +1426,58 @@ export function mountMembrane(container, opts = {}) {
       </button>`).join('');
     const message = data.message
       ? `<p class="mctx-message">${escHtml(data.message)}</p>`
-      : `<p class="mctx-message">The context page, folded into the membrane. Open the full reader when you want the long-form view.</p>`;
+      : `<p class="mctx-message">${escHtml(data.sourceStatus || 'Updates, transcripts, and topics folded into the membrane.')}</p>`;
     contextCard.innerHTML = `
       <header class="mctx-head">
         <div>
-          <span class="mctx-kicker">context layer</span>
-          <h2>What happened, and what we know</h2>
+          <span class="mctx-kicker">membrane context</span>
+          <h2>Updates and transcripts</h2>
         </div>
         <div class="mctx-actions">
+          <button type="button" class="mctx-icon-btn" data-context-expand title="${contextExpanded ? 'shrink workspace' : 'expand workspace'}" aria-label="${contextExpanded ? 'shrink context workspace' : 'expand context workspace'}" aria-pressed="${contextExpanded ? 'true' : 'false'}">${contextExpanded ? CONTEXT_COLLAPSE : CONTEXT_EXPAND}</button>
           <button type="button" class="mctx-icon-btn" data-context-full title="open full context page" aria-label="open full context page">${CONTEXT_OPEN}</button>
           <button type="button" class="mctx-icon-btn" data-context-close title="close" aria-label="close context overlay">${DISMISS_X}</button>
         </div>
       </header>
       <div class="mctx-stats" aria-label="context counts">
-        <span><strong>${streamCount}</strong>stream</span>
+        <span><strong>${streamCount}</strong>updates</span>
+        <span><strong>${sessionCount}</strong>sessions</span>
         <span><strong>${topicCount}</strong>topics</span>
         <span><strong>${claimCount}</strong>claims</span>
       </div>
       <div class="mctx-tabs" role="tablist" aria-label="context lens">${tabs}</div>
       ${message}
-      <div class="mctx-body" data-context-body>${renderContextRows(contextView, data)}</div>
+      <div class="mctx-workspace" data-context-workspace>
+        <div class="mctx-body" data-context-body>${renderContextRows(contextView, data)}</div>
+        ${renderContextDetail(contextView, data)}
+      </div>
     `;
     contextCard.querySelectorAll('[data-context-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {
         contextView = normalizeContextView(btn.dataset.contextTab);
+        contextSelectedKey = '';
         updateContextSurface();
       });
     });
+    contextCard.querySelector('[data-context-expand]')?.addEventListener('click', () => setContextExpanded(!contextExpanded));
     contextCard.querySelector('[data-context-full]')?.addEventListener('click', () => openFullContext(contextView));
+    contextCard.querySelectorAll('.mctx-detail [data-context-full]').forEach((btn) => {
+      btn.addEventListener('click', () => openFullContext(contextView));
+    });
     contextCard.querySelectorAll('[data-mctx-row]').forEach((btn) => {
-      btn.addEventListener('click', () => openFullContext(btn.dataset.contextView || contextView));
+      btn.addEventListener('click', () => {
+        contextView = normalizeContextView(btn.dataset.contextView || contextView);
+        selectContextItem(btn.dataset.contextKey || '', true);
+      });
     });
   }
 
   function setContextOpen(open) {
     contextOpen = !!open;
+    if (!contextOpen) contextExpanded = false;
     if (contextOverlay) contextOverlay.hidden = !contextOpen;
     container.classList.toggle('membrane-context-open', contextOpen);
+    container.classList.toggle('membrane-context-expanded', contextOpen && contextExpanded);
     contextTrigger?.setAttribute('aria-expanded', contextOpen ? 'true' : 'false');
     if (contextOpen) closeFeedPop();
     scene?.setContextOverlayOpen?.(contextOpen);
@@ -1671,6 +1796,7 @@ export function mountMembrane(container, opts = {}) {
       container.classList.remove('membrane-host');
       container.classList.remove('membrane-hub');
       container.classList.remove('membrane-context-open');
+      container.classList.remove('membrane-context-expanded');
       container.classList.remove('membrane-rubiks-active');
       container.innerHTML = '';
     },
