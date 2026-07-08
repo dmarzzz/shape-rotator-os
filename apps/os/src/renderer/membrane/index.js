@@ -49,6 +49,8 @@ const DISMISS_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
 // Calendar-plus glyph for the right-rail "add to calendar" control (Lucide,
 // same family as the feed icons). Tinted by the card's --c2-acc in CSS.
 const CAL_PLUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M12 14v4"/><path d="M10 16h4"/></svg>';
+const CONTEXT_BOOK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z"/><path d="M8 7h8"/><path d="M8 11h6"/></svg>';
+const CONTEXT_OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>';
 
 // Total close-animation budget (ms) — matches the membrane fold-recede in
 // membrane.css (.is-dismissing). The card is removed only after it has fully
@@ -442,6 +444,11 @@ export function mountMembrane(container, opts = {}) {
         <div class="membrane-field-feed" data-mfield role="region" aria-label="the cohort today"></div>
       </div>
       <div class="membrane-feed" data-feed role="region" aria-label="what's new"></div>
+      <button type="button" class="membrane-context-trigger" data-context-trigger aria-expanded="false" aria-controls="membrane-context-overlay">
+        <span class="mctx-trigger-icon" aria-hidden="true">${CONTEXT_BOOK}</span>
+        <span class="mctx-trigger-label">context</span>
+        <span class="mctx-trigger-count" data-context-count>0</span>
+      </button>
       <canvas class="membrane-canvas"></canvas>
       <canvas class="membrane-rubiks-canvas" aria-hidden="true"></canvas>
       <!-- Bright light flash that blankets the die<->Rubik's swap. Fired ONLY by
@@ -467,6 +474,10 @@ export function mountMembrane(container, opts = {}) {
       <div class="membrane-shape-name" aria-hidden="true">
         <span class="msn-name" data-shape-name></span>
         <span class="msn-meta" data-shape-meta></span>
+      </div>
+      <div class="membrane-context-overlay" id="membrane-context-overlay" data-context-overlay hidden>
+        <button type="button" class="membrane-context-scrim" data-context-close aria-label="close context overlay"></button>
+        <section class="membrane-context-card" data-context-card role="dialog" aria-label="context in the membrane"></section>
       </div>
       <!-- the say/did/maybe capture bar (the field-feed itself now lives in
            .membrane-right-col, paired under the agenda — see above). Type
@@ -506,6 +517,10 @@ export function mountMembrane(container, opts = {}) {
   `;
 
   const canvas = container.querySelector('.membrane-canvas');
+  const contextTrigger = container.querySelector('[data-context-trigger]');
+  const contextCountEl = container.querySelector('[data-context-count]');
+  const contextOverlay = container.querySelector('[data-context-overlay]');
+  const contextCard = container.querySelector('[data-context-card]');
   const shapeNameEl = container.querySelector('[data-shape-name]');
   const shapeMetaEl = container.querySelector('[data-shape-meta]');
 
@@ -966,8 +981,11 @@ export function mountMembrane(container, opts = {}) {
     if (row && stage) {
       const r = row.getBoundingClientRect();
       const s = stage.getBoundingClientRect();
+      const feedRect = feedEl?.getBoundingClientRect();
       const top = Math.max(12, Math.min(r.top - s.top, s.height - pop.offsetHeight - 14));
+      const nextLeft = feedRect ? Math.max(12, Math.min(feedRect.right - s.left + 10, s.width - pop.offsetWidth - 14)) : 232;
       pop.style.top = `${Math.round(top)}px`;
+      pop.style.left = `${Math.round(nextLeft)}px`;
     }
     feedEl?.querySelectorAll('.mfeed-category-row').forEach((r2) =>
       r2.classList.toggle('is-popped', r2.dataset.feedCategory === cat.id));
@@ -1198,6 +1216,171 @@ export function mountMembrane(container, opts = {}) {
   }
 
   let dataStore = {};
+  let scene = null;
+  let contextOpen = false;
+  let contextView = 'stream';
+  const CONTEXT_OVERLAY_VIEWS = [
+    { view: 'stream', label: 'stream' },
+    { view: 'library', label: 'library' },
+  ];
+
+  function normalizeContextView(view) {
+    return CONTEXT_OVERLAY_VIEWS.some((v) => v.view === view) ? view : 'stream';
+  }
+
+  function numberOrZero(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function formatContextDate(ms) {
+    if (!Number.isFinite(Number(ms))) return '';
+    try {
+      return new Date(Number(ms)).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    } catch { return ''; }
+  }
+
+  function contextData() {
+    return dataStore.context || {};
+  }
+
+  function contextItemsFor(view, data = contextData()) {
+    const items = data?.[normalizeContextView(view)];
+    return Array.isArray(items) ? items : [];
+  }
+
+  function openFullContext(view = contextView) {
+    const nextView = normalizeContextView(view);
+    if (typeof window.__srwkOpenInNewTab === 'function') {
+      window.__srwkOpenInNewTab({ tab: 'alchemy', mode: 'context', contextView: nextView });
+    } else if (typeof window.__srwkAlchemyJump === 'function') {
+      window.__srwkAlchemyJump('context', { contextView: nextView });
+    }
+  }
+
+  function renderContextRows(view, data) {
+    const normalized = normalizeContextView(view);
+    const items = contextItemsFor(normalized, data);
+    if (data?.loading && !data?.loaded) {
+      return `<div class="mctx-empty"><span class="mctx-empty-tag">loading</span><span>building the local index...</span></div>`;
+    }
+    if (data?.error) {
+      return `<div class="mctx-empty mctx-empty-error"><span class="mctx-empty-tag">blocked</span><span>${escHtml(data.error)}</span></div>`;
+    }
+    if (!items.length) {
+      return `<div class="mctx-empty"><span class="mctx-empty-tag">quiet</span><span>nothing in this ${escHtml(normalized)} layer yet.</span></div>`;
+    }
+    if (normalized === 'library') {
+      return items.map((it) => `
+        <button type="button" class="mctx-row" data-mctx-row data-context-view="library" aria-label="${escHtml(`${it.title || 'topic'}, ${it.meta || ''}, open context library`)}">
+          <span class="mctx-row-head">
+            <strong>${escHtml(it.title || 'topic')}</strong>
+            <span>${escHtml(String(it.count || ''))}</span>
+          </span>
+          <span class="mctx-row-meta">${escHtml(it.meta || '')}</span>
+        </button>`).join('');
+    }
+    return items.map((it) => {
+      const when = formatContextDate(it.dateMs);
+      const species = String(it.kind || 'context').replace(/_/g, ' ');
+      return `
+        <button type="button" class="mctx-row" data-mctx-row data-context-view="stream" aria-label="${escHtml(`${it.title || 'context item'}, ${it.meta || species}, open context stream`)}">
+          <span class="mctx-row-head">
+            <strong>${escHtml(it.title || 'context item')}</strong>
+            <span>${escHtml(when || species)}</span>
+          </span>
+          ${it.summary ? `<span class="mctx-row-summary">${escHtml(it.summary)}</span>` : ''}
+          <span class="mctx-row-meta">${escHtml(it.meta || species)}</span>
+        </button>`;
+    }).join('');
+  }
+
+  function updateContextSurface() {
+    const data = contextData();
+    contextView = normalizeContextView(contextView || data.activeView);
+    const counts = data.counts || {};
+    const streamCount = numberOrZero(counts.stream);
+    const topicCount = numberOrZero(counts.topics);
+    const claimCount = numberOrZero(counts.claims);
+    const totalCount = streamCount || (numberOrZero(counts.articles) + numberOrZero(counts.readouts) + numberOrZero(counts.raw));
+    if (contextCountEl) contextCountEl.textContent = String(totalCount);
+    if (contextTrigger) {
+      contextTrigger.classList.toggle('is-loading', !!data.loading && !data.loaded);
+      contextTrigger.setAttribute('aria-expanded', contextOpen ? 'true' : 'false');
+      contextTrigger.setAttribute('title', data.loading ? 'context is loading' : `${totalCount} context item${totalCount === 1 ? '' : 's'}`);
+    }
+    if (!contextCard || !contextOverlay || !contextOpen) return;
+    const tabs = CONTEXT_OVERLAY_VIEWS.map((v) => `
+      <button type="button" class="mctx-tab${contextView === v.view ? ' is-active' : ''}" data-context-tab="${v.view}" aria-selected="${contextView === v.view ? 'true' : 'false'}">
+        ${escHtml(v.label)}
+      </button>`).join('');
+    const message = data.message
+      ? `<p class="mctx-message">${escHtml(data.message)}</p>`
+      : `<p class="mctx-message">The context page, folded into the membrane. Open the full reader when you want the long-form view.</p>`;
+    contextCard.innerHTML = `
+      <header class="mctx-head">
+        <div>
+          <span class="mctx-kicker">context layer</span>
+          <h2>What happened, and what we know</h2>
+        </div>
+        <div class="mctx-actions">
+          <button type="button" class="mctx-icon-btn" data-context-full title="open full context page" aria-label="open full context page">${CONTEXT_OPEN}</button>
+          <button type="button" class="mctx-icon-btn" data-context-close title="close" aria-label="close context overlay">${DISMISS_X}</button>
+        </div>
+      </header>
+      <div class="mctx-stats" aria-label="context counts">
+        <span><strong>${streamCount}</strong>stream</span>
+        <span><strong>${topicCount}</strong>topics</span>
+        <span><strong>${claimCount}</strong>claims</span>
+      </div>
+      <div class="mctx-tabs" role="tablist" aria-label="context lens">${tabs}</div>
+      ${message}
+      <div class="mctx-body" data-context-body>${renderContextRows(contextView, data)}</div>
+    `;
+    contextCard.querySelectorAll('[data-context-tab]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        contextView = normalizeContextView(btn.dataset.contextTab);
+        updateContextSurface();
+      });
+    });
+    contextCard.querySelector('[data-context-full]')?.addEventListener('click', () => openFullContext(contextView));
+    contextCard.querySelectorAll('[data-mctx-row]').forEach((btn) => {
+      btn.addEventListener('click', () => openFullContext(btn.dataset.contextView || contextView));
+    });
+  }
+
+  function setContextOpen(open) {
+    contextOpen = !!open;
+    if (contextOverlay) contextOverlay.hidden = !contextOpen;
+    container.classList.toggle('membrane-context-open', contextOpen);
+    contextTrigger?.setAttribute('aria-expanded', contextOpen ? 'true' : 'false');
+    if (contextOpen) closeFeedPop();
+    scene?.setContextOverlayOpen?.(contextOpen);
+    updateContextSurface();
+    if (contextOpen) {
+      requestAnimationFrame(() => {
+        contextCard?.querySelector('.mctx-tab.is-active')?.focus({ preventScroll: true });
+      });
+    } else {
+      contextTrigger?.focus({ preventScroll: true });
+    }
+  }
+
+  function onContextKeydown(ev) {
+    if (ev.key === 'Escape' && contextOpen) {
+      ev.stopPropagation();
+      setContextOpen(false);
+    }
+  }
+
+  contextTrigger?.addEventListener('click', () => setContextOpen(!contextOpen));
+  contextOverlay?.addEventListener('click', (ev) => {
+    if (!ev.target.closest('[data-context-close]')) return;
+    ev.preventDefault();
+    setContextOpen(false);
+  });
+  document.addEventListener('keydown', onContextKeydown);
+
   // (feedPinnedCategory is gone: the in-flow click-pin was replaced by the
   // .mfeed-pop popover — state lives in feedPopCat/feedPopPinned above.)
 
@@ -1416,7 +1599,6 @@ export function mountMembrane(container, opts = {}) {
   // mountMembrane — an escaped throw here leaked the already-started 60s
   // agenda interval on EVERY visit (the caller never got the destroy handle)
   // and left the whole landing blank.
-  let scene;
   try {
     scene = createMembraneScene(canvas, {
       // Start on the shape we were last showing (remembered across page switches).
@@ -1433,7 +1615,7 @@ export function mountMembrane(container, opts = {}) {
     });
   } catch (e) {
     console.warn('[membrane] WebGL scene unavailable — rails/capture still live:', e);
-    scene = { getFaces: () => null, resumeFromRubiks() {}, destroy() {} };
+    scene = { getFaces: () => null, setContextOverlayOpen() {}, resumeFromRubiks() {}, destroy() {} };
   }
   cp('membrane:after-createScene');
   updateShapeName(scene.getFaces());
@@ -1443,6 +1625,7 @@ export function mountMembrane(container, opts = {}) {
   renderAgenda();
   renderFeed();
   renderFieldFeed();
+  updateContextSurface();
 
   const feedback = setupFeedbackBox(container);
 
@@ -1469,6 +1652,7 @@ export function mountMembrane(container, opts = {}) {
       if (perBlobData && perBlobData.events) eventsDataDay = localDayStamp();
       dataStore = { ...dataStore, ...perBlobData };
       renderAgenda();
+      updateContextSurface();
       renderFeed();
       renderFieldFeed();
     },
@@ -1479,12 +1663,14 @@ export function mountMembrane(container, opts = {}) {
       clearInterval(agendaTimer);
       clearTimeout(feedPopHideTimer);
       document.removeEventListener('keydown', onFeedPopKey);
+      document.removeEventListener('keydown', onContextKeydown);
       container.removeEventListener('mousedown', onFeedPopOutside);
       feedback.dispose();
       if (rubiks) rubiks.dispose();
       scene.destroy();
       container.classList.remove('membrane-host');
       container.classList.remove('membrane-hub');
+      container.classList.remove('membrane-context-open');
       container.classList.remove('membrane-rubiks-active');
       container.innerHTML = '';
     },

@@ -2116,6 +2116,7 @@ function mountCustomDetailOrb() {
 // of membrane mode (see the render() prelude above).
 function renderMembrane() {
   if (!state.canvas) return;
+  ensureMembraneContextVaultLoaded();
   if (state.membraneController) {
     state.membraneController.setData(computeMembraneData());
     return;
@@ -2143,6 +2144,18 @@ function renderMembrane() {
   }
   state.membraneController = membraneModule.mountMembrane(state.canvas);
   state.membraneController.setData(computeMembraneData());
+}
+
+function ensureMembraneContextVaultLoaded() {
+  const cv = state.contextVault;
+  if (!cv || cv.loaded || cv.loading || cv.memLoadQueued) return;
+  cv.memLoadQueued = true;
+  setTimeout(() => {
+    cv.memLoadQueued = false;
+    if (!state.mounted || state.mode !== "membrane" || state.detailRecordId) return;
+    if (cv.loaded || cv.loading) return;
+    loadContextVault({ scan: false });
+  }, 0);
 }
 
 // Today's timed events from the Phala calendar GRID (cohort.calendar.tabs).
@@ -2556,6 +2569,70 @@ function buildContextTranscriptFeed(manifest) {
     .slice(0, 80);
 }
 
+function contextCompactText(value, limit = 150) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text || text.length <= limit) return text;
+  return `${text.slice(0, Math.max(0, limit - 1)).trim()}…`;
+}
+
+function buildMembraneContextData() {
+  const cv = state.contextVault || {};
+  let articles = [];
+  let rawScripts = [];
+  let distilled = [];
+  let cards = [];
+  let tier = "";
+  try {
+    ({ articles = [], rawScripts = [], distilled = [], cards = [], tier = "" } = contextLensInputs());
+  } catch {
+    articles = contextArticleSources(cv.manifest || null);
+    rawScripts = cv.manifest?.raw_scripts || [];
+    distilled = contextDistilledList();
+    cards = [];
+  }
+  const streamItems = buildStreamItems({ articles, distilled, rawScripts });
+  const stream = streamItems.slice(0, 14).map((item) => ({
+    key: streamKey(item.kind, item.id),
+    kind: item.kind,
+    title: contextStreamTitle(item),
+    meta: contextStreamMeta(item),
+    summary: contextCompactText(contextStreamDesc(item), 170),
+    dateMs: item.dateMs,
+  }));
+  const topics = buildTopicIndex({ articles, distilled, cards });
+  const library = topics.slice(0, 12).map((topic) => {
+    const bits = [];
+    if (topic.hints) bits.push(`${topic.hints} hint${topic.hints === 1 ? "" : "s"}`);
+    if (topic.claims) bits.push(`${topic.claims} claim${topic.claims === 1 ? "" : "s"}`);
+    if (topic.sessions) bits.push(`${topic.sessions} session${topic.sessions === 1 ? "" : "s"}`);
+    return {
+      key: topic.key,
+      title: topic.label,
+      count: topic.total,
+      meta: bits.join(" · ") || `${topic.total} item${topic.total === 1 ? "" : "s"}`,
+    };
+  });
+  const counts = {
+    stream: streamItems.length,
+    topics: topics.length,
+    articles: articles.length,
+    readouts: distilled.length,
+    raw: rawScripts.length,
+    claims: cards.length,
+  };
+  return {
+    loaded: !!cv.loaded,
+    loading: !!cv.loading,
+    error: cv.error || "",
+    message: cv.message || "",
+    activeView: contextNormalizeView(cv.mode),
+    counts,
+    stream,
+    library,
+    evidenceTier: tier,
+  };
+}
+
 function computeMembraneData() {
   const c = state.cohort || {};
   const cohortIndex = buildCohortIndex(c);
@@ -2840,6 +2917,7 @@ function computeMembraneData() {
     // Prefer the build-time feed bundled in the surface (full, stable);
     // fall back to the live builder if it's somehow absent.
     feed: contextTranscriptFeed.length ? [...contextTranscriptFeed, ...feed] : feed,
+    context: buildMembraneContextData(),
   };
 }
 

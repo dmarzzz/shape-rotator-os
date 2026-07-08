@@ -66,6 +66,10 @@ export function createMembraneScene(canvas, opts = {}) {
 
   let activeId = 'self';
   let wiggleStart = null;
+  let contextOverlayOpen = false;
+  let contextShiftX = 0;
+  let layoutShiftY = 0;
+  let contextScale = 1;
 
   function setActiveBlob(id) {
     if (!BLOB_IDS.includes(id)) return;
@@ -256,6 +260,18 @@ export function createMembraneScene(canvas, opts = {}) {
   // and eases it back toward the slow idle tumble (mutually irrational-ish
   // axis rates so the resting spin never visibly repeats).
   function tickMotion(time, nowMs, dt) {
+    const overlayWide = contextOverlayOpen && camera.aspect >= 1.12;
+    const compactPortrait = camera.aspect <= 0.68;
+    const targetShiftX = overlayWide ? 0.90 : 0;
+    const targetShiftY = compactPortrait ? 0.54 : 0;
+    const targetScale = (overlayWide ? 0.86 : 1) * (compactPortrait ? 0.78 : 1);
+    const overlayEase = 1 - Math.exp(-dt / 0.26);
+    contextShiftX += (targetShiftX - contextShiftX) * overlayEase;
+    layoutShiftY += (targetShiftY - layoutShiftY) * overlayEase;
+    contextScale += (targetScale - contextScale) * overlayEase;
+    cube.group.position.x = contextShiftX;
+    cube.group.position.y = layoutShiftY;
+
     if (!dragging) {
       rotateBy(spinVel.y * dt, spinVel.x * dt);
       _dq.setFromAxisAngle(_axis.set(0, 0, 1), spinVel.z * dt);
@@ -266,7 +282,7 @@ export function createMembraneScene(canvas, opts = {}) {
       spinVel.lerp(target, 1 - Math.exp(-dt / IDLE_RETURN_TAU));
     }
 
-    let s = CUBE_SCALE * (1 + Math.sin(time * 0.6) * 0.018);
+    let s = CUBE_SCALE * contextScale * (1 + Math.sin(time * 0.6) * 0.018);
     if (wiggleStart) {
       const dt = (nowMs - wiggleStart) / 400;
       if (dt < 1) {
@@ -372,6 +388,9 @@ export function createMembraneScene(canvas, opts = {}) {
     camera,
     renderer,
     setActiveBlob,
+    setContextOverlayOpen(open) {
+      contextOverlayOpen = !!open;
+    },
     getActiveBlobId: () => activeId,
     getFaces: () => cube.getFaces(),
     // Called when the user spins the revealed Rubik's cube away: the die
