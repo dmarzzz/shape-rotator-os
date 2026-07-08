@@ -1802,31 +1802,76 @@ html[data-theme="light"] .membrane-context-card {
 @media (max-width: 760px) {
   .membrane-right-col {
     top: 56px;
-    right: 8px;
-    bottom: 144px;
-    width: 154px;
-    opacity: 0.52;
+    right: 10px;
+    bottom: auto;
+    width: 150px;
+    opacity: 0.44;
+    filter: saturate(0.66);
   }
   .membrane-agenda {
-    max-height: 38vh;
-    padding: 0 8px 8px;
+    max-height: none;
+    padding: 0;
+    gap: 0;
+    -webkit-mask-image: none;
+            mask-image: none;
   }
-  .membrane-agenda .magenda-track { height: 132px; }
+  .membrane-agenda .magenda-day-head,
+  .membrane-agenda .magenda-track,
+  .membrane-agenda .magenda-up,
+  .membrane-agenda .magenda-later {
+    display: none;
+  }
+  .membrane-agenda .magenda-next {
+    padding: 9px 12px;
+    border-radius: 10px;
+    background: rgba(var(--mem-ink-rgb), 0.038);
+  }
+  .magenda-next-eyebrow {
+    font-size: 7.5px;
+    letter-spacing: 0.16em;
+  }
+  .magenda-next .magenda-event-title {
+    font-size: 12px;
+  }
+  .magenda-next .magenda-event-time {
+    font-size: 9px;
+  }
   .membrane-field-feed { display: none; }
   .membrane-feed {
     left: 12px;
     right: 12px;
     bottom: 74px;
     width: auto;
-    max-height: 154px;
-    padding: 8px;
+    max-height: 228px;
+    padding: 9px;
+    justify-content: flex-start;
+    overflow-y: auto;
+    background:
+      linear-gradient(180deg, rgba(var(--mem-ink-rgb), 0.095), rgba(var(--mem-ink-rgb), 0.052)),
+      rgba(0, 0, 0, 0.36);
   }
+  .membrane-feed::-webkit-scrollbar { width: 0; height: 0; }
   .mfeed-filter {
+    flex: none;
     flex-wrap: nowrap;
     overflow-x: auto;
+    margin: 0 0 3px;
+    padding: 0 2px 6px;
     scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+            mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
   }
   .mfeed-filter::-webkit-scrollbar { width: 0; height: 0; }
+  .mfeed-filter-chip {
+    flex: 0 0 auto;
+    min-height: 26px;
+    padding: 5px 8px;
+    background: rgba(var(--mem-ink-rgb), 0.065);
+  }
+  .mfeed-category-row {
+    flex: none;
+    max-height: 68px;
+  }
   .mfeed-category {
     min-height: 36px;
     grid-template-columns: 15px minmax(0, 1fr) auto;
