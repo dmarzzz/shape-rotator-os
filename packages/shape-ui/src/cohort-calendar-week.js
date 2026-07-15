@@ -308,6 +308,27 @@ function isJoinLine(value) {
   return !!extractJoinLink(value) && /^\s*(?:[-*]\s*)?(?:meet|join)\s*:/i.test(String(value || ""));
 }
 
+// Public web cards keep the schedule but remove conferencing URLs from their
+// rendered HTML. Most calendar descriptions put the URL on its own Meet/Join
+// line; the inline cleanup also covers a title such as "Demo — Meet: https://…".
+function stripJoinLinks(blockText) {
+  const safeLines = [];
+  for (const line of String(blockText || "").split("\n")) {
+    const joinHref = extractJoinLink(line);
+    if (!joinHref) {
+      safeLines.push(line);
+      continue;
+    }
+    if (isJoinLine(line)) continue;
+    const safeLine = line
+      .replaceAll(joinHref, "")
+      .replace(/\s*(?:[-–—|·]\s*)?(?:meet|join)\s*:\s*[.,;:!?-]*\s*$/i, "")
+      .trimEnd();
+    if (safeLine.trim()) safeLines.push(safeLine);
+  }
+  return safeLines.join("\n").trim();
+}
+
 export function buildEventCalendarActions({
   blockText,
   dayMs,
@@ -395,22 +416,30 @@ function eventAddAction(actions, joinHref) {
   };
 }
 
-function renderEventInlineActions(blockText, dayMs) {
-  const actions = buildEventCalendarActions({
-    blockText,
-    dayMs,
-    guestCalendarHref: configuredGuestCalendarHref(),
-  });
+function renderEventInlineActions(blockText, dayMs, { allowJoinLinks = true } = {}) {
   const joinHref = extractJoinLink(blockText);
+  const actionBlockText = allowJoinLinks ? blockText : stripJoinLinks(blockText);
+  const guestCalendarHref = configuredGuestCalendarHref();
+  const actions = buildEventCalendarActions({
+    blockText: actionBlockText,
+    dayMs,
+    guestCalendarHref,
+  });
+  // The action builder only selects the shared calendar when its input still
+  // contains a join marker. Public rendering uses sanitized input, so carry
+  // that harmless subscription destination over explicitly.
+  if (!allowJoinLinks && joinHref && actions) actions.guestCalendarHref = guestCalendarHref;
   const addAction = eventAddAction(actions, joinHref);
-  if (!actions && !joinHref) return "";
+  const visibleJoinHref = allowJoinLinks ? joinHref : "";
+  if (!visibleJoinHref && !addAction) return "";
   return `<span class="cal-event-actions" data-kind="${escAttr(actions?.timeKind || "join")}">
-    ${joinHref ? `<a class="cal-join-link" href="${escAttr(joinHref)}" target="_blank" rel="noopener" aria-label="${escAttr(`join ${actions?.title || "event"}`)}">join event</a>` : ""}
+    ${visibleJoinHref ? `<a class="cal-join-link" href="${escAttr(visibleJoinHref)}" target="_blank" rel="noopener" aria-label="${escAttr(`join ${actions?.title || "event"}`)}">join event</a>` : ""}
     ${addAction ? `<a class="cal-add-link" href="${escAttr(addAction.href)}" target="_blank" rel="noopener" data-cal-add-mode="${escAttr(addAction.mode)}" aria-label="${escAttr(addAction.aria)}">${escHtml(addAction.label)}</a>` : ""}
   </span>`;
 }
 
-function renderEventQuickActions(blockText, title = "event") {
+function renderEventQuickActions(blockText, title = "event", { allowJoinLinks = true } = {}) {
+  if (!allowJoinLinks) return "";
   const joinHref = extractJoinLink(blockText);
   if (!joinHref) return "";
   return `<div class="cal-event-quick-actions">
@@ -548,15 +577,19 @@ function eventCategory(text) {
 }
 
 // Wrap one event block in a color-coded card with a category chip (+ TBC pill).
-function renderEventCard(blockText, sources = [], { dayMs } = {}) {
-  const cat = eventCategory(blockText);
-  const actions = buildEventCalendarActions({
-    blockText,
-    dayMs,
-    guestCalendarHref: configuredGuestCalendarHref(),
-  });
+function renderEventCard(blockText, sources = [], { dayMs, allowJoinLinks = true } = {}) {
+  const displayBlockText = allowJoinLinks ? blockText : stripJoinLinks(blockText);
+  const cat = eventCategory(displayBlockText);
   const joinHref = extractJoinLink(blockText);
+  const guestCalendarHref = configuredGuestCalendarHref();
+  const actions = buildEventCalendarActions({
+    blockText: displayBlockText,
+    dayMs,
+    guestCalendarHref,
+  });
+  if (!allowJoinLinks && joinHref && actions) actions.guestCalendarHref = guestCalendarHref;
   const addAction = eventAddAction(actions, joinHref);
+  const visibleJoinHref = allowJoinLinks ? joinHref : "";
   const actionAttrs = addAction
     ? [
         `data-cal-add-href="${escAttr(addAction.href)}"`,
@@ -570,11 +603,11 @@ function renderEventCard(blockText, sources = [], { dayMs } = {}) {
         addAction.mode === "template" ? `data-cal-add-filename="${escAttr(actions.icsFilename)}"` : "",
       ].join(" ")
     : "";
-  const joinAttrs = joinHref ? `data-cal-join-href="${escAttr(joinHref)}"` : "";
+  const joinAttrs = visibleJoinHref ? `data-cal-join-href="${escAttr(visibleJoinHref)}"` : "";
   const chip = (cat.label || cat.tbc)
     ? `<div class="cev-cat">${cat.label ? escHtml(cat.label) : ""}${cat.tbc ? `<span class="cev-tbc">TBC</span>` : ""}</div>`
     : "";
-  return `<div class="cal-event ev-${cat.key}${cat.tbc ? " is-tbc" : ""}" data-cat="${escAttr(cat.key)}" ${actionAttrs} ${joinAttrs} data-cal-event role="button" tabindex="0" aria-label="open event details">${chip}${renderEventBlock(blockText, sources)}${renderEventQuickActions(blockText, actions?.title || "event")}</div>`;
+  return `<div class="cal-event ev-${cat.key}${cat.tbc ? " is-tbc" : ""}" data-cat="${escAttr(cat.key)}" ${actionAttrs} ${joinAttrs} data-cal-event role="button" tabindex="0" aria-label="open event details">${chip}${renderEventBlock(displayBlockText, sources)}${renderEventQuickActions(blockText, actions?.title || "event", { allowJoinLinks })}</div>`;
 }
 
 // Open a full-detail popover for a clicked week-view event card. The card
@@ -1025,7 +1058,7 @@ function currentMinutesOfDay() {
 //   theme    — string; the week's theme, surfaced in the day header meta
 //   weekNum  — 1..10; surfaced in the day header meta (e.g. "w1 · m1")
 //   phase    — "m1" | "m2" | "m3"; tints the meta
-function renderDayView({ days, dayIdx, theme, weekNum, phase, transcriptMatches = [] }) {
+function renderDayView({ days, dayIdx, theme, weekNum, phase, transcriptMatches = [], allowJoinLinks = true }) {
   const safeIdx = Math.max(0, Math.min(6, dayIdx | 0));
   const day = days[safeIdx];
   if (!day) return "";
@@ -1103,7 +1136,8 @@ function renderDayView({ days, dayIdx, theme, weekNum, phase, transcriptMatches 
     // Event block: parse like the week renderer, but with full-width
     // typography — the day card is the entire column width, so the title
     // can be 26–32px italic without competing for space with anything.
-    const lines = dedupeAdjacentLines(it.raw.split("\n").map(l => l.replace(/\s+$/, "")));
+    const displayRaw = allowJoinLinks ? it.raw : stripJoinLinks(it.raw);
+    const lines = dedupeAdjacentLines(displayRaw.split("\n").map(l => l.replace(/\s+$/, "")));
     const firstRaw = lines[0].trim();
     let { time, rest } = splitLeadingTime(firstRaw);
     let title = rest;
@@ -1148,7 +1182,7 @@ function renderDayView({ days, dayIdx, theme, weekNum, phase, transcriptMatches 
       <article class="cda-row" data-state="${state}">
         <div class="cda-row-time">${time ? escHtml(time) : `<span class="cda-row-time-dim">—</span>`}</div>
         <div class="cda-row-body">
-          <h3 class="cda-row-title">${escHtml(title)}${renderInlineTranscriptLinks(titleSources)}${renderEventInlineActions(it.raw, day.dayMs)}</h3>
+          <h3 class="cda-row-title">${escHtml(title)}${renderInlineTranscriptLinks(titleSources)}${renderEventInlineActions(it.raw, day.dayMs, { allowJoinLinks })}</h3>
           ${extras.join("")}
           ${bulletsHtml}
         </div>
@@ -1229,6 +1263,11 @@ export function renderWeekView({
   const week = parseWeekRow(weekRow, safeWeekIdx, eventsByDay);
   const phase = phaseFor(safeWeekIdx + 1);
   const recurring = parseRecurring(rows);
+  // The static website intentionally exposes schedule details without making
+  // unauthenticated drive-by access to live calls one click away. Member-facing
+  // surfaces can still render the join action, and public calendar subscription
+  // links remain available separately.
+  const allowJoinLinks = surface !== "web";
 
   const isLive    = source === "live";
   const isSnapshot = source === "snapshot";
@@ -1274,7 +1313,7 @@ export function renderWeekView({
       </div>`).join("");
     const blockRows = d.blocks.map(b => {
       const sources = transcriptSourcesForBlock(transcriptMatches, dayIso(d.dayMs), b);
-      return renderEventCard(b, sources, { dayMs: d.dayMs });
+      return renderEventCard(b, sources, { dayMs: d.dayMs, allowJoinLinks });
     }).join("");
     return `
       <article class="cal-day ${d.isToday ? "is-today" : ""} ${d.isEmpty ? "is-empty" : ""}"
@@ -1349,6 +1388,7 @@ export function renderWeekView({
         weekNum: safeWeekIdx + 1,
         phase,
         transcriptMatches,
+        allowJoinLinks,
       })
     : "";
 

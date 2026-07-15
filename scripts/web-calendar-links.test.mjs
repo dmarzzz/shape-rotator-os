@@ -119,7 +119,7 @@ test("web calendar event add link preserves multi-day all-day markers", () => {
   assert.match(decodeURIComponent(actions.icsHref), /DTEND;VALUE=DATE:20260617/);
 });
 
-test("web calendar event renderer turns Meet markers into join links", () => {
+test("member calendar renderer still turns Meet markers into join links", () => {
   const meetUrl = "https://meet.google.com/abc-defg-hij";
   const html = renderWeekView({
     weekIdx: 0,
@@ -145,6 +145,57 @@ test("web calendar event renderer turns Meet markers into join links", () => {
   assert.doesNotMatch(html, /cal-add-link/);
 });
 
+test("public website omits Meet join links from week and event-detail markup", () => {
+  const meetUrl = "https://meet.google.com/abc-defg-hij";
+  const html = renderWeekView({
+    weekIdx: 0,
+    sub: "week",
+    source: "supabase",
+    surface: "web",
+    data: {
+      last_refresh: "2026-06-13T12:00:00Z",
+      tabs: {
+        "May 18 Start": [
+          ["Week", "Dates", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+          [],
+          ["1", "May 18-24", `16:00-17:00 Demo — Meet: ${meetUrl}`, "", "", "", "", "", ""],
+        ],
+      },
+    },
+  });
+
+  assert.doesNotMatch(html, /join event/);
+  assert.doesNotMatch(html, /data-cal-join-href/);
+  assert.doesNotMatch(html, /meet\.google\.com/);
+  assert.doesNotMatch(html, /cal-event-extra">Meet:/);
+  assert.match(html, /Demo/);
+});
+
+test("public website omits Meet join links from day-view actions", () => {
+  const meetUrl = "https://meet.google.com/abc-defg-hij";
+  const html = renderWeekView({
+    weekIdx: 0,
+    dayIdx: 0,
+    sub: "day",
+    source: "supabase",
+    surface: "web",
+    data: {
+      last_refresh: "2026-06-13T12:00:00Z",
+      tabs: {
+        "May 18 Start": [
+          ["Week", "Dates", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+          [],
+          ["1", "May 18-24", `16:00-17:00 Demo — Meet: ${meetUrl}`, "", "", "", "", "", ""],
+        ],
+      },
+    },
+  });
+
+  assert.doesNotMatch(html, /join event/);
+  assert.doesNotMatch(html, /meet\.google\.com/);
+  assert.doesNotMatch(html, /cal-join-link/);
+});
+
 test("web calendar event detail omits add-copy for join-only Meet cards", () => {
   assert.equal(eventDetailActionNote({ addHref: "", actionTitle: "Demo" }), "");
   assert.equal(
@@ -157,20 +208,21 @@ test("web calendar event detail omits add-copy for join-only Meet cards", () => 
   );
 });
 
-test("web calendar Meet add action opens the shared guest calendar when configured", () => {
+test("public website keeps the shared calendar action without exposing its Meet link", () => {
   const meetUrl = "https://meet.google.com/abc-defg-hij";
   const memberGoogleHref = "https://calendar.google.com/calendar/r?cid=guest%40example.com";
   const html = withCalendarLinks({ memberGoogleHref }, () => renderWeekView({
     weekIdx: 0,
     sub: "week",
     source: "supabase",
+    surface: "web",
     data: {
       last_refresh: "2026-06-13T12:00:00Z",
       tabs: {
         "May 18 Start": [
           ["Week", "Dates", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
           [],
-          ["1", "May 18-24", `16:00-17:00 Demo\nMeet: ${meetUrl}`, "", "", "", "", "", ""],
+          ["1", "May 18-24", `16:00-17:00 Demo — Meet: ${meetUrl}`, "", "", "", "", "", ""],
         ],
       },
     },
@@ -181,4 +233,6 @@ test("web calendar Meet add action opens the shared guest calendar when configur
   assert.match(html, /data-cal-add-note="opens the shared guest calendar"/);
   assert.ok(html.includes(`href="${memberGoogleHref}"`));
   assert.doesNotMatch(html, /calendar\.google\.com\/calendar\/render/);
+  assert.doesNotMatch(html, /join event/);
+  assert.doesNotMatch(html, /meet\.google\.com/);
 });
