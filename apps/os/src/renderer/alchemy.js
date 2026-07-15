@@ -18234,6 +18234,37 @@ function renderTeamJourneyStrip(recordId) {
 // section, since most teams won't have this for a while. Collects ALL
 // matching cards (a team can carry zero to ~5), sorted oldest-first so
 // the rotation reads as a timeline of bets.
+// TRACES TO SOURCE — makes the dossier's traceability legible: from a set of
+// Engine-derived cards' source_refs, render a subtle "traces to · N transcript
+// evidence · 1 github repo" line so a reader can see a derived claim is anchored
+// to real upstream artifacts. Reuses the existing provenance legend + chip styles
+// (no new CSS); source refs are "observed" provenance. Distinct refs are counted
+// (a card citing the same evidence card twice counts once). Empty -> "".
+const TRACE_KIND_LABELS = {
+  cohort_app_transcript_evidence_card: ["transcript evidence", "transcript evidence"],
+  cohort_insight_card: ["insight card", "insight cards"],
+  guidance_event: ["guidance event", "guidance events"],
+  github_repo: ["GitHub repo", "GitHub repos"],
+};
+function renderInsightTraces(cards) {
+  const byKind = new Map(); // kind -> Set(ref)
+  for (const c of Array.isArray(cards) ? cards : []) {
+    for (const ref of Array.isArray(c?.source_refs) ? c.source_refs : []) {
+      const kind = String(ref?.kind || "");
+      if (!kind) continue;
+      if (!byKind.has(kind)) byKind.set(kind, new Set());
+      byKind.get(kind).add(String(ref?.ref ?? ""));
+    }
+  }
+  if (!byKind.size) return "";
+  const chips = [...byKind.entries()].map(([kind, refs]) => {
+    const n = refs.size;
+    const labels = TRACE_KIND_LABELS[kind] || [kind, kind];
+    return `<span class="alch-prov is-observed">${escHtml(`${n} ${n === 1 ? labels[0] : labels[1]}`)}</span>`;
+  }).join(" · ");
+  return `<p class="alch-prov-legend alch-traces">traces to · ${chips}</p>`;
+}
+
 function renderTeamShapeLedger(recordId) {
   const cards = cohortInsightCards("shape_ledger")
     .filter(c => Array.isArray(c?.subject_ids) && c.subject_ids.map(String).includes(String(recordId)));
@@ -18276,7 +18307,7 @@ function renderTeamShapeLedger(recordId) {
       ${r.lesson ? `<p class="alch-shape-lesson">${escHtml(r.lesson)}</p>` : ""}
     </div>
   `).join("");
-  return renderFlatSection("shape rotation", rowsHtml);
+  return renderFlatSection("shape rotation", rowsHtml + renderInsightTraces(cards));
 }
 
 // EVIDENCE STATE — what is REAL vs merely declared. Every row carries a
@@ -18324,7 +18355,7 @@ function renderTeamEvidenceStateFromCards(cards) {
     `;
   }).join("");
   const preview = previewSnippet(areas.map(a => a.area).filter(Boolean)) || "known vs unknown, by area";
-  return renderDisclosureSection("evidence state", provLegend() + rows, false, preview);
+  return renderDisclosureSection("evidence state", provLegend() + rows + renderInsightTraces(cards), false, preview);
 }
 // Fallback path: exactly the original field-derived behavior, unchanged.
 function renderTeamEvidenceStateDerived(team, recordId, cohortIndex) {
