@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "artifact_id": "github-releases:elizaos:elizaos-eliza",
+  "artifact_kind": "github_release_list",
+  "record_type": "team",
+  "record_id": "elizaos",
+  "date": "2026-07-31",
+  "title": "elizaOS/eliza: 11 releases",
+  "summary": "Latest: [internal] CI evidence asset store (part 8), PR #17424 exact-head evidence (b7afc19344c5), PR #17424 exact-head evidence (28c408619636), [internal] CI evidence asset store (part 5), [internal] CI evidence asset store (part 4)",
+  "source_kind": "github_releases_api",
+  "source_url": "https://github.com/elizaOS/eliza/releases",
+  "source_repo": "elizaOS/eliza",
+  "source_transform": "gh-release-list",
+  "review_status": "generated",
+  "surface_recommendation": "promote_candidate",
+  "verbatim": true,
+  "release_count": 11,
+  "releases": [
+    {
+      "tag_name": "pr-evidence-8",
+      "name": "[internal] CI evidence asset store (part 8)",
+      "published_at": "2026-08-13T07:03:40Z",
+      "prerelease": true,
+      "latest": false,
+      "html_url": "https://github.com/elizaOS/eliza/releases/tag/pr-evidence-8"
+    },
+    {
+      "tag_name": "pr-evidence-7",
+      "name": "PR #17424 exact-head evidence (b7afc19344c5)",
+      "published_at": "2026-08-01T09:34:24Z",
+      "prerelease": true,
+      "latest": false,
+      "html_url": "https://github.com/elizaOS/eliza/releases/tag/pr-evidence-7"
+    },
+    {
+      "tag_name": "pr-evidence-6",
+      "name": "PR #17424 exact-head evidence (28c408619636)",
+      "published_at": "2026-08-01T07:06:46Z",
+      "prerelease": true,
+      "latest": false,
+      "html_url": "https://github.com/elizaOS/eliza/releases/tag/pr-evidence-6"
+    },
+    {
+      "tag_name": "pr-evidence-5",
+      "name": "[internal] CI evidence asset store (part 5)",
+      "published_at": "2026-08-01T05:20:26Z",
+      "prerelease": true,
+      "latest": false,
+      "html_url": "https://github.com/elizaOS/eliza/releases/tag/pr-evidence-5"
+    },
+    {
+      "tag_name": "pr-evidence-4",
+      "name": "[internal] CI evidence asset store (part 4)",
+      "published_at": "2026-07-31T19:34:10Z",
+      "prerelease": false,
+      "latest": true,
+      "html_url": "https://github.com/elizaOS/eliza/releases/tag/pr-evidence-4"
+    },
+    {
+      "tag_name": "pr-evidence-3",
+      "name": "[internal] CI evidence asset store (part 3)",
+      "published_at": "2026-07-31T18:35:29Z",
+      "prerelease": true,
+      "latest": false,
+      "html_url": "https://github.com/elizaOS/eliza/releases/tag/pr-evidence-3"
+    },
+    {
+      "tag_name": "pr-evidence-2",
+      "name": "[internal] CI evidence asset store (part 2)",
+      "published_at": "2026-07-14T03:52:26Z",
+      "prerelease": true,
+      "latest": false,
+      "html_url": "https://github.com/elizaOS/eliza/releases/tag/pr-evidence-2"
+    },
+    {
+      "tag_name": "pr-evidence",
+      "name": "[internal] CI evidence asset store",
+      "published_at": "2026-07-07T03:12:36Z",
+      "prerelease": true,
+      "latest": false,
+      "html_url": "https://github.com/elizaOS/eliza/releases/tag/pr-evidence"
+    },
+    {
+      "tag_name": "v2.0.3-beta.7",
+      "name": "v2.0.3-beta.7 · Beta",
+      "published_at": "2026-06-28T08:13:14Z",
+      "prerelease": true,
+      "latest": false,
+      "html_url": "https://github.com/elizaOS/eliza/releases/tag/v2.0.3-beta.7"
+    },
+    {
+      "tag_name": "v2.0.3-beta.6",
+      "name": "v2.0.3-beta.6 · Beta",
+      "published_at": "2026-06-26T22:28:30Z",
+      "prerelease": true,
+      "latest": false,
+      "html_url": "https://github.com/elizaOS/eliza/releases/tag/v2.0.3-beta.6"
+    },
+    {
+      "tag_name": "v2.0.3-beta.5",
+      "name": "v2.0.3-beta.5 · Beta",
+      "published_at": "2026-06-26T18:19:35Z",
+      "prerelease": true,
+      "latest": false,
+      "html_url": "https://github.com/elizaOS/eliza/releases/tag/v2.0.3-beta.5"
+    }
+  ]
+}
