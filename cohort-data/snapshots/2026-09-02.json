@@ -1,0 +1,128 @@
+{
+  "generated_at": "2026-09-02T09:47:00.033Z",
+  "date": "2026-09-02",
+  "count": 5,
+  "events": [
+    {
+      "id": "d0acd645-de49-46ee-813d-4b9a28e1e7fc",
+      "record_id": "mikeishiring",
+      "actor": "mikeishiring",
+      "event_type": "self_report",
+      "field": null,
+      "value": {
+        "fields": [
+          "now",
+          "weekly_intention",
+          "skills",
+          "skill_areas",
+          "seeking",
+          "offering",
+          "prior_work"
+        ]
+      },
+      "weight": "loud",
+      "supersedes": null,
+      "created_at": "2026-06-28T17:52:57.71698+00:00"
+    },
+    {
+      "id": "1ba3ca59-06f8-40ad-8aa9-de8c0319314b",
+      "record_id": "mikeishiring",
+      "actor": "mikeishiring",
+      "event_type": "self_report",
+      "field": null,
+      "value": {
+        "fields": [
+          "weekly_intention"
+        ]
+      },
+      "weight": "loud",
+      "supersedes": null,
+      "created_at": "2026-06-28T19:32:51.87128+00:00"
+    },
+    {
+      "id": "4516de68-3184-4666-8fa7-f60bafffefa8",
+      "record_id": "albiona-hoti",
+      "actor": "albiona-hoti",
+      "event_type": "self_report",
+      "field": null,
+      "value": {
+        "fields": [
+          "now",
+          "weekly_intention",
+          "seeking",
+          "offering"
+        ]
+      },
+      "weight": "loud",
+      "supersedes": null,
+      "created_at": "2026-06-29T02:03:33.209915+00:00"
+    },
+    {
+      "id": "f550dc1c-cf9b-4540-b2c3-27433bafbd38",
+      "record_id": "prakhar-2026-07-06-1rpb",
+      "actor": "prakhar",
+      "event_type": "ask",
+      "field": null,
+      "value": {
+        "body": "Mine keeps dropping with a 1006 (abnormal close, no close frame) at a variable ~1–4 min — sometimes 70s, sometimes 3 min. I don't think it's my app: I disabled the server's WS keepalive pings, and I attached over the DevTools protocol and confirmed the socket's bufferedAmount stays 0 the whole time (no backpressure in either direction — client and server both healthy). A bare low-traffic probe survived 4 min, but a real streaming connection dies earlier.\n\nIt really looks like the gateway is abruptly killing long-lived connections. Is that expected? Is there any way to configure the WS idle/max-lifetime timeout on the gateway — or is the recommended pattern to avoid long-lived sockets entirely (chunked HTTP / reconnect)?",
+        "verb": "🤝 pair on",
+        "topic": "Debugging running a long-lived WebSocket through the dstack gateway to a CVM, with real client connections.",
+        "action": "post",
+        "author": "prakhar",
+        "intent": "ask",
+        "posted_at": "2026-07-06"
+      },
+      "weight": "loud",
+      "supersedes": null,
+      "created_at": "2026-07-06T05:53:47.24654+00:00"
+    },
+    {
+      "id": "c2b9b747-1768-43d4-a52f-201c2fbc209b",
+      "record_id": "hunter-horsfall",
+      "actor": "hunter-horsfall",
+      "event_type": "self_report",
+      "field": "now",
+      "value": {
+        "mode": "current_state_refresh",
+        "fields": [
+          "now",
+          "weekly_intention",
+          "skill_areas",
+          "go_to_them_for",
+          "recurring_themes",
+          "best_contexts"
+        ],
+        "app_context": "current_surface",
+        "team_fields": [
+          "prior_shipping"
+        ],
+        "source_kinds": [
+          "app_context",
+          "github"
+        ],
+        "team_record_id": "tinycloud",
+        "coverage_status": "thin",
+        "timeline_anchor": "current",
+        "usefulness_areas": {
+          "timeline": "current_state_refresh",
+          "findability": "improved",
+          "collaboration": "improved",
+          "current_state": "improved",
+          "proof_history": "improved",
+          "project_evidence": "queued_review",
+          "review_readiness": "improved"
+        },
+        "suggested_actions": [
+          "ask_member",
+          "queue_project_evidence",
+          "suggest_connections"
+        ],
+        "team_proposal_status": "pending_review",
+        "missing_evidence_count": 3
+      },
+      "weight": "loud",
+      "supersedes": null,
+      "created_at": "2026-07-27T18:31:01.524431+00:00"
+    }
+  ]
+}
